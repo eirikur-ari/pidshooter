@@ -9,9 +9,9 @@ import (
 	"strings"
 )
 
-// Info holds information about a running process.
-type Info struct {
-	PID  int
+// ProcessInfo holds information about a running process.
+type ProcessInfo struct {
+	Pid  int
 	Name string
 	RSS  int64 // Resident Set Size in bytes
 }
@@ -19,86 +19,59 @@ type Info struct {
 // MaxPatternLength is the maximum allowed length for a search pattern.
 const MaxPatternLength = 256
 
-// Find returns all running processes whose name contains any of the
+// FindProcesses returns all running processes whose name contains any of the
 // given patterns (case-insensitive substring match). It filters out the
 // current process and PID 1.
-func Find(patterns []string) ([]Info, error) {
-	err := validateSearchPatterns(patterns)
+func FindProcesses(patterns []string) ([]ProcessInfo, error) {
+	err := validate(patterns)
 	if err != nil {
 		return nil, err
 	}
 
-	myPID := os.Getpid()
-
-	lowerPatterns := ToLower(patterns)
-
-	processes, err := list()
+	processes, err := listProcesses()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list processes: %w", err)
 	}
 
-	matches := Matches(processes, myPID, lowerPatterns)
-
-	return matches, nil
+	return collectProcesses(processes, patterns), nil
 }
 
-func Matches(processes []Info, myPID int, lowerPatterns []string) []Info {
-	var matches []Info
-	for _, p := range processes {
-		if p.PID == myPID || p.PID == 1 {
-			continue
-		}
-		lowerName := strings.ToLower(p.Name)
-		for _, pat := range lowerPatterns {
-			if strings.Contains(lowerName, pat) {
-				matches = append(matches, p)
-				break
-			}
-		}
-	}
-	return matches
-}
-
-func ToLower(patterns []string) []string {
-	lowerPatterns := make([]string, len(patterns))
-	for i, p := range patterns {
-		lowerPatterns[i] = strings.ToLower(p)
-	}
-	return lowerPatterns
-}
-
-func validateSearchPatterns(patterns []string) error {
+// validates search pattern input
+func validate(patterns []string) error {
 	if len(patterns) == 0 {
-		return fmt.Errorf("at least one search pattern is required")
+		return fmt.Errorf("at least one search patterns is required")
 	}
-	for _, p := range patterns {
-		if p == "" {
-			return fmt.Errorf("search pattern must not be empty")
+	for _, keyword := range patterns {
+		if keyword == "" {
+			return fmt.Errorf("search patterns must not be empty")
 		}
-		if len(p) > MaxPatternLength {
-			return fmt.Errorf("search pattern exceeds maximum length of %d characters", MaxPatternLength)
+		if len(keyword) > MaxPatternLength {
+			return fmt.Errorf("search patterns exceeds maximum length of %d characters", MaxPatternLength)
 		}
 	}
 	return nil
 }
 
-// list retrieves all running processes using the ps command.
-func list() ([]Info, error) {
-	cmd := exec.Command("ps", "-eo", "pid,rss,comm")
+// listProcesses retrieves all running processes using the ps command.
+// This approach works on any POSIX-compatible system.
+func listProcesses() ([]ProcessInfo, error) {
+	// Use ps with POSIX-compatible flags, include RSS (in KB)
+	cmd := exec.Command("ps", "-ceo", "pid,rss,comm")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("ps command failed: %w", err)
 	}
 
-	var processes []Info
+	var processes []ProcessInfo
 	lines := strings.Split(string(output), "\n")
 
-	for _, line := range lines[1:] {
+	for _, line := range lines[1:] { // Skip header
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
 
+		// Split into PID, RSS, and command name
 		fields := strings.Fields(line)
 		if len(fields) < 3 {
 			continue
@@ -114,14 +87,36 @@ func list() ([]Info, error) {
 			rssKB = 0
 		}
 
+		// Convert KB to bytes
+		rssBytes := rssKB * 1024
+
+		// Command name is everything after PID and RSS
 		name := strings.Join(fields[2:], " ")
 
-		processes = append(processes, Info{
-			PID:  pid,
+		processes = append(processes, ProcessInfo{
+			Pid:  pid,
 			Name: name,
-			RSS:  rssKB * 1024,
+			RSS:  rssBytes,
 		})
 	}
 
 	return processes, nil
+}
+
+func collectProcesses(processes []ProcessInfo, patterns []string) []ProcessInfo {
+	var result []ProcessInfo
+	myPID := os.Getpid()
+	for _, proc := range processes {
+		// Skip own process and PID 1 (init/systemd)
+		if proc.Pid == myPID || proc.Pid == 1 {
+			continue
+		}
+		for _, pattern := range patterns {
+			if strings.Contains(strings.ToLower(proc.Name), strings.ToLower(pattern)) {
+				result = append(result, proc)
+				break
+			}
+		}
+	}
+	return result
 }

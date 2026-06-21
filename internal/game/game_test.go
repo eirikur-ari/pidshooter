@@ -33,9 +33,9 @@ func TestFormatBytes(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	processes := []process.Info{
-		{PID: 1, Name: "a", RSS: 100},
-		{PID: 2, Name: "b", RSS: 200},
+	processes := []process.ProcessInfo{
+		{Pid: 1, Name: "a", RSS: 100},
+		{Pid: 2, Name: "b", RSS: 200},
 	}
 
 	g := New(processes, true, 3.5, 60)

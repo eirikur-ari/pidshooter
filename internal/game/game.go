@@ -32,7 +32,7 @@ type Game struct {
 }
 
 // New creates a new game instance.
-func New(processes []process.Info, confirmMode bool, speed float64, timeLimit int) *Game {
+func New(processes []process.ProcessInfo, confirmMode bool, speed float64, timeLimit int) *Game {
 	return &Game{
 		entities:    make([]*Entity, 0, len(processes)),
 		confirmMode: confirmMode,
@@ -77,10 +77,10 @@ func (g *Game) Init() error {
 }
 
 // PopulateEntities creates entity objects for each process.
-func (g *Game) PopulateEntities(processes []process.Info) {
+func (g *Game) PopulateEntities(processes []process.ProcessInfo) {
 	w, h := g.screen.Size()
 	for _, p := range processes {
-		g.entities = append(g.entities, NewEntity(p.PID, p.Name, p.RSS, w, h))
+		g.entities = append(g.entities, NewEntity(p.Pid, p.Name, p.RSS, w, h))
 	}
 }
 
