@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -19,18 +20,33 @@ type ProcessInfo struct {
 // MaxPatternLength is the maximum allowed length for a search pattern.
 const MaxPatternLength = 256
 
+type processCollector interface {
+	Collect() ([]ProcessInfo, error)
+}
+
+type defaultCollector struct{}
+
+func (defaultCollector) Collect() ([]ProcessInfo, error) {
+	return listProcesses()
+}
+
+// NewDefaultCollector returns a processCollector backed by the real OS.
+func NewDefaultCollector() defaultCollector {
+	return defaultCollector{}
+}
+
 // FindProcesses returns all running processes whose name contains any of the
 // given patterns (case-insensitive substring match). It filters out the
 // current process and PID 1.
-func FindProcesses(patterns []string) ([]ProcessInfo, error) {
+func FindProcesses(patterns []string, collector processCollector) ([]ProcessInfo, error) {
 	err := validate(patterns)
 	if err != nil {
 		return nil, err
 	}
 
-	processes, err := listProcesses()
+	processes, err := collector.Collect()
 	if err != nil {
-		return nil, fmt.Errorf("failed to list processes: %w", err)
+		return nil, fmt.Errorf("failed to collect processes: %w", err)
 	}
 
 	return collectProcesses(processes, patterns), nil
@@ -53,10 +69,13 @@ func validate(patterns []string) error {
 }
 
 // listProcesses retrieves all running processes using the ps command.
-// This approach works on any POSIX-compatible system.
 func listProcesses() ([]ProcessInfo, error) {
-	// Use ps with POSIX-compatible flags, include RSS (in KB)
-	cmd := exec.Command("ps", "-ceo", "pid,rss,comm")
+	flags := "-eo"
+	if runtime.GOOS == "darwin" {
+		flags = "-ceo"
+	}
+	//TODO: we might want to cover nushell requirements, as well review if we need to adjust ps command according to OS
+	cmd := exec.Command("ps", flags, "pid,rss,comm")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("ps command failed: %w", err)

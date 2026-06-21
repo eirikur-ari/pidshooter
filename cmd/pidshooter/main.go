@@ -50,7 +50,7 @@ func run() error {
 		return err
 	}
 
-	processes, err := process.FindProcesses(patterns)
+	processes, err := process.FindProcesses(patterns, process.NewDefaultCollector())
 	if err != nil {
 		return fmt.Errorf("process search failed: %w", err)
 	}

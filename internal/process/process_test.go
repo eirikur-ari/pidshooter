@@ -1,6 +1,7 @@
 package process
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -120,23 +121,42 @@ func TestCollectProcesses_ExcludesOwnPID(t *testing.T) {
 	}
 }
 
-// FindProcesses integration tests
+// FindProcesses tests
 
-func TestFindProcesses_EmptyTerms(t *testing.T) {
-	_, err := FindProcesses([]string{})
+type fakeCollector struct {
+	processes []ProcessInfo
+	err       error
+}
+
+func (f fakeCollector) Collect() ([]ProcessInfo, error) {
+	return f.processes, f.err
+}
+
+func TestFindProcesses_EmptyPatterns(t *testing.T) {
+	_, err := FindProcesses([]string{}, fakeCollector{})
 	if err == nil {
-		t.Error("expected error for empty terms")
+		t.Error("expected error for empty patterns")
 	}
 }
 
-func TestFindProcesses_ExcludesPID1(t *testing.T) {
-	results, err := FindProcesses([]string{"a"})
+func TestFindProcesses_CollectorError(t *testing.T) {
+	collector := fakeCollector{err: fmt.Errorf("ps failed")}
+	_, err := FindProcesses([]string{"myapp"}, collector)
+	if err == nil {
+		t.Error("expected error when collector fails")
+	}
+}
+
+func TestFindProcesses_ReturnsMatches(t *testing.T) {
+	collector := fakeCollector{processes: []ProcessInfo{
+		{Pid: 100, Name: "myapp", RSS: 1024},
+		{Pid: 200, Name: "worker", RSS: 2048},
+	}}
+	results, err := FindProcesses([]string{"myapp"}, collector)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	for _, p := range results {
-		if p.Pid == 1 {
-			t.Error("should not include PID 1")
-		}
+	if len(results) != 1 || results[0].Pid != 100 {
+		t.Errorf("expected one match for 'myapp', got %v", results)
 	}
 }

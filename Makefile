@@ -7,7 +7,7 @@ LDFLAGS := -s -w
 
 .PHONY: all build test test-short test-race coverage vet fmt clean run help
 
-all: build
+all: clean test build
 
 ## build: Compile the binary into bin/
 build:
@@ -16,15 +16,23 @@ build:
 
 ## test: Run all tests
 test:
+	go test -v -tags integration -count=1 ./...
+
+# test-unit: Run only unit test
+test-unit:
 	go test -v -count=1 ./...
+
+# test-integration: Run only integration test
+test-integration:
+	go test -v -tags integration -run TestIntegration -count=1 ./...
 
 ## test-short: Run tests without verbose output
 test-short:
-	go test -count=1 ./...
+	go test -tags integration -count=1 ./...
 
 ## test-race: Run tests with the race detector
 test-race:
-	go test -race -count=1 ./...
+	go test -tags integration -race -count=1 ./...
 
 ## coverage: Run tests with coverage report
 coverage:
