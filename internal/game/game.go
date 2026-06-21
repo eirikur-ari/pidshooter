@@ -1,4 +1,5 @@
-package main
+// Package game implements the terminal-based PID shooter game loop.
+package game
 
 import (
 	"fmt"
@@ -6,13 +7,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/eirikur-ari/pidshooter/internal/process"
 	"github.com/gdamore/tcell/v2"
 )
 
 const (
-	// targetFPS is the desired frames per second for the animation.
-	targetFPS = 20
-	// frameDuration is the time between frames.
+	targetFPS     = 20
 	frameDuration = time.Second / targetFPS
 )
 
@@ -23,16 +23,16 @@ type Game struct {
 	confirmMode bool
 	speed       float64
 	running     bool
-	confirming  *Entity // Entity pending kill confirmation
-	kills       int     // Kill score counter
-	freedMem    int64   // Total freed memory in bytes
-	timeLimit   int     // Time limit in seconds (0 = no limit)
+	confirming  *Entity
+	kills       int
+	freedMem    int64
+	timeLimit   int
 	startTime   time.Time
-	highScore   int     // Top high score to display
+	highScore   int
 }
 
-// NewGame creates a new game instance with the given processes.
-func NewGame(processes []ProcessInfo, confirmMode bool, speed float64, timeLimit int) *Game {
+// New creates a new game instance.
+func New(processes []process.Info, confirmMode bool, speed float64, timeLimit int) *Game {
 	return &Game{
 		entities:    make([]*Entity, 0, len(processes)),
 		confirmMode: confirmMode,
@@ -42,7 +42,22 @@ func NewGame(processes []ProcessInfo, confirmMode bool, speed float64, timeLimit
 	}
 }
 
-// Init initializes the terminal screen and creates entities.
+// SetHighScore sets the high score to display.
+func (g *Game) SetHighScore(score int) { g.highScore = score }
+
+// Kills returns the current kill count.
+func (g *Game) Kills() int { return g.kills }
+
+// FreedMem returns total freed memory in bytes.
+func (g *Game) FreedMem() int64 { return g.freedMem }
+
+// StartTime returns when the game started.
+func (g *Game) StartTime() time.Time { return g.startTime }
+
+// Stop signals the game to exit.
+func (g *Game) Stop() { g.running = false }
+
+// Init initializes the terminal screen.
 func (g *Game) Init() error {
 	screen, err := tcell.NewScreen()
 	if err != nil {
@@ -58,13 +73,11 @@ func (g *Game) Init() error {
 	screen.Clear()
 
 	g.screen = screen
-
 	return nil
 }
 
 // PopulateEntities creates entity objects for each process.
-// Must be called after Init() so screen dimensions are available.
-func (g *Game) PopulateEntities(processes []ProcessInfo) {
+func (g *Game) PopulateEntities(processes []process.Info) {
 	w, h := g.screen.Size()
 	for _, p := range processes {
 		g.entities = append(g.entities, NewEntity(p.PID, p.Name, p.RSS, w, h))
@@ -77,7 +90,6 @@ func (g *Game) Run() {
 	ticker := time.NewTicker(frameDuration)
 	defer ticker.Stop()
 
-	// Event channel for non-blocking event polling
 	eventCh := make(chan tcell.Event, 10)
 	go func() {
 		for {
@@ -90,21 +102,13 @@ func (g *Game) Run() {
 	}()
 
 	for g.running {
-		// Process all pending events
 		g.drainEvents(eventCh)
-
-		// Update game state
 		g.update()
-
-		// Render frame
 		g.render()
-
-		// Wait for next frame
 		<-ticker.C
 	}
 }
 
-// drainEvents processes all queued events without blocking.
 func (g *Game) drainEvents(eventCh <-chan tcell.Event) {
 	for {
 		select {
@@ -116,25 +120,21 @@ func (g *Game) drainEvents(eventCh <-chan tcell.Event) {
 	}
 }
 
-// handleEvent dispatches events to appropriate handlers.
 func (g *Game) handleEvent(ev tcell.Event) {
 	switch ev := ev.(type) {
 	case *tcell.EventMouse:
-		// Only handle on button press, ignore release (Buttons() == 0) and drag
 		if ev.Buttons() == tcell.Button1 {
 			x, y := ev.Position()
 			g.handleMouseClick(x, y)
 		}
 	case *tcell.EventKey:
-		g.handleKeyPress(ev.Key(), ev.Rune())
+		g.HandleKeyPress(ev.Key(), ev.Rune())
 	case *tcell.EventResize:
 		g.screen.Sync()
 	}
 }
 
-// handleMouseClick checks if any entity was clicked and initiates kill.
 func (g *Game) handleMouseClick(x, y int) {
-	// If awaiting confirmation, only Y/N keys work — ignore mouse clicks
 	if g.confirming != nil {
 		return
 	}
@@ -151,10 +151,8 @@ func (g *Game) handleMouseClick(x, y int) {
 	}
 }
 
-// handleConfirmClick is no longer needed — confirmation handled via key or second click.
-
-// handleKeyPress processes keyboard input.
-func (g *Game) handleKeyPress(key tcell.Key, r rune) {
+// HandleKeyPress processes keyboard input.
+func (g *Game) HandleKeyPress(key tcell.Key, r rune) {
 	switch {
 	case key == tcell.KeyEscape:
 		g.running = false
@@ -164,7 +162,6 @@ func (g *Game) handleKeyPress(key tcell.Key, r rune) {
 		g.running = false
 	case r == 'q' || r == 'Q':
 		if g.confirming != nil {
-			// Cancel confirmation
 			g.confirming = nil
 		} else {
 			g.running = false
@@ -191,11 +188,9 @@ func (g *Game) handleKeyPress(key tcell.Key, r rune) {
 	}
 }
 
-// update advances the game state by one frame.
 func (g *Game) update() {
 	w, h := g.screen.Size()
 
-	// Check timer
 	if g.timeLimit > 0 {
 		elapsed := time.Since(g.startTime)
 		if elapsed >= time.Duration(g.timeLimit)*time.Second {
@@ -212,19 +207,16 @@ func (g *Game) update() {
 		}
 	}
 
-	// Exit when all processes are eliminated
 	if allDead && len(g.entities) > 0 {
 		g.running = false
 	}
 }
 
-// render draws all entities and the status bar.
 func (g *Game) render() {
 	g.screen.Clear()
 
 	w, h := g.screen.Size()
 
-	// Draw entities
 	aliveStyle := tcell.StyleDefault.Foreground(tcell.ColorGreen).Bold(true)
 	killStyle := tcell.StyleDefault.Foreground(tcell.ColorRed).Bold(true)
 
@@ -249,8 +241,7 @@ func (g *Game) render() {
 		}
 	}
 
-	// Draw freed memory in top-left corner
-	memStr := fmt.Sprintf(" FREED: %s ", formatBytes(g.freedMem))
+	memStr := fmt.Sprintf(" FREED: %s ", FormatBytes(g.freedMem))
 	memStyle := tcell.StyleDefault.Foreground(tcell.ColorAqua).Bold(true)
 	for i, ch := range memStr {
 		if i < w {
@@ -258,7 +249,6 @@ func (g *Game) render() {
 		}
 	}
 
-	// Draw high score in top-center
 	hiStr := fmt.Sprintf(" Highscore: %d ", g.highScore)
 	hiStyle := tcell.StyleDefault.Foreground(tcell.ColorPurple).Bold(true)
 	hiX := (w - len(hiStr)) / 2
@@ -271,7 +261,6 @@ func (g *Game) render() {
 		}
 	}
 
-	// Draw score in top-right corner
 	scoreStr := fmt.Sprintf(" KILLS: %d ", g.kills)
 	scoreStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Bold(true)
 	scoreX := w - len(scoreStr)
@@ -284,19 +273,15 @@ func (g *Game) render() {
 		}
 	}
 
-	// Draw status bar
 	g.drawStatusBar(w, h)
-
 	g.screen.Show()
 }
 
-// drawStatusBar renders the bottom status line.
 func (g *Game) drawStatusBar(w, h int) {
 	statusStyle := tcell.StyleDefault.
 		Foreground(tcell.ColorBlack).
 		Background(tcell.ColorWhite)
 
-	// Clear status line
 	for x := 0; x < w; x++ {
 		g.screen.SetContent(x, h-1, ' ', nil, statusStyle)
 	}
@@ -330,16 +315,13 @@ func (g *Game) drawStatusBar(w, h int) {
 	}
 }
 
-// killEntity sends SIGKILL to the process and starts the kill animation.
 func (g *Game) killEntity(e *Entity) {
 	if e.State != StateAlive {
 		return
 	}
 
-	// Attempt to kill the process
 	proc, err := os.FindProcess(e.PID)
 	if err == nil {
-		// Send SIGKILL - ignore errors (process may have already exited)
 		_ = proc.Signal(syscall.SIGKILL)
 	}
 
@@ -348,7 +330,7 @@ func (g *Game) killEntity(e *Entity) {
 	g.freedMem += e.RSS
 }
 
-// Cleanup restores the terminal to its original state. Safe to call multiple times.
+// Cleanup restores the terminal. Safe to call multiple times.
 func (g *Game) Cleanup() {
 	if g.screen != nil {
 		g.screen.Fini()
@@ -356,8 +338,8 @@ func (g *Game) Cleanup() {
 	}
 }
 
-// formatBytes formats a byte count into a human-readable string.
-func formatBytes(bytes int64) string {
+// FormatBytes formats a byte count into a human-readable string.
+func FormatBytes(bytes int64) string {
 	if bytes == 0 {
 		return "0 B"
 	}

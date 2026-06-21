@@ -1,4 +1,5 @@
-package main
+// Package score manages the high score persistence and display.
+package score
 
 import (
 	"encoding/json"
@@ -7,10 +8,12 @@ import (
 	"path/filepath"
 	"sort"
 	"time"
+
+	"github.com/eirikur-ari/pidshooter/internal/game"
 )
 
-// ScoreEntry represents a single high score record.
-type ScoreEntry struct {
+// Entry represents a single high score record.
+type Entry struct {
 	Kills    int       `json:"kills"`
 	FreedMem int64     `json:"freed_mem"`
 	Speed    float64   `json:"speed"`
@@ -19,15 +22,14 @@ type ScoreEntry struct {
 	Date     time.Time `json:"date"`
 }
 
-// ScoreBoard holds all high scores.
-type ScoreBoard struct {
-	Scores []ScoreEntry `json:"scores"`
+// Board holds all high scores.
+type Board struct {
+	Scores []Entry `json:"scores"`
 }
 
 const maxScores = 10
 
-// scoreFilePath returns the path to the high scores file.
-func scoreFilePath() string {
+func filePath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		home = "."
@@ -37,58 +39,57 @@ func scoreFilePath() string {
 	return filepath.Join(dir, "highscores.json")
 }
 
-// LoadScores reads the score board from disk.
-func LoadScores() *ScoreBoard {
-	sb := &ScoreBoard{}
-	data, err := os.ReadFile(scoreFilePath())
+// Load reads the score board from disk.
+func Load() *Board {
+	b := &Board{}
+	data, err := os.ReadFile(filePath())
 	if err != nil {
-		return sb
+		return b
 	}
-	_ = json.Unmarshal(data, sb)
-	return sb
+	_ = json.Unmarshal(data, b)
+	return b
 }
 
 // Save writes the score board to disk.
-func (sb *ScoreBoard) Save() error {
-	data, err := json.MarshalIndent(sb, "", "  ")
+func (b *Board) Save() error {
+	data, err := json.MarshalIndent(b, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal scores: %w", err)
 	}
-	return os.WriteFile(scoreFilePath(), data, 0644)
+	return os.WriteFile(filePath(), data, 0644)
 }
 
 // Add inserts a new score entry and keeps only the top N.
-func (sb *ScoreBoard) Add(entry ScoreEntry) bool {
-	sb.Scores = append(sb.Scores, entry)
-	sort.Slice(sb.Scores, func(i, j int) bool {
-		// Sort by kills descending, then by freed memory descending
-		if sb.Scores[i].Kills != sb.Scores[j].Kills {
-			return sb.Scores[i].Kills > sb.Scores[j].Kills
+func (b *Board) Add(entry Entry) bool {
+	b.Scores = append(b.Scores, entry)
+	sort.Slice(b.Scores, func(i, j int) bool {
+		if b.Scores[i].Kills != b.Scores[j].Kills {
+			return b.Scores[i].Kills > b.Scores[j].Kills
 		}
-		return sb.Scores[i].FreedMem > sb.Scores[j].FreedMem
+		return b.Scores[i].FreedMem > b.Scores[j].FreedMem
 	})
 
-	isHighScore := len(sb.Scores) <= maxScores ||
-		(len(sb.Scores) > 0 && sb.Scores[len(sb.Scores)-1] != entry)
+	isHighScore := len(b.Scores) <= maxScores ||
+		(len(b.Scores) > 0 && b.Scores[len(b.Scores)-1] != entry)
 
-	if len(sb.Scores) > maxScores {
-		sb.Scores = sb.Scores[:maxScores]
+	if len(b.Scores) > maxScores {
+		b.Scores = b.Scores[:maxScores]
 	}
 
 	return isHighScore
 }
 
-// HighScore returns the current top score (kills), or 0 if no scores exist.
-func (sb *ScoreBoard) HighScore() int {
-	if len(sb.Scores) == 0 {
+// HighScore returns the current top score (kills), or 0 if none.
+func (b *Board) HighScore() int {
+	if len(b.Scores) == 0 {
 		return 0
 	}
-	return sb.Scores[0].Kills
+	return b.Scores[0].Kills
 }
 
 // PrintScores displays the high score table to stdout.
-func (sb *ScoreBoard) PrintScores() {
-	if len(sb.Scores) == 0 {
+func (b *Board) PrintScores() {
+	if len(b.Scores) == 0 {
 		fmt.Println("\n  No high scores yet!")
 		return
 	}
@@ -97,8 +98,8 @@ func (sb *ScoreBoard) PrintScores() {
 	fmt.Println("  ║  # ║ Kills ║   Freed    ║ Speed ║    Date    ║")
 	fmt.Println("  ╠════╬═══════╬════════════╬═══════╬════════════╣")
 
-	for i, s := range sb.Scores {
-		mem := formatBytes(s.FreedMem)
+	for i, s := range b.Scores {
+		mem := game.FormatBytes(s.FreedMem)
 		date := s.Date.Format("2006-01-02")
 		fmt.Printf("  ║ %2d ║  %3d  ║ %8s   ║ %4.1fx ║ %s ║\n",
 			i+1, s.Kills, mem, s.Speed, date)

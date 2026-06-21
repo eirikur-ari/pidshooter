@@ -8,9 +8,13 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/eirikur-ari/pidshooter/internal/game"
+	"github.com/eirikur-ari/pidshooter/internal/process"
+	"github.com/eirikur-ari/pidshooter/internal/score"
 )
 
-const usage = `pidshooter - First Person PID Shoot
+const usage = `pidshooter - First Person PID Shooter
 
 Usage: pidshooter <pattern> [pattern2] [pattern3...] [--confirm] [--speed=N] [--time=N]
 
@@ -28,26 +32,25 @@ Controls:
 Examples:
   pidshooter firefox
   pidshooter chrome firefox node
-  pidshooter sleep --confirm
+  pidshooter firefox --confirm
   pidshooter node --speed=2.5 --time=60
   pidshooter node --time=0`
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 func run() error {
-	// Parse arguments
 	patterns, confirmMode, speed, timeLimit, err := parseArgs(os.Args[1:])
+
 	if err != nil {
 		return err
 	}
 
-	// Find matching processes
-	processes, err := FindProcesses(patterns)
+	processes, err := process.Find(patterns)
 	if err != nil {
 		return fmt.Errorf("process search failed: %w", err)
 	}
@@ -59,36 +62,30 @@ func run() error {
 
 	fmt.Printf("Found %d process(es) matching %v. Starting game...\n", len(processes), patterns)
 
-	// Create game
-	scoreBoard := LoadScores()
-	game := NewGame(processes, confirmMode, speed, timeLimit)
-	game.highScore = scoreBoard.HighScore()
+	scoreBoard := score.Load()
+	g := game.New(processes, confirmMode, speed, timeLimit)
+	g.SetHighScore(scoreBoard.HighScore())
 
-	// Initialize screen
-	if err := game.Init(); err != nil {
+	if err := g.Init(); err != nil {
 		return fmt.Errorf("screen initialization failed: %w", err)
 	}
-	defer game.Cleanup() // Safety net for panics/signals
+	defer g.Cleanup()
 
-	// Populate entities after screen is ready
-	game.PopulateEntities(processes)
+	g.PopulateEntities(processes)
 
-	// Handle OS signals for clean exit
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGTSTP)
 	go func() {
 		<-sigCh
-		game.running = false
+		g.Stop()
 	}()
 
-	// Run game loop
-	game.Run()
+	g.Run()
 
-	// Game over — save score
-	duration := time.Since(game.startTime).Seconds()
-	entry := ScoreEntry{
-		Kills:    game.kills,
-		FreedMem: game.freedMem,
+	duration := time.Since(g.StartTime()).Seconds()
+	entry := score.Entry{
+		Kills:    g.Kills(),
+		FreedMem: g.FreedMem(),
 		Speed:    speed,
 		Time:     timeLimit,
 		Duration: duration,
@@ -98,11 +95,10 @@ func run() error {
 	scoreBoard.Add(entry)
 	_ = scoreBoard.Save()
 
-	// Print results after terminal is restored
-	game.Cleanup()
+	g.Cleanup()
 	fmt.Printf("\n  Game Over! Kills: %d | Freed: %s | Time: %.1fs\n",
-		game.kills, formatBytes(game.freedMem), duration)
-	if game.kills > 0 && game.kills >= scoreBoard.HighScore() {
+		g.Kills(), game.FormatBytes(g.FreedMem()), duration)
+	if g.Kills() > 0 && g.Kills() >= scoreBoard.HighScore() {
 		fmt.Println("  🏆 New high score!")
 	}
 	scoreBoard.PrintScores()
@@ -110,7 +106,7 @@ func run() error {
 	return nil
 }
 
-// parseArgs parses command-line arguments and returns the patterns, confirm mode, speed, and time limit.
+// parseArgs parses command-line arguments.
 func parseArgs(args []string) ([]string, bool, float64, int, error) {
 	if len(args) == 0 {
 		fmt.Println(usage)
@@ -152,9 +148,8 @@ func parseArgs(args []string) ([]string, bool, float64, int, error) {
 		case len(arg) > 0 && arg[0] == '-':
 			return nil, false, 0, 0, fmt.Errorf("unknown flag: %s\nRun 'pidshooter --help' for usage", arg)
 		default:
-			// Validate pattern length (SECURITY-05: input validation)
-			if len(arg) > maxPatternLength {
-				return nil, false, 0, 0, fmt.Errorf("search pattern '%s' exceeds maximum length of %d characters", arg, maxPatternLength)
+			if len(arg) > process.MaxPatternLength {
+				return nil, false, 0, 0, fmt.Errorf("search pattern '%s' exceeds maximum length of %d characters", arg, process.MaxPatternLength)
 			}
 			patterns = append(patterns, arg)
 		}

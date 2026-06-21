@@ -1,4 +1,4 @@
-package main
+package game
 
 import (
 	"fmt"
@@ -17,14 +17,14 @@ const (
 	StateDead
 )
 
-// killAnimFrames is the number of frames the kill animation lasts.
-const killAnimFrames = 12
+// KillAnimFrames is the number of frames the kill animation lasts.
+const KillAnimFrames = 12
 
 // Entity represents a process displayed as a flying label in the terminal.
 type Entity struct {
 	PID           int
 	Name          string
-	RSS           int64 // Memory in bytes
+	RSS           int64
 	X, Y          float64
 	VelX, VelY    float64
 	State         EntityState
@@ -36,21 +36,18 @@ func NewEntity(pid int, name string, rss int64, maxX, maxY int) *Entity {
 	label := fmt.Sprintf("[%d %s]", pid, name)
 	labelLen := len(label)
 
-	// Ensure entity fits within bounds
 	spawnMaxX := maxX - labelLen - 1
 	if spawnMaxX < 1 {
 		spawnMaxX = 1
 	}
-	spawnMaxY := maxY - 2 // Leave room for status bar
+	spawnMaxY := maxY - 2
 	if spawnMaxY < 1 {
 		spawnMaxY = 1
 	}
 
-	// Random position
 	x := float64(rand.Intn(spawnMaxX) + 1)
 	y := float64(rand.Intn(spawnMaxY) + 1)
 
-	// Random velocity scaled by speed multiplier (default slower)
 	velX := (rand.Float64()*0.8 + 0.2)
 	if rand.Intn(2) == 0 {
 		velX = -velX
@@ -76,9 +73,8 @@ func NewEntity(pid int, name string, rss int64, maxX, maxY int) *Entity {
 func (e *Entity) Label() string {
 	switch e.State {
 	case StateKilling:
-		// Kill animation frames
 		frames := []string{"💥", "✦ KILLED ✦", "· · ·", "  ·  ", "     "}
-		idx := e.KillAnimFrame * len(frames) / killAnimFrames
+		idx := e.KillAnimFrame * len(frames) / KillAnimFrames
 		if idx >= len(frames) {
 			idx = len(frames) - 1
 		}
@@ -90,11 +86,11 @@ func (e *Entity) Label() string {
 	}
 }
 
-// Update moves the entity and bounces off walls. Speed multiplier scales velocity.
+// Update moves the entity and bounces off walls.
 func (e *Entity) Update(maxX, maxY int, speed float64) {
 	if e.State == StateKilling {
 		e.KillAnimFrame++
-		if e.KillAnimFrame >= killAnimFrames {
+		if e.KillAnimFrame >= KillAnimFrames {
 			e.State = StateDead
 		}
 		return
@@ -108,7 +104,6 @@ func (e *Entity) Update(maxX, maxY int, speed float64) {
 	e.X += e.VelX * speed
 	e.Y += e.VelY * speed
 
-	// Bounce off horizontal walls
 	if e.X < 0 {
 		e.X = 0
 		e.VelX = -e.VelX
@@ -122,7 +117,6 @@ func (e *Entity) Update(maxX, maxY int, speed float64) {
 		e.VelX = -e.VelX
 	}
 
-	// Bounce off vertical walls (leave bottom row for status)
 	if e.Y < 0 {
 		e.Y = 0
 		e.VelY = -e.VelY
