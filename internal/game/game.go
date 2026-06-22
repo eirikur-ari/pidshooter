@@ -32,7 +32,7 @@ type Game struct {
 }
 
 // New creates a new game instance.
-func New(processes []process.ProcessInfo, confirmMode bool, speed float64, timeLimit int) *Game {
+func New(processes []process.Info, confirmMode bool, speed float64, timeLimit int) *Game {
 	return &Game{
 		entities:    make([]*Entity, 0, len(processes)),
 		confirmMode: confirmMode,
@@ -77,10 +77,10 @@ func (g *Game) Init() error {
 }
 
 // PopulateEntities creates entity objects for each process.
-func (g *Game) PopulateEntities(processes []process.ProcessInfo) {
+func (g *Game) PopulateEntities(processes []process.Info) {
 	w, h := g.screen.Size()
 	for _, p := range processes {
-		g.entities = append(g.entities, NewEntity(p.Pid, p.Name, p.RSS, w, h))
+		g.entities = append(g.entities, NewEntity(p.Pid(), p.Name(), p.Rss(), w, h))
 	}
 }
 
@@ -175,12 +175,12 @@ func (g *Game) HandleKeyPress(key tcell.Key, r rune) {
 		if g.confirming != nil {
 			g.confirming = nil
 		}
-	case r == '+' || r == '=':
+	case r == '+':
 		g.speed += 0.5
 		if g.speed > 5.0 {
 			g.speed = 5.0
 		}
-	case r == '-' || r == '_':
+	case r == '-':
 		g.speed -= 0.5
 		if g.speed < 0.1 {
 			g.speed = 0.1

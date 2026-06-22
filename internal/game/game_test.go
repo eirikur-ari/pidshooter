@@ -32,10 +32,20 @@ func TestFormatBytes(t *testing.T) {
 	}
 }
 
+type fakeProcess struct {
+	pid  int
+	name string
+	rss  int64
+}
+
+func (f *fakeProcess) Pid() int    { return f.pid }
+func (f *fakeProcess) Name() string { return f.name }
+func (f *fakeProcess) Rss() int64  { return f.rss }
+
 func TestNew(t *testing.T) {
-	processes := []process.ProcessInfo{
-		{Pid: 1, Name: "a", RSS: 100},
-		{Pid: 2, Name: "b", RSS: 200},
+	processes := []process.Info{
+		&fakeProcess{pid: 1, name: "a", rss: 100},
+		&fakeProcess{pid: 2, name: "b", rss: 200},
 	}
 
 	g := New(processes, true, 3.5, 60)
