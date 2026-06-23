@@ -94,6 +94,7 @@ func (b *Board) PrintScores() {
 		return
 	}
 
+	//TODO: Replace Speed with Time
 	fmt.Println("\n  ╔════╦═══════╦════════════╦═══════╦════════════╗")
 	fmt.Println("  ║  # ║ Kills ║   Freed    ║ Speed ║    Date    ║")
 	fmt.Println("  ╠════╬═══════╬════════════╬═══════╬════════════╣")

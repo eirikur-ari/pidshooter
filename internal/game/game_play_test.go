@@ -2,35 +2,11 @@ package game
 
 import (
 	"testing"
+	"time"
 
 	"github.com/eirikur-ari/pidshooter/internal/process"
 	"github.com/gdamore/tcell/v2"
 )
-
-func TestFormatBytes(t *testing.T) {
-	tests := []struct {
-		input int64
-		want  string
-	}{
-		{0, "0 B"},
-		{512, "512 B"},
-		{1024, "1.0 KB"},
-		{1536, "1.5 KB"},
-		{1048576, "1.0 MB"},
-		{1572864, "1.5 MB"},
-		{1073741824, "1.0 GB"},
-		{1610612736, "1.5 GB"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.want, func(t *testing.T) {
-			got := FormatBytes(tt.input)
-			if got != tt.want {
-				t.Errorf("FormatBytes(%d) = %q, want %q", tt.input, got, tt.want)
-			}
-		})
-	}
-}
 
 type fakeProcess struct {
 	pid  int
@@ -38,9 +14,9 @@ type fakeProcess struct {
 	rss  int64
 }
 
-func (f *fakeProcess) Pid() int    { return f.pid }
+func (f *fakeProcess) Pid() int     { return f.pid }
 func (f *fakeProcess) Name() string { return f.name }
-func (f *fakeProcess) Rss() int64  { return f.rss }
+func (f *fakeProcess) Rss() int64   { return f.rss }
 
 func TestNew(t *testing.T) {
 	processes := []process.Info{
@@ -131,7 +107,7 @@ func TestHandleKeyPress_SpeedCapsAtMin(t *testing.T) {
 }
 
 func TestHandleKeyPress_ConfirmYes(t *testing.T) {
-	e := &Entity{PID: 99, Name: "target", State: StateAlive, RSS: 4096}
+	e := &Entity{Info: &fakeProcess{pid: 99, name: "target", rss: 4096}, State: Alive}
 	g := &Game{running: true, confirming: e}
 
 	g.HandleKeyPress(0, 'y')
@@ -139,7 +115,7 @@ func TestHandleKeyPress_ConfirmYes(t *testing.T) {
 	if g.confirming != nil {
 		t.Error("expected confirming=nil after 'y'")
 	}
-	if e.State != StateKilling {
+	if e.State != Killing {
 		t.Errorf("expected entity StateKilling, got %d", e.State)
 	}
 	if g.kills != 1 {
@@ -151,7 +127,7 @@ func TestHandleKeyPress_ConfirmYes(t *testing.T) {
 }
 
 func TestHandleKeyPress_ConfirmNo(t *testing.T) {
-	e := &Entity{PID: 99, Name: "target", State: StateAlive}
+	e := &Entity{Info: &fakeProcess{pid: 99, name: "target"}, State: Alive}
 	g := &Game{running: true, confirming: e}
 
 	g.HandleKeyPress(0, 'n')
@@ -159,13 +135,13 @@ func TestHandleKeyPress_ConfirmNo(t *testing.T) {
 	if g.confirming != nil {
 		t.Error("expected confirming=nil after 'n'")
 	}
-	if e.State != StateAlive {
+	if e.State != Alive {
 		t.Errorf("expected entity still alive, got %d", e.State)
 	}
 }
 
 func TestHandleKeyPress_QCancelsConfirm(t *testing.T) {
-	e := &Entity{PID: 99, Name: "target", State: StateAlive}
+	e := &Entity{Info: &fakeProcess{pid: 99, name: "target"}, State: Alive}
 	g := &Game{running: true, confirming: e}
 
 	g.HandleKeyPress(0, 'q')
@@ -175,5 +151,22 @@ func TestHandleKeyPress_QCancelsConfirm(t *testing.T) {
 	}
 	if !g.running {
 		t.Error("expected game still running (q cancels confirm, doesn't quit)")
+	}
+}
+
+func TestGame_timeRemaining_WithinLimit(t *testing.T) {
+	g := &Game{timeLimit: 60}
+	g.startTime = time.Now()
+	remaining := g.timeRemaining()
+	if remaining <= 0 || remaining > 60*time.Second {
+		t.Errorf("expected remaining in (0, 60s], got %v", remaining)
+	}
+}
+
+func TestGame_timeRemaining_Expired(t *testing.T) {
+	g := &Game{timeLimit: 1}
+	g.startTime = time.Now().Add(-2 * time.Second)
+	if got := g.timeRemaining(); got != 0 {
+		t.Errorf("expected 0 after expiry, got %v", got)
 	}
 }

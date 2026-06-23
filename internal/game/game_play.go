@@ -3,8 +3,6 @@ package game
 
 import (
 	"fmt"
-	"os"
-	"syscall"
 	"time"
 
 	"github.com/eirikur-ari/pidshooter/internal/process"
@@ -22,13 +20,10 @@ type Game struct {
 	entities    []*Entity
 	confirmMode bool
 	speed       float64
+	timeLimit   int
 	running     bool
 	confirming  *Entity
-	kills       int
-	freedMem    int64
-	timeLimit   int
-	startTime   time.Time
-	highScore   int
+	Session
 }
 
 // New creates a new game instance.
@@ -41,18 +36,6 @@ func New(processes []process.Info, confirmMode bool, speed float64, timeLimit in
 		timeLimit:   timeLimit,
 	}
 }
-
-// SetHighScore sets the high score to display.
-func (g *Game) SetHighScore(score int) { g.highScore = score }
-
-// Kills returns the current kill count.
-func (g *Game) Kills() int { return g.kills }
-
-// FreedMem returns total freed memory in bytes.
-func (g *Game) FreedMem() int64 { return g.freedMem }
-
-// StartTime returns when the game started.
-func (g *Game) StartTime() time.Time { return g.startTime }
 
 // Stop signals the game to exit.
 func (g *Game) Stop() { g.running = false }
@@ -80,7 +63,7 @@ func (g *Game) Init() error {
 func (g *Game) PopulateEntities(processes []process.Info) {
 	w, h := g.screen.Size()
 	for _, p := range processes {
-		g.entities = append(g.entities, NewEntity(p.Pid(), p.Name(), p.Rss(), w, h))
+		g.entities = append(g.entities, NewEntity(p, w, h))
 	}
 }
 
@@ -191,18 +174,15 @@ func (g *Game) HandleKeyPress(key tcell.Key, r rune) {
 func (g *Game) update() {
 	w, h := g.screen.Size()
 
-	if g.timeLimit > 0 {
-		elapsed := time.Since(g.startTime)
-		if elapsed >= time.Duration(g.timeLimit)*time.Second {
-			g.running = false
-			return
-		}
+	if g.timeLimit > 0 && g.timeRemaining() == 0 {
+		g.running = false
+		return
 	}
 
 	allDead := true
 	for _, e := range g.entities {
 		e.Update(w, h, g.speed)
-		if e.State != StateDead {
+		if e.State != Dead {
 			allDead = false
 		}
 	}
@@ -221,16 +201,16 @@ func (g *Game) render() {
 	killStyle := tcell.StyleDefault.Foreground(tcell.ColorRed).Bold(true)
 
 	for _, e := range g.entities {
-		if e.State == StateDead {
+		if e.State == Dead {
 			continue
 		}
 
 		label := e.Label()
-		x := int(e.X)
-		y := int(e.Y)
+		x := int(e.PosX)
+		y := int(e.PosY)
 
 		style := aliveStyle
-		if e.State == StateKilling {
+		if e.State == Killing {
 			style = killStyle
 		}
 
@@ -289,21 +269,17 @@ func (g *Game) drawStatusBar(w, h int) {
 	var status string
 	if g.confirming != nil {
 		status = fmt.Sprintf(" Kill [%d %s]? (Y)es / (N)o / (Q)uit",
-			g.confirming.PID, g.confirming.Name)
+			g.confirming.Pid(), g.confirming.Name())
 	} else {
 		alive := 0
 		for _, e := range g.entities {
-			if e.State == StateAlive {
+			if e.State == Alive {
 				alive++
 			}
 		}
 		timerStr := ""
 		if g.timeLimit > 0 {
-			remaining := time.Duration(g.timeLimit)*time.Second - time.Since(g.startTime)
-			if remaining < 0 {
-				remaining = 0
-			}
-			timerStr = fmt.Sprintf(" | Time: %ds", int(remaining.Seconds()))
+			timerStr = fmt.Sprintf(" | Time: %ds", int(g.timeRemaining().Seconds()))
 		}
 		status = fmt.Sprintf(" Targets: %d | Speed: %.1fx%s | Click to kill | +/- speed | 'q' quit", alive, g.speed, timerStr)
 	}
@@ -316,18 +292,20 @@ func (g *Game) drawStatusBar(w, h int) {
 }
 
 func (g *Game) killEntity(e *Entity) {
-	if e.State != StateAlive {
+	if e.State != Alive {
 		return
 	}
-
-	proc, err := os.FindProcess(e.PID)
-	if err == nil {
-		_ = proc.Signal(syscall.SIGKILL)
-	}
-
+	_ = e.Kill()
 	e.StartKillAnim()
-	g.kills++
-	g.freedMem += e.RSS
+	g.Session.RecordKill(e.Rss())
+}
+
+func (g *Game) timeRemaining() time.Duration {
+	remaining := time.Duration(g.timeLimit)*time.Second - time.Since(g.startTime)
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
 }
 
 // Cleanup restores the terminal. Safe to call multiple times.
@@ -335,29 +313,5 @@ func (g *Game) Cleanup() {
 	if g.screen != nil {
 		g.screen.Fini()
 		g.screen = nil
-	}
-}
-
-// FormatBytes formats a byte count into a human-readable string.
-func FormatBytes(bytes int64) string {
-	if bytes == 0 {
-		return "0 B"
-	}
-
-	const (
-		KB = 1024
-		MB = 1024 * KB
-		GB = 1024 * MB
-	)
-
-	switch {
-	case bytes >= GB:
-		return fmt.Sprintf("%.1f GB", float64(bytes)/float64(GB))
-	case bytes >= MB:
-		return fmt.Sprintf("%.1f MB", float64(bytes)/float64(MB))
-	case bytes >= KB:
-		return fmt.Sprintf("%.1f KB", float64(bytes)/float64(KB))
-	default:
-		return fmt.Sprintf("%d B", bytes)
 	}
 }
