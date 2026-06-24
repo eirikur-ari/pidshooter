@@ -3,21 +3,13 @@ package game
 import (
 	"fmt"
 	"testing"
+
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
-type mockInfo struct {
-	pid  int
-	name string
-	rss  int64
-}
-
-func (m mockInfo) Pid() int     { return m.pid }
-func (m mockInfo) Name() string { return m.name }
-func (m mockInfo) Rss() int64   { return m.rss }
-
-func TestNewEntity_WithinBounds(t *testing.T) {
+func TestNewTarget_WithinBounds(t *testing.T) {
 	maxX, maxY := 80, 24
-	e := NewEntity(mockInfo{pid: 1234, name: "test", rss: 1024}, maxX, maxY)
+	e := NewTarget(testutil.NewFakeProcess(1234, "test", 1024), maxX, maxY)
 
 	if e.Pid() != 1234 {
 		t.Errorf("expected PID=1234, got %d", e.Pid())
@@ -45,30 +37,30 @@ func TestNewEntity_WithinBounds(t *testing.T) {
 	}
 }
 
-func TestNewEntity_SmallTerminal(t *testing.T) {
-	e := NewEntity(mockInfo{pid: 1, name: "x"}, 5, 5)
+func TestNewTarget_SmallTerminal(t *testing.T) {
+	e := NewTarget(testutil.NewFakeProcess(1, "x", 0), 5, 5)
 	if e == nil {
 		t.Fatal("expected non-nil entity")
 	}
 }
 
-func TestEntity_Label_Alive(t *testing.T) {
-	e := &Entity{Info: mockInfo{pid: 42, name: "bash"}, State: Alive}
+func TestTarget_Label_Alive(t *testing.T) {
+	e := &Target{Info: testutil.NewFakeProcess(42, "bash", 0), State: Alive}
 	expected := "[42 bash]"
 	if got := e.Label(); got != expected {
 		t.Errorf("expected %q, got %q", expected, got)
 	}
 }
 
-func TestEntity_Label_Dead(t *testing.T) {
-	e := &Entity{Info: mockInfo{pid: 42, name: "bash"}, State: Dead}
+func TestTarget_Label_Dead(t *testing.T) {
+	e := &Target{Info: testutil.NewFakeProcess(42, "bash", 0), State: Dead}
 	if got := e.Label(); got != "" {
 		t.Errorf("expected empty string, got %q", got)
 	}
 }
 
-func TestEntity_Label_Killing(t *testing.T) {
-	e := &Entity{Info: mockInfo{pid: 42, name: "bash"}, State: Killing, KillAnimFrame: 0}
+func TestTarget_Label_Killing(t *testing.T) {
+	e := &Target{Info: testutil.NewFakeProcess(42, "bash", 0), State: Killing, KillAnimFrame: 0}
 	label := e.Label()
 	if label == "" {
 		t.Error("expected non-empty kill animation label")
@@ -76,9 +68,9 @@ func TestEntity_Label_Killing(t *testing.T) {
 }
 
 
-func TestEntity_Update_KillingState(t *testing.T) {
-	e := &Entity{
-		Info:          mockInfo{pid: 1, name: "x"},
+func TestTarget_Update_KillingState(t *testing.T) {
+	e := &Target{
+		Info:          testutil.NewFakeProcess(1, "x", 0),
 		State:         Killing,
 		KillAnimFrame: KillAnimFrames - 1,
 	}
@@ -90,9 +82,9 @@ func TestEntity_Update_KillingState(t *testing.T) {
 	}
 }
 
-func TestEntity_Update_DeadNoOp(t *testing.T) {
-	e := &Entity{
-		Info:    mockInfo{pid: 1, name: "x"},
+func TestTarget_Update_DeadNoOp(t *testing.T) {
+	e := &Target{
+		Info:    testutil.NewFakeProcess(1, "x", 0),
 		Motion: Motion{PosX: 10, PosY: 10, VelX: 1.0, VelY: 1.0},
 		State:   Dead,
 	}
@@ -104,9 +96,9 @@ func TestEntity_Update_DeadNoOp(t *testing.T) {
 	}
 }
 
-func TestEntity_Contains(t *testing.T) {
-	e := &Entity{
-		Info:    mockInfo{pid: 42, name: "bash"},
+func TestTarget_Contains(t *testing.T) {
+	e := &Target{
+		Info:    testutil.NewFakeProcess(42, "bash", 0),
 		Motion: Motion{PosX: 10, PosY: 5},
 		State:   Alive,
 	}
@@ -131,9 +123,9 @@ func TestEntity_Contains(t *testing.T) {
 	}
 }
 
-func TestEntity_Contains_NotAlive(t *testing.T) {
-	e := &Entity{
-		Info:    mockInfo{pid: 42, name: "bash"},
+func TestTarget_Contains_NotAlive(t *testing.T) {
+	e := &Target{
+		Info:    testutil.NewFakeProcess(42, "bash", 0),
 		Motion: Motion{PosX: 10, PosY: 5},
 		State:   Killing,
 	}
@@ -143,8 +135,8 @@ func TestEntity_Contains_NotAlive(t *testing.T) {
 	}
 }
 
-func TestEntity_StartKillAnim(t *testing.T) {
-	e := &Entity{Info: mockInfo{pid: 1, name: "x"}, State: Alive, KillAnimFrame: 5}
+func TestTarget_StartKillAnim(t *testing.T) {
+	e := &Target{Info: testutil.NewFakeProcess(1, "x", 0), State: Alive, KillAnimFrame: 5}
 	e.StartKillAnim()
 
 	if e.State != Killing {

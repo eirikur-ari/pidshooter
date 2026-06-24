@@ -8,12 +8,12 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/process"
 )
 
-// EntityState represents the current state of a process entity.
-type EntityState int
+// TargetState represents the current state of a process entity.
+type TargetState int
 
 const (
 	// Alive means the entity is flying around normally.
-	Alive EntityState = iota
+	Alive TargetState = iota
 	// Killing means the kill animation is playing.
 	Killing
 	// Dead means the entity should be removed.
@@ -23,26 +23,27 @@ const (
 // KillAnimFrames is the number of frames the kill animation lasts.
 const KillAnimFrames = 12
 
-// Entity represents a process displayed as a flying label in the terminal.
-type Entity struct {
+// Target represents a process displayed as a flying label in the terminal.
+type Target struct {
 	process.Info
 	Motion
-	State         EntityState
+	State         TargetState
 	KillAnimFrame int
 }
 
-// NewEntity creates a new entity at a random position with random velocity.
-func NewEntity(info process.Info, maxX, maxY int) *Entity {
+// NewTarget creates a new entity at a random position with random velocity.
+func NewTarget(info process.Info, maxX, maxY int) *Target {
+	//TODO: Is label the correct word for the game entity that represents the process?
 	labelLen := len(fmt.Sprintf("[%d %s]", info.Pid(), info.Name()))
-	return &Entity{
-		Info:    info,
+	return &Target{
+		Info:   info,
 		Motion: newMotion(maxX, maxY, labelLen),
-		State:   Alive,
+		State:  Alive,
 	}
 }
 
 // Label returns the display string for this entity.
-func (e *Entity) Label() string {
+func (e *Target) Label() string {
 	switch e.State {
 	case Killing:
 		frames := []string{"💥", "✦ KILLED ✦", "· · ·", "  ·  ", "     "}
@@ -59,7 +60,7 @@ func (e *Entity) Label() string {
 }
 
 // Update advances the kill animation or delegates movement to Motion.
-func (e *Entity) Update(maxX, maxY int, speed float64) {
+func (e *Target) Update(maxX, maxY int, speed float64) {
 	switch e.State {
 	case Killing:
 		e.KillAnimFrame++
@@ -72,7 +73,7 @@ func (e *Entity) Update(maxX, maxY int, speed float64) {
 }
 
 // Contains checks if the given screen coordinates are within this entity's label.
-func (e *Entity) Contains(x, y int) bool {
+func (e *Target) Contains(x, y int) bool {
 	if e.State != Alive {
 		return false
 	}
@@ -85,13 +86,13 @@ func (e *Entity) Contains(x, y int) bool {
 }
 
 // StartKillAnim transitions the entity to the killing state.
-func (e *Entity) StartKillAnim() {
+func (e *Target) StartKillAnim() {
 	e.State = Killing
 	e.KillAnimFrame = 0
 }
 
 // Kill sends SIGKILL to the process this entity represents.
-func (e *Entity) Kill() error {
+func (e *Target) Kill() error {
 	proc, err := os.FindProcess(e.Pid())
 	if err != nil {
 		return err

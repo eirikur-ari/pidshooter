@@ -3,15 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/signal"
 	"strconv"
 	"strings"
-	"syscall"
-	"time"
 
-	"github.com/eirikur-ari/pidshooter/internal/game"
 	"github.com/eirikur-ari/pidshooter/internal/process"
-	"github.com/eirikur-ari/pidshooter/internal/score"
+	"github.com/eirikur-ari/pidshooter/internal/runner"
 )
 
 const usage = `pidshooter - First Person PID Shooter
@@ -45,65 +41,15 @@ func main() {
 
 func run() error {
 	patterns, confirmMode, speed, timeLimit, err := parseArgs(os.Args[1:])
-
 	if err != nil {
 		return err
 	}
-
-	processes, err := process.New().Find(patterns)
-	if err != nil {
-		return fmt.Errorf("process search failed: %w", err)
-	}
-
-	if len(processes) == 0 {
-		fmt.Printf("No processes found matching %v\n", patterns)
-		return nil
-	}
-
-	fmt.Printf("Found %d process(es) matching %v. Starting game...\n", len(processes), patterns)
-
-	scoreBoard := score.Load()
-	g := game.New(processes, confirmMode, speed, timeLimit)
-	g.SetHighScore(scoreBoard.HighScore())
-
-	if err := g.Init(); err != nil {
-		return fmt.Errorf("screen initialization failed: %w", err)
-	}
-	defer g.Cleanup()
-
-	g.PopulateEntities(processes)
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGTSTP)
-	go func() {
-		<-sigCh
-		g.Stop()
-	}()
-
-	g.Run()
-
-	duration := time.Since(g.StartTime()).Seconds()
-	entry := score.Entry{
-		Kills:    g.Kills(),
-		FreedMem: g.FreedMem(),
-		Speed:    speed,
-		Time:     timeLimit,
-		Duration: duration,
-		Date:     time.Now(),
-	}
-
-	scoreBoard.Add(entry)
-	_ = scoreBoard.Save()
-
-	g.Cleanup()
-	fmt.Printf("\n  Game Over! Kills: %d | Freed: %s | Time: %.1fs\n",
-		g.Kills(), game.FormatBytes(g.FreedMem()), duration)
-	if g.Kills() > 0 && g.Kills() >= scoreBoard.HighScore() {
-		fmt.Println("  🏆 New high score!")
-	}
-	scoreBoard.PrintScores()
-
-	return nil
+	return runner.Start(runner.Config{
+		Patterns:    patterns,
+		ConfirmMode: confirmMode,
+		Speed:       speed,
+		TimeLimit:   timeLimit,
+	})
 }
 
 // parseArgs parses command-line arguments.

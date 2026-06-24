@@ -1,4 +1,3 @@
-// Package game implements the terminal-based PID shooter game loop.
 package game
 
 import (
@@ -6,6 +5,7 @@ import (
 	"time"
 
 	"github.com/eirikur-ari/pidshooter/internal/process"
+	"github.com/eirikur-ari/pidshooter/internal/util"
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -14,61 +14,33 @@ const (
 	frameDuration = time.Second / targetFPS
 )
 
-// Game manages the terminal display, entities, and user interaction.
-type Game struct {
-	screen      tcell.Screen
-	entities    []*Entity
-	confirmMode bool
-	speed       float64
-	timeLimit   int
-	running     bool
-	confirming  *Entity
-	Session
-}
-
-// New creates a new game instance.
-func New(processes []process.Info, confirmMode bool, speed float64, timeLimit int) *Game {
-	return &Game{
-		entities:    make([]*Entity, 0, len(processes)),
-		confirmMode: confirmMode,
-		speed:       speed,
-		running:     true,
-		timeLimit:   timeLimit,
-	}
-}
-
-// Stop signals the game to exit.
-func (g *Game) Stop() { g.running = false }
-
-// Init initializes the terminal screen.
-func (g *Game) Init() error {
-	screen, err := tcell.NewScreen()
-	if err != nil {
-		return fmt.Errorf("failed to create screen: %w", err)
+func (g *Game) init() error {
+	if g.screen == nil {
+		screen, err := tcell.NewScreen()
+		if err != nil {
+			return fmt.Errorf("failed to create screen: %w", err)
+		}
+		g.screen = screen
 	}
 
-	if err := screen.Init(); err != nil {
+	if err := g.screen.Init(); err != nil {
 		return fmt.Errorf("failed to initialize screen: %w", err)
 	}
 
-	screen.EnableMouse()
-	screen.SetStyle(tcell.StyleDefault)
-	screen.Clear()
-
-	g.screen = screen
+	g.screen.EnableMouse()
+	g.screen.SetStyle(tcell.StyleDefault)
+	g.screen.Clear()
 	return nil
 }
 
-// PopulateEntities creates entity objects for each process.
-func (g *Game) PopulateEntities(processes []process.Info) {
+func (g *Game) populateEntities(processes []process.Info) {
 	w, h := g.screen.Size()
 	for _, p := range processes {
-		g.entities = append(g.entities, NewEntity(p, w, h))
+		g.targets = append(g.targets, NewTarget(p, w, h))
 	}
 }
 
-// Run executes the main game loop.
-func (g *Game) Run() {
+func (g *Game) run() {
 	g.startTime = time.Now()
 	ticker := time.NewTicker(frameDuration)
 	defer ticker.Stop()
@@ -92,85 +64,6 @@ func (g *Game) Run() {
 	}
 }
 
-func (g *Game) drainEvents(eventCh <-chan tcell.Event) {
-	for {
-		select {
-		case ev := <-eventCh:
-			g.handleEvent(ev)
-		default:
-			return
-		}
-	}
-}
-
-func (g *Game) handleEvent(ev tcell.Event) {
-	switch ev := ev.(type) {
-	case *tcell.EventMouse:
-		if ev.Buttons() == tcell.Button1 {
-			x, y := ev.Position()
-			g.handleMouseClick(x, y)
-		}
-	case *tcell.EventKey:
-		g.HandleKeyPress(ev.Key(), ev.Rune())
-	case *tcell.EventResize:
-		g.screen.Sync()
-	}
-}
-
-func (g *Game) handleMouseClick(x, y int) {
-	if g.confirming != nil {
-		return
-	}
-
-	for _, e := range g.entities {
-		if e.Contains(x, y) {
-			if g.confirmMode {
-				g.confirming = e
-			} else {
-				g.killEntity(e)
-			}
-			return
-		}
-	}
-}
-
-// HandleKeyPress processes keyboard input.
-func (g *Game) HandleKeyPress(key tcell.Key, r rune) {
-	switch {
-	case key == tcell.KeyEscape:
-		g.running = false
-	case key == tcell.KeyCtrlC:
-		g.running = false
-	case key == tcell.KeyCtrlZ:
-		g.running = false
-	case r == 'q' || r == 'Q':
-		if g.confirming != nil {
-			g.confirming = nil
-		} else {
-			g.running = false
-		}
-	case r == 'y' || r == 'Y':
-		if g.confirming != nil {
-			g.killEntity(g.confirming)
-			g.confirming = nil
-		}
-	case r == 'n' || r == 'N':
-		if g.confirming != nil {
-			g.confirming = nil
-		}
-	case r == '+':
-		g.speed += 0.5
-		if g.speed > 5.0 {
-			g.speed = 5.0
-		}
-	case r == '-':
-		g.speed -= 0.5
-		if g.speed < 0.1 {
-			g.speed = 0.1
-		}
-	}
-}
-
 func (g *Game) update() {
 	w, h := g.screen.Size()
 
@@ -180,14 +73,14 @@ func (g *Game) update() {
 	}
 
 	allDead := true
-	for _, e := range g.entities {
+	for _, e := range g.targets {
 		e.Update(w, h, g.speed)
 		if e.State != Dead {
 			allDead = false
 		}
 	}
 
-	if allDead && len(g.entities) > 0 {
+	if allDead && len(g.targets) > 0 {
 		g.running = false
 	}
 }
@@ -200,7 +93,7 @@ func (g *Game) render() {
 	aliveStyle := tcell.StyleDefault.Foreground(tcell.ColorGreen).Bold(true)
 	killStyle := tcell.StyleDefault.Foreground(tcell.ColorRed).Bold(true)
 
-	for _, e := range g.entities {
+	for _, e := range g.targets {
 		if e.State == Dead {
 			continue
 		}
@@ -221,7 +114,7 @@ func (g *Game) render() {
 		}
 	}
 
-	memStr := fmt.Sprintf(" FREED: %s ", FormatBytes(g.freedMem))
+	memStr := fmt.Sprintf(" FREED: %s ", util.FormatBytes(g.freedMem))
 	memStyle := tcell.StyleDefault.Foreground(tcell.ColorAqua).Bold(true)
 	for i, ch := range memStr {
 		if i < w {
@@ -272,7 +165,7 @@ func (g *Game) drawStatusBar(w, h int) {
 			g.confirming.Pid(), g.confirming.Name())
 	} else {
 		alive := 0
-		for _, e := range g.entities {
+		for _, e := range g.targets {
 			if e.State == Alive {
 				alive++
 			}
@@ -291,7 +184,7 @@ func (g *Game) drawStatusBar(w, h int) {
 	}
 }
 
-func (g *Game) killEntity(e *Entity) {
+func (g *Game) killTarget(e *Target) {
 	if e.State != Alive {
 		return
 	}
@@ -308,8 +201,7 @@ func (g *Game) timeRemaining() time.Duration {
 	return remaining
 }
 
-// Cleanup restores the terminal. Safe to call multiple times.
-func (g *Game) Cleanup() {
+func (g *Game) cleanup() {
 	if g.screen != nil {
 		g.screen.Fini()
 		g.screen = nil

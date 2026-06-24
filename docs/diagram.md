@@ -1,31 +1,52 @@
-# pidshooter — Package & Class Diagram
+# pidshooter — Package & Source File Diagram
 
-The project is split into four Go packages. The diagram maps every exported type, its fields, and its methods, plus the package-level functions. Visibility follows Go conventions: `+` = exported, `-` = unexported.
+*Updated 2026-06-24. Reflects the refactored layout: `runner`, `game` (6 files), `process`, `score`, `util`, `testutil`.*
+
+---
+
+## Class diagram
+
+Types, their fields/methods, and relationships across packages. Visibility follows Go conventions: `+` = exported, `-` = unexported. Unexported types are shown where they are architecturally significant.
 
 ```mermaid
 classDiagram
     direction TB
 
-    %% ── package process (internal/process/process.go) ────────────────────────
+    %% ── package process ──────────────────────────────────────────────────────
 
     class Info {
-        <<process>>
-        +PID int
-        +Name string
-        +RSS int64
+        <<process · interface · info.go>>
+        +Pid() int
+        +Name() string
+        +Rss() int64
+    }
+
+    class Finder {
+        <<process · interface · finder.go>>
+        +List() []Info, error
+        +Find(patterns []string) []Info, error
+    }
+
+    class finder {
+        <<process · unexported · finder.go>>
     }
 
     class process_pkg {
-        <<process · functions>>
+        <<process · package-level · finder.go>>
         +MaxPatternLength int$
-        +Find(patterns []string) []Info, error
-        -list() []Info, error
+        +NewFinder() Finder
+        -validate(patterns []string) error
+        -filter(processes []Info, patterns []string) []Info
     }
 
-    %% ── package score (internal/score/score.go) ──────────────────────────────
+    finder ..|> Finder : implements
+    process_pkg ..> Finder : NewFinder() returns
+    Finder ..> Info : produces
+
+    %% ── package score ────────────────────────────────────────────────────────
 
     class Entry {
-        <<score>>
+        <<score · score.go>>
         +Kills int
         +FreedMem int64
         +Speed float64
@@ -35,7 +56,7 @@ classDiagram
     }
 
     class Board {
-        <<score>>
+        <<score · score.go>>
         +Scores []Entry
         +Save() error
         +Add(entry Entry) bool
@@ -44,125 +65,176 @@ classDiagram
     }
 
     class score_pkg {
-        <<score · functions>>
-        -filePath() string
+        <<score · package-level · score.go>>
         +Load() Board
+        -filePath() string
     }
 
-    %% ── package game / entity (internal/game/entity.go) ─────────────────────
+    Board "1" *-- "0..*" Entry : owns
+    score_pkg ..> Board : Load() returns
+    Board ..> util_pkg : PrintScores calls FormatBytes
 
-    class EntityState {
-        <<game · enumeration>>
-        StateAlive
-        StateKilling
-        StateDead
+    %% ── package util ─────────────────────────────────────────────────────────
+
+    class util_pkg {
+        <<util · package-level · util.go>>
+        +FormatBytes(bytes int64) string
     }
 
-    class Entity {
-        <<game · entity.go>>
-        +PID int
-        +Name string
-        +RSS int64
-        +X float64
-        +Y float64
-        +VelX float64
-        +VelY float64
-        +State EntityState
-        +KillAnimFrame int
-        +Label() string
-        +Update(maxX int, maxY int, speed float64)
-        +Contains(x int, y int) bool
-        +StartKillAnim()
-    }
-
-    class entity_pkg {
-        <<game · entity.go · functions>>
-        +KillAnimFrames int$
-        +NewEntity(pid int, name string, rss int64, maxX int, maxY int) Entity
-    }
-
-    %% ── package game / game (internal/game/game.go) ──────────────────────────
+    %% ── package game · game.go ───────────────────────────────────────────────
 
     class Game {
         <<game · game.go>>
         -screen tcell.Screen
-        -entities []Entity
+        -processes []process.Info
+        -targets []*Target
         -confirmMode bool
         -speed float64
+        -timeLimit int
         -running bool
-        -confirming Entity
+        -confirming *Target
+        Session
+        +New(processes []Info, ...) *Game
+        +UseScreen(s tcell.Screen)
+        +Play(highScore int) error
+        -stop()
+    }
+
+    %% ── package game · session.go ────────────────────────────────────────────
+
+    class Session {
+        <<game · session.go>>
         -kills int
         -freedMem int64
-        -timeLimit int
-        -startTime time.Time
         -highScore int
-        +SetHighScore(score int)
+        -startTime time.Time
         +Kills() int
         +FreedMem() int64
         +StartTime() time.Time
-        +Stop()
-        +Init() error
-        +PopulateEntities(processes []Info)
-        +Run()
-        -drainEvents(eventCh chan Event)
-        -handleEvent(ev tcell.Event)
-        -handleMouseClick(x int, y int)
-        +HandleKeyPress(key tcell.Key, r rune)
+        +SetHighScore(n int)
+        +RecordKill(rss int64)
+    }
+
+    %% ── package game · target.go ─────────────────────────────────────────────
+
+    class TargetState {
+        <<game · enumeration · target.go>>
+        Alive
+        Killing
+        Dead
+    }
+
+    class Target {
+        <<game · target.go>>
+        process.Info
+        Motion
+        +State TargetState
+        +KillAnimFrame int
+        +KillAnimFrames int$
+        +NewTarget(info Info, maxX, maxY int) *Target
+        +Label() string
+        +Update(maxX, maxY int, speed float64)
+        +Contains(x, y int) bool
+        +StartKillAnim()
+        +Kill() error
+    }
+
+    %% ── package game · motion.go ─────────────────────────────────────────────
+
+    class Motion {
+        <<game · motion.go>>
+        +PosX float64
+        +PosY float64
+        +VelX float64
+        +VelY float64
+        -newMotion(maxX, maxY, labelLen int) Motion
+        +Update(maxX, maxY int, labelLen float64, speed float64)
+    }
+
+    %% ── package game · loop.go ───────────────────────────────────────────────
+
+    class loop {
+        <<game · loop.go>>
+        -init() error
+        -populateEntities(processes []Info)
+        -run()
         -update()
         -render()
-        -drawStatusBar(w int, h int)
-        -killEntity(e Entity)
-        +Cleanup()
+        -drawStatusBar(w, h int)
+        -killTarget(e *Target)
+        -timeRemaining() time.Duration
+        -cleanup()
     }
 
-    class game_pkg {
-        <<game · game.go · functions>>
-        +New(processes []Info, confirmMode bool, speed float64, timeLimit int) Game
-        +FormatBytes(bytes int64) string
+    %% ── package game · event_handler.go ─────────────────────────────────────
+
+    class event_handler {
+        <<game · event_handler.go>>
+        -drainEvents(eventCh chan tcell.Event)
+        -handleEvent(ev tcell.Event)
+        -handleMouseClick(x, y int)
+        -handleKeyPress(key tcell.Key, r rune)
     }
 
-    %% ── package main (cmd/pidshooter/main.go) ────────────────────────────────
+    %% game internal relationships
+    Game *-- Session : embeds
+    Game "1" *-- "0..*" Target : owns
+    Game --> loop : methods on *Game
+    Game --> event_handler : methods on *Game
+    Target --> TargetState : has state
+    Target *-- Motion : embeds
+    Target ..> Info : embeds interface
+
+    %% ── package runner ───────────────────────────────────────────────────────
+
+    class Config {
+        <<runner · runner.go>>
+        +Patterns []string
+        +ConfirmMode bool
+        +Speed float64
+        +TimeLimit int
+    }
+
+    class runner_pkg {
+        <<runner · package-level · runner.go>>
+        +Start(cfg Config) error
+        -start(cfg Config, finder Finder) error
+    }
+
+    runner_pkg ..> Config : takes
+    runner_pkg ..> Finder : calls Find()
+    runner_pkg ..> Game : calls New() and Play()
+    runner_pkg ..> Board : calls Load · Add · Save · PrintScores
+    runner_pkg ..> util_pkg : calls FormatBytes
+
+    %% ── package main ─────────────────────────────────────────────────────────
 
     class main_pkg {
-        <<main>>
-        +main()
+        <<main · main.go>>
         -run() error
         -parseArgs(args []string) []string, bool, float64, int, error
     }
 
-    %% ── Relationships ─────────────────────────────────────────────────────────
+    main_pkg ..> runner_pkg : calls Start()
+    main_pkg ..> process_pkg : uses MaxPatternLength
 
-    %% game/entity internals
-    Entity --> EntityState : has state
+    %% ── package testutil (test support only) ─────────────────────────────────
 
-    %% Game owns Entities
-    Game "1" *-- "0..*" Entity : owns
+    class testutil_pkg {
+        <<testutil · test support only>>
+        +NewFakeProcess(pid int, name string, rss int64) process.Info
+    }
 
-    %% Constructor / factory relations
-    entity_pkg ..> Entity : constructs
-    game_pkg ..> Game : constructs
+    class FakeFinder {
+        <<testutil · fake_process_finder.go>>
+        +Processes []process.Info
+        +Err error
+        +List() []Info, error
+        +Find(patterns []string) []Info, error
+    }
 
-    %% game.New takes process.Info as input
-    game_pkg ..> Info : takes as input
-    Game ..> Info : PopulateEntities converts to Entity
-
-    %% score internals
-    Board "1" *-- "0..*" Entry : owns
-    score_pkg ..> Board : Load() produces
-
-    %% score depends on game for FormatBytes
-    Board ..> game_pkg : PrintScores calls FormatBytes
-
-    %% process_pkg produces Info
-    process_pkg ..> Info : Find() produces
-
-    %% main orchestrates all packages
-    main_pkg ..> process_pkg : calls Find()
-    main_pkg ..> score_pkg : calls Load()
-    main_pkg ..> game_pkg : calls New()
-    main_pkg ..> Game : drives lifecycle
-    main_pkg ..> Board : calls Add · Save · PrintScores
-    main_pkg ..> Entry : constructs after game ends
+    FakeFinder ..|> Finder : implements
+    testutil_pkg ..> Info : NewFakeProcess returns
 ```
 
 ---
@@ -171,75 +243,81 @@ classDiagram
 
 ```
 cmd/pidshooter (main)
-    ├── internal/game
-    │       └── internal/process   (game.PopulateEntities takes process.Info)
-    ├── internal/process
-    └── internal/score
-            └── internal/game      (score.Board.PrintScores calls game.FormatBytes)
+    ├── internal/runner
+    │       ├── internal/game
+    │       │       ├── internal/process   (game.Target embeds process.Info)
+    │       │       └── internal/util      (render calls util.FormatBytes)
+    │       ├── internal/process           (runner calls process.NewFinder)
+    │       ├── internal/score
+    │       │       └── internal/util      (PrintScores calls util.FormatBytes)
+    │       └── internal/util              (runner calls util.FormatBytes)
+    └── internal/process                   (main uses process.MaxPatternLength)
+
+internal/testutil  ── test support only ──
+    └── internal/process                   (NewFakeProcess returns process.Info)
 ```
 
-`score` importing `game` for `FormatBytes` is a design smell — score is a leaf package that should not depend on game. Moving `FormatBytes` to a shared `internal/format` package, or inlining the formatting in `score`, would break the cycle.
+`util` is now a true leaf — no package depends on it except via deliberate import. The old cycle (`score` → `game` for `FormatBytes`) is gone.
 
 ---
 
-## Relationships explained
+## File map within the `game` package
 
-| From | To | Kind | Description |
-|---|---|---|---|
-| `Entity` | `EntityState` | association | Each entity holds one state value |
-| `Game` | `Entity` | composition | Game owns and manages the entity slice |
-| `Game` | `Info` | dependency | `PopulateEntities` converts `process.Info` records into `Entity` objects |
-| `Board` | `Entry` | composition | Board owns the ordered list of score records |
-| `Board` | `game_pkg` | dependency | `PrintScores` calls `game.FormatBytes` to render memory strings |
-| `entity_pkg` | `Entity` | factory | `NewEntity` constructs an Entity with random position and velocity |
-| `game_pkg` | `Game` | factory | `New` constructs a Game from process list and config |
-| `process_pkg` | `Info` | producer | `Find` / `list` discover and return process records |
-| `score_pkg` | `Board` | producer | `Load` deserialises the on-disk JSON into a Board |
-| `main_pkg` | `process_pkg` | calls | `run()` calls `Find()` to get the initial process list |
-| `main_pkg` | `game_pkg` | calls | `run()` calls `New()` then drives the full game lifecycle |
-| `main_pkg` | `score_pkg` | calls | `run()` calls `Load()` before the game |
-| `main_pkg` | `Board` | calls | `run()` calls `Add`, `Save`, `PrintScores` after the game |
+All files belong to `package game`. `loop.go` and `event_handler.go` add methods to `*Game`; they are split by concern, not by type.
+
+```
+internal/game/
+├── game.go            Game struct · New() · UseScreen() · Play() · stop()
+├── loop.go            init() · run() · update() · render() · killTarget() · cleanup()
+├── event_handler.go   drainEvents() · handleEvent() · handleMouseClick() · handleKeyPress()
+├── session.go         Session struct · RecordKill() · accessors
+├── target.go          Target struct · TargetState · NewTarget() · Label() · Kill()
+└── motion.go          Motion struct · newMotion() · Update()
+```
 
 ---
 
-## Call flow — `run()` in main.go
+## Call flow — `run()` through to game end
 
 ```
 main()
   └─ run()
-       ├─ parseArgs(os.Args[1:])               → []patterns, confirmMode, speed, timeLimit
-       ├─ process.Find(patterns)               → []process.Info
-       ├─ score.Load()                         → *score.Board
-       ├─ game.New(processes, ...)             → *game.Game
-       ├─ g.SetHighScore(board.HighScore())
-       ├─ g.Init()                             creates tcell.Screen
-       ├─ defer g.Cleanup()
-       ├─ g.PopulateEntities(processes)        []process.Info → []game.Entity
-       ├─ go signal handler → g.Stop()         goroutine: SIGINT/SIGTERM/SIGTSTP
-       ├─ g.Run()  ◄── blocks at 20 FPS ──────────────────────────────────────────┐
-       │     ├─ goroutine: screen.PollEvent() → eventCh                           │
-       │     └─ loop while g.running:                                             │
-       │           ├─ drainEvents(eventCh)                                        │
-       │           │     └─ handleEvent()                                         │
-       │           │           ├─ handleMouseClick() → killEntity()               │
-       │           │           └─ HandleKeyPress()   → killEntity() / g.Stop()   │
-       │           ├─ update()      moves entities, checks time limit / all-dead  │
-       │           └─ render()      draws entities + HUD, calls FormatBytes()     │
-       │                                                                          ─┘
-       ├─ g.Cleanup()                          restores terminal (explicit call)
-       ├─ score.Entry{Kills, FreedMem, ...}
-       ├─ board.Add(entry)
-       ├─ board.Save()
-       └─ board.PrintScores()                  calls game.FormatBytes internally
+       ├─ parseArgs(os.Args[1:])            → patterns, confirmMode, speed, timeLimit
+       └─ runner.Start(Config{...})
+              ├─ process.NewFinder().Find(patterns)    → []process.Info
+              ├─ score.Load()                          → *score.Board
+              ├─ game.New(processes, ...)              → *game.Game
+              └─ g.Play(board.HighScore())
+                   ├─ g.SetHighScore(highScore)
+                   ├─ loop.init()                      creates/injects tcell.Screen
+                   ├─ defer loop.cleanup()             restores terminal on exit
+                   ├─ loop.populateEntities(processes) process.Info → []*game.Target
+                   ├─ go signal handler → g.stop()    goroutine: SIGINT/SIGTERM/SIGTSTP
+                   └─ loop.run()  ◄── blocks at 20 FPS ──────────────────────────────┐
+                         ├─ goroutine: screen.PollEvent() → eventCh                  │
+                         └─ for g.running:                                           │
+                               ├─ drainEvents(eventCh)                               │
+                               │     └─ handleEvent()                                │
+                               │           ├─ handleMouseClick() → killTarget()      │
+                               │           └─ handleKeyPress()   → killTarget/stop   │
+                               ├─ update()     move targets · check time/all-dead    │
+                               └─ render()     draw targets + HUD (FormatBytes)      │
+                                                                                   ──┘
+              ├─ score.Entry{g.Kills(), g.FreedMem(), ...}
+              ├─ board.Add(entry) · board.Save()
+              └─ board.PrintScores()
 ```
 
 ---
 
-## Key exported surface per package
+## Exported surface per package
 
-| Package | Exported types | Exported functions / constructors |
+| Package | Exported types | Exported constructors / functions |
 |---|---|---|
-| `process` | `Info` | `Find()` |
+| `process` | `Info` (interface), `Finder` (interface) | `NewFinder()`, `MaxPatternLength` |
 | `score` | `Entry`, `Board` | `Load()` |
-| `game` | `Entity`, `EntityState`, `Game` | `New()`, `FormatBytes()`, `NewEntity()` |
+| `util` | — | `FormatBytes()` |
+| `game` | `Game`, `Session`, `Target`, `TargetState`, `Motion` | `New()`, `NewTarget()` |
+| `runner` | `Config` | `Start()` |
+| `testutil` | `FakeFinder` | `NewFakeProcess()` |
 | `main` | — | `main()` |

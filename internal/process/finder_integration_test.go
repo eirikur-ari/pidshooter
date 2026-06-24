@@ -11,7 +11,7 @@ import (
 )
 
 func TestIntegration_List_ReturnsResults(t *testing.T) {
-	processes, err := process.New().List()
+	processes, err := process.NewFinder().List()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -21,7 +21,7 @@ func TestIntegration_List_ReturnsResults(t *testing.T) {
 }
 
 func TestIntegration_List_ValidFields(t *testing.T) {
-	processes, err := process.New().List()
+	processes, err := process.NewFinder().List()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestIntegration_List_ValidFields(t *testing.T) {
 }
 
 func TestIntegration_List_ShortProcessNames(t *testing.T) {
-	processes, err := process.New().List()
+	processes, err := process.NewFinder().List()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestIntegration_List_ShortProcessNames(t *testing.T) {
 
 func TestIntegration_Find_ExcludesOwnPID(t *testing.T) {
 	ownPID := os.Getpid()
-	results, err := process.New().Find([]string{"go"})
+	results, err := process.NewFinder().Find([]string{"go"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

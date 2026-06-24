@@ -9,7 +9,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/eirikur-ari/pidshooter/internal/game"
+	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
 // Entry represents a single high score record.
@@ -100,7 +100,7 @@ func (b *Board) PrintScores() {
 	fmt.Println("  ╠════╬═══════╬════════════╬═══════╬════════════╣")
 
 	for i, s := range b.Scores {
-		mem := game.FormatBytes(s.FreedMem)
+		mem := util.FormatBytes(s.FreedMem)
 		date := s.Date.Format("2006-01-02")
 		fmt.Printf("  ║ %2d ║  %3d  ║ %8s   ║ %4.1fx ║ %s ║\n",
 			i+1, s.Kills, mem, s.Speed, date)

@@ -24,7 +24,7 @@ type Finder interface {
 type finder struct{}
 
 // New returns a Finder that uses ps to discover processes.
-func New() Finder {
+func NewFinder() Finder {
 	return finder{}
 }
 
