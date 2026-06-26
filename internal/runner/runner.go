@@ -24,6 +24,7 @@ func Start(cfg Config) error {
 	return start(cfg, process.NewFinder())
 }
 
+// TODO: Look into if this should not be replaced by Interface for test mocking
 func start(cfg Config, finder process.Finder) error {
 	processes, err := finder.Find(cfg.Patterns)
 	if err != nil {
@@ -56,9 +57,11 @@ func start(cfg Config, finder process.Finder) error {
 
 	fmt.Printf("\n  Game Over! Kills: %d | Freed: %s | Time: %.1fs\n",
 		g.Kills(), util.FormatBytes(g.FreedMem()), duration)
+
 	if g.Kills() > 0 && g.Kills() >= scoreBoard.HighScore() {
 		fmt.Println("  🏆 New high score!")
 	}
+
 	scoreBoard.PrintScores()
 
 	return nil

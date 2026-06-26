@@ -1,2 +1,17 @@
-bin/
+# IDE
+.vscode/
 .idea/
+
+# Build artifacts
+build/
+bin/
+dist/
+tmp/
+log/
+
+# Other
+*.env
+*.log
+*.test
+*.out
+coverage*
