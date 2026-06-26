@@ -1,12 +1,12 @@
 package testutil
 
-import "github.com/eirikur-ari/pidshooter/internal/process"
+import "github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
 
-// FakeFinder is a test double for process.Finder.
+// FakeFinder is a test double for driven.Finder.
 type FakeFinder struct {
-	Processes []process.Info
+	Processes []driven.Info
 	Err       error
 }
 
-func (f *FakeFinder) List() ([]process.Info, error)           { return f.Processes, f.Err }
-func (f *FakeFinder) Find(_ []string) ([]process.Info, error) { return f.Processes, f.Err }
+func (f *FakeFinder) List() ([]driven.Info, error)           { return f.Processes, f.Err }
+func (f *FakeFinder) Find(_ []string) ([]driven.Info, error) { return f.Processes, f.Err }

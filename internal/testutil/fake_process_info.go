@@ -1,17 +1,16 @@
-// Package testutil provides shared test helpers for use across packages.
+// Package testutil provides shared test doubles for use across packages.
 package testutil
 
-import "github.com/eirikur-ari/pidshooter/internal/process"
+import "github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
 
-// TODO: is this the correct way to provide fake objects?
 type fakeProcessInfo struct {
 	pid  int
 	name string
 	rss  int64
 }
 
-// NewFakeProcess returns a process.Info test double with the given fields.
-func NewFakeProcess(pid int, name string, rss int64) process.Info {
+// NewFakeProcess returns a driven.Info test double with the given fields.
+func NewFakeProcess(pid int, name string, rss int64) driven.Info {
 	return &fakeProcessInfo{pid: pid, name: name, rss: rss}
 }
 

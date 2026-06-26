@@ -1,0 +1,83 @@
+// Package score manages high-score ranking logic.
+package score
+
+import (
+	"fmt"
+	"sort"
+	"time"
+
+	"github.com/eirikur-ari/pidshooter/internal/util"
+)
+
+// Store persists and retrieves the score board.
+type Store interface {
+	Load() (*Board, error)
+	Save(board *Board) error
+}
+
+// Entry represents a single high score record.
+type Entry struct {
+	Kills    int       `json:"kills"`
+	FreedMem int64     `json:"freed_mem"`
+	Speed    float64   `json:"speed"`
+	Time     int       `json:"time_limit"`
+	Duration float64   `json:"duration_secs"`
+	Date     time.Time `json:"date"`
+}
+
+// Board holds all high scores and their ranking logic.
+type Board struct {
+	Scores []Entry `json:"scores"`
+}
+
+const maxScores = 10
+
+// Add inserts a new score entry and keeps only the top N.
+func (b *Board) Add(entry Entry) bool {
+	b.Scores = append(b.Scores, entry)
+	sort.Slice(b.Scores, func(i, j int) bool {
+		if b.Scores[i].Kills != b.Scores[j].Kills {
+			return b.Scores[i].Kills > b.Scores[j].Kills
+		}
+		return b.Scores[i].FreedMem > b.Scores[j].FreedMem
+	})
+
+	isHighScore := len(b.Scores) <= maxScores ||
+		(len(b.Scores) > 0 && b.Scores[len(b.Scores)-1] != entry)
+
+	if len(b.Scores) > maxScores {
+		b.Scores = b.Scores[:maxScores]
+	}
+
+	return isHighScore
+}
+
+// HighScore returns the current top score (kills), or 0 if none.
+func (b *Board) HighScore() int {
+	if len(b.Scores) == 0 {
+		return 0
+	}
+	return b.Scores[0].Kills
+}
+
+// PrintScores displays the high score table to stdout.
+func (b *Board) PrintScores() {
+	if len(b.Scores) == 0 {
+		fmt.Println("\n  No high scores yet!")
+		return
+	}
+
+	//TODO: Replace Speed with Time
+	fmt.Println("\n  ╔════╦═══════╦════════════╦═══════╦════════════╗")
+	fmt.Println("  ║  # ║ Kills ║   Freed    ║ Speed ║    Date    ║")
+	fmt.Println("  ╠════╬═══════╬════════════╬═══════╬════════════╣")
+
+	for i, s := range b.Scores {
+		mem := util.FormatBytes(s.FreedMem)
+		date := s.Date.Format("2006-01-02")
+		fmt.Printf("  ║ %2d ║  %3d  ║ %8s   ║ %4.1fx ║ %s ║\n",
+			i+1, s.Kills, mem, s.Speed, date)
+	}
+
+	fmt.Println("  ╚════╩═══════╩════════════╩═══════╩════════════╝")
+}
