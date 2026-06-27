@@ -5,7 +5,7 @@ import (
 
 	gamedriven "github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driven"
 	procdriven "github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
+	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
 // stubRenderer and stubEventSource are package-internal test doubles.
@@ -31,11 +31,11 @@ func (e *stubEventSource) Events() <-chan gamedriven.InputEvent { return e.ch }
 
 func TestNew(t *testing.T) {
 	processes := []procdriven.Info{
-		testutil.NewFakeProcess(1, "a", 100),
-		testutil.NewFakeProcess(2, "b", 200),
+		fake.NewProcess(1, "a", 100),
+		fake.NewProcess(2, "b", 200),
 	}
 
-	killer := &testutil.FakeKiller{}
+	killer := &fake.Killer{}
 	renderer := &stubRenderer{w: 80, h: 24}
 	events := newStubEventSource()
 
@@ -50,7 +50,7 @@ func TestNew(t *testing.T) {
 	if g.timeLimit != 60 {
 		t.Errorf("expected timeLimit=60, got %d", g.timeLimit)
 	}
-	if !g.running {
+	if !g.running.Load() {
 		t.Error("expected running=true")
 	}
 	if g.kills != 0 {

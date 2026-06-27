@@ -9,7 +9,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/domain/game"
 	gamedriven "github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driven"
 	procdriven "github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
+	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
 type testRenderer struct{ w, h int }
@@ -31,7 +31,7 @@ func newTestGame(t *testing.T, processes []procdriven.Info, timeLimit int) (*gam
 	t.Helper()
 	events := newTestEventSource()
 	g := game.New(processes, false, 2.0, timeLimit,
-		&testutil.FakeKiller{},
+		&fake.Killer{},
 		&testRenderer{w: 80, h: 24},
 		events,
 	)
@@ -39,7 +39,7 @@ func newTestGame(t *testing.T, processes []procdriven.Info, timeLimit int) (*gam
 }
 
 func TestPlay_QuitOnQ(t *testing.T) {
-	procs := []procdriven.Info{testutil.NewFakeProcess(100, "target", 1024)}
+	procs := []procdriven.Info{fake.NewProcess(100, "target", 1024)}
 	g, events := newTestGame(t, procs, 0)
 
 	go func() {
@@ -53,7 +53,7 @@ func TestPlay_QuitOnQ(t *testing.T) {
 }
 
 func TestPlay_QuitOnEscape(t *testing.T) {
-	procs := []procdriven.Info{testutil.NewFakeProcess(101, "target", 1024)}
+	procs := []procdriven.Info{fake.NewProcess(101, "target", 1024)}
 	g, events := newTestGame(t, procs, 0)
 
 	go func() {
@@ -67,7 +67,7 @@ func TestPlay_QuitOnEscape(t *testing.T) {
 }
 
 func TestPlay_TimeLimitExpires(t *testing.T) {
-	procs := []procdriven.Info{testutil.NewFakeProcess(102, "target", 1024)}
+	procs := []procdriven.Info{fake.NewProcess(102, "target", 1024)}
 	g, _ := newTestGame(t, procs, 1)
 
 	start := time.Now()
@@ -80,7 +80,7 @@ func TestPlay_TimeLimitExpires(t *testing.T) {
 }
 
 func TestPlay_SessionStateAfterQuit(t *testing.T) {
-	procs := []procdriven.Info{testutil.NewFakeProcess(103, "target", 1024)}
+	procs := []procdriven.Info{fake.NewProcess(103, "target", 1024)}
 	g, events := newTestGame(t, procs, 0)
 
 	go func() {

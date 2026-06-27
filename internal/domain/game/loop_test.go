@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
+	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
 func TestGame_timeRemaining_WithinLimit(t *testing.T) {
@@ -25,8 +25,8 @@ func TestGame_timeRemaining_Expired(t *testing.T) {
 }
 
 func TestKillTarget_TransitionsToKilling(t *testing.T) {
-	e := &Target{Info: testutil.NewFakeProcess(1, "target", 2048), State: Alive}
-	g := &Game{killer: &testutil.FakeKiller{}}
+	e := &Target{Info: fake.NewProcess(1, "target", 2048), State: Alive}
+	g := &Game{killer: &fake.Killer{}}
 
 	g.killTarget(e)
 
@@ -42,8 +42,8 @@ func TestKillTarget_TransitionsToKilling(t *testing.T) {
 }
 
 func TestKillTarget_NoOpWhenNotAlive(t *testing.T) {
-	e := &Target{Info: testutil.NewFakeProcess(1, "target", 2048), State: Dead}
-	g := &Game{killer: &testutil.FakeKiller{}}
+	e := &Target{Info: fake.NewProcess(1, "target", 2048), State: Dead}
+	g := &Game{killer: &fake.Killer{}}
 
 	g.killTarget(e)
 
@@ -54,32 +54,34 @@ func TestKillTarget_NoOpWhenNotAlive(t *testing.T) {
 
 func TestUpdate_StopsWhenTimeLimitExpired(t *testing.T) {
 	renderer := &stubRenderer{w: 80, h: 24}
-	g := &Game{renderer: renderer, running: true, timeLimit: 1}
+	g := &Game{renderer: renderer, timeLimit: 1}
+	g.running.Store(true)
 	g.startTime = time.Now().Add(-2 * time.Second)
 
 	g.update()
 
-	if g.running {
+	if g.running.Load() {
 		t.Error("expected game stopped when time limit expired")
 	}
 }
 
 func TestUpdate_StopsWhenAllTargetsDead(t *testing.T) {
 	renderer := &stubRenderer{w: 80, h: 24}
-	e := &Target{Info: testutil.NewFakeProcess(1, "target", 0), State: Dead}
-	g := &Game{renderer: renderer, running: true, targets: []*Target{e}}
+	e := &Target{Info: fake.NewProcess(1, "target", 0), State: Dead}
+	g := &Game{renderer: renderer, targets: []*Target{e}}
+	g.running.Store(true)
 	g.startTime = time.Now()
 
 	g.update()
 
-	if g.running {
+	if g.running.Load() {
 		t.Error("expected game stopped when all targets dead")
 	}
 }
 
 func TestRender_AliveTargetIncluded(t *testing.T) {
 	renderer := &stubRenderer{w: 80, h: 24}
-	e := &Target{Info: testutil.NewFakeProcess(1, "myapp", 1024), Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
+	e := &Target{Info: fake.NewProcess(1, "myapp", 1024), Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
 	g := &Game{renderer: renderer, targets: []*Target{e}}
 
 	g.render()
@@ -101,7 +103,7 @@ func TestRender_AliveTargetIncluded(t *testing.T) {
 
 func TestRender_DeadTargetExcluded(t *testing.T) {
 	renderer := &stubRenderer{w: 80, h: 24}
-	e := &Target{Info: testutil.NewFakeProcess(1, "myapp", 1024), State: Dead}
+	e := &Target{Info: fake.NewProcess(1, "myapp", 1024), State: Dead}
 	g := &Game{renderer: renderer, targets: []*Target{e}}
 
 	g.render()
@@ -113,7 +115,7 @@ func TestRender_DeadTargetExcluded(t *testing.T) {
 
 func TestRender_KillingTargetMarked(t *testing.T) {
 	renderer := &stubRenderer{w: 80, h: 24}
-	e := &Target{Info: testutil.NewFakeProcess(1, "myapp", 1024), State: Killing}
+	e := &Target{Info: fake.NewProcess(1, "myapp", 1024), State: Killing}
 	g := &Game{renderer: renderer, targets: []*Target{e}}
 
 	g.render()
@@ -147,7 +149,7 @@ func TestRender_HUDReflectsSession(t *testing.T) {
 
 func TestRender_ConfirmStateInStatusBar(t *testing.T) {
 	renderer := &stubRenderer{w: 80, h: 24}
-	target := &Target{Info: testutil.NewFakeProcess(42, "suspect", 0), State: Alive}
+	target := &Target{Info: fake.NewProcess(42, "suspect", 0), State: Alive}
 	g := &Game{renderer: renderer, targets: []*Target{target}, confirming: target}
 
 	g.render()
@@ -166,9 +168,9 @@ func TestRender_ConfirmStateInStatusBar(t *testing.T) {
 
 func TestRender_StatusBarAliveCount(t *testing.T) {
 	renderer := &stubRenderer{w: 80, h: 24}
-	alive := &Target{Info: testutil.NewFakeProcess(1, "a", 0), State: Alive}
-	dead := &Target{Info: testutil.NewFakeProcess(2, "b", 0), State: Dead}
-	killing := &Target{Info: testutil.NewFakeProcess(3, "c", 0), State: Killing}
+	alive := &Target{Info: fake.NewProcess(1, "a", 0), State: Alive}
+	dead := &Target{Info: fake.NewProcess(2, "b", 0), State: Dead}
+	killing := &Target{Info: fake.NewProcess(3, "c", 0), State: Killing}
 	g := &Game{renderer: renderer, targets: []*Target{alive, dead, killing}}
 
 	g.render()

@@ -27,29 +27,20 @@ type Entry struct {
 
 // Board holds all high scores and their ranking logic.
 type Board struct {
-	Scores []Entry `json:"scores"`
+	Scores    []Entry `json:"scores"`
+	highScore int
 }
 
 const maxScores = 10
 
 // Add inserts a new score entry and keeps only the top N.
-func (b *Board) Add(entry Entry) bool {
+func (b *Board) Add(entry Entry) {
+	b.highScore = b.HighScore()
 	b.Scores = append(b.Scores, entry)
-	sort.Slice(b.Scores, func(i, j int) bool {
-		if b.Scores[i].Kills != b.Scores[j].Kills {
-			return b.Scores[i].Kills > b.Scores[j].Kills
-		}
-		return b.Scores[i].FreedMem > b.Scores[j].FreedMem
-	})
-
-	isHighScore := len(b.Scores) <= maxScores ||
-		(len(b.Scores) > 0 && b.Scores[len(b.Scores)-1] != entry)
-
+	b.sortByRank()
 	if len(b.Scores) > maxScores {
 		b.Scores = b.Scores[:maxScores]
 	}
-
-	return isHighScore
 }
 
 // HighScore returns the current top score (kills), or 0 if none.
@@ -58,6 +49,14 @@ func (b *Board) HighScore() int {
 		return 0
 	}
 	return b.Scores[0].Kills
+}
+
+// PrintHighScore prints a trophy message if kills beats the high score
+// recorded at the time of the last Add call.
+func (b *Board) PrintHighScore(kills int) {
+	if kills > 0 && kills > b.highScore {
+		fmt.Println("  🏆 New high score!")
+	}
 }
 
 // PrintScores displays the high score table to stdout.
@@ -80,4 +79,17 @@ func (b *Board) PrintScores() {
 	}
 
 	fmt.Println("  ╚════╩═══════╩════════════╩═══════╩════════════╝")
+}
+
+func (b *Board) sortByRank() {
+	sort.Slice(b.Scores, func(i, j int) bool {
+		return b.Scores[i].beats(b.Scores[j])
+	})
+}
+
+func (e Entry) beats(other Entry) bool {
+	if e.Kills != other.Kills {
+		return e.Kills > other.Kills
+	}
+	return e.FreedMem > other.FreedMem
 }

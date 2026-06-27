@@ -44,16 +44,16 @@ func (g *Game) handleMouseClick(x, y int) {
 func (g *Game) handleKeyPress(key driven.KeyCode, r rune) {
 	switch {
 	case key == driven.KeyEscape:
-		g.running = false
+		g.running.Store(false)
 	case key == driven.KeyCtrlC:
-		g.running = false
+		g.running.Store(false)
 	case key == driven.KeyCtrlZ:
-		g.running = false
+		g.running.Store(false)
 	case r == 'q' || r == 'Q':
 		if g.confirming != nil {
 			g.confirming = nil
 		} else {
-			g.running = false
+			g.running.Store(false)
 		}
 	case r == 'y' || r == 'Y':
 		if g.confirming != nil {

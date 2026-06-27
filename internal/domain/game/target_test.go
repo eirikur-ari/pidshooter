@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
+	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
 func TestNewTarget_WithinBounds(t *testing.T) {
 	maxX, maxY := 80, 24
-	e := NewTarget(testutil.NewFakeProcess(1234, "test", 1024), maxX, maxY)
+	e := NewTarget(fake.NewProcess(1234, "test", 1024), maxX, maxY)
 
 	if e.Pid() != 1234 {
 		t.Errorf("expected PID=1234, got %d", e.Pid())
@@ -38,14 +38,14 @@ func TestNewTarget_WithinBounds(t *testing.T) {
 }
 
 func TestNewTarget_SmallTerminal(t *testing.T) {
-	e := NewTarget(testutil.NewFakeProcess(1, "x", 0), 5, 5)
+	e := NewTarget(fake.NewProcess(1, "x", 0), 5, 5)
 	if e == nil {
 		t.Fatal("expected non-nil entity")
 	}
 }
 
 func TestTarget_Label_Alive(t *testing.T) {
-	e := &Target{Info: testutil.NewFakeProcess(42, "bash", 0), State: Alive}
+	e := &Target{Info: fake.NewProcess(42, "bash", 0), State: Alive}
 	expected := "[42 bash]"
 	if got := e.Label(); got != expected {
 		t.Errorf("expected %q, got %q", expected, got)
@@ -53,14 +53,14 @@ func TestTarget_Label_Alive(t *testing.T) {
 }
 
 func TestTarget_Label_Dead(t *testing.T) {
-	e := &Target{Info: testutil.NewFakeProcess(42, "bash", 0), State: Dead}
+	e := &Target{Info: fake.NewProcess(42, "bash", 0), State: Dead}
 	if got := e.Label(); got != "" {
 		t.Errorf("expected empty string, got %q", got)
 	}
 }
 
 func TestTarget_Label_Killing(t *testing.T) {
-	e := &Target{Info: testutil.NewFakeProcess(42, "bash", 0), State: Killing, KillAnimFrame: 0}
+	e := &Target{Info: fake.NewProcess(42, "bash", 0), State: Killing, KillAnimFrame: 0}
 	label := e.Label()
 	if label == "" {
 		t.Error("expected non-empty kill animation label")
@@ -69,7 +69,7 @@ func TestTarget_Label_Killing(t *testing.T) {
 
 func TestTarget_Update_KillingState(t *testing.T) {
 	e := &Target{
-		Info:          testutil.NewFakeProcess(1, "x", 0),
+		Info:          fake.NewProcess(1, "x", 0),
 		State:         Killing,
 		KillAnimFrame: KillAnimFrames - 1,
 	}
@@ -83,7 +83,7 @@ func TestTarget_Update_KillingState(t *testing.T) {
 
 func TestTarget_Update_DeadNoOp(t *testing.T) {
 	e := &Target{
-		Info:   testutil.NewFakeProcess(1, "x", 0),
+		Info:   fake.NewProcess(1, "x", 0),
 		Motion: Motion{PosX: 10, PosY: 10, VelX: 1.0, VelY: 1.0},
 		State:  Dead,
 	}
@@ -97,7 +97,7 @@ func TestTarget_Update_DeadNoOp(t *testing.T) {
 
 func TestTarget_Contains(t *testing.T) {
 	e := &Target{
-		Info:   testutil.NewFakeProcess(42, "bash", 0),
+		Info:   fake.NewProcess(42, "bash", 0),
 		Motion: Motion{PosX: 10, PosY: 5},
 		State:  Alive,
 	}
@@ -124,7 +124,7 @@ func TestTarget_Contains(t *testing.T) {
 
 func TestTarget_Contains_NotAlive(t *testing.T) {
 	e := &Target{
-		Info:   testutil.NewFakeProcess(42, "bash", 0),
+		Info:   fake.NewProcess(42, "bash", 0),
 		Motion: Motion{PosX: 10, PosY: 5},
 		State:  Killing,
 	}
@@ -135,7 +135,7 @@ func TestTarget_Contains_NotAlive(t *testing.T) {
 }
 
 func TestTarget_StartKillAnim(t *testing.T) {
-	e := &Target{Info: testutil.NewFakeProcess(1, "x", 0), State: Alive, KillAnimFrame: 5}
+	e := &Target{Info: fake.NewProcess(1, "x", 0), State: Alive, KillAnimFrame: 5}
 	e.StartKillAnim()
 
 	if e.State != Killing {

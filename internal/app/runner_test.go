@@ -6,7 +6,7 @@ import (
 
 	gamedriven "github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driven"
 	"github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driving"
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
+	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
 type stubRenderer struct{}
@@ -25,9 +25,9 @@ func (e *stubEventSource) Events() <-chan gamedriven.InputEvent { return e.ch }
 
 func TestGameService_FinderError(t *testing.T) {
 	svc := NewGameService(
-		&testutil.FakeFinder{Err: errors.New("ps failed")},
-		&testutil.FakeKiller{},
-		&testutil.FakeStore{},
+		&fake.Finder{Err: errors.New("ps failed")},
+		&fake.Killer{},
+		&fake.Store{},
 		&stubRenderer{},
 		newStubEventSource(),
 	)
@@ -39,9 +39,9 @@ func TestGameService_FinderError(t *testing.T) {
 
 func TestGameService_NoProcesses(t *testing.T) {
 	svc := NewGameService(
-		&testutil.FakeFinder{},
-		&testutil.FakeKiller{},
-		&testutil.FakeStore{},
+		&fake.Finder{},
+		&fake.Killer{},
+		&fake.Store{},
 		&stubRenderer{},
 		newStubEventSource(),
 	)

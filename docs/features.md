@@ -20,6 +20,7 @@ Patterns are validated at startup:
 - At least one pattern is required
 - Empty patterns are rejected
 - Patterns longer than 256 characters are rejected
+- Unknown flags (any `-` prefixed argument that is not a recognised flag) are rejected with a usage hint
 - The game itself and PID 1 are always excluded from results
 
 ### Confirm mode (`--confirm`)
@@ -49,10 +50,19 @@ pidshooter node --time=0
 
 ---
 
+## Startup
+
+Before entering the game loop the application:
+1. Searches for processes matching the given patterns.
+2. If no processes are found, prints `No processes found matching [patterns]` and exits cleanly.
+3. If processes are found, prints `Found N process(es) matching [patterns]. Starting game...` and launches the game.
+
+---
+
 ## Gameplay
 
 ### Entity spawning
-Each matched process becomes an entity — a label in the format `[PID name]` placed at a random position on the terminal. Entities start with randomised velocities: horizontal speed is stronger than vertical to keep labels readable.
+Each matched process becomes an entity — a label in the format `[PID name]` placed at a random position on the terminal. Entities start with randomised velocities: horizontal speed is stronger than vertical to keep labels readable. Specifically, horizontal velocity magnitudes are in the range 0.2–1.0, vertical in the range 0.1–0.5.
 
 ### Bouncing physics
 Entities bounce off all four walls continuously. The right and bottom bounds account for the label width and the status bar row respectively, so labels never clip out of view.
@@ -61,7 +71,18 @@ Entities bounce off all four walls continuously. The right and bottom bounds acc
 `+` increases speed by 0.5× per keypress (cap: 5.0×). `-` decreases by 0.5× (floor: 0.1×). Changes take effect immediately and apply to all entities uniformly.
 
 ### Killing
-Clicking on an entity's label sends `SIGKILL` to that PID. A kill animation plays over 12 frames cycling through `💥 → ✦ KILLED ✦ → · · · → · → (blank)`, after which the entity transitions to dead and stops rendering.
+Left-clicking on an entity's label sends `SIGKILL` to that PID. A kill animation plays over 12 frames cycling through `💥 → ✦ KILLED ✦ → · · · → · → (blank)`, after which the entity transitions to dead and stops rendering.
+
+### Visual style
+- Alive targets are rendered in **green bold** text.
+- Targets playing the kill animation are rendered in **red bold** text.
+- The status bar uses black text on a white background.
+
+### Terminal resize
+Terminal resize events are handled: the screen is synchronised and the new dimensions are picked up on the next game tick.
+
+### Game loop
+The game runs at 20 FPS. Each tick drains pending input events, updates entity positions and states, then renders a frame.
 
 ### Win condition
 The game ends automatically when all entities have been killed (all reach the dead state). It also ends when the time limit expires, or when the player quits.
@@ -84,10 +105,12 @@ The top row of the terminal displays three live counters:
 Memory is formatted as bytes, KB, MB, or GB automatically.
 
 The bottom row is a persistent status bar showing:
-- Number of alive targets remaining
-- Current speed multiplier
-- Time remaining (if a limit is set)
-- Control hints (`Click to kill`, `+/- speed`, `q quit`)
+
+```
+ Targets: N | Speed: X.Xf | Time: Ns | Click to kill | +/- speed | 'q' quit
+```
+
+The `Time:` segment is omitted when no time limit is set.
 
 During a confirm prompt the status bar switches to: `Kill [PID name]? (Y)es / (N)o / (Q)uit`
 
@@ -112,6 +135,8 @@ After the game ends the terminal is restored and a summary is printed:
   🏆 New high score!
 ```
 
+The "New high score!" line appears when the session's kill count is greater than zero and equals or exceeds the previous top score (a tie also qualifies).
+
 Followed by the full leaderboard table showing rank, kills, freed memory, speed, and date for all stored entries.
 
 ---
@@ -124,4 +149,8 @@ The game registers handlers for `SIGINT`, `SIGTERM`, and `SIGTSTP`. Any of these
 
 ## Process discovery
 
-Processes are discovered by running `ps -eo pid,rss,comm` and parsing its output. Resident Set Size (RSS) is reported in kilobytes by `ps` and converted to bytes internally. The current process and PID 1 are always filtered out.
+Processes are discovered by running `ps` and parsing its output:
+- On **macOS** the command is `ps -ceo pid,rss,comm` (the `-c` flag returns the short executable name without the full path).
+- On **Linux and other platforms** the command is `ps -eo pid,rss,comm`.
+
+Resident Set Size (RSS) is reported in kilobytes by `ps` and converted to bytes internally. The current process and PID 1 are always filtered out.

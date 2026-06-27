@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 
 	gamedriven "github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driven"
@@ -21,7 +22,7 @@ type Game struct {
 	confirmMode bool
 	speed       float64
 	timeLimit   int
-	running     bool
+	running     atomic.Bool
 	confirming  *Target
 	Session
 }
@@ -36,7 +37,7 @@ func New(
 	renderer gamedriven.Renderer,
 	events gamedriven.EventSource,
 ) *Game {
-	return &Game{
+	g := &Game{
 		renderer:    renderer,
 		events:      events,
 		killer:      killer,
@@ -44,9 +45,10 @@ func New(
 		targets:     make([]*Target, 0, len(processes)),
 		confirmMode: confirmMode,
 		speed:       speed,
-		running:     true,
 		timeLimit:   timeLimit,
 	}
+	g.running.Store(true)
+	return g
 }
 
 // Play runs the full game lifecycle: init renderer, run loop, cleanup.
@@ -73,4 +75,4 @@ func (g *Game) Play(highScore int) error {
 	return nil
 }
 
-func (g *Game) stop() { g.running = false }
+func (g *Game) stop() { g.running.Store(false) }

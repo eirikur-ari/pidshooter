@@ -1,167 +1,209 @@
 # pidshooter — Code Review Report
 
-*Updated 2026-06-24. Reflects fully refactored package layout: `runner`, `game`, `process`, `score`, `util`, `testutil`.*
+*Updated 2026-06-27. Reflects fully implemented hexagonal architecture: `app` application service, `cli`/`tcellui`/`osprocess`/`jsonscores` adapters, port interfaces in `ports/driven` and `ports/driving` sub-packages.*
 
 ---
 
 ## Bugs
 
-### 1. Data race on `game.running` — `game.go:22`, `loop.go:59,71,84`, `event_handler.go:48–59`
-
-`running` is a plain `bool`. The signal handler goroutine (spawned in `game.go:59`) calls `g.stop()` which writes `g.running = false` at `game.go:68`, while the main loop reads `for g.running` at `loop.go:59` and mutates it at `loop.go:71,84`. These are unsynchronised cross-goroutine accesses. `go test -race ./...` will catch this.
-
-```go
-// fix: replace plain bool with atomic
-import "sync/atomic"
-
-type Game struct {
-    running atomic.Bool
-    // ...
-}
-func (g *Game) stop() { g.running.Store(false) }
-// loop: for g.running.Load() { ... }
-// update: g.running.Store(false)
-```
-
-Test constructions that write `running: true` directly (e.g. `loop_test.go:63`, `event_handler_test.go:13`) must be updated to call `g.running.Store(true)`.
-
-### 2. Broken `isHighScore` logic — `score.go:72–73`
-
-```go
-isHighScore := len(b.Scores) <= maxScores ||
-    (len(b.Scores) > 0 && b.Scores[len(b.Scores)-1] != entry)
-```
-
-After sorting, `entry` can land at any index. Checking whether the *last* element equals `entry` is unreliable: `Entry` contains a `time.Time`, so two entries with the same kills/mem but different timestamps are never `==`, making the condition almost always `true`. The return value is also discarded at the call site (`runner.go:47` calls `scoreBoard.Add(...)` without capturing the result), making it dead code. Simplest fix: drop the bool return from `Add()`. The check in `runner.go:59` (`g.Kills() >= scoreBoard.HighScore()`) already does what the caller actually needs.
+All reported bugs have been resolved — see Resolved table below.
 
 ---
 
 ## Design Issues
 
-### 3. `parseArgs` calls `os.Exit` — `main.go:58–60, 92–94`
+### 3. `parseArgs` calls `os.Exit` — `cli/cli.go:63, 97`
 
-Two `os.Exit(0)` calls remain:
-- `main.go:58` — zero-argument invocation prints usage and exits
-- `main.go:93` — `--help`/`-h` flag prints usage and exits
+Two `os.Exit(0)` calls remain inside `parseArgs`:
 
-These make `parseArgs` untestable for those paths. Return a sentinel error (e.g. `errUsage`) and let `run()` detect and handle it, printing usage there instead of inside the parser.
+```go
+if len(args) == 0 {
+    fmt.Println(usage)
+    os.Exit(0)  // line 63 — untestable
+}
+// ...
+case arg == "--help" || arg == "-h":
+    fmt.Println(usage)
+    os.Exit(0)  // line 97 — untestable
+```
 
-### 4. `parseArgs` returns five values — `main.go:56`
+Both paths are unreachable in tests, meaning there is no coverage for the zero-args or `--help` code paths. Return a sentinel error (e.g. `errUsage`) and let `CLI.Run()` detect and print usage before returning `nil`, keeping `parseArgs` a pure function.
+
+### 4. `parseArgs` returns five values — `cli/cli.go:60`
 
 ```go
 func parseArgs(args []string) ([]string, bool, float64, int, error)
 ```
 
-`runner.Config` already exists with exactly these four data fields. `parseArgs` could return `(runner.Config, error)` to eliminate the five-value tuple and reduce construction boilerplate in `run()`.
+`driving.Config` already has exactly these four data fields. `parseArgs` could return `(driving.Config, error)`, eliminating the five-value return and the manual field assignment inside `CLI.Run()`.
 
-### 5. `filePath()` creates a directory as a side effect — `score.go:38`
-
-A function returning a path string should not create directories. `os.MkdirAll` runs on every `Load()` and `Save()` call. Move it into `Save()` only, where the directory is actually needed.
-
-### 6. Event goroutine can block permanently after game exits — `loop.go:49–57`
+### 5. `defaultPath()` creates a directory as a side effect — `jsonscores/jsonscores.go:23–31`
 
 ```go
-go func() {
-    for {
-        ev := g.screen.PollEvent()
-        if ev == nil { return }
-        eventCh <- ev   // blocks if channel is full
-    }
-}()
+func defaultPath() string {
+    // ...
+    _ = os.MkdirAll(dir, 0755)  // error silently discarded
+    return filepath.Join(dir, "highscores.json")
+}
 ```
 
-`eventCh` has capacity 10. If the channel is full and `PollEvent` returns another event, the goroutine blocks on the send. When the game loop exits and `cleanup()` calls `screen.Fini()`, `Fini()` unblocks `PollEvent` — but the goroutine is blocked on the *channel send*, not on `PollEvent`. The goroutine leaks for the lifetime of the process. Fix with a context or done channel:
+A function that returns a path string should not have the side effect of creating a directory, and the `MkdirAll` error is swallowed. If the directory cannot be created (permission denied, etc.), `Save()` will produce an opaque write error and `Load()` will silently return an empty board — both without any indication of the root cause. Move directory creation into `Save()` only, where it is actually needed, and propagate the error.
+
+### 6. Event poll goroutine can block permanently after game exits — `tcellui/tcellui.go:154,157,160`
 
 ```go
-ctx, cancel := context.WithCancel(context.Background())
-defer cancel()
-go func() {
+func (a *UI) poll() {
     for {
-        ev := g.screen.PollEvent()
+        ev := a.screen.PollEvent()
         if ev == nil { return }
-        select {
-        case eventCh <- ev:
-        case <-ctx.Done(): return
+        switch ev := ev.(type) {
+        case *tcell.EventMouse:
+            a.ch <- driven.ClickEvent{...}   // blocks if channel full
+        case *tcell.EventKey:
+            a.ch <- driven.KeyEvent{...}     // blocks if channel full
+        case *tcell.EventResize:
+            a.ch <- driven.ResizeEvent{}     // blocks if channel full
         }
     }
-}()
+}
 ```
 
-### 7. Signal goroutine leaks after game ends — `game.go:56–62`
+`a.ch` has capacity 10. If the game loop exits (and `drainEvents` stops consuming), `poll` blocks on the next channel send. When `Cleanup()` then calls `screen.Fini()`, `PollEvent` would return `nil` to unblock `poll` — but `poll` is stuck at the *channel send*, not at `PollEvent`. The goroutine leaks for the lifetime of the process. Fix with a done channel:
+
+```go
+func (a *UI) poll(done <-chan struct{}) {
+    for {
+        ev := a.screen.PollEvent()
+        if ev == nil { return }
+        // ...
+        select {
+        case a.ch <- event:
+        case <-done: return
+        }
+    }
+}
+```
+
+### 7. Signal goroutine leaks after game ends — `game/game.go:64–70`
 
 ```go
 sigCh := make(chan os.Signal, 1)
 signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGTSTP)
 defer signal.Stop(sigCh)
 go func() {
-    <-sigCh
+    <-sigCh   // blocks here forever if no signal arrives
     g.stop()
 }()
 ```
 
-After `g.run()` returns, the goroutine is blocked on `<-sigCh`. `signal.Stop(sigCh)` stops routing signals to the channel but does not close it, so the goroutine stays blocked until a signal arrives or the process exits. For a single game session this is harmless, but in integration tests that create multiple `Game` instances it accumulates. Close the channel after `signal.Stop`, or switch to a done-channel pattern.
+`signal.Stop(sigCh)` stops routing future signals to the channel but does not close it, so the goroutine stays blocked on `<-sigCh` after the game loop returns. For a single-session process this is harmless, but integration tests that create multiple `Game` instances accumulate blocked goroutines. Close the channel after `signal.Stop`, or switch to a context/done-channel pattern to guarantee cleanup.
 
-### 8. Kill score incremented even if `SIGKILL` fails — `loop.go:191`
+### 8. Kill score recorded even if SIGKILL fails — `loop.go:103–110`
 
 ```go
 func (g *Game) killTarget(e *Target) {
     if e.State != Alive { return }
-    _ = e.Kill()           // error silently discarded
+    _ = g.killer.Kill(e.Pid())   // error silently discarded
     e.StartKillAnim()
     g.Session.RecordKill(e.Rss())
 }
 ```
 
-`Target.Kill()` returns an error (`target.go:95`), but it is always discarded and the score is always incremented. On Linux, `os.FindProcess` succeeds for any PID, so a process that has already exited passes the guard and the score is inflated. At minimum log the error; ideally only call `RecordKill` after a successful signal.
+`Kill()` returns an error, but it is always discarded and the kill and freed-memory counters are always incremented. On platforms where sending SIGKILL to an already-exited PID succeeds silently, scores are inflated. At minimum log the error; ideally call `RecordKill` only when `Kill` returns `nil`.
 
-### 9. High score never updates mid-game — `loop.go:125`
+### 9. High score display is stale during play — `loop.go:89–92`
 
 ```go
-hiStr := fmt.Sprintf(" Highscore: %d ", g.highScore)
+HUD: gamedriven.HUDState{
+    // ...
+    HighScore: g.highScore,  // set once before the loop, never updated
+},
 ```
 
-`g.highScore` is set once in `Play()` via `g.SetHighScore(highScore)` and never changes during the session. If the player beats the record mid-game, the HUD still shows the pre-game value. Compare `g.kills` against `g.highScore` inside `killTarget` and update via `g.SetHighScore(g.kills)` when exceeded.
+`g.highScore` is initialised in `Play()` via `g.SetHighScore(highScore)` and never changed during the session. If the player beats the record mid-game, the HUD continues to display the pre-game high score. Update `g.highScore` inside `killTarget` when `g.kills` exceeds it.
+
+### 10. Score save errors silently discarded — `app/runner.go:75`
+
+```go
+_ = s.store.Save(board)
+```
+
+If the score file cannot be written (disk full, permission denied, stale NFS mount), the user sees the summary and score table printed from the in-memory board, with no indication that the result was not persisted. The error should at minimum be logged to stderr.
+
+### 11. `PrintScores()` couples the domain to stdout — `score/score.go:64–83`
+
+`Board.PrintScores()` calls `fmt.Println` and `fmt.Printf` directly, making the domain package responsible for terminal output. This violates the layering used everywhere else in the codebase (where output goes through the `Renderer` port or the application layer). The display logic belongs in `app.GameService.Play()` after the game completes — the domain should only provide the data.
+
+### 12. `NewKiller()` returns a concrete type — `osprocess/osprocess.go:130–132`
+
+```go
+func NewKiller() *Killer { ... }
+```
+
+`NewFinder()` returns `driven.Finder` (the port interface). `NewKiller()` returns `*Killer` (the concrete adapter type). This inconsistency leaks the adapter type into `main.go`, which then relies on implicit interface satisfaction rather than the explicit contract. Change the return type to `gamedriven.ProcessKiller` for consistency.
 
 ---
 
 ## Minor / Polish
 
-### 10. `len()` counts bytes, not display columns — `target.go:37, 71, 83`
+### 13. Multi-byte characters: byte counts used for bounds, hit-detection, and rendering — `target.go:34,68,79`, `tcellui/tcellui.go:64`
 
-`len(label)` counts UTF-8 bytes. Kill animation frames contain multi-byte emoji (`"💥"` — 4 bytes, 2 display columns). `Update()` passes `float64(len(e.Label()))` as the label width for bounce bounds; `Contains()` uses `len(e.Label())` for hit detection. Both are wrong for frames containing multi-byte characters. Use `utf8.RuneCountInString()` for character count, or `uniseg.StringWidth()` for display column width.
+This is a cross-layer issue. In the domain:
 
-### 11. HUD elements can overlap on narrow terminals — `loop.go:117–147`
+- `target.go:34` — `NewTarget` computes spawn bounds with `len(fmt.Sprintf("[%d %s]", ...))`, which counts UTF-8 bytes.
+- `target.go:68` — `Update` passes `float64(len(e.Label()))` as the right-wall boundary for bounce calculations.
+- `target.go:79` — `Contains` uses `len(e.Label())` for click hit-detection.
 
-`FREED`, `Highscore`, and `KILLS` are drawn independently on row 0 with no awareness of each other. On terminals narrower than ~50 columns they overwrite each other. A single formatted status line or an explicit minimum-width guard would be more robust.
+In the adapter:
 
-### 12. `ps` resolved via `$PATH` — `finder.go:54`
+- `tcellui.go:64` — `for i, ch := range tv.Label` gives `i` as a **byte offset**, then uses `tv.X+i` as the screen column. For kill-animation frames containing multi-byte characters (`"✦ KILLED ✦"`, `"· · ·"`), the rendered characters land at wrong column positions, leaving visual gaps.
 
-`exec.Command("ps", ...)` relies on `$PATH`. On Linux, reading `/proc` directly would eliminate the subprocess and the PATH dependency. The existing TODO comment in the file acknowledges this.
+Fix: use `utf8.RuneCountInString()` for character count in the domain. Fix the rendering loop to track the column index independently:
 
-### 13. Score table header does not match data — `score.go:97`
+```go
+col := 0
+for _, ch := range tv.Label {
+    a.screen.SetContent(tv.X+col, tv.Y, ch, nil, style)
+    col++
+}
+```
+
+### 14. HUD elements can overlap on narrow terminals — `tcellui/tcellui.go:87, 99`
+
+`FREED`, `Highscore`, and `KILLS` are drawn independently on row 0 — left-aligned, centred, and right-aligned respectively — with no awareness of each other. On terminals narrower than ~50 columns they overwrite each other. A single formatted status line or a minimum-width guard would be more robust.
+
+### 15. `ps` resolved via `$PATH` — `osprocess/osprocess.go:52`
+
+```go
+cmd := exec.Command("ps", flags, "pid,rss,comm")
+```
+
+`ps` is found by searching `$PATH`. On Linux, reading `/proc` directly would eliminate the subprocess and the PATH dependency entirely. The existing TODO comment acknowledges this.
+
+### 16. Score table header does not match data — `score/score.go:71`
 
 ```go
 //TODO: Replace Speed with Time
 fmt.Println("  ║  # ║ Kills ║   Freed    ║ Speed ║    Date    ║")
 ```
 
-`Entry` has both `Speed` and `Time` fields, but the table only shows Speed. The time-limit column was never added to the display.
+`Entry` has both `Speed` and `Time` fields, but only `Speed` is rendered. The time-limit column was never added to the table display.
 
-### 14. Grammar error in `validate()` — `finder.go:100`
-
-`"at least one search patterns is required"` should be `"at least one search pattern is required"`.
-
-### 15. Stale TODO comment — `target.go:36`
+### 17. Grammar error in `validate()` — `osprocess/osprocess.go:96`
 
 ```go
-//TODO: Is label the correct word for the game entity that represents the process?
+return fmt.Errorf("at least one search patterns is required")
 ```
 
-This is stale. `Target` is the entity; "label" refers to its rendered string. Remove the comment or replace it with a short inline explanation.
+Should be `"at least one search pattern is required"` (singular).
 
-### 16. `runner` has no happy-path test — `runner_test.go`
+### 18. `GameService` has no happy-path test — `app/runner_test.go`
 
-`runner_test.go` covers `TestStart_FinderError` and `TestStart_NoProcesses` but not the case where processes are found and the game runs to completion. The internal `start()` function accepts a `process.Finder`, and `Game.UseScreen()` allows injecting a `tcell.SimulationScreen`, so a full-path integration test is achievable without mocking.
+`runner_test.go` covers `FinderError` and `NoProcesses` but not the normal path where processes are found and the game runs to completion. With `FakeFinder`, `FakeKiller`, `FakeStore`, and the stub renderer/event source already in `testutil`, a complete happy-path test is straightforward. The session state (`Kills`, `FreedMem`, `StartTime`) and score persistence call are currently uncovered.
+
+### 19. `tcellui` package has no tests — `adapter/driven/tcellui/`
+
+`tcellui` implements both `Renderer` and `EventSource`. `drawHUD`, `drawStatusBar`, `translateKey`, and the event loop in `poll()` have no test coverage. `tcell.NewSimulationScreen()` provides a headless screen suitable for unit tests without a real terminal.
 
 ---
 
@@ -169,14 +211,18 @@ This is stale. `Target` is the entity; "label" refers to its rendered string. Re
 
 | Previous issue | Resolution |
 |---|---|
-| Double `game.Cleanup()` call | `Play()` owns the full lifecycle via `defer g.cleanup()`; runner calls only `g.Play()` |
-| Duplicate mock types in game tests | Consolidated into `internal/testutil.NewFakeProcess()`, used across all test packages |
+| Stale TODO "Is label the correct word?" (`target.go`) | Removed; `Target` / `Label()` naming is now self-evident |
 | Monolithic `game.go` | Split into `game.go`, `loop.go`, `event_handler.go`, `target.go`, `motion.go`, `session.go` |
-| `main.go` owning game/session orchestration | Extracted into `internal/runner`; `main.go` is now parse → start → error |
+| `main.go` owning game/session orchestration | Extracted to `app.GameService`; `main.go` is now wiring only |
+| Duplicate test double types across test packages | Reorganised into `internal/testutil/fake` package (`Killer`, `Finder`, `Store`, `NewProcess`) with idiomatic Go naming (no `Fake` prefix, no package name in file names) |
+| #1 — Latent data race on `game.running` | `running bool` → `atomic.Bool`; `stop()`, `update()`, and `event_handler.go` use `Store/Load`; test files use `newRunningGame()` helper for two-step init |
+| #2 — `Board.Add()` bool return value dead code | Removed return value; `Board` captures `highScore` before append; new `PrintHighScore(kills int)` method encapsulates the new-high-score decision and output |
+| Double `game.Cleanup()` call | `Play()` owns the full lifecycle via `defer g.renderer.Cleanup()` |
 | `Entity` / `EntityState` naming | Renamed to `Target` / `TargetState` throughout |
-| `process.New()` naming | Renamed to `process.NewFinder()` to follow Go multi-constructor conventions |
+| `process.New()` naming | Renamed to `process.NewFinder()` |
 | `game_util.go` in wrong package | Moved to `internal/util/util.go` |
-| No testability for game screen | `Game.UseScreen(tcell.Screen)` injection added; `game_integration_test.go` uses `tcell.NewSimulationScreen` |
+| Testability required `tcell.SimulationScreen` | Game ports (`Renderer`, `EventSource`) are now plain interfaces; integration tests use hand-rolled stubs defined inline, no tcell dependency in tests |
+| No separation between domain and infrastructure | Full hexagonal layout: domain ports in `ports/driven` and `ports/driving` sub-packages; adapters in `adapter/driven/` and `adapter/driving/` |
 
 ---
 
@@ -184,47 +230,61 @@ This is stale. `Target` is the entity; "label" refers to its rendered string. Re
 
 | # | File | Severity | Issue |
 |---|------|----------|-------|
-| 1 | game.go:22, loop.go:59 | **Bug** | Data race on `game.running` |
-| 2 | score.go:72 | **Bug** | `isHighScore` logic wrong; return value unused |
-| 3 | main.go:58,93 | Design | `parseArgs` calls `os.Exit` (zero args + --help paths untestable) |
-| 4 | main.go:56 | Design | 5 return values; `runner.Config` already exists |
-| 5 | score.go:38 | Design | `filePath()` creates directory as side effect |
-| 6 | loop.go:49 | Design | Event goroutine can block on send after game exits |
-| 7 | game.go:59 | Design | Signal goroutine leaks after game ends |
-| 8 | loop.go:191 | Design | Kill score incremented even if SIGKILL fails |
-| 9 | loop.go:125 | Design | High score display is stale during play |
-| 10 | target.go:37,71,83 | Minor | `len()` counts bytes, not display columns |
-| 11 | loop.go:117 | Minor | HUD elements overlap on narrow terminals |
-| 12 | finder.go:54 | Minor | `ps` found via `$PATH` |
-| 13 | score.go:97 | Minor | Score table shows Speed; TODO says replace with Time |
-| 14 | finder.go:100 | Minor | Grammar error in `validate()` message |
-| 15 | target.go:36 | Minor | Stale TODO comment |
-| 16 | runner_test.go | Minor | No happy-path integration test for runner |
+| 1 | `game.go:24`, `loop.go:26`, `game.go:76` | ✓ Resolved | Latent data race on `game.running` (signal goroutine vs game loop) |
+| 2 | `score/score.go:36`, `app/runner.go:67` | ✓ Resolved | `Board.Add()` bool return value is dead code; never consumed at call site |
+| 3 | `cli/cli.go:63,97` | Design | `parseArgs` calls `os.Exit` — zero-args and `--help` paths untestable |
+| 4 | `cli/cli.go:60` | Design | Five return values; `driving.Config` already exists |
+| 5 | `jsonscores/jsonscores.go:29` | Design | `defaultPath()` creates directory as side effect with silently discarded error |
+| 6 | `tcellui/tcellui.go:154,157,160` | Design | Poll goroutine blocks on channel send after game exits — goroutine leak |
+| 7 | `game/game.go:64–70` | Design | Signal goroutine leaks after game ends |
+| 8 | `loop.go:103–110` | Design | Kill score recorded even if SIGKILL fails |
+| 9 | `loop.go:89–92` | Design | High score display stale mid-game |
+| 10 | `app/runner.go:75` | Design | Save error silently discarded |
+| 11 | `score/score.go:64–83` | Design | `PrintScores()` on domain type — stdout I/O belongs in app layer |
+| 12 | `osprocess/osprocess.go:130` | Design | `NewKiller()` returns `*Killer` not the port interface |
+| 13 | `target.go:34,68,79`; `tcellui.go:64` | Minor | Byte count/offset used for bounds, hit-detection, and rendering — breaks for multi-byte chars |
+| 14 | `tcellui/tcellui.go:87,99` | Minor | HUD elements overlap on narrow terminals |
+| 15 | `osprocess/osprocess.go:52` | Minor | `ps` found via `$PATH` |
+| 16 | `score/score.go:71` | Minor | Score table shows Speed column; TODO says replace with Time |
+| 17 | `osprocess/osprocess.go:96` | Minor | Grammar: "patterns is" → "pattern is" |
+| 18 | `app/runner_test.go` | Minor | No happy-path test for `GameService` |
+| 19 | `adapter/driven/tcellui/` | Minor | No tests for `tcellui` package |
 
-The highest priority fixes are **#1** (data race), **#6** (goroutine leak on channel send), and **#7** (signal goroutine leak).
+The highest-priority open fixes are **#6** (goroutine leak in tcellui poll) and **#7** (signal goroutine leak).
 
 ---
 
 ## Test Coverage
 
-Fourteen test files span all packages. Pure logic and state transitions are well covered. Terminal rendering (`render`, `drawStatusBar`) and the full game loop are exercised by integration tests using `tcell.NewSimulationScreen`.
+Fourteen test files cover all packages except `tcellui` and the port declaration packages. Pure logic and state transitions are well covered.
 
-### Integration tests — `game_integration_test.go`
+### Integration tests
 
-Uses `//go:build integration` and `tcell.NewSimulationScreen`. Covers quit-on-Q, quit-on-Escape, time-limit expiry, and session state after quit. Run with `go test -tags integration ./...`.
+Two files carry `//go:build integration` tags:
 
-### Race still live in unit tests
+- `game_integration_test.go` — runs a full game loop with hand-rolled `testRenderer`/`testEventSource` stubs (no tcell dependency). Covers quit-on-Q, quit-on-Escape, time-limit expiry, and session state after quit. Run with `go test -tags integration ./...`.
+- `osprocess_integration_test.go` — calls the real `ps` command. Covers non-empty results, valid fields, short names, and own-PID exclusion on a live system.
 
-Tests in `game_test.go`, `loop_test.go`, and `event_handler_test.go` construct `Game` structs with `running: true` and read `g.running` directly. These are single-threaded and do not trigger the race detector, but they will require updating when issue #1 is fixed to `atomic.Bool`.
+### Race detector and signal goroutine
 
-### Score cap boundary check is loose — `score_test.go`
+Issue #1 (data race on `game.running`) has been resolved — `running` is now an `atomic.Bool` and all reads/writes go through `Store`/`Load`. The signal goroutine (issue #7) still leaks after game exit: it blocks on `<-sigCh` indefinitely because `signal.Stop` does not close the channel. This is harmless for a single-session process but accumulates blocked goroutines in integration tests that create multiple `Game` instances.
 
-`TestBoard_Add_CapsAtMax` asserts `lowestKills < 5`, but the loop adds entries `0..maxScores+4` and the lowest retained kill count is `5` exactly. The assertion should be `!= 5` (or derive the expected minimum from `maxScores` and loop bounds) to tighten the invariant.
+### Score cap assertion is loose — `score_test.go`
 
-### `TestHandleKeyPress_ConfirmYes` does not verify the signal — `event_handler_test.go:72`
+`TestBoard_Add_CapsAtMax` adds entries `0..maxScores+4` and asserts:
 
-The test verifies in-game state (`kills`, `freedMem`, `State`) but not whether `SIGKILL` was actually delivered. Issue #8 (score incremented regardless of signal success) remains untested. `Target.Kill()` is a standalone method (`target.go:95`), so it can be replaced with an injectable function type to cover the signal-error path.
+```go
+if lowestKills < 5 {
+    t.Errorf(...)
+}
+```
+
+The loop produces entries with kills `0–14`; the top `maxScores` retained entries are kills `5–14`, making the lowest retained exactly `5`. The assertion `lowestKills < 5` passes vacuously for any value ≥ 5 and would not catch an off-by-one error that retained kill-count 4 instead. The assertion should be `!= 5` (or derive the expected minimum from `maxScores` and the loop bounds) to tighten the invariant.
+
+### `TestHandleKeyPress_ConfirmYes` does not verify the signal — `event_handler_test.go`
+
+The test verifies in-game state (`kills`, `freedMem`, target `State`) but not whether `Kill()` was actually invoked. Issue #8 (score recorded regardless of kill success) is therefore not exercised. Since `FakeKiller` records called PIDs, asserting `len(fakeKiller.KilledPIDs) == 1` would close this gap without any new infrastructure.
 
 ### Undocumented confirm-cancel-with-q behaviour
 
-`TestHandleKeyPress_QCancelsConfirm` asserts that `q` during a confirmation dialog cancels the confirm without quitting the game. This intentional UX is not documented in the `usage` string. A one-line addition under Controls would prevent future maintainers from treating it as a bug.
+`TestHandleKeyPress_QCancelsConfirm` tests that pressing `q` during a confirmation dialog cancels the confirm without quitting. This intentional UX decision is not reflected in the `usage` string in `cli.go`. A one-line addition under Controls (`q  Cancel confirmation / Quit`) would prevent future maintainers from treating it as a bug.

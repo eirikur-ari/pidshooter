@@ -63,10 +63,13 @@ func (s *GameService) Play(cfg driving.Config) error {
 		return err
 	}
 
+	kills := g.Kills()
+	freedMem := g.FreedMem()
 	duration := time.Since(g.StartTime()).Seconds()
+
 	board.Add(score.Entry{
-		Kills:    g.Kills(),
-		FreedMem: g.FreedMem(),
+		Kills:    kills,
+		FreedMem: freedMem,
 		Speed:    cfg.Speed,
 		Time:     cfg.TimeLimit,
 		Duration: duration,
@@ -75,12 +78,8 @@ func (s *GameService) Play(cfg driving.Config) error {
 	_ = s.store.Save(board)
 
 	fmt.Printf("\n  Game Over! Kills: %d | Freed: %s | Time: %.1fs\n",
-		g.Kills(), util.FormatBytes(g.FreedMem()), duration)
-
-	if g.Kills() > 0 && g.Kills() >= board.HighScore() {
-		fmt.Println("  🏆 New high score!")
-	}
-
+		kills, util.FormatBytes(freedMem), duration)
+	board.PrintHighScore(kills)
 	board.PrintScores()
 
 	return nil

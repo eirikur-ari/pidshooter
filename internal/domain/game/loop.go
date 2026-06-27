@@ -23,7 +23,7 @@ func (g *Game) run() {
 	ticker := time.NewTicker(frameDuration)
 	defer ticker.Stop()
 
-	for g.running {
+	for g.running.Load() {
 		g.drainEvents()
 		g.update()
 		g.render()
@@ -35,7 +35,7 @@ func (g *Game) update() {
 	w, h := g.renderer.Size()
 
 	if g.timeLimit > 0 && g.timeRemaining() == 0 {
-		g.running = false
+		g.running.Store(false)
 		return
 	}
 
@@ -48,7 +48,7 @@ func (g *Game) update() {
 	}
 
 	if allDead && len(g.targets) > 0 {
-		g.running = false
+		g.running.Store(false)
 	}
 }
 
