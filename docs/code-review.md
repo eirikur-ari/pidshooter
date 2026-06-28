@@ -37,17 +37,9 @@ func parseArgs(args []string) ([]string, bool, float64, int, error)
 
 `driving.Config` already has exactly these four data fields. `parseArgs` could return `(driving.Config, error)`, eliminating the five-value return and the manual field assignment inside `CLI.Run()`.
 
-### 5. `defaultPath()` creates a directory as a side effect — `jsonscores/jsonscores.go:23–31`
+### ~~5. `defaultPath()` creates a directory as a side effect~~ ✓ Resolved
 
-```go
-func defaultPath() string {
-    // ...
-    _ = os.MkdirAll(dir, 0755)  // error silently discarded
-    return filepath.Join(dir, "highscores.json")
-}
-```
-
-A function that returns a path string should not have the side effect of creating a directory, and the `MkdirAll` error is swallowed. If the directory cannot be created (permission denied, etc.), `Save()` will produce an opaque write error and `Load()` will silently return an empty board — both without any indication of the root cause. Move directory creation into `Save()` only, where it is actually needed, and propagate the error.
+`defaultPath()` is now a pure path function. Directory creation moved to `makeConfigDir()`, called only from `Save()`, with the error propagated to the caller.
 
 ### 6. Event poll goroutine can block permanently after game exits — `tcellui/tcellui.go:154,157,160`
 
@@ -134,13 +126,9 @@ If the score file cannot be written (disk full, permission denied, stale NFS mou
 
 `Board.PrintScores()` calls `fmt.Println` and `fmt.Printf` directly, making the domain package responsible for terminal output. This violates the layering used everywhere else in the codebase (where output goes through the `Renderer` port or the application layer). The display logic belongs in `app.GameService.Play()` after the game completes — the domain should only provide the data.
 
-### 12. `NewKiller()` returns a concrete type — `osprocess/osprocess.go:130–132`
+### ~~12. `NewKiller()` returns a concrete type~~ ✓ Resolved
 
-```go
-func NewKiller() *Killer { ... }
-```
-
-`NewFinder()` returns `driven.Finder` (the port interface). `NewKiller()` returns `*Killer` (the concrete adapter type). This inconsistency leaks the adapter type into `main.go`, which then relies on implicit interface satisfaction rather than the explicit contract. Change the return type to `gamedriven.ProcessKiller` for consistency.
+`NewKiller()` now returns `gamedriven.ProcessKiller`, consistent with `NewFinder()` returning `driven.Finder`.
 
 ---
 
@@ -234,14 +222,14 @@ Should be `"at least one search pattern is required"` (singular).
 | 2 | `score/score.go:36`, `app/runner.go:67` | ✓ Resolved | `Board.Add()` bool return value is dead code; never consumed at call site |
 | 3 | `cli/cli.go:63,97` | Design | `parseArgs` calls `os.Exit` — zero-args and `--help` paths untestable |
 | 4 | `cli/cli.go:60` | Design | Five return values; `driving.Config` already exists |
-| 5 | `jsonscores/jsonscores.go:29` | Design | `defaultPath()` creates directory as side effect with silently discarded error |
+| 5 | `jsonscores/jsonscores.go:29` | ✓ Resolved | `defaultPath()` creates directory as side effect with silently discarded error |
 | 6 | `tcellui/tcellui.go:154,157,160` | Design | Poll goroutine blocks on channel send after game exits — goroutine leak |
 | 7 | `game/game.go:64–70` | Design | Signal goroutine leaks after game ends |
 | 8 | `loop.go:103–110` | Design | Kill score recorded even if SIGKILL fails |
 | 9 | `loop.go:89–92` | Design | High score display stale mid-game |
 | 10 | `app/runner.go:75` | Design | Save error silently discarded |
 | 11 | `score/score.go:64–83` | Design | `PrintScores()` on domain type — stdout I/O belongs in app layer |
-| 12 | `osprocess/osprocess.go:130` | Design | `NewKiller()` returns `*Killer` not the port interface |
+| 12 | `osprocess/osprocess.go:130` | ✓ Resolved | `NewKiller()` returns `*Killer` not the port interface |
 | 13 | `target.go:34,68,79`; `tcellui.go:64` | Minor | Byte count/offset used for bounds, hit-detection, and rendering — breaks for multi-byte chars |
 | 14 | `tcellui/tcellui.go:87,99` | Minor | HUD elements overlap on narrow terminals |
 | 15 | `osprocess/osprocess.go:52` | Minor | `ps` found via `$PATH` |

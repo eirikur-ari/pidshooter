@@ -9,12 +9,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
-// Store persists and retrieves the score board.
-type Store interface {
-	Load() (*Board, error)
-	Save(board *Board) error
-}
-
 // Entry represents a single high score record.
 type Entry struct {
 	Kills    int       `json:"kills"`

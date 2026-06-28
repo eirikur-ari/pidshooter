@@ -10,6 +10,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driving"
 	procdriven "github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
 	"github.com/eirikur-ari/pidshooter/internal/domain/score"
+	scoredriven "github.com/eirikur-ari/pidshooter/internal/domain/score/ports/driven"
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
@@ -17,7 +18,7 @@ import (
 type GameService struct {
 	finder   procdriven.Finder
 	killer   gamedriven.ProcessKiller
-	store    score.Store
+	store    scoredriven.Store
 	renderer gamedriven.Renderer
 	events   gamedriven.EventSource
 }
@@ -26,7 +27,7 @@ type GameService struct {
 func NewGameService(
 	finder procdriven.Finder,
 	killer gamedriven.ProcessKiller,
-	store score.Store,
+	store scoredriven.Store,
 	renderer gamedriven.Renderer,
 	events gamedriven.EventSource,
 ) *GameService {

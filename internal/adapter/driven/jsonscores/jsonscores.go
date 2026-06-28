@@ -1,4 +1,4 @@
-// Package jsonscores implements score.Store backed by a JSON file on disk.
+// Package jsonscores implements scoredriven.Store backed by a JSON file on disk.
 package jsonscores
 
 import (
@@ -8,30 +8,22 @@ import (
 	"path/filepath"
 
 	"github.com/eirikur-ari/pidshooter/internal/domain/score"
+	scoredriven "github.com/eirikur-ari/pidshooter/internal/domain/score/ports/driven"
 )
 
-// Store implements score.Store by persisting to a JSON file.
+// Store implements scoredriven.Store by persisting to a JSON file.
 type Store struct {
 	path string
 }
 
-// NewStore returns a score.Store that persists to the default user config path.
-func NewStore() score.Store {
+// NewStore returns a scoredriven.Store that persists to the default user config path.
+func NewStore() scoredriven.Store {
 	return &Store{path: defaultPath()}
-}
-
-func defaultPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		home = "."
-	}
-	dir := filepath.Join(home, ".config", "pidshooter")
-	_ = os.MkdirAll(dir, 0755)
-	return filepath.Join(dir, "highscores.json")
 }
 
 func (s *Store) Load() (*score.Board, error) {
 	b := &score.Board{}
+
 	data, err := os.ReadFile(s.path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -39,16 +31,46 @@ func (s *Store) Load() (*score.Board, error) {
 		}
 		return b, err
 	}
+
 	if err := json.Unmarshal(data, b); err != nil {
 		return b, err
 	}
+
 	return b, nil
 }
 
 func (s *Store) Save(board *score.Board) error {
+	err := makeConfigDir()
+	if err != nil {
+		return err
+	}
+
 	data, err := json.MarshalIndent(board, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal scores: %w", err)
 	}
+
 	return os.WriteFile(s.path, data, 0644)
+}
+
+func defaultDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = "."
+	}
+
+	return filepath.Join(home, ".config", "pidshooter")
+}
+
+func defaultPath() string {
+	return filepath.Join(defaultDir(), "highscores.json")
+}
+
+func makeConfigDir() error {
+	dir := defaultDir()
+	err := os.MkdirAll(dir, 0755)
+	if err != nil {
+		return fmt.Errorf("could not create directory %s: %v", dir, err)
+	}
+	return nil
 }

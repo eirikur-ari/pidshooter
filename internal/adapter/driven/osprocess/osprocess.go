@@ -10,6 +10,7 @@ import (
 	"strings"
 	"syscall"
 
+	gamedriven "github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driven"
 	"github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
 )
 
@@ -126,8 +127,8 @@ func filter(processes []driven.Info, patterns []string) []driven.Info {
 // Killer implements gamedriven.ProcessKiller by sending SIGKILL via the OS.
 type Killer struct{}
 
-// NewKiller returns a ProcessKiller that sends SIGKILL to the target PID.
-func NewKiller() *Killer {
+// NewKiller returns a gamedriven.ProcessKiller that sends SIGKILL to the target PID.
+func NewKiller() gamedriven.ProcessKiller {
 	return &Killer{}
 }
 

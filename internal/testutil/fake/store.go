@@ -2,7 +2,7 @@ package fake
 
 import "github.com/eirikur-ari/pidshooter/internal/domain/score"
 
-// Store is a test double for score.Store.
+// Store is a test double for scoredriven.Store.
 type Store struct {
 	Board *score.Board
 	Err   error
