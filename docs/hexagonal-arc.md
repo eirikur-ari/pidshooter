@@ -1,6 +1,6 @@
-# Hexagonal Architecture Proposal for pidshooter
+# Hexagonal Architecture — Design Record for pidshooter
 
-*Analysis date: 2026-06-26. Based on the refactored layout at commit `f7a06e9`.*
+*Originally a migration proposal (2026-06-26). Migration completed 2026-07-01. The structure described in sections 5–9 is now the live codebase. Sections 2, 10, and 11 document the pre-refactor state and the reasoning behind each change — kept as a design record.*
 
 ---
 

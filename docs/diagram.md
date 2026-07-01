@@ -1,6 +1,6 @@
 # pidshooter — Package & Architecture Diagram
 
-*Updated 2026-06-26. Full hexagonal architecture (Ports & Adapters): domain core, driven/driving ports, driven/driving adapters, application service.*
+*Updated 2026-07-01. Full hexagonal architecture (Ports & Adapters): domain core, driven/driving ports, driven/driving adapters, application service.*
 
 ---
 
@@ -49,10 +49,13 @@ internal/
 ├── app/
 │   └── runner.go                       GameService · NewGameService() · Play()
 └── testutil/
-    ├── fake_killer.go                  FakeKiller
-    ├── fake_process_finder.go          FakeFinder
-    ├── fake_process_info.go            NewFakeProcess()
-    └── fake_store.go                   FakeStore
+    ├── capture/
+    │   └── capture.go                  Output()  (stdout capture helper)
+    └── fake/
+        ├── finder.go                   Finder
+        ├── killer.go                   Killer
+        ├── process.go                  NewProcess()
+        └── store.go                    Store
 ```
 
 ---
@@ -170,7 +173,7 @@ classDiagram
         -confirmMode bool
         -speed float64
         -timeLimit int
-        -running bool
+        -running atomic.Bool
         -confirming *Target
         Session
         +New(processes, confirmMode, speed, timeLimit, killer, renderer, events) *Game
@@ -270,6 +273,7 @@ classDiagram
         <<adapter/driven/tcellui · UI>>
         -screen tcell.Screen
         -ch chan InputEvent
+        -done chan struct
         +New(screen tcell.Screen) UI
         +Init() error
         +Cleanup()
@@ -429,4 +433,5 @@ main()
 | `adapter/driven/jsonscores` | `Store`, `NewStore` |
 | `adapter/driving/cli` | `CLI`, `New` |
 | `app` | `GameService`, `NewGameService` |
-| `testutil` | `FakeKiller`, `FakeFinder`, `FakeStore`, `NewFakeProcess` |
+| `testutil/fake` | `Finder`, `Killer`, `Store`, `NewProcess` |
+| `testutil/capture` | `Output` |
