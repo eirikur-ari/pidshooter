@@ -68,6 +68,25 @@ func TestTarget_Label_Killing(t *testing.T) {
 	}
 }
 
+func TestTarget_Update_MultiByteRightWall(t *testing.T) {
+	// "[42 café]" is 9 runes but 10 UTF-8 bytes.
+	// With the byte-count bug, rightBound = maxX - 10 = 70.
+	// With the fix, rightBound = maxX - 9 = 71.
+	// Place the entity at PosX=70.5 moving right at speed=1. After one update:
+	//   fix:  new PosX = 71.0 — at the correct boundary, no bounce yet.
+	//   bug:  new PosX > 70 → bounce, VelX flips negative.
+	e := &Target{
+		Info:   fake.NewProcess(42, "café", 0),
+		Motion: Motion{PosX: 70.5, PosY: 5, VelX: 0.5, VelY: 0},
+		State:  Alive,
+	}
+	e.Update(80, 24, 1.0)
+	if e.VelX < 0 {
+		t.Errorf("entity bounced prematurely at right wall — byte-count bug in Update?"+
+			" PosX=%.1f VelX=%.1f", e.PosX, e.VelX)
+	}
+}
+
 func TestTarget_Update_KillingState(t *testing.T) {
 	e := &Target{
 		Info:          fake.NewProcess(1, "x", 0),
