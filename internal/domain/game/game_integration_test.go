@@ -3,6 +3,7 @@
 package game_test
 
 import (
+	"runtime"
 	"testing"
 	"time"
 
@@ -77,6 +78,46 @@ func TestPlay_TimeLimitExpires(t *testing.T) {
 	if elapsed := time.Since(start); elapsed > 3*time.Second {
 		t.Errorf("game took too long to exit on time limit: %v", elapsed)
 	}
+}
+
+// TestPlay_SignalGoroutineDoesNotAccumulate is a regression test for issue #7.
+// It verifies that the signal goroutine started inside Play() exits when Play
+// returns. Before the fix, signal.Stop did not close sigCh, so the goroutine
+// stayed blocked on <-sigCh forever — one leaked goroutine per game session.
+func TestPlay_SignalGoroutineDoesNotAccumulate(t *testing.T) {
+	runGame := func(pid int) {
+		procs := []procdriven.Info{fake.NewProcess(pid, "target", 1024)}
+		g, events := newTestGame(t, procs, 0)
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			events.Send(gamedriven.KeyEvent{Ch: 'q'})
+		}()
+		if err := g.Play(0); err != nil {
+			t.Fatalf("pid %d: unexpected error: %v", pid, err)
+		}
+	}
+
+	// Warm up os/signal's lazily-created background goroutine so it is
+	// counted in the baseline and does not inflate later measurements.
+	runGame(299)
+	time.Sleep(100 * time.Millisecond)
+	runtime.GC()
+	before := runtime.NumGoroutine()
+
+	for i := 0; i < 3; i++ {
+		runGame(300 + i)
+	}
+
+	// Poll until goroutines return to baseline; exit is async after deferred close(done).
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if runtime.NumGoroutine() <= before {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Errorf("signal goroutines accumulated: want ≤%d goroutines after 3 games, got %d",
+		before, runtime.NumGoroutine())
 }
 
 func TestPlay_SessionStateAfterQuit(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 type UI struct {
 	screen tcell.Screen
 	ch     chan driven.InputEvent
+	done   chan struct{}
 }
 
 // New returns a tcellui.UI wrapping the given screen.
@@ -23,6 +24,7 @@ func New(screen tcell.Screen) *UI {
 	return &UI{
 		screen: screen,
 		ch:     make(chan driven.InputEvent, 10),
+		done:   make(chan struct{}),
 	}
 }
 
@@ -38,8 +40,9 @@ func (a *UI) Init() error {
 	return nil
 }
 
-// Cleanup shuts down the screen. This also causes the poll goroutine to exit.
+// Cleanup signals the poll goroutine to stop, then shuts down the screen.
 func (a *UI) Cleanup() {
+	close(a.done)
 	a.screen.Fini()
 }
 
@@ -147,17 +150,26 @@ func (a *UI) poll() {
 		if ev == nil {
 			return
 		}
+		var event driven.InputEvent
 		switch ev := ev.(type) {
 		case *tcell.EventMouse:
-			if ev.Buttons() == tcell.Button1 {
-				x, y := ev.Position()
-				a.ch <- driven.ClickEvent{X: x, Y: y}
+			if ev.Buttons() != tcell.Button1 {
+				continue
 			}
+			x, y := ev.Position()
+			event = driven.ClickEvent{X: x, Y: y}
 		case *tcell.EventKey:
-			a.ch <- driven.KeyEvent{Key: translateKey(ev.Key()), Ch: ev.Rune()}
+			event = driven.KeyEvent{Key: translateKey(ev.Key()), Ch: ev.Rune()}
 		case *tcell.EventResize:
 			a.screen.Sync()
-			a.ch <- driven.ResizeEvent{}
+			event = driven.ResizeEvent{}
+		default:
+			continue
+		}
+		select {
+		case a.ch <- event:
+		case <-a.done:
+			return
 		}
 	}
 }

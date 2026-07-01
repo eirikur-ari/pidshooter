@@ -41,40 +41,9 @@ func parseArgs(args []string) ([]string, bool, float64, int, error)
 
 `defaultPath()` is now a pure path function. Directory creation moved to `makeConfigDir()`, called only from `Save()`, with the error propagated to the caller.
 
-### 6. Event poll goroutine can block permanently after game exits — `tcellui/tcellui.go:154,157,160`
+### ~~6. Event poll goroutine can block permanently after game exits~~ ✓ Resolved
 
-```go
-func (a *UI) poll() {
-    for {
-        ev := a.screen.PollEvent()
-        if ev == nil { return }
-        switch ev := ev.(type) {
-        case *tcell.EventMouse:
-            a.ch <- driven.ClickEvent{...}   // blocks if channel full
-        case *tcell.EventKey:
-            a.ch <- driven.KeyEvent{...}     // blocks if channel full
-        case *tcell.EventResize:
-            a.ch <- driven.ResizeEvent{}     // blocks if channel full
-        }
-    }
-}
-```
-
-`a.ch` has capacity 10. If the game loop exits (and `drainEvents` stops consuming), `poll` blocks on the next channel send. When `Cleanup()` then calls `screen.Fini()`, `PollEvent` would return `nil` to unblock `poll` — but `poll` is stuck at the *channel send*, not at `PollEvent`. The goroutine leaks for the lifetime of the process. Fix with a done channel:
-
-```go
-func (a *UI) poll(done <-chan struct{}) {
-    for {
-        ev := a.screen.PollEvent()
-        if ev == nil { return }
-        // ...
-        select {
-        case a.ch <- event:
-        case <-done: return
-        }
-    }
-}
-```
+`UI` now holds a `done chan struct{}` field. `Cleanup()` closes it before calling `screen.Fini()`. `poll()` resolves each event into a typed value first, then uses a single `select` to either send it or exit on `<-done`. This guarantees the goroutine exits even when the game loop has stopped consuming events and the channel buffer is full.
 
 ### ~~7. Signal goroutine leaks after game ends~~ ✓ Resolved
 
@@ -213,13 +182,14 @@ Should be `"at least one search pattern is required"` (singular).
 | 3 | `cli/cli.go:63,97` | Design | `parseArgs` calls `os.Exit` — zero-args and `--help` paths untestable |
 | 4 | `cli/cli.go:60` | Design | Five return values; `driving.Config` already exists |
 | 5 | `jsonscores/jsonscores.go:29` | ✓ Resolved | `defaultPath()` creates directory as side effect with silently discarded error |
-| 6 | `tcellui/tcellui.go:154,157,160` | Design | Poll goroutine blocks on channel send after game exits — goroutine leak |
+| 6 | `tcellui/tcellui.go:154,157,160` | ✓ Resolved | Poll goroutine blocks on channel send after game exits — goroutine leak |
 | 7 | `game/game.go:64–70` | ✓ Resolved | Signal goroutine leaks after game ends |
 | 8 | `loop.go:103–110` | Design | Kill score recorded even if SIGKILL fails |
 | 9 | `loop.go:89–92` | Design | High score display stale mid-game |
 | 10 | `app/runner.go:75` | Design | Save error silently discarded |
 | 11 | `score/score.go:64–83` | Design | `PrintScores()` on domain type — stdout I/O belongs in app layer |
 | 12 | `osprocess/osprocess.go:130` | ✓ Resolved | `NewKiller()` returns `*Killer` not the port interface |
+| #6 — Poll goroutine blocks on channel send after game exits | `UI` holds a `done` channel; `Cleanup()` closes it; `poll()` uses `select` on every send |
 | #7 — Signal goroutine leaks after game ends | `Play()` uses a `done` channel; goroutine exits via `select` when game loop returns |
 | 13 | `target.go:34,68,79`; `tcellui.go:64` | Minor | Byte count/offset used for bounds, hit-detection, and rendering — breaks for multi-byte chars |
 | 14 | `tcellui/tcellui.go:87,99` | Minor | HUD elements overlap on narrow terminals |
@@ -229,7 +199,7 @@ Should be `"at least one search pattern is required"` (singular).
 | 18 | `app/runner_test.go` | Minor | No happy-path test for `GameService` |
 | 19 | `adapter/driven/tcellui/` | Minor | No tests for `tcellui` package |
 
-The highest-priority open fix is **#6** (goroutine leak in tcellui poll).
+The highest-priority open design fixes are **#3** (`parseArgs` calls `os.Exit`) and **#4** (five return values from `parseArgs`).
 
 ---
 
