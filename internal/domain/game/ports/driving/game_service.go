@@ -8,7 +8,7 @@ type Config struct {
 	TimeLimit   int
 }
 
-// GameServicePort is the driving port: the contract the CLI adapter calls.
-type GameServicePort interface {
+// GameService is the driving port: the contract the CLI adapter calls.
+type GameService interface {
 	Play(cfg Config) error
 }

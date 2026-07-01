@@ -78,7 +78,7 @@ Pure Go. No imports except the standard library and `internal/util`. Contains th
 
 One layer above the domain. Implements the use-case: given a configuration, find processes, run a game, persist the score. This is what was `runner.go`. It wires domain objects together and calls out through ports.
 
-- **`app/runner.go`** — `GameService` struct implementing a `GameServicePort` interface; orchestrates domain + driven ports.
+- **`app/runner.go`** — `GameService` struct implementing a `GameService` interface; orchestrates domain + driven ports.
 
 ### Layer 3 — Adapters
 
@@ -96,7 +96,7 @@ One adapters directory per integration point. Adapters import libraries; the dom
 
 | Adapter | Port it drives | Technology |
 |---|---|---|
-| `adapter/driving/cli` | `GameServicePort` | `os.Args`, `fmt`, `strconv` |
+| `adapter/driving/cli` | `GameService` | `os.Args`, `fmt`, `strconv` |
 
 ---
 
@@ -127,7 +127,7 @@ flowchart LR
         JSONScore["JSON Score Adapter\nadapter/driven/jsonscores\n\nhighscores.json"]
     end
 
-    CLI -- "GameServicePort" --> App
+    CLI -- "GameService" --> App
     App -- "ProcessFinder\nProcessKiller" --> OSProc
     App -- "Renderer\nEventSource" --> TcellUI
     App -- "ScoreStore" --> JSONScore
@@ -172,7 +172,7 @@ pidshooter/
     │   │       └── adapter.go            # Implements ScoreStore
     │   └── driving/
     │       └── cli/
-    │           └── cli.go                # Parses os.Args; calls GameServicePort
+    │           └── cli.go                # Parses os.Args; calls GameService
     │
     └── util/
         └── util.go                       # FormatBytes — pure leaf, no change needed
@@ -338,8 +338,8 @@ import (
     "github.com/eirikur-ari/pidshooter/internal/domain/score"
 )
 
-// GameServicePort is the driving port: what the CLI adapter calls.
-type GameServicePort interface {
+// GameService is the driving port: what the CLI adapter calls.
+type GameService interface {
     Play(cfg Config) error
 }
 
@@ -351,7 +351,7 @@ type Config struct {
     TimeLimit   int
 }
 
-// GameService implements GameServicePort by wiring domain objects + driven ports.
+// GameService implements GameService by wiring domain objects + driven ports.
 type GameService struct {
     finder   process.Finder
     killer   game.ProcessKiller

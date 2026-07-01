@@ -14,7 +14,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
-// GameService implements driving.GameServicePort by orchestrating domain objects and driven ports.
+// GameService implements driving.GameService by orchestrating domain objects and driven ports.
 type GameService struct {
 	finder   procdriven.Finder
 	killer   gamedriven.ProcessKiller

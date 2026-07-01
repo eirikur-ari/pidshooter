@@ -35,11 +35,11 @@ Examples:
 
 // CLI is the driving adapter that translates command-line arguments to application calls.
 type CLI struct {
-	service driving.GameServicePort
+	service driving.GameService
 }
 
 // New returns a CLI adapter wrapping the given application service.
-func New(service driving.GameServicePort) *CLI {
+func New(service driving.GameService) *CLI {
 	return &CLI{service: service}
 }
 

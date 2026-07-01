@@ -135,11 +135,11 @@
       "seed": 8, "version": 1, "versionNonce": 1,
       "isDeleted": false, "boundElements": null,
       "updated": 1, "link": null, "locked": false,
-      "text": "«adapter/driving/cli»\nCLI\n────────────────────────────────────\n- service: driving.GameServicePort\n+ New(service GameServicePort) *CLI\n+ Run(args []string) error\n- parseArgs() (patterns, confirmMode, speed, timeLimit)",
+      "text": "«adapter/driving/cli»\nCLI\n────────────────────────────────────\n- service: driving.GameService\n+ New(service GameService) *CLI\n+ Run(args []string) error\n- parseArgs() (patterns, confirmMode, speed, timeLimit)",
       "fontSize": 12, "fontFamily": 3,
       "textAlign": "left", "verticalAlign": "top",
       "baseline": 11, "containerId": null,
-      "originalText": "«adapter/driving/cli»\nCLI\n────────────────────────────────────\n- service: driving.GameServicePort\n+ New(service GameServicePort) *CLI\n+ Run(args []string) error\n- parseArgs() (patterns, confirmMode, speed, timeLimit)",
+      "originalText": "«adapter/driving/cli»\nCLI\n────────────────────────────────────\n- service: driving.GameService\n+ New(service GameService) *CLI\n+ Run(args []string) error\n- parseArgs() (patterns, confirmMode, speed, timeLimit)",
       "lineHeight": 1.5
     },
     {
@@ -201,11 +201,11 @@
       "seed": 12, "version": 1, "versionNonce": 1,
       "isDeleted": false, "boundElements": null,
       "updated": 1, "link": null, "locked": false,
-      "text": "«app/runner.go»\nGameService\n────────────────────────────────────────────────────────────\n- finder:   procdriven.Finder      - store:    score.Store\n- killer:   gamedriven.ProcessKiller  - renderer: gamedriven.Renderer\n- events:   gamedriven.EventSource\n+ NewGameService(finder, killer, store, renderer, events) *GameService\n+ Play(cfg driving.Config) error                    implements GameServicePort",
+      "text": "«app/runner.go»\nGameService\n────────────────────────────────────────────────────────────\n- finder:   procdriven.Finder      - store:    score.Store\n- killer:   gamedriven.ProcessKiller  - renderer: gamedriven.Renderer\n- events:   gamedriven.EventSource\n+ NewGameService(finder, killer, store, renderer, events) *GameService\n+ Play(cfg driving.Config) error                    implements GameService",
       "fontSize": 12, "fontFamily": 3,
       "textAlign": "left", "verticalAlign": "top",
       "baseline": 11, "containerId": null,
-      "originalText": "«app/runner.go»\nGameService\n────────────────────────────────────────────────────────────\n- finder:   procdriven.Finder      - store:    score.Store\n- killer:   gamedriven.ProcessKiller  - renderer: gamedriven.Renderer\n- events:   gamedriven.EventSource\n+ NewGameService(finder, killer, store, renderer, events) *GameService\n+ Play(cfg driving.Config) error                    implements GameServicePort",
+      "originalText": "«app/runner.go»\nGameService\n────────────────────────────────────────────────────────────\n- finder:   procdriven.Finder      - store:    score.Store\n- killer:   gamedriven.ProcessKiller  - renderer: gamedriven.Renderer\n- events:   gamedriven.EventSource\n+ NewGameService(finder, killer, store, renderer, events) *GameService\n+ Play(cfg driving.Config) error                    implements GameService",
       "lineHeight": 1.5
     },
     {
@@ -399,11 +399,11 @@
       "seed": 24, "version": 1, "versionNonce": 1,
       "isDeleted": false, "boundElements": null,
       "updated": 1, "link": null, "locked": false,
-      "text": "GameServicePort (interface)\n──────────────────────────────────────────────\n+ Play(cfg Config) error\n\nConfig (struct)\n──────────────────────────────────────────────\n+ Patterns []string  · ConfirmMode bool\n+ Speed float64      · TimeLimit int",
+      "text": "GameService (interface)\n──────────────────────────────────────────────\n+ Play(cfg Config) error\n\nConfig (struct)\n──────────────────────────────────────────────\n+ Patterns []string  · ConfirmMode bool\n+ Speed float64      · TimeLimit int",
       "fontSize": 12, "fontFamily": 3,
       "textAlign": "left", "verticalAlign": "top",
       "baseline": 11, "containerId": null,
-      "originalText": "GameServicePort (interface)\n──────────────────────────────────────────────\n+ Play(cfg Config) error\n\nConfig (struct)\n──────────────────────────────────────────────\n+ Patterns []string  · ConfirmMode bool\n+ Speed float64      · TimeLimit int",
+      "originalText": "GameService (interface)\n──────────────────────────────────────────────\n+ Play(cfg Config) error\n\nConfig (struct)\n──────────────────────────────────────────────\n+ Patterns []string  · ConfirmMode bool\n+ Speed float64      · TimeLimit int",
       "lineHeight": 1.5
     },
     {

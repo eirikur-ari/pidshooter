@@ -119,11 +119,11 @@
       "seed": 21, "version": 1, "versionNonce": 1,
       "isDeleted": false, "boundElements": null,
       "updated": 1, "link": null, "locked": false,
-      "text": "app/runner.go — GameService\nimplements GameServicePort",
+      "text": "app/runner.go — GameService\nimplements GameService",
       "fontSize": 12, "fontFamily": 3,
       "textAlign": "left", "verticalAlign": "top",
       "baseline": 11, "containerId": null,
-      "originalText": "app/runner.go — GameService\nimplements GameServicePort",
+      "originalText": "app/runner.go — GameService\nimplements GameService",
       "lineHeight": 1.5
     },
 
@@ -259,11 +259,11 @@
       "seed": 31, "version": 1, "versionNonce": 1,
       "isDeleted": false, "boundElements": null,
       "updated": 1, "link": null, "locked": false,
-      "text": "GameServicePort\nPlay(cfg Config)",
+      "text": "GameService\nPlay(cfg Config)",
       "fontSize": 11, "fontFamily": 3,
       "textAlign": "left", "verticalAlign": "top",
       "baseline": 10, "containerId": null,
-      "originalText": "GameServicePort\nPlay(cfg Config)",
+      "originalText": "GameService\nPlay(cfg Config)",
       "lineHeight": 1.5
     },
     {
@@ -474,11 +474,11 @@
       "seed": 43, "version": 1, "versionNonce": 1,
       "isDeleted": false, "boundElements": null,
       "updated": 1, "link": null, "locked": false,
-      "text": "adapter/driving/cli\n────────────────────\nCLI · cli.go\n\n· Parses os.Args\n· Calls GameServicePort\n  .Play(cfg Config)",
+      "text": "adapter/driving/cli\n────────────────────\nCLI · cli.go\n\n· Parses os.Args\n· Calls GameService\n  .Play(cfg Config)",
       "fontSize": 12, "fontFamily": 3,
       "textAlign": "left", "verticalAlign": "top",
       "baseline": 11, "containerId": null,
-      "originalText": "adapter/driving/cli\n────────────────────\nCLI · cli.go\n\n· Parses os.Args\n· Calls GameServicePort\n  .Play(cfg Config)",
+      "originalText": "adapter/driving/cli\n────────────────────\nCLI · cli.go\n\n· Parses os.Args\n· Calls GameService\n  .Play(cfg Config)",
       "lineHeight": 1.5
     },
 

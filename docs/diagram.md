@@ -25,7 +25,7 @@ internal/
 │   │       │   ├── event_source.go     EventSource · InputEvent · ClickEvent · KeyEvent · ResizeEvent · KeyCode
 │   │       │   └── process_killer.go   ProcessKiller
 │   │       └── driving/                ports the outside world calls in through
-│   │           └── game_service.go     GameServicePort · Config
+│   │           └── game_service.go     GameService · Config
 │   ├── process/
 │   │   └── ports/
 │   │       └── driven/                 ports for process discovery
@@ -131,7 +131,7 @@ classDiagram
 
     %% ── domain/game/ports/driving ────────────────────────────────────────────
 
-    class GameServicePort {
+    class GameService {
         <<game·ports·driving · interface>>
         +Play(cfg Config) error
     }
@@ -319,13 +319,13 @@ classDiagram
 
     class CLI {
         <<adapter/driving/cli · CLI>>
-        -service GameServicePort
-        +New(service GameServicePort) CLI
+        -service GameService
+        +New(service GameService) CLI
         +Run(args []string) error
         -parseArgs(args []string) Config, error
     }
 
-    CLI --> GameServicePort : calls Play()
+    CLI --> GameService : calls Play()
     CLI ..> Config          : builds
 
     %% ── app ──────────────────────────────────────────────────────────────────
@@ -341,7 +341,7 @@ classDiagram
         +Play(cfg Config) error
     }
 
-    GameService ..|> GameServicePort  : implements
+    GameService ..|> GameService  : implements
     GameService --> ProcFinder        : finder
     GameService --> ProcessKiller     : killer
     GameService --> ScoreStore        : store
@@ -357,7 +357,7 @@ classDiagram
 ```
 cmd/pidshooter
     ├─ adapter/driving/cli
-    │       ├─ domain/game/ports/driving        (GameServicePort, Config)
+    │       ├─ domain/game/ports/driving        (GameService, Config)
     │       └─ domain/process/ports/driven      (MaxPatternLength)
     ├─ adapter/driven/tcellui
     │       └─ domain/game/ports/driven         (Renderer, EventSource, Frame …)
@@ -395,7 +395,7 @@ main()
      ├─ app.NewGameService(finder, killer, store, ui, ui)
      └─ cli.New(service).Run(os.Args[1:])
               ├─ parseArgs()                 → patterns, confirmMode, speed, timeLimit
-              └─ service.Play(driving.Config{…})             [GameServicePort]
+              └─ service.Play(driving.Config{…})             [GameService]
                    ├─ finder.Find(patterns)                  [Finder → osprocess]
                    │     └─ validate() → List() → filter() → []procdriven.Info
                    ├─ store.Load()                           [Store → jsonscores]
@@ -423,7 +423,7 @@ main()
 | Package | Exported identifiers |
 |---|---|
 | `domain/game/ports/driven` | `Renderer`, `EventSource`, `ProcessKiller`, `Frame`, `TargetView`, `HUDState`, `StatusState`, `ConfirmState`, `InputEvent`, `ClickEvent`, `KeyEvent`, `ResizeEvent`, `KeyCode`, `KeyNone`, `KeyEscape`, `KeyCtrlC`, `KeyCtrlZ` |
-| `domain/game/ports/driving` | `GameServicePort`, `Config` |
+| `domain/game/ports/driving` | `GameService`, `Config` |
 | `domain/process/ports/driven` | `Info`, `Finder`, `MaxPatternLength` |
 | `domain/game` | `Game`, `New`, `Session`, `Target`, `NewTarget`, `Motion`, `TargetState`, `Alive`, `Killing`, `Dead` |
 | `domain/score` | `Store`, `Board`, `Entry` |
