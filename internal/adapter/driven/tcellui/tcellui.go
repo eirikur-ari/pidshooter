@@ -90,14 +90,6 @@ func (a *UI) drawHUD(w int, hud driven.HUDState) {
 	hiStr := fmt.Sprintf(" Highscore: %d ", hud.HighScore)
 	hiStyle := tcell.StyleDefault.Foreground(tcell.ColorPurple).Bold(true)
 	hiX := (w - len(hiStr)) / 2
-	if hiX < 0 {
-		hiX = 0
-	}
-	for i, ch := range hiStr {
-		if hiX+i < w {
-			a.screen.SetContent(hiX+i, 0, ch, nil, hiStyle)
-		}
-	}
 
 	scoreStr := fmt.Sprintf(" KILLS: %d ", hud.Kills)
 	scoreStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Bold(true)
@@ -105,6 +97,15 @@ func (a *UI) drawHUD(w int, hud driven.HUDState) {
 	if scoreX < 0 {
 		scoreX = 0
 	}
+
+	if hiX >= len(memStr) && hiX+len(hiStr) <= scoreX {
+		for i, ch := range hiStr {
+			if hiX+i < w {
+				a.screen.SetContent(hiX+i, 0, ch, nil, hiStyle)
+			}
+		}
+	}
+
 	for i, ch := range scoreStr {
 		if scoreX+i < w {
 			a.screen.SetContent(scoreX+i, 0, ch, nil, scoreStyle)

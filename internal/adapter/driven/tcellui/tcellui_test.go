@@ -2,6 +2,7 @@ package tcellui_test
 
 import (
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -44,6 +45,74 @@ func TestPollGoroutineExitsAfterCleanup(t *testing.T) {
 	}
 	t.Errorf("poll goroutine did not exit after Cleanup: want ≤%d goroutines, got %d",
 		before, runtime.NumGoroutine())
+}
+
+// TestDrawHUD_NarrowTerminalSuppressesCenter is a regression test for issue #14.
+// It verifies that on a narrow terminal where the Highscore label would overlap
+// the FREED or KILLS labels, the center element is suppressed rather than drawn
+// on top of the outer elements.
+func TestDrawHUD_NarrowTerminalSuppressesCenter(t *testing.T) {
+	screen := tcell.NewSimulationScreen("")
+	ui := tcellui.New(screen)
+	if err := ui.Init(); err != nil {
+		t.Fatal(err)
+	}
+	defer ui.Cleanup()
+
+	// At width=30 with zero values:
+	//   FREED  label is 13 chars (cols 0–12)
+	//   hiX = (30–14)/2 = 8, which is inside FREED → guard must suppress Highscore
+	//   KILLS  label is 11 chars, starts at col 19
+	screen.SetSize(30, 25)
+	ui.Render(driven.Frame{HUD: driven.HUDState{}})
+
+	cells, w, _ := screen.GetContents()
+	var row0 strings.Builder
+	for x := 0; x < w; x++ {
+		if r := cells[x].Runes; len(r) > 0 {
+			row0.WriteRune(r[0])
+		}
+	}
+	got := row0.String()
+
+	if !strings.Contains(got, "FREED") {
+		t.Errorf("row 0 should contain FREED: %q", got)
+	}
+	if !strings.Contains(got, "KILLS") {
+		t.Errorf("row 0 should contain KILLS: %q", got)
+	}
+	if strings.Contains(got, "Highscore") {
+		t.Errorf("row 0 should NOT contain Highscore on narrow terminal: %q", got)
+	}
+}
+
+// TestDrawHUD_WideTerminalDrawsAllThree verifies that on a wide terminal all three
+// HUD elements are visible simultaneously.
+func TestDrawHUD_WideTerminalDrawsAllThree(t *testing.T) {
+	screen := tcell.NewSimulationScreen("")
+	ui := tcellui.New(screen)
+	if err := ui.Init(); err != nil {
+		t.Fatal(err)
+	}
+	defer ui.Cleanup()
+
+	// Default 80×25 simulation screen — all three elements fit without overlap.
+	ui.Render(driven.Frame{HUD: driven.HUDState{}})
+
+	cells, w, _ := screen.GetContents()
+	var row0 strings.Builder
+	for x := 0; x < w; x++ {
+		if r := cells[x].Runes; len(r) > 0 {
+			row0.WriteRune(r[0])
+		}
+	}
+	got := row0.String()
+
+	for _, want := range []string{"FREED", "Highscore", "KILLS"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("row 0 should contain %q on wide terminal: %q", want, got)
+		}
+	}
 }
 
 // TestRender_MultiByteLabel_ColumnLayout is a regression test for issue #13.

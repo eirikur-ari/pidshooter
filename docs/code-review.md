@@ -97,9 +97,9 @@ If the score file cannot be written (disk full, permission denied, stale NFS mou
 
 `target.go` now uses `utf8.RuneCountInString()` in `NewTarget` (spawn bounds), `Update` (right-wall boundary), and `Contains` (hit-detection). The `tcellui` render loop now uses an independent `col` counter instead of the byte offset from `range`, so multi-byte kill-animation frames (`"✦ KILLED ✦"`, `"· · ·"`) render at the correct screen columns.
 
-### 14. HUD elements can overlap on narrow terminals — `tcellui/tcellui.go:87, 99`
+### ~~14. HUD elements can overlap on narrow terminals~~ ✓ Resolved
 
-`FREED`, `Highscore`, and `KILLS` are drawn independently on row 0 — left-aligned, centred, and right-aligned respectively — with no awareness of each other. On terminals narrower than ~50 columns they overwrite each other. A single formatted status line or a minimum-width guard would be more robust.
+`drawHUD` now pre-computes the start positions of all three elements and only draws the centre `Highscore` label when it fits without overlapping the left `FREED` or right `KILLS` elements. On narrow terminals where the guard fires, `FREED` and `KILLS` remain intact.
 
 ### 15. `ps` resolved via `$PATH` — `osprocess/osprocess.go:52`
 
@@ -174,7 +174,7 @@ Should be `"at least one search pattern is required"` (singular).
 | #6 — Poll goroutine blocks on channel send after game exits | `UI` holds a `done` channel; `Cleanup()` closes it; `poll()` uses `select` on every send |
 | #7 — Signal goroutine leaks after game ends | `Play()` uses a `done` channel; goroutine exits via `select` when game loop returns |
 | 13 | `target.go:34,68,79`; `tcellui.go:64` | ✓ Resolved | Byte count/offset used for bounds, hit-detection, and rendering — breaks for multi-byte chars |
-| 14 | `tcellui/tcellui.go:87,99` | Minor | HUD elements overlap on narrow terminals |
+| 14 | `tcellui/tcellui.go:87,99` | ✓ Resolved | HUD elements overlap on narrow terminals |
 | 15 | `osprocess/osprocess.go:52` | Minor | `ps` found via `$PATH` |
 | 16 | `score/score.go:71` | Minor | Score table shows Speed column; TODO says replace with Time |
 | 17 | `osprocess/osprocess.go:96` | Minor | Grammar: "patterns is" → "pattern is" |
