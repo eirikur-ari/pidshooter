@@ -66,9 +66,14 @@ func (g *Game) Play(highScore int) error {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGTSTP)
 	defer signal.Stop(sigCh)
+	done := make(chan struct{})
+	defer close(done)
 	go func() {
-		<-sigCh
-		g.stop()
+		select {
+		case <-sigCh:
+			g.stop()
+		case <-done:
+		}
 	}()
 
 	g.run()

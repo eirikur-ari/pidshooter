@@ -76,19 +76,9 @@ func (a *UI) poll(done <-chan struct{}) {
 }
 ```
 
-### 7. Signal goroutine leaks after game ends — `game/game.go:64–70`
+### ~~7. Signal goroutine leaks after game ends~~ ✓ Resolved
 
-```go
-sigCh := make(chan os.Signal, 1)
-signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGTSTP)
-defer signal.Stop(sigCh)
-go func() {
-    <-sigCh   // blocks here forever if no signal arrives
-    g.stop()
-}()
-```
-
-`signal.Stop(sigCh)` stops routing future signals to the channel but does not close it, so the goroutine stays blocked on `<-sigCh` after the game loop returns. For a single-session process this is harmless, but integration tests that create multiple `Game` instances accumulate blocked goroutines. Close the channel after `signal.Stop`, or switch to a context/done-channel pattern to guarantee cleanup.
+`signal.Stop(sigCh)` now runs before `close(done)` via deferred calls (LIFO). The goroutine uses a `select` on both `sigCh` and `done`, so it exits promptly when `Play()` returns rather than blocking indefinitely on `<-sigCh`.
 
 ### 8. Kill score recorded even if SIGKILL fails — `loop.go:103–110`
 
@@ -224,12 +214,13 @@ Should be `"at least one search pattern is required"` (singular).
 | 4 | `cli/cli.go:60` | Design | Five return values; `driving.Config` already exists |
 | 5 | `jsonscores/jsonscores.go:29` | ✓ Resolved | `defaultPath()` creates directory as side effect with silently discarded error |
 | 6 | `tcellui/tcellui.go:154,157,160` | Design | Poll goroutine blocks on channel send after game exits — goroutine leak |
-| 7 | `game/game.go:64–70` | Design | Signal goroutine leaks after game ends |
+| 7 | `game/game.go:64–70` | ✓ Resolved | Signal goroutine leaks after game ends |
 | 8 | `loop.go:103–110` | Design | Kill score recorded even if SIGKILL fails |
 | 9 | `loop.go:89–92` | Design | High score display stale mid-game |
 | 10 | `app/runner.go:75` | Design | Save error silently discarded |
 | 11 | `score/score.go:64–83` | Design | `PrintScores()` on domain type — stdout I/O belongs in app layer |
 | 12 | `osprocess/osprocess.go:130` | ✓ Resolved | `NewKiller()` returns `*Killer` not the port interface |
+| #7 — Signal goroutine leaks after game ends | `Play()` uses a `done` channel; goroutine exits via `select` when game loop returns |
 | 13 | `target.go:34,68,79`; `tcellui.go:64` | Minor | Byte count/offset used for bounds, hit-detection, and rendering — breaks for multi-byte chars |
 | 14 | `tcellui/tcellui.go:87,99` | Minor | HUD elements overlap on narrow terminals |
 | 15 | `osprocess/osprocess.go:52` | Minor | `ps` found via `$PATH` |
@@ -238,7 +229,7 @@ Should be `"at least one search pattern is required"` (singular).
 | 18 | `app/runner_test.go` | Minor | No happy-path test for `GameService` |
 | 19 | `adapter/driven/tcellui/` | Minor | No tests for `tcellui` package |
 
-The highest-priority open fixes are **#6** (goroutine leak in tcellui poll) and **#7** (signal goroutine leak).
+The highest-priority open fix is **#6** (goroutine leak in tcellui poll).
 
 ---
 
@@ -253,9 +244,9 @@ Two files carry `//go:build integration` tags:
 - `game_integration_test.go` — runs a full game loop with hand-rolled `testRenderer`/`testEventSource` stubs (no tcell dependency). Covers quit-on-Q, quit-on-Escape, time-limit expiry, and session state after quit. Run with `go test -tags integration ./...`.
 - `osprocess_integration_test.go` — calls the real `ps` command. Covers non-empty results, valid fields, short names, and own-PID exclusion on a live system.
 
-### Race detector and signal goroutine
+### Race detector
 
-Issue #1 (data race on `game.running`) has been resolved — `running` is now an `atomic.Bool` and all reads/writes go through `Store`/`Load`. The signal goroutine (issue #7) still leaks after game exit: it blocks on `<-sigCh` indefinitely because `signal.Stop` does not close the channel. This is harmless for a single-session process but accumulates blocked goroutines in integration tests that create multiple `Game` instances.
+Issue #1 (data race on `game.running`) has been resolved — `running` is now an `atomic.Bool` and all reads/writes go through `Store`/`Load`. Issue #7 (signal goroutine leak) has also been resolved — `Play()` now uses a done channel so the signal goroutine exits via `select` when the game ends rather than blocking indefinitely on `<-sigCh`.
 
 ### Score cap assertion is loose — `score_test.go`
 
