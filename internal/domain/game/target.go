@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"unicode/utf8"
 
 	procdriven "github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
 )
@@ -31,7 +32,7 @@ type Target struct {
 
 // NewTarget creates a new entity at a random position with random velocity.
 func NewTarget(info procdriven.Info, maxX, maxY int) *Target {
-	labelLen := len(fmt.Sprintf("[%d %s]", info.Pid(), info.Name()))
+	labelLen := utf8.RuneCountInString(fmt.Sprintf("[%d %s]", info.Pid(), info.Name()))
 	return &Target{
 		Info:   info,
 		Motion: newMotion(maxX, maxY, labelLen),
@@ -65,7 +66,7 @@ func (e *Target) Update(maxX, maxY int, speed float64) {
 			e.State = Dead
 		}
 	case Alive:
-		e.Motion.Update(maxX, maxY, float64(len(e.Label())), speed)
+		e.Motion.Update(maxX, maxY, float64(utf8.RuneCountInString(e.Label())), speed)
 	}
 }
 
@@ -76,7 +77,7 @@ func (e *Target) Contains(x, y int) bool {
 	}
 	entityY := int(e.PosY)
 	entityX := int(e.PosX)
-	labelLen := len(e.Label())
+	labelLen := utf8.RuneCountInString(e.Label())
 	return y == entityY && x >= entityX && x < entityX+labelLen
 }
 

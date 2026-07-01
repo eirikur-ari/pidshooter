@@ -8,6 +8,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/eirikur-ari/pidshooter/internal/adapter/driven/tcellui"
+	driven "github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driven"
 )
 
 // TestPollGoroutineExitsAfterCleanup is a regression test for issue #6.
@@ -43,4 +44,34 @@ func TestPollGoroutineExitsAfterCleanup(t *testing.T) {
 	}
 	t.Errorf("poll goroutine did not exit after Cleanup: want ≤%d goroutines, got %d",
 		before, runtime.NumGoroutine())
+}
+
+// TestRender_MultiByteLabel_ColumnLayout is a regression test for issue #13.
+// It verifies that multi-byte characters in kill-animation labels render at the
+// correct screen columns. Before the fix, the rendering loop used the byte offset
+// from range as the column index, so multi-byte runes shifted all subsequent
+// characters right by (byteLen - 1) extra columns.
+func TestRender_MultiByteLabel_ColumnLayout(t *testing.T) {
+	screen := tcell.NewSimulationScreen("")
+	ui := tcellui.New(screen)
+	if err := ui.Init(); err != nil {
+		t.Fatal(err)
+	}
+	defer ui.Cleanup()
+
+	// "✦ KILLED ✦": ✦ is 3 UTF-8 bytes. With the byte-offset bug, the space after ✦
+	// lands at column 3 instead of column 1, and 'K' lands at column 4 instead of 2.
+	ui.Render(driven.Frame{
+		Targets: []driven.TargetView{
+			{X: 0, Y: 2, Label: "✦ KILLED ✦", Killing: true},
+		},
+	})
+
+	cells, w, _ := screen.GetContents()
+	if got := cells[2*w+1].Runes[0]; got != ' ' {
+		t.Errorf("col 1 should be space (rune after ✦), got %q — byte-offset bug in render loop?", got)
+	}
+	if got := cells[2*w+2].Runes[0]; got != 'K' {
+		t.Errorf("col 2 should be 'K', got %q — byte-offset bug in render loop?", got)
+	}
 }

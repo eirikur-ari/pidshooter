@@ -93,27 +93,9 @@ If the score file cannot be written (disk full, permission denied, stale NFS mou
 
 ## Minor / Polish
 
-### 13. Multi-byte characters: byte counts used for bounds, hit-detection, and rendering — `target.go:34,68,79`, `tcellui/tcellui.go:64`
+### ~~13. Multi-byte characters: byte counts used for bounds, hit-detection, and rendering~~ ✓ Resolved
 
-This is a cross-layer issue. In the domain:
-
-- `target.go:34` — `NewTarget` computes spawn bounds with `len(fmt.Sprintf("[%d %s]", ...))`, which counts UTF-8 bytes.
-- `target.go:68` — `Update` passes `float64(len(e.Label()))` as the right-wall boundary for bounce calculations.
-- `target.go:79` — `Contains` uses `len(e.Label())` for click hit-detection.
-
-In the adapter:
-
-- `tcellui.go:64` — `for i, ch := range tv.Label` gives `i` as a **byte offset**, then uses `tv.X+i` as the screen column. For kill-animation frames containing multi-byte characters (`"✦ KILLED ✦"`, `"· · ·"`), the rendered characters land at wrong column positions, leaving visual gaps.
-
-Fix: use `utf8.RuneCountInString()` for character count in the domain. Fix the rendering loop to track the column index independently:
-
-```go
-col := 0
-for _, ch := range tv.Label {
-    a.screen.SetContent(tv.X+col, tv.Y, ch, nil, style)
-    col++
-}
-```
+`target.go` now uses `utf8.RuneCountInString()` in `NewTarget` (spawn bounds), `Update` (right-wall boundary), and `Contains` (hit-detection). The `tcellui` render loop now uses an independent `col` counter instead of the byte offset from `range`, so multi-byte kill-animation frames (`"✦ KILLED ✦"`, `"· · ·"`) render at the correct screen columns.
 
 ### 14. HUD elements can overlap on narrow terminals — `tcellui/tcellui.go:87, 99`
 
@@ -191,7 +173,7 @@ Should be `"at least one search pattern is required"` (singular).
 | 12 | `osprocess/osprocess.go:130` | ✓ Resolved | `NewKiller()` returns `*Killer` not the port interface |
 | #6 — Poll goroutine blocks on channel send after game exits | `UI` holds a `done` channel; `Cleanup()` closes it; `poll()` uses `select` on every send |
 | #7 — Signal goroutine leaks after game ends | `Play()` uses a `done` channel; goroutine exits via `select` when game loop returns |
-| 13 | `target.go:34,68,79`; `tcellui.go:64` | Minor | Byte count/offset used for bounds, hit-detection, and rendering — breaks for multi-byte chars |
+| 13 | `target.go:34,68,79`; `tcellui.go:64` | ✓ Resolved | Byte count/offset used for bounds, hit-detection, and rendering — breaks for multi-byte chars |
 | 14 | `tcellui/tcellui.go:87,99` | Minor | HUD elements overlap on narrow terminals |
 | 15 | `osprocess/osprocess.go:52` | Minor | `ps` found via `$PATH` |
 | 16 | `score/score.go:71` | Minor | Score table shows Speed column; TODO says replace with Time |

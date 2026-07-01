@@ -3,6 +3,7 @@ package game
 import (
 	"fmt"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
@@ -119,6 +120,24 @@ func TestTarget_Contains(t *testing.T) {
 	}
 	if e.Contains(10, 4) {
 		t.Error("expected Contains wrong row=false")
+	}
+}
+
+func TestTarget_Contains_MultiByteProcessName(t *testing.T) {
+	// "café" is 5 UTF-8 bytes but 4 runes → label "[42 café]" is 10 bytes, 9 runes.
+	// With the byte-count bug, Contains over-counts by 1 and accepts column 19 as a hit.
+	e := &Target{
+		Info:   fake.NewProcess(42, "café", 0),
+		Motion: Motion{PosX: 10, PosY: 5},
+		State:  Alive,
+	}
+	label := e.Label()
+	runeCount := utf8.RuneCountInString(label)
+
+	pastEnd := 10 + runeCount
+	if e.Contains(pastEnd, 5) {
+		t.Errorf("Contains(%d, 5) should be false for label %q (rune count %d) — byte-count bug?",
+			pastEnd, label, runeCount)
 	}
 }
 

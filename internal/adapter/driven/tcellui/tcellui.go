@@ -64,10 +64,12 @@ func (a *UI) Render(frame driven.Frame) {
 		if tv.Killing {
 			style = killStyle
 		}
-		for i, ch := range tv.Label {
-			if tv.X+i < w && tv.Y < h-1 {
-				a.screen.SetContent(tv.X+i, tv.Y, ch, nil, style)
+		col := 0
+		for _, ch := range tv.Label {
+			if tv.X+col < w && tv.Y < h-1 {
+				a.screen.SetContent(tv.X+col, tv.Y, ch, nil, style)
 			}
+			col++
 		}
 	}
 
