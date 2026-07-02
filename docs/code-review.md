@@ -49,18 +49,9 @@ func parseArgs(args []string) ([]string, bool, float64, int, error)
 
 `signal.Stop(sigCh)` now runs before `close(done)` via deferred calls (LIFO). The goroutine uses a `select` on both `sigCh` and `done`, so it exits promptly when `Play()` returns rather than blocking indefinitely on `<-sigCh`.
 
-### 8. Kill score recorded even if SIGKILL fails — `loop.go:103–110`
+### ~~8. Kill score recorded even if SIGKILL fails — `loop.go:103–110`~~ ✓ Resolved
 
-```go
-func (g *Game) killTarget(e *Target) {
-    if e.State != Alive { return }
-    _ = g.killer.Kill(e.Pid())   // error silently discarded
-    e.StartKillAnim()
-    g.Session.RecordKill(e.Rss())
-}
-```
-
-`Kill()` returns an error, but it is always discarded and the kill and freed-memory counters are always incremented. On platforms where sending SIGKILL to an already-exited PID succeeds silently, scores are inflated. At minimum log the error; ideally call `RecordKill` only when `Kill` returns `nil`.
+`killTarget` now checks the error from `Kill()`. If it returns a non-nil error, the function returns early: no kill animation starts and neither `StartKillAnim` nor `RecordKill` is called. The target remains `Alive`. Tests added for both the failure path (click and confirm-mode) and the existing success-path tests now assert that `Kill` was actually invoked.
 
 ### 9. High score display is stale during play — `loop.go:89–92`
 
@@ -152,6 +143,7 @@ Should be `"at least one search pattern is required"` (singular).
 | `game_util.go` in wrong package | Moved to `internal/util/util.go` |
 | Testability required `tcell.SimulationScreen` | Game ports (`Renderer`, `EventSource`) are now plain interfaces; integration tests use hand-rolled stubs defined inline, no tcell dependency in tests |
 | No separation between domain and infrastructure | Full hexagonal layout: domain ports in `ports/driven` and `ports/driving` sub-packages; adapters in `adapter/driven/` and `adapter/driving/` |
+| #8 — Kill score recorded even if SIGKILL fails | `killTarget` now guards `StartKillAnim`/`RecordKill` behind a nil error check; failure path covered by `TestHandleKeyPress_ConfirmYes_KillError` and `TestHandleMouseClick_KillError`; existing success tests now assert `KilledPIDs` |
 
 ---
 
@@ -166,13 +158,11 @@ Should be `"at least one search pattern is required"` (singular).
 | 5 | `jsonscores/jsonscores.go:29` | ✓ Resolved | `defaultPath()` creates directory as side effect with silently discarded error |
 | 6 | `tcellui/tcellui.go:154,157,160` | ✓ Resolved | Poll goroutine blocks on channel send after game exits — goroutine leak |
 | 7 | `game/game.go:64–70` | ✓ Resolved | Signal goroutine leaks after game ends |
-| 8 | `loop.go:103–110` | Design | Kill score recorded even if SIGKILL fails |
+| 8 | `loop.go:103–110` | ✓ Resolved | Kill score recorded even if SIGKILL fails |
 | 9 | `loop.go:89–92` | Design | High score display stale mid-game |
 | 10 | `app/runner.go:75` | Design | Save error silently discarded |
 | 11 | `score/score.go:64–83` | Design | `PrintScores()` on domain type — stdout I/O belongs in app layer |
 | 12 | `osprocess/osprocess.go:130` | ✓ Resolved | `NewKiller()` returns `*Killer` not the port interface |
-| #6 — Poll goroutine blocks on channel send after game exits | `UI` holds a `done` channel; `Cleanup()` closes it; `poll()` uses `select` on every send |
-| #7 — Signal goroutine leaks after game ends | `Play()` uses a `done` channel; goroutine exits via `select` when game loop returns |
 | 13 | `target.go:34,68,79`; `tcellui.go:64` | ✓ Resolved | Byte count/offset used for bounds, hit-detection, and rendering — breaks for multi-byte chars |
 | 14 | `tcellui/tcellui.go:87,99` | ✓ Resolved | HUD elements overlap on narrow terminals |
 | 15 | `osprocess/osprocess.go:52` | Minor | `ps` found via `$PATH` |
@@ -212,9 +202,9 @@ if lowestKills < 5 {
 
 The loop produces entries with kills `0–14`; the top `maxScores` retained entries are kills `5–14`, making the lowest retained exactly `5`. The assertion `lowestKills < 5` passes vacuously for any value ≥ 5 and would not catch an off-by-one error that retained kill-count 4 instead. The assertion should be `!= 5` (or derive the expected minimum from `maxScores` and the loop bounds) to tighten the invariant.
 
-### `TestHandleKeyPress_ConfirmYes` does not verify the signal — `event_handler_test.go`
+### ~~`TestHandleKeyPress_ConfirmYes` does not verify the signal — `event_handler_test.go`~~ ✓ Resolved
 
-The test verifies in-game state (`kills`, `freedMem`, target `State`) but not whether `Kill()` was actually invoked. Issue #8 (score recorded regardless of kill success) is therefore not exercised. Since `FakeKiller` records called PIDs, asserting `len(fakeKiller.KilledPIDs) == 1` would close this gap without any new infrastructure.
+`TestHandleKeyPress_ConfirmYes` and `TestHandleMouseClick_KillsTargetOnClick` now assert `fk.KilledPIDs`. Two new tests cover the failure path: `TestHandleKeyPress_ConfirmYes_KillError` and `TestHandleMouseClick_KillError` verify that target state and score counters are unchanged when `Kill` returns an error.
 
 ### Undocumented confirm-cancel-with-q behaviour
 

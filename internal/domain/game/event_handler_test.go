@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driven"
@@ -94,7 +95,8 @@ func TestHandleKeyPress_SpeedCapsAtMin(t *testing.T) {
 
 func TestHandleKeyPress_ConfirmYes(t *testing.T) {
 	e := &Target{Info: fake.NewProcess(1, "target", 4096), State: Alive}
-	g := newRunningGame(&Game{confirming: e, killer: &fake.Killer{}})
+	fk := &fake.Killer{}
+	g := newRunningGame(&Game{confirming: e, killer: fk})
 
 	g.handleKeyPress(0, 'y')
 
@@ -109,6 +111,27 @@ func TestHandleKeyPress_ConfirmYes(t *testing.T) {
 	}
 	if g.freedMem != 4096 {
 		t.Errorf("expected freedMem=4096, got %d", g.freedMem)
+	}
+	if len(fk.KilledPIDs) != 1 || fk.KilledPIDs[0] != 1 {
+		t.Errorf("expected Kill(1) called once, got %v", fk.KilledPIDs)
+	}
+}
+
+func TestHandleKeyPress_ConfirmYes_KillError(t *testing.T) {
+	e := &Target{Info: fake.NewProcess(1, "target", 4096), State: Alive}
+	fk := &fake.Killer{Err: fmt.Errorf("process already finished")}
+	g := newRunningGame(&Game{confirming: e, killer: fk})
+
+	g.handleKeyPress(0, 'y')
+
+	if e.State != Alive {
+		t.Errorf("expected entity still Alive after failed kill, got %d", e.State)
+	}
+	if g.kills != 0 {
+		t.Errorf("expected kills=0 after failed kill, got %d", g.kills)
+	}
+	if g.freedMem != 0 {
+		t.Errorf("expected freedMem=0 after failed kill, got %d", g.freedMem)
 	}
 }
 
@@ -144,7 +167,8 @@ func TestHandleKeyPress_QCancelsConfirm(t *testing.T) {
 
 func TestHandleMouseClick_KillsTargetOnClick(t *testing.T) {
 	e := &Target{Info: fake.NewProcess(1, "target", 1024), Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
-	g := &Game{targets: []*Target{e}, killer: &fake.Killer{}}
+	fk := &fake.Killer{}
+	g := &Game{targets: []*Target{e}, killer: fk}
 
 	g.handleMouseClick(10, 5)
 
@@ -153,6 +177,23 @@ func TestHandleMouseClick_KillsTargetOnClick(t *testing.T) {
 	}
 	if g.kills != 1 {
 		t.Errorf("expected kills=1, got %d", g.kills)
+	}
+	if len(fk.KilledPIDs) != 1 || fk.KilledPIDs[0] != 1 {
+		t.Errorf("expected Kill(1) called once, got %v", fk.KilledPIDs)
+	}
+}
+
+func TestHandleMouseClick_KillError(t *testing.T) {
+	e := &Target{Info: fake.NewProcess(1, "target", 1024), Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
+	g := &Game{targets: []*Target{e}, killer: &fake.Killer{Err: fmt.Errorf("no such process")}}
+
+	g.handleMouseClick(10, 5)
+
+	if e.State != Alive {
+		t.Errorf("expected entity still Alive after failed kill, got %d", e.State)
+	}
+	if g.kills != 0 {
+		t.Errorf("expected kills=0 after failed kill, got %d", g.kills)
 	}
 }
 
