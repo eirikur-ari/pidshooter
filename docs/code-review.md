@@ -57,13 +57,9 @@ func parseArgs(args []string) ([]string, bool, float64, int, error)
 
 `Session.RecordKill` now updates `highScore` in-place whenever `kills` exceeds it, so `g.highScore` tracks the live kill count and the HUD reflects the new record as soon as it is set. `TestSession_RecordKill_UpdatesHighScore` verifies the boundary: no update while kills ≤ previous high score, then increments correctly on each kill that beats it.
 
-### 10. Score save errors silently discarded — `app/runner.go:75`
+### ~~10. Score save errors silently discarded — `app/runner.go:75`~~ ✓ Resolved
 
-```go
-_ = s.store.Save(board)
-```
-
-If the score file cannot be written (disk full, permission denied, stale NFS mount), the user sees the summary and score table printed from the in-memory board, with no indication that the result was not persisted. The error should at minimum be logged to stderr.
+`s.store.Save(board)` error is now checked; on failure a `warning: score not saved: <err>` line is printed to stderr. `Play` still returns `nil` — a save failure is not fatal. `fake.Store` now has separate `LoadErr`/`SaveErr` fields so the two paths can be controlled independently. `TestGameService_SaveError_PrintsWarning` (integration) verifies the warning appears and `Play` returns `nil`.
 
 ### 11. `PrintScores()` couples the domain to stdout — `score/score.go:64–83`
 
@@ -138,6 +134,7 @@ Should be `"at least one search pattern is required"` (singular).
 | No separation between domain and infrastructure | Full hexagonal layout: domain ports in `ports/driven` and `ports/driving` sub-packages; adapters in `adapter/driven/` and `adapter/driving/` |
 | #8 — Kill score recorded even if SIGKILL fails | `killTarget` now guards `StartKillAnim`/`RecordKill` behind a nil error check; failure path covered by `TestHandleKeyPress_ConfirmYes_KillError` and `TestHandleMouseClick_KillError`; existing success tests now assert `KilledPIDs` |
 | #9 — High score display stale mid-game | `Session.RecordKill` now updates `highScore` in-place when `kills` exceeds it; covered by `TestSession_RecordKill_UpdatesHighScore` |
+| #10 — Score save error silently discarded | `runner.go` now prints `warning: score not saved: <err>` to stderr on save failure; `fake.Store` split into `LoadErr`/`SaveErr`; covered by `TestGameService_SaveError_PrintsWarning` (integration) |
 
 ---
 
@@ -154,7 +151,7 @@ Should be `"at least one search pattern is required"` (singular).
 | 7 | `game/game.go:64–70` | ✓ Resolved | Signal goroutine leaks after game ends |
 | 8 | `loop.go:103–110` | ✓ Resolved | Kill score recorded even if SIGKILL fails |
 | 9 | `loop.go:89–92` | ✓ Resolved | High score display stale mid-game |
-| 10 | `app/runner.go:75` | Design | Save error silently discarded |
+| 10 | `app/runner.go:75` | ✓ Resolved | Save error silently discarded |
 | 11 | `score/score.go:64–83` | Design | `PrintScores()` on domain type — stdout I/O belongs in app layer |
 | 12 | `osprocess/osprocess.go:130` | ✓ Resolved | `NewKiller()` returns `*Killer` not the port interface |
 | 13 | `target.go:34,68,79`; `tcellui.go:64` | ✓ Resolved | Byte count/offset used for bounds, hit-detection, and rendering — breaks for multi-byte chars |

@@ -3,6 +3,7 @@ package app
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/eirikur-ari/pidshooter/internal/domain/game"
@@ -76,7 +77,9 @@ func (s *GameService) Play(cfg driving.Config) error {
 		Duration: duration,
 		Date:     time.Now(),
 	})
-	_ = s.store.Save(board)
+	if err := s.store.Save(board); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: score not saved: %v\n", err)
+	}
 
 	fmt.Printf("\n  Game Over! Kills: %d | Freed: %s | Time: %.1fs\n",
 		kills, util.FormatBytes(freedMem), duration)
