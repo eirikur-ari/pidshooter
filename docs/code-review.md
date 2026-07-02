@@ -94,13 +94,9 @@ fmt.Println("  ║  # ║ Kills ║   Freed    ║ Speed ║    Date    ║")
 
 `Entry` has both `Speed` and `Time` fields, but only `Speed` is rendered. The time-limit column was never added to the table display.
 
-### 17. Grammar error in `validate()` — `osprocess/osprocess.go:96`
+### ~~17. Grammar error in `validate()` — `osprocess/osprocess.go:96`~~ ✓ Resolved
 
-```go
-return fmt.Errorf("at least one search patterns is required")
-```
-
-Should be `"at least one search pattern is required"` (singular).
+`"patterns is"` → `"pattern is"`.
 
 ### 18. `GameService` has no happy-path test — `app/runner_test.go`
 
@@ -155,7 +151,7 @@ Should be `"at least one search pattern is required"` (singular).
 | 14 | `tcellui/tcellui.go:87,99` | ✓ Resolved | HUD elements overlap on narrow terminals |
 | 15 | `osprocess/osprocess.go:52` | ✓ Resolved | `ps` found via `$PATH` |
 | 16 | `score/score.go:71` | Minor | Score table shows Speed column; TODO says replace with Time |
-| 17 | `osprocess/osprocess.go:96` | Minor | Grammar: "patterns is" → "pattern is" |
+| 17 | `osprocess/osprocess.go:96` | ✓ Resolved | Grammar: "patterns is" → "pattern is" |
 | 18 | `app/runner_test.go` | Minor | No happy-path test for `GameService` |
 | 19 | `adapter/driven/tcellui/` | Minor | No tests for `tcellui` package |
 

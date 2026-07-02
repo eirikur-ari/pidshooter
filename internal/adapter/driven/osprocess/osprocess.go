@@ -100,7 +100,7 @@ func (f *Finder) List() ([]driven.Info, error) {
 
 func validate(patterns []string) error {
 	if len(patterns) == 0 {
-		return fmt.Errorf("at least one search patterns is required")
+		return fmt.Errorf("at least one search pattern is required")
 	}
 	for _, pattern := range patterns {
 		if pattern == "" {
