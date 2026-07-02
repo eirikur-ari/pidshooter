@@ -81,13 +81,9 @@ func parseArgs(args []string) ([]string, bool, float64, int, error)
 
 `drawHUD` now pre-computes the start positions of all three elements and only draws the centre `Highscore` label when it fits without overlapping the left `FREED` or right `KILLS` elements. On narrow terminals where the guard fires, `FREED` and `KILLS` remain intact.
 
-### 15. `ps` resolved via `$PATH` — `osprocess/osprocess.go:52`
+### ~~15. `ps` resolved via `$PATH` — `osprocess/osprocess.go:52`~~ ✓ Resolved
 
-```go
-cmd := exec.Command("ps", flags, "pid,rss,comm")
-```
-
-`ps` is found by searching `$PATH`. On Linux, reading `/proc` directly would eliminate the subprocess and the PATH dependency entirely. The existing TODO comment acknowledges this.
+`NewFinder()` now calls `exec.LookPath("ps")` at construction time and stores the absolute path in `Finder.psPath`; `List()` uses `f.psPath` instead of the bare string `"ps"`. `NewFinder` returns `(driven.Finder, error)` so callers fail fast if `ps` is absent. `main.go` and both test files updated accordingly.
 
 ### 16. Score table header does not match data — `score/score.go:71`
 
@@ -135,6 +131,7 @@ Should be `"at least one search pattern is required"` (singular).
 | #8 — Kill score recorded even if SIGKILL fails | `killTarget` now guards `StartKillAnim`/`RecordKill` behind a nil error check; failure path covered by `TestHandleKeyPress_ConfirmYes_KillError` and `TestHandleMouseClick_KillError`; existing success tests now assert `KilledPIDs` |
 | #9 — High score display stale mid-game | `Session.RecordKill` now updates `highScore` in-place when `kills` exceeds it; covered by `TestSession_RecordKill_UpdatesHighScore` |
 | #10 — Score save error silently discarded | `runner.go` now prints `warning: score not saved: <err>` to stderr on save failure; `fake.Store` split into `LoadErr`/`SaveErr`; covered by `TestGameService_SaveError_PrintsWarning` (integration) |
+| #15 — `ps` resolved via `$PATH` | `NewFinder()` calls `exec.LookPath("ps")` at construction, stores absolute path in `Finder.psPath`; signature changed to `(driven.Finder, error)`; `main.go` and test files updated |
 
 ---
 
@@ -156,7 +153,7 @@ Should be `"at least one search pattern is required"` (singular).
 | 12 | `osprocess/osprocess.go:130` | ✓ Resolved | `NewKiller()` returns `*Killer` not the port interface |
 | 13 | `target.go:34,68,79`; `tcellui.go:64` | ✓ Resolved | Byte count/offset used for bounds, hit-detection, and rendering — breaks for multi-byte chars |
 | 14 | `tcellui/tcellui.go:87,99` | ✓ Resolved | HUD elements overlap on narrow terminals |
-| 15 | `osprocess/osprocess.go:52` | Minor | `ps` found via `$PATH` |
+| 15 | `osprocess/osprocess.go:52` | ✓ Resolved | `ps` found via `$PATH` |
 | 16 | `score/score.go:71` | Minor | Score table shows Speed column; TODO says replace with Time |
 | 17 | `osprocess/osprocess.go:96` | Minor | Grammar: "patterns is" → "pattern is" |
 | 18 | `app/runner_test.go` | Minor | No happy-path test for `GameService` |

@@ -26,11 +26,17 @@ func (p *proc) Name() string { return p.name }
 func (p *proc) Rss() int64   { return p.rss }
 
 // Finder implements driven.Finder using the ps command.
-type Finder struct{}
+type Finder struct{ psPath string }
 
 // NewFinder returns a driven.Finder backed by the OS ps command.
-func NewFinder() driven.Finder {
-	return &Finder{}
+// It resolves the absolute path to ps at construction time so the
+// adapter does not depend on $PATH at runtime.
+func NewFinder() (driven.Finder, error) {
+	path, err := exec.LookPath("ps")
+	if err != nil {
+		return nil, fmt.Errorf("ps not found: %w", err)
+	}
+	return &Finder{psPath: path}, nil
 }
 
 func (f *Finder) Find(patterns []string) ([]driven.Info, error) {
@@ -50,7 +56,7 @@ func (f *Finder) List() ([]driven.Info, error) {
 		flags = "-ceo"
 	}
 	//TODO: we might want to cover nushell requirements, as well review if we need to adjust ps command according to OS
-	cmd := exec.Command("ps", flags, "pid,rss,comm")
+	cmd := exec.Command(f.psPath, flags, "pid,rss,comm")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("ps command failed: %w", err)

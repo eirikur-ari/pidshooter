@@ -2,11 +2,21 @@ package osprocess
 
 import (
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 
 	"github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
 )
+
+func newTestFinder(t *testing.T) *Finder {
+	t.Helper()
+	path, err := exec.LookPath("ps")
+	if err != nil {
+		t.Fatalf("ps not found: %v", err)
+	}
+	return &Finder{psPath: path}
+}
 
 func TestValidate_EmptySlice(t *testing.T) {
 	if err := validate([]string{}); err == nil {
@@ -34,14 +44,14 @@ func TestValidate_Valid(t *testing.T) {
 }
 
 func TestFind_EmptyPatterns(t *testing.T) {
-	_, err := (&Finder{}).Find([]string{})
+	_, err := newTestFinder(t).Find([]string{})
 	if err == nil {
 		t.Error("expected error for empty patterns")
 	}
 }
 
 func TestFind_EmptyTerm(t *testing.T) {
-	_, err := (&Finder{}).Find([]string{""})
+	_, err := newTestFinder(t).Find([]string{""})
 	if err == nil {
 		t.Error("expected error for empty term")
 	}

@@ -21,7 +21,10 @@ func main() {
 }
 
 func run() error {
-	finder := osprocess.NewFinder()
+	finder, err := osprocess.NewFinder()
+	if err != nil {
+		return err
+	}
 	killer := osprocess.NewKiller()
 	store := jsonscores.NewStore()
 
