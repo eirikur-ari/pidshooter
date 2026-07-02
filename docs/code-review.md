@@ -102,9 +102,9 @@ fmt.Println("  ║  # ║ Kills ║   Freed    ║ Speed ║    Date    ║")
 
 `TestGameService_HappyPath` (integration) pre-queues a quit event, runs `Play` to completion, and asserts: `Play` returns `nil`; `store.Saved` is non-nil (Save was called); the board contains one entry with `kills=0` and `duration>0` (confirming `StartTime` was recorded). `fake.Store` gained a `Saved *score.Board` field to capture the argument passed to `Save`.
 
-### 19. `tcellui` package has no tests — `adapter/driven/tcellui/`
+### ~~19. `tcellui` package has no tests — `adapter/driven/tcellui/`~~ ✓ Resolved
 
-`tcellui` implements both `Renderer` and `EventSource`. `drawHUD`, `drawStatusBar`, `translateKey`, and the event loop in `poll()` have no test coverage. `tcell.NewSimulationScreen()` provides a headless screen suitable for unit tests without a real terminal.
+Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via four `TestPoll_Translates*` cases (Escape, CtrlC, CtrlZ, plain rune → KeyNone); `poll` routing is covered by `TestPoll_MouseButton1_EmitsClickEvent`, `TestPoll_NonButton1_DropsEvent`, and `TestPoll_ResizeEvent_EmitsResizeEvent`; `drawStatusBar` is covered by four cases (normal, confirming, with time limit, without time limit). Shared `newUI`, `nextEvent`, and `rowContent` helpers keep boilerplate out of each test.
 
 ---
 
@@ -129,6 +129,7 @@ fmt.Println("  ║  # ║ Kills ║   Freed    ║ Speed ║    Date    ║")
 | #10 — Score save error silently discarded | `runner.go` now prints `warning: score not saved: <err>` to stderr on save failure; `fake.Store` split into `LoadErr`/`SaveErr`; covered by `TestGameService_SaveError_PrintsWarning` (integration) |
 | #15 — `ps` resolved via `$PATH` | `NewFinder()` calls `exec.LookPath("ps")` at construction, stores absolute path in `Finder.psPath`; signature changed to `(driven.Finder, error)`; `main.go` and test files updated |
 | #18 — No happy-path test for `GameService` | `TestGameService_HappyPath` (integration) verifies end-to-end success, Save called, session state recorded; `fake.Store` gained `Saved` field |
+| #19 — No tests for `tcellui` | Added `translateKey` (×4), `poll` routing (×3), and `drawStatusBar` (×4) tests using `tcell.NewSimulationScreen()` |
 
 ---
 
@@ -154,7 +155,7 @@ fmt.Println("  ║  # ║ Kills ║   Freed    ║ Speed ║    Date    ║")
 | 16 | `score/score.go:71` | Minor | Score table shows Speed column; TODO says replace with Time |
 | 17 | `osprocess/osprocess.go:96` | ✓ Resolved | Grammar: "patterns is" → "pattern is" |
 | 18 | `app/runner_test.go` | ✓ Resolved | No happy-path test for `GameService` |
-| 19 | `adapter/driven/tcellui/` | Minor | No tests for `tcellui` package |
+| 19 | `adapter/driven/tcellui/` | ✓ Resolved | No tests for `tcellui` package |
 
 The highest-priority open design fixes are **#3** (`parseArgs` calls `os.Exit`) and **#4** (five return values from `parseArgs`).
 
