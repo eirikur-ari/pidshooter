@@ -18,4 +18,7 @@ func (s *Session) SetHighScore(n int)   { s.highScore = n }
 func (s *Session) RecordKill(rss int64) {
 	s.kills++
 	s.freedMem += rss
+	if s.kills > s.highScore {
+		s.highScore = s.kills
+	}
 }

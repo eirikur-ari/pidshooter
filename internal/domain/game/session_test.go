@@ -22,6 +22,28 @@ func TestSession_RecordKill(t *testing.T) {
 	}
 }
 
+func TestSession_RecordKill_UpdatesHighScore(t *testing.T) {
+	s := Session{}
+	s.SetHighScore(5)
+
+	for i := 0; i < 5; i++ {
+		s.RecordKill(0)
+		if s.highScore != 5 {
+			t.Errorf("after %d kills: expected highScore=5 (not beaten yet), got %d", i+1, s.highScore)
+		}
+	}
+
+	s.RecordKill(0)
+	if s.highScore != 6 {
+		t.Errorf("expected highScore=6 after beating old record, got %d", s.highScore)
+	}
+
+	s.RecordKill(0)
+	if s.highScore != 7 {
+		t.Errorf("expected highScore=7 after second beat, got %d", s.highScore)
+	}
+}
+
 func TestSession_SetHighScore(t *testing.T) {
 	s := Session{}
 	s.SetHighScore(100)

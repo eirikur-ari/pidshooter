@@ -53,16 +53,9 @@ func parseArgs(args []string) ([]string, bool, float64, int, error)
 
 `killTarget` now checks the error from `Kill()`. If it returns a non-nil error, the function returns early: no kill animation starts and neither `StartKillAnim` nor `RecordKill` is called. The target remains `Alive`. Tests added for both the failure path (click and confirm-mode) and the existing success-path tests now assert that `Kill` was actually invoked.
 
-### 9. High score display is stale during play — `loop.go:89–92`
+### ~~9. High score display is stale during play — `loop.go:89–92`~~ ✓ Resolved
 
-```go
-HUD: gamedriven.HUDState{
-    // ...
-    HighScore: g.highScore,  // set once before the loop, never updated
-},
-```
-
-`g.highScore` is initialised in `Play()` via `g.SetHighScore(highScore)` and never changed during the session. If the player beats the record mid-game, the HUD continues to display the pre-game high score. Update `g.highScore` inside `killTarget` when `g.kills` exceeds it.
+`Session.RecordKill` now updates `highScore` in-place whenever `kills` exceeds it, so `g.highScore` tracks the live kill count and the HUD reflects the new record as soon as it is set. `TestSession_RecordKill_UpdatesHighScore` verifies the boundary: no update while kills ≤ previous high score, then increments correctly on each kill that beats it.
 
 ### 10. Score save errors silently discarded — `app/runner.go:75`
 
@@ -144,6 +137,7 @@ Should be `"at least one search pattern is required"` (singular).
 | Testability required `tcell.SimulationScreen` | Game ports (`Renderer`, `EventSource`) are now plain interfaces; integration tests use hand-rolled stubs defined inline, no tcell dependency in tests |
 | No separation between domain and infrastructure | Full hexagonal layout: domain ports in `ports/driven` and `ports/driving` sub-packages; adapters in `adapter/driven/` and `adapter/driving/` |
 | #8 — Kill score recorded even if SIGKILL fails | `killTarget` now guards `StartKillAnim`/`RecordKill` behind a nil error check; failure path covered by `TestHandleKeyPress_ConfirmYes_KillError` and `TestHandleMouseClick_KillError`; existing success tests now assert `KilledPIDs` |
+| #9 — High score display stale mid-game | `Session.RecordKill` now updates `highScore` in-place when `kills` exceeds it; covered by `TestSession_RecordKill_UpdatesHighScore` |
 
 ---
 
@@ -159,7 +153,7 @@ Should be `"at least one search pattern is required"` (singular).
 | 6 | `tcellui/tcellui.go:154,157,160` | ✓ Resolved | Poll goroutine blocks on channel send after game exits — goroutine leak |
 | 7 | `game/game.go:64–70` | ✓ Resolved | Signal goroutine leaks after game ends |
 | 8 | `loop.go:103–110` | ✓ Resolved | Kill score recorded even if SIGKILL fails |
-| 9 | `loop.go:89–92` | Design | High score display stale mid-game |
+| 9 | `loop.go:89–92` | ✓ Resolved | High score display stale mid-game |
 | 10 | `app/runner.go:75` | Design | Save error silently discarded |
 | 11 | `score/score.go:64–83` | Design | `PrintScores()` on domain type — stdout I/O belongs in app layer |
 | 12 | `osprocess/osprocess.go:130` | ✓ Resolved | `NewKiller()` returns `*Killer` not the port interface |
