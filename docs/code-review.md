@@ -98,9 +98,9 @@ fmt.Println("  ║  # ║ Kills ║   Freed    ║ Speed ║    Date    ║")
 
 `"patterns is"` → `"pattern is"`.
 
-### 18. `GameService` has no happy-path test — `app/runner_test.go`
+### ~~18. `GameService` has no happy-path test — `app/runner_test.go`~~ ✓ Resolved
 
-`runner_test.go` covers `FinderError` and `NoProcesses` but not the normal path where processes are found and the game runs to completion. With `FakeFinder`, `FakeKiller`, `FakeStore`, and the stub renderer/event source already in `testutil`, a complete happy-path test is straightforward. The session state (`Kills`, `FreedMem`, `StartTime`) and score persistence call are currently uncovered.
+`TestGameService_HappyPath` (integration) pre-queues a quit event, runs `Play` to completion, and asserts: `Play` returns `nil`; `store.Saved` is non-nil (Save was called); the board contains one entry with `kills=0` and `duration>0` (confirming `StartTime` was recorded). `fake.Store` gained a `Saved *score.Board` field to capture the argument passed to `Save`.
 
 ### 19. `tcellui` package has no tests — `adapter/driven/tcellui/`
 
@@ -128,6 +128,7 @@ fmt.Println("  ║  # ║ Kills ║   Freed    ║ Speed ║    Date    ║")
 | #9 — High score display stale mid-game | `Session.RecordKill` now updates `highScore` in-place when `kills` exceeds it; covered by `TestSession_RecordKill_UpdatesHighScore` |
 | #10 — Score save error silently discarded | `runner.go` now prints `warning: score not saved: <err>` to stderr on save failure; `fake.Store` split into `LoadErr`/`SaveErr`; covered by `TestGameService_SaveError_PrintsWarning` (integration) |
 | #15 — `ps` resolved via `$PATH` | `NewFinder()` calls `exec.LookPath("ps")` at construction, stores absolute path in `Finder.psPath`; signature changed to `(driven.Finder, error)`; `main.go` and test files updated |
+| #18 — No happy-path test for `GameService` | `TestGameService_HappyPath` (integration) verifies end-to-end success, Save called, session state recorded; `fake.Store` gained `Saved` field |
 
 ---
 
@@ -152,7 +153,7 @@ fmt.Println("  ║  # ║ Kills ║   Freed    ║ Speed ║    Date    ║")
 | 15 | `osprocess/osprocess.go:52` | ✓ Resolved | `ps` found via `$PATH` |
 | 16 | `score/score.go:71` | Minor | Score table shows Speed column; TODO says replace with Time |
 | 17 | `osprocess/osprocess.go:96` | ✓ Resolved | Grammar: "patterns is" → "pattern is" |
-| 18 | `app/runner_test.go` | Minor | No happy-path test for `GameService` |
+| 18 | `app/runner_test.go` | ✓ Resolved | No happy-path test for `GameService` |
 | 19 | `adapter/driven/tcellui/` | Minor | No tests for `tcellui` package |
 
 The highest-priority open design fixes are **#3** (`parseArgs` calls `os.Exit`) and **#4** (five return values from `parseArgs`).

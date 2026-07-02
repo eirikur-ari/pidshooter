@@ -14,6 +14,37 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
+func TestGameService_HappyPath(t *testing.T) {
+	events := newStubEventSource()
+	events.ch <- gamedriven.KeyEvent{Ch: 'q'}
+
+	store := &fake.Store{}
+	svc := NewGameService(
+		&fake.Finder{Processes: []procdriven.Info{fake.NewProcess(1, "target", 1024)}},
+		&fake.Killer{},
+		store,
+		&stubRenderer{},
+		events,
+	)
+
+	if err := svc.Play(driving.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0}); err != nil {
+		t.Fatalf("expected nil error, got %v", err)
+	}
+	if store.Saved == nil {
+		t.Fatal("expected Save to be called, got nil")
+	}
+	if len(store.Saved.Scores) != 1 {
+		t.Fatalf("expected 1 score entry, got %d", len(store.Saved.Scores))
+	}
+	entry := store.Saved.Scores[0]
+	if entry.Kills != 0 {
+		t.Errorf("expected 0 kills after immediate quit, got %d", entry.Kills)
+	}
+	if entry.Duration <= 0 {
+		t.Errorf("expected positive duration (StartTime was recorded), got %f", entry.Duration)
+	}
+}
+
 func TestGameService_SaveError_PrintsWarning(t *testing.T) {
 	events := newStubEventSource()
 	events.ch <- gamedriven.KeyEvent{Ch: 'q'}

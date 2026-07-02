@@ -7,6 +7,7 @@ type Store struct {
 	Board   *score.Board
 	LoadErr error
 	SaveErr error
+	Saved   *score.Board // captured by the most recent Save call
 }
 
 func (f *Store) Load() (*score.Board, error) {
@@ -16,4 +17,7 @@ func (f *Store) Load() (*score.Board, error) {
 	return f.Board, f.LoadErr
 }
 
-func (f *Store) Save(_ *score.Board) error { return f.SaveErr }
+func (f *Store) Save(b *score.Board) error {
+	f.Saved = b
+	return f.SaveErr
+}
