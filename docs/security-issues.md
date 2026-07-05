@@ -53,26 +53,13 @@ There is also no minimum pattern length. A single-character pattern is accepted 
 
 ---
 
-### [MEDIUM] SEC-04 — Kill errors silently discarded
+### ~~[MEDIUM] SEC-04 — Kill errors silently discarded~~ ✓ FIXED (resolved during SEC-01)
 
 **File:** `internal/domain/game/loop.go:107`
 
-```go
-_ = g.killer.Kill(e.Pid())
-e.StartKillAnim()
-g.Session.RecordKill(e.Rss())
-```
+The kill error was explicitly ignored (`_ = g.killer.Kill(...)`). The animation and kill count were recorded unconditionally, misrepresenting game state and hiding failures silently.
 
-The kill error is explicitly ignored. If `Kill` fails (e.g., permission denied, process already gone), the game still plays the kill animation and increments the kill count. This misrepresents game state and, more importantly, hides failures silently — including permission errors that could indicate unexpected privilege conditions.
-
-**Fix:** Propagate or at minimum log the kill error. Only start the animation and record the kill if the signal was sent successfully.
-
-```go
-if err := g.killer.Kill(e.Pid()); err == nil {
-    e.StartKillAnim()
-    g.Session.RecordKill(e.Rss())
-}
-```
+**Fix applied:** Resolved as part of the SEC-01 fix. `killTarget` now checks the error from `Kill` and returns early on failure — `StartKillAnim()` and `RecordKill()` are only called when the signal was sent successfully.
 
 ---
 
@@ -120,7 +107,7 @@ Neither package is imported directly by pidshooter's runtime code, reducing actu
 | SEC-01 | Critical | ~~TOCTOU PID recycling~~ ✓ FIXED | `osprocess.go`, `loop.go` |
 | SEC-02 | Critical | ~~PID 0 not excluded from Kill~~ ✓ FIXED | `osprocess.go` |
 | SEC-03 | High | ~~Insufficient system process exclusion~~ ✓ FIXED | `osprocess.go` |
-| SEC-04 | Medium | Kill errors silently discarded | `loop.go:107` |
+| SEC-04 | Medium | ~~Kill errors silently discarded~~ ✓ FIXED | `loop.go:107` |
 | SEC-05 | Medium | Score file world-readable permissions | `jsonscores.go` |
 | SEC-06 | Low | Outdated transitive dependencies | `go.mod` |
 
