@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"strings"
 	"testing"
 
 	procdriven "github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
@@ -128,6 +129,23 @@ func TestParseArgs_NoPatterns(t *testing.T) {
 	_, _, _, _, err := parseArgs([]string{"--confirm"})
 	if err == nil {
 		t.Error("expected error when no patterns provided")
+	}
+}
+
+func TestParseArgs_PatternTooShort(t *testing.T) {
+	for _, p := range []string{"a", "ab"} {
+		_, _, _, _, err := parseArgs([]string{p})
+		if err == nil {
+			t.Errorf("expected error for pattern %q shorter than MinPatternLength", p)
+		}
+	}
+}
+
+func TestParseArgs_PatternExactMinLength(t *testing.T) {
+	min := strings.Repeat("a", procdriven.MinPatternLength)
+	_, _, _, _, err := parseArgs([]string{min})
+	if err != nil {
+		t.Errorf("expected no error for min-length pattern, got %v", err)
 	}
 }
 

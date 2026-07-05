@@ -103,11 +103,11 @@ func validate(patterns []string) error {
 		return fmt.Errorf("at least one search pattern is required")
 	}
 	for _, pattern := range patterns {
-		if pattern == "" {
-			return fmt.Errorf("search patterns must not be empty")
+		if len(pattern) < driven.MinPatternLength {
+			return fmt.Errorf("search pattern %q must be at least %d characters", pattern, driven.MinPatternLength)
 		}
 		if len(pattern) > driven.MaxPatternLength {
-			return fmt.Errorf("search patterns exceeds maximum length of %d characters", driven.MaxPatternLength)
+			return fmt.Errorf("search pattern %q exceeds maximum length of %d characters", pattern, driven.MaxPatternLength)
 		}
 	}
 	return nil

@@ -98,8 +98,11 @@ func parseArgs(args []string) ([]string, bool, float64, int, error) {
 		case len(arg) > 0 && arg[0] == '-':
 			return nil, false, 0, 0, fmt.Errorf("unknown flag: %s\nRun 'pidshooter --help' for usage", arg)
 		default:
+			if len(arg) < procdriven.MinPatternLength {
+				return nil, false, 0, 0, fmt.Errorf("search pattern %q must be at least %d characters", arg, procdriven.MinPatternLength)
+			}
 			if len(arg) > procdriven.MaxPatternLength {
-				return nil, false, 0, 0, fmt.Errorf("search pattern '%s' exceeds maximum length of %d characters", arg, procdriven.MaxPatternLength)
+				return nil, false, 0, 0, fmt.Errorf("search pattern %q exceeds maximum length of %d characters", arg, procdriven.MaxPatternLength)
 			}
 			patterns = append(patterns, arg)
 		}

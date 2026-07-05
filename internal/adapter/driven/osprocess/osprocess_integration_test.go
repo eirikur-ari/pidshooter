@@ -68,7 +68,7 @@ func TestIntegration_Find_ExcludesOwnPID(t *testing.T) {
 		t.Fatalf("NewFinder: %v", err)
 	}
 	ownPID := os.Getpid()
-	results, err := f.Find([]string{"go"})
+	results, err := f.Find([]string{"proc"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

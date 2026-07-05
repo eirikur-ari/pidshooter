@@ -41,7 +41,7 @@ The filter in `filter()` excludes only the current process PID and PID 1. On Uni
 
 ---
 
-### [HIGH] SEC-03 — Insufficient system process exclusion
+### ~~[HIGH] SEC-03 — Insufficient system process exclusion~~ ✓ FIXED (minimum pattern length)
 
 **File:** `internal/adapter/driven/osprocess/osprocess.go:113-115`
 
@@ -49,9 +49,7 @@ Only PID 1 (init/launchd) and the current process are excluded. Many other low-n
 
 There is also no minimum pattern length. A single-character pattern is accepted and can match hundreds of system processes.
 
-**Fix:**
-- Enforce a minimum pattern length of 3 characters in `validate()`.
-- Optionally, warn users when a pattern matches a disproportionate number of processes (e.g., > 20) before starting.
+**Fix applied:** Added `MinPatternLength = 3` constant to the driven port. `validate()` in `osprocess.go` now rejects any pattern shorter than 3 characters. `parseArgs()` in the CLI layer mirrors the same check for fast, user-facing feedback. The optional broad-match warning was not implemented.
 
 ---
 
@@ -121,7 +119,7 @@ Neither package is imported directly by pidshooter's runtime code, reducing actu
 |---|---|---|---|
 | SEC-01 | Critical | ~~TOCTOU PID recycling~~ ✓ FIXED | `osprocess.go`, `loop.go` |
 | SEC-02 | Critical | ~~PID 0 not excluded from Kill~~ ✓ FIXED | `osprocess.go` |
-| SEC-03 | High | Insufficient system process exclusion | `osprocess.go` |
+| SEC-03 | High | ~~Insufficient system process exclusion~~ ✓ FIXED | `osprocess.go` |
 | SEC-04 | Medium | Kill errors silently discarded | `loop.go:107` |
 | SEC-05 | Medium | Score file world-readable permissions | `jsonscores.go` |
 | SEC-06 | Low | Outdated transitive dependencies | `go.mod` |

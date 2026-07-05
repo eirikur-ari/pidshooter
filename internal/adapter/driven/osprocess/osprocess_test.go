@@ -30,6 +30,21 @@ func TestValidate_EmptyTerm(t *testing.T) {
 	}
 }
 
+func TestValidate_TooShort(t *testing.T) {
+	for _, p := range []string{"a", "ab"} {
+		if err := validate([]string{p}); err == nil {
+			t.Errorf("expected error for pattern %q shorter than MinPatternLength", p)
+		}
+	}
+}
+
+func TestValidate_ExactMinLength(t *testing.T) {
+	min := strings.Repeat("a", driven.MinPatternLength)
+	if err := validate([]string{min}); err != nil {
+		t.Errorf("expected no error for exactly min-length pattern, got %v", err)
+	}
+}
+
 func TestValidate_TooLong(t *testing.T) {
 	long := strings.Repeat("a", driven.MaxPatternLength+1)
 	if err := validate([]string{long}); err == nil {
