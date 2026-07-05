@@ -167,7 +167,7 @@ func TestHandleKeyPress_QCancelsConfirm(t *testing.T) {
 // --- handleMouseClick ---
 
 func TestHandleMouseClick_KillsTargetOnClick(t *testing.T) {
-	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
+	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
 	fk := &fake.Killer{}
 	g := &Game{targets: []*Target{e}, killer: fk}
 
@@ -185,7 +185,7 @@ func TestHandleMouseClick_KillsTargetOnClick(t *testing.T) {
 }
 
 func TestHandleMouseClick_KillError(t *testing.T) {
-	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
+	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
 	g := &Game{targets: []*Target{e}, killer: &fake.Killer{Err: fmt.Errorf("no such process")}}
 
 	g.handleMouseClick(10, 5)
@@ -199,7 +199,7 @@ func TestHandleMouseClick_KillError(t *testing.T) {
 }
 
 func TestHandleMouseClick_SetsConfirmingInConfirmMode(t *testing.T) {
-	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
+	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
 	g := &Game{targets: []*Target{e}, confirmMode: true}
 
 	g.handleMouseClick(10, 5)
@@ -214,7 +214,7 @@ func TestHandleMouseClick_SetsConfirmingInConfirmMode(t *testing.T) {
 
 func TestHandleMouseClick_NoOpWhenAlreadyConfirming(t *testing.T) {
 	existing := &Target{Info: process.Info{Pid: 1, Name: "other", Rss: 0}, State: Alive}
-	target := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
+	target := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
 	g := &Game{targets: []*Target{target}, confirming: existing}
 
 	g.handleMouseClick(10, 5)
@@ -228,7 +228,7 @@ func TestHandleMouseClick_NoOpWhenAlreadyConfirming(t *testing.T) {
 }
 
 func TestHandleMouseClick_NoOpOnMiss(t *testing.T) {
-	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
+	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
 	g := &Game{targets: []*Target{e}}
 
 	g.handleMouseClick(0, 0)

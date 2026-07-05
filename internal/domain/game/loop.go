@@ -59,8 +59,8 @@ func (g *Game) render() {
 			continue
 		}
 		targets = append(targets, gamedriven.TargetView{
-			X:       int(e.PosX),
-			Y:       int(e.PosY),
+			X:       int(e.Position.X),
+			Y:       int(e.Position.Y),
 			Label:   e.Label(),
 			Killing: e.State == Killing,
 		})

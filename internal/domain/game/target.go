@@ -2,10 +2,16 @@ package game
 
 import (
 	"fmt"
+	"math/rand"
 	"unicode/utf8"
 
 	"github.com/eirikur-ari/pidshooter/internal/domain/process"
 )
+
+// Vector is a 2D vector used for both position and velocity.
+type Vector struct {
+	X, Y float64
+}
 
 // TargetState represents the current state of a process entity.
 type TargetState int
@@ -25,7 +31,8 @@ const KillAnimFrames = 12
 // Target represents a process displayed as a flying label in the terminal.
 type Target struct {
 	process.Info
-	Motion
+	Position      Vector
+	Velocity      Vector
 	State         TargetState
 	KillAnimFrame int
 }
@@ -33,10 +40,30 @@ type Target struct {
 // NewTarget creates a new entity at a random position with random velocity.
 func NewTarget(info process.Info, maxX, maxY int) *Target {
 	labelLen := utf8.RuneCountInString(fmt.Sprintf("[%d %s]", info.Pid, info.Name))
+
+	spawnMaxX := maxX - labelLen - 1
+	if spawnMaxX < 1 {
+		spawnMaxX = 1
+	}
+	spawnMaxY := maxY - 2
+	if spawnMaxY < 1 {
+		spawnMaxY = 1
+	}
+
+	velX := rand.Float64()*0.8 + 0.2
+	if rand.Intn(2) == 0 {
+		velX = -velX
+	}
+	velY := rand.Float64()*0.4 + 0.1
+	if rand.Intn(2) == 0 {
+		velY = -velY
+	}
+
 	return &Target{
-		Info:   info,
-		Motion: newMotion(maxX, maxY, labelLen),
-		State:  Alive,
+		Info:  info,
+		Position: Vector{X: float64(rand.Intn(spawnMaxX) + 1), Y: float64(rand.Intn(spawnMaxY) + 1)},
+		Velocity: Vector{X: velX, Y: velY},
+		State: Alive,
 	}
 }
 
@@ -57,7 +84,7 @@ func (e *Target) Label() string {
 	}
 }
 
-// Update advances the kill animation or delegates movement to Motion.
+// Update advances the kill animation or moves the entity and bounces off walls.
 func (e *Target) Update(maxX, maxY int, speed float64) {
 	switch e.State {
 	case Killing:
@@ -66,7 +93,35 @@ func (e *Target) Update(maxX, maxY int, speed float64) {
 			e.State = Dead
 		}
 	case Alive:
-		e.Motion.Update(maxX, maxY, float64(utf8.RuneCountInString(e.Label())), speed)
+		labelLen := float64(utf8.RuneCountInString(e.Label()))
+		e.Position.X += e.Velocity.X * speed
+		e.Position.Y += e.Velocity.Y * speed
+
+		if e.Position.X < 0 {
+			e.Position.X = 0
+			e.Velocity.X = -e.Velocity.X
+		}
+		rightBound := float64(maxX) - labelLen
+		if rightBound < 0 {
+			rightBound = 0
+		}
+		if e.Position.X > rightBound {
+			e.Position.X = rightBound
+			e.Velocity.X = -e.Velocity.X
+		}
+
+		if e.Position.Y < 0 {
+			e.Position.Y = 0
+			e.Velocity.Y = -e.Velocity.Y
+		}
+		bottomBound := float64(maxY - 2)
+		if bottomBound < 0 {
+			bottomBound = 0
+		}
+		if e.Position.Y > bottomBound {
+			e.Position.Y = bottomBound
+			e.Velocity.Y = -e.Velocity.Y
+		}
 	}
 }
 
@@ -75,10 +130,8 @@ func (e *Target) Contains(x, y int) bool {
 	if e.State != Alive {
 		return false
 	}
-	entityY := int(e.PosY)
-	entityX := int(e.PosX)
 	labelLen := utf8.RuneCountInString(e.Label())
-	return y == entityY && x >= entityX && x < entityX+labelLen
+	return y == int(e.Position.Y) && x >= int(e.Position.X) && x < int(e.Position.X)+labelLen
 }
 
 // StartKillAnim transitions the entity to the killing state.

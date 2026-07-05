@@ -94,7 +94,7 @@ func TestUpdate_StopsWhenAllTargetsDead(t *testing.T) {
 
 func TestRender_AliveTargetIncluded(t *testing.T) {
 	renderer := &stubRenderer{w: 80, h: 24}
-	e := &Target{Info: process.Info{Pid: 1, Name: "myapp", Rss: 1024}, Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
+	e := &Target{Info: process.Info{Pid: 1, Name: "myapp", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
 	g := &Game{renderer: renderer, targets: []*Target{e}}
 
 	g.render()
