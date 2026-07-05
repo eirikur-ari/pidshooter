@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eirikur-ari/pidshooter/internal/domain/process"
 	"github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
 )
 
@@ -73,19 +74,19 @@ func TestFind_EmptyTerm(t *testing.T) {
 }
 
 func TestFilter_MatchesByName(t *testing.T) {
-	processes := []driven.Info{
-		&proc{pid: 100, name: "myapp", rss: 1024},
-		&proc{pid: 200, name: "worker", rss: 2048},
+	processes := []process.Info{
+		{Pid: 100, Name: "myapp", Rss: 1024},
+		{Pid: 200, Name: "worker", Rss: 2048},
 	}
 	result := filter(processes, []string{"myapp"})
-	if len(result) != 1 || result[0].Pid() != 100 {
+	if len(result) != 1 || result[0].Pid != 100 {
 		t.Errorf("expected to match 'myapp', got %v", result)
 	}
 }
 
 func TestFilter_SubstringMatch(t *testing.T) {
-	processes := []driven.Info{
-		&proc{pid: 100, name: "myapp-worker", rss: 1024},
+	processes := []process.Info{
+		{Pid: 100, Name: "myapp-worker", Rss: 1024},
 	}
 	result := filter(processes, []string{"app"})
 	if len(result) != 1 {
@@ -94,8 +95,8 @@ func TestFilter_SubstringMatch(t *testing.T) {
 }
 
 func TestFilter_CaseInsensitive(t *testing.T) {
-	processes := []driven.Info{
-		&proc{pid: 100, name: "MyApp", rss: 1024},
+	processes := []process.Info{
+		{Pid: 100, Name: "MyApp", Rss: 1024},
 	}
 	result := filter(processes, []string{"myapp"})
 	if len(result) != 1 {
@@ -104,10 +105,10 @@ func TestFilter_CaseInsensitive(t *testing.T) {
 }
 
 func TestFilter_MultipleTerms(t *testing.T) {
-	processes := []driven.Info{
-		&proc{pid: 100, name: "myapp", rss: 1024},
-		&proc{pid: 200, name: "worker", rss: 2048},
-		&proc{pid: 300, name: "other", rss: 512},
+	processes := []process.Info{
+		{Pid: 100, Name: "myapp", Rss: 1024},
+		{Pid: 200, Name: "worker", Rss: 2048},
+		{Pid: 300, Name: "other", Rss: 512},
 	}
 	result := filter(processes, []string{"myapp", "worker"})
 	if len(result) != 2 {
@@ -116,8 +117,8 @@ func TestFilter_MultipleTerms(t *testing.T) {
 }
 
 func TestFilter_NoMatch(t *testing.T) {
-	processes := []driven.Info{
-		&proc{pid: 100, name: "myapp", rss: 1024},
+	processes := []process.Info{
+		{Pid: 100, Name: "myapp", Rss: 1024},
 	}
 	result := filter(processes, []string{"worker"})
 	if len(result) != 0 {
@@ -126,13 +127,13 @@ func TestFilter_NoMatch(t *testing.T) {
 }
 
 func TestFilter_ExcludesPID1(t *testing.T) {
-	processes := []driven.Info{
-		&proc{pid: 1, name: "init", rss: 512},
-		&proc{pid: 100, name: "myapp", rss: 1024},
+	processes := []process.Info{
+		{Pid: 1, Name: "init", Rss: 512},
+		{Pid: 100, Name: "myapp", Rss: 1024},
 	}
 	result := filter(processes, []string{"init", "myapp"})
 	for _, p := range result {
-		if p.Pid() == 1 {
+		if p.Pid == 1 {
 			t.Error("should not include PID 1")
 		}
 	}
@@ -140,31 +141,34 @@ func TestFilter_ExcludesPID1(t *testing.T) {
 
 func TestFilter_ExcludesOwnPID(t *testing.T) {
 	ownPID := os.Getpid()
-	processes := []driven.Info{
-		&proc{pid: ownPID, name: "testprocess", rss: 1024},
-		&proc{pid: 100, name: "testprocess", rss: 2048},
+	processes := []process.Info{
+		{Pid: ownPID, Name: "testprocess", Rss: 1024},
+		{Pid: 100, Name: "testprocess", Rss: 2048},
 	}
 	result := filter(processes, []string{"testprocess"})
 	for _, p := range result {
-		if p.Pid() == ownPID {
+		if p.Pid == ownPID {
 			t.Error("should not include own PID")
 		}
 	}
-	if len(result) != 1 || result[0].Pid() != 100 {
+	if len(result) != 1 || result[0].Pid != 100 {
 		t.Errorf("expected only PID 100, got %v", result)
 	}
 }
 
-func TestProc_Fields(t *testing.T) {
-	p := &proc{pid: 42, name: "myapp", rss: 8192}
-	if p.Pid() != 42 {
-		t.Errorf("expected Pid=42, got %d", p.Pid())
+func TestFilter_ExcludesPID0(t *testing.T) {
+	processes := []process.Info{
+		{Pid: 0, Name: "swapper", Rss: 0},
+		{Pid: 100, Name: "myapp", Rss: 1024},
 	}
-	if p.Name() != "myapp" {
-		t.Errorf("expected Name=myapp, got %q", p.Name())
+	result := filter(processes, []string{"swapper", "myapp"})
+	for _, p := range result {
+		if p.Pid <= 1 {
+			t.Errorf("filter should exclude PID %d", p.Pid)
+		}
 	}
-	if p.Rss() != 8192 {
-		t.Errorf("expected Rss=8192, got %d", p.Rss())
+	if len(result) != 1 || result[0].Pid != 100 {
+		t.Errorf("expected only PID 100, got %v", result)
 	}
 }
 
@@ -235,22 +239,6 @@ func TestKiller_RefusesNameMismatch(t *testing.T) {
 	err := k.Kill(ownPID, "definitely-not-this-process")
 	if err == nil {
 		t.Error("expected error when name does not match current process name")
-	}
-}
-
-func TestFilter_ExcludesPID0(t *testing.T) {
-	processes := []driven.Info{
-		&proc{pid: 0, name: "swapper", rss: 0},
-		&proc{pid: 100, name: "myapp", rss: 1024},
-	}
-	result := filter(processes, []string{"swapper", "myapp"})
-	for _, p := range result {
-		if p.Pid() <= 1 {
-			t.Errorf("filter should exclude PID %d", p.Pid())
-		}
-	}
-	if len(result) != 1 || result[0].Pid() != 100 {
-		t.Errorf("expected only PID 100, got %v", result)
 	}
 }
 

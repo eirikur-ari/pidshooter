@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	gamedriven "github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driven"
-	procdriven "github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
+	"github.com/eirikur-ari/pidshooter/internal/domain/process"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
@@ -30,9 +30,9 @@ func newStubEventSource() *stubEventSource {
 func (e *stubEventSource) Events() <-chan gamedriven.InputEvent { return e.ch }
 
 func TestNew(t *testing.T) {
-	processes := []procdriven.Info{
-		fake.NewProcess(1, "a", 100),
-		fake.NewProcess(2, "b", 200),
+	processes := []process.Info{
+		process.Info{Pid: 1, Name: "a", Rss: 100},
+		process.Info{Pid: 2, Name: "b", Rss: 200},
 	}
 
 	killer := &fake.Killer{}

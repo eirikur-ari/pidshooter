@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driven"
+	"github.com/eirikur-ari/pidshooter/internal/domain/process"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
@@ -94,7 +95,7 @@ func TestHandleKeyPress_SpeedCapsAtMin(t *testing.T) {
 }
 
 func TestHandleKeyPress_ConfirmYes(t *testing.T) {
-	e := &Target{Info: fake.NewProcess(1, "target", 4096), State: Alive}
+	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 4096}, State: Alive}
 	fk := &fake.Killer{}
 	g := newRunningGame(&Game{confirming: e, killer: fk})
 
@@ -118,7 +119,7 @@ func TestHandleKeyPress_ConfirmYes(t *testing.T) {
 }
 
 func TestHandleKeyPress_ConfirmYes_KillError(t *testing.T) {
-	e := &Target{Info: fake.NewProcess(1, "target", 4096), State: Alive}
+	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 4096}, State: Alive}
 	fk := &fake.Killer{Err: fmt.Errorf("process already finished")}
 	g := newRunningGame(&Game{confirming: e, killer: fk})
 
@@ -136,7 +137,7 @@ func TestHandleKeyPress_ConfirmYes_KillError(t *testing.T) {
 }
 
 func TestHandleKeyPress_ConfirmNo(t *testing.T) {
-	e := &Target{Info: fake.NewProcess(1, "target", 0), State: Alive}
+	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 0}, State: Alive}
 	g := newRunningGame(&Game{confirming: e})
 
 	g.handleKeyPress(0, 'n')
@@ -150,7 +151,7 @@ func TestHandleKeyPress_ConfirmNo(t *testing.T) {
 }
 
 func TestHandleKeyPress_QCancelsConfirm(t *testing.T) {
-	e := &Target{Info: fake.NewProcess(1, "target", 0), State: Alive}
+	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 0}, State: Alive}
 	g := newRunningGame(&Game{confirming: e})
 
 	g.handleKeyPress(0, 'q')
@@ -166,7 +167,7 @@ func TestHandleKeyPress_QCancelsConfirm(t *testing.T) {
 // --- handleMouseClick ---
 
 func TestHandleMouseClick_KillsTargetOnClick(t *testing.T) {
-	e := &Target{Info: fake.NewProcess(1, "target", 1024), Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
+	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
 	fk := &fake.Killer{}
 	g := &Game{targets: []*Target{e}, killer: fk}
 
@@ -184,7 +185,7 @@ func TestHandleMouseClick_KillsTargetOnClick(t *testing.T) {
 }
 
 func TestHandleMouseClick_KillError(t *testing.T) {
-	e := &Target{Info: fake.NewProcess(1, "target", 1024), Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
+	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
 	g := &Game{targets: []*Target{e}, killer: &fake.Killer{Err: fmt.Errorf("no such process")}}
 
 	g.handleMouseClick(10, 5)
@@ -198,7 +199,7 @@ func TestHandleMouseClick_KillError(t *testing.T) {
 }
 
 func TestHandleMouseClick_SetsConfirmingInConfirmMode(t *testing.T) {
-	e := &Target{Info: fake.NewProcess(1, "target", 1024), Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
+	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
 	g := &Game{targets: []*Target{e}, confirmMode: true}
 
 	g.handleMouseClick(10, 5)
@@ -212,8 +213,8 @@ func TestHandleMouseClick_SetsConfirmingInConfirmMode(t *testing.T) {
 }
 
 func TestHandleMouseClick_NoOpWhenAlreadyConfirming(t *testing.T) {
-	existing := &Target{Info: fake.NewProcess(1, "other", 0), State: Alive}
-	target := &Target{Info: fake.NewProcess(1, "target", 1024), Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
+	existing := &Target{Info: process.Info{Pid: 1, Name: "other", Rss: 0}, State: Alive}
+	target := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
 	g := &Game{targets: []*Target{target}, confirming: existing}
 
 	g.handleMouseClick(10, 5)
@@ -227,7 +228,7 @@ func TestHandleMouseClick_NoOpWhenAlreadyConfirming(t *testing.T) {
 }
 
 func TestHandleMouseClick_NoOpOnMiss(t *testing.T) {
-	e := &Target{Info: fake.NewProcess(1, "target", 1024), Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
+	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Motion: Motion{PosX: 10, PosY: 5}, State: Alive}
 	g := &Game{targets: []*Target{e}}
 
 	g.handleMouseClick(0, 0)

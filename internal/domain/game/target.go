@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"unicode/utf8"
 
-	procdriven "github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
+	"github.com/eirikur-ari/pidshooter/internal/domain/process"
 )
 
 // TargetState represents the current state of a process entity.
@@ -24,15 +24,15 @@ const KillAnimFrames = 12
 
 // Target represents a process displayed as a flying label in the terminal.
 type Target struct {
-	procdriven.Info
+	process.Info
 	Motion
 	State         TargetState
 	KillAnimFrame int
 }
 
 // NewTarget creates a new entity at a random position with random velocity.
-func NewTarget(info procdriven.Info, maxX, maxY int) *Target {
-	labelLen := utf8.RuneCountInString(fmt.Sprintf("[%d %s]", info.Pid(), info.Name()))
+func NewTarget(info process.Info, maxX, maxY int) *Target {
+	labelLen := utf8.RuneCountInString(fmt.Sprintf("[%d %s]", info.Pid, info.Name))
 	return &Target{
 		Info:   info,
 		Motion: newMotion(maxX, maxY, labelLen),
@@ -53,7 +53,7 @@ func (e *Target) Label() string {
 	case Dead:
 		return ""
 	default:
-		return fmt.Sprintf("[%d %s]", e.Pid(), e.Name())
+		return fmt.Sprintf("[%d %s]", e.Pid, e.Name)
 	}
 }
 

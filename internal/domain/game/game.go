@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"syscall"
 
+	"github.com/eirikur-ari/pidshooter/internal/domain/process"
 	gamedriven "github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driven"
-	procdriven "github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
 )
 
 // Game manages targets, session state, and user interaction.
@@ -17,7 +17,7 @@ type Game struct {
 	renderer    gamedriven.Renderer
 	events      gamedriven.EventSource
 	killer      gamedriven.ProcessKiller
-	processes   []procdriven.Info
+	processes   []process.Info
 	targets     []*Target
 	confirmMode bool
 	speed       float64
@@ -29,7 +29,7 @@ type Game struct {
 
 // New creates a new game instance with the given configuration and driven ports.
 func New(
-	processes []procdriven.Info,
+	processes []process.Info,
 	confirmMode bool,
 	speed float64,
 	timeLimit int,

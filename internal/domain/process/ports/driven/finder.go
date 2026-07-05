@@ -1,5 +1,7 @@
 package driven
 
+import "github.com/eirikur-ari/pidshooter/internal/domain/process"
+
 // MinPatternLength is the minimum allowed length for a process search pattern.
 // Single- or double-character patterns match too broadly (e.g. "a" matches
 // most system process names) and increase the risk of surfacing critical
@@ -11,6 +13,6 @@ const MaxPatternLength = 256
 
 // Finder is the driven port for process discovery on the host.
 type Finder interface {
-	List() ([]Info, error)
-	Find(patterns []string) ([]Info, error)
+	List() ([]process.Info, error)
+	Find(patterns []string) ([]process.Info, error)
 }

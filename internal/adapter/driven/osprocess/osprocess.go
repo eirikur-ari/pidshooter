@@ -11,19 +11,9 @@ import (
 	"syscall"
 
 	gamedriven "github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driven"
+	"github.com/eirikur-ari/pidshooter/internal/domain/process"
 	"github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
 )
-
-// proc holds the raw data for a single running process.
-type proc struct {
-	pid  int
-	name string
-	rss  int64
-}
-
-func (p *proc) Pid() int     { return p.pid }
-func (p *proc) Name() string { return p.name }
-func (p *proc) Rss() int64   { return p.rss }
 
 // Finder implements driven.Finder using the ps command.
 type Finder struct{ psPath string }
@@ -39,7 +29,7 @@ func NewFinder() (driven.Finder, error) {
 	return &Finder{psPath: path}, nil
 }
 
-func (f *Finder) Find(patterns []string) ([]driven.Info, error) {
+func (f *Finder) Find(patterns []string) ([]process.Info, error) {
 	if err := validate(patterns); err != nil {
 		return nil, err
 	}
@@ -50,7 +40,7 @@ func (f *Finder) Find(patterns []string) ([]driven.Info, error) {
 	return filter(processes, patterns), nil
 }
 
-func (f *Finder) List() ([]driven.Info, error) {
+func (f *Finder) List() ([]process.Info, error) {
 	flags := "-eo"
 	if runtime.GOOS == "darwin" {
 		flags = "-ceo"
@@ -62,7 +52,7 @@ func (f *Finder) List() ([]driven.Info, error) {
 		return nil, fmt.Errorf("ps command failed: %w", err)
 	}
 
-	var processes []driven.Info
+	var processes []process.Info
 	lines := strings.Split(string(output), "\n")
 
 	for _, line := range lines[1:] { // skip header
@@ -88,10 +78,10 @@ func (f *Finder) List() ([]driven.Info, error) {
 
 		name := strings.Join(fields[2:], " ")
 
-		processes = append(processes, &proc{
-			pid:  pid,
-			name: name,
-			rss:  rssKB * 1024,
+		processes = append(processes, process.Info{
+			Pid:  pid,
+			Name: name,
+			Rss:  rssKB * 1024,
 		})
 	}
 
@@ -113,15 +103,15 @@ func validate(patterns []string) error {
 	return nil
 }
 
-func filter(processes []driven.Info, patterns []string) []driven.Info {
-	var result []driven.Info
+func filter(processes []process.Info, patterns []string) []process.Info {
+	var result []process.Info
 	myPID := os.Getpid()
 	for _, p := range processes {
-		if p.Pid() == myPID || p.Pid() <= 1 {
+		if p.Pid == myPID || p.Pid <= 1 {
 			continue
 		}
 		for _, pattern := range patterns {
-			if strings.Contains(strings.ToLower(p.Name()), strings.ToLower(pattern)) {
+			if strings.Contains(strings.ToLower(p.Name), strings.ToLower(pattern)) {
 				result = append(result, p)
 				break
 			}

@@ -5,27 +5,27 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
+	"github.com/eirikur-ari/pidshooter/internal/domain/process"
 )
 
 func TestNewTarget_WithinBounds(t *testing.T) {
 	maxX, maxY := 80, 24
-	e := NewTarget(fake.NewProcess(1234, "test", 1024), maxX, maxY)
+	e := NewTarget(process.Info{Pid: 1234, Name: "test", Rss: 1024}, maxX, maxY)
 
-	if e.Pid() != 1234 {
-		t.Errorf("expected PID=1234, got %d", e.Pid())
+	if e.Pid != 1234 {
+		t.Errorf("expected PID=1234, got %d", e.Pid)
 	}
-	if e.Name() != "test" {
-		t.Errorf("expected Name=test, got %s", e.Name())
+	if e.Name != "test" {
+		t.Errorf("expected Name=test, got %s", e.Name)
 	}
-	if e.Rss() != 1024 {
-		t.Errorf("expected RSS=1024, got %d", e.Rss())
+	if e.Rss != 1024 {
+		t.Errorf("expected RSS=1024, got %d", e.Rss)
 	}
 	if e.State != Alive {
 		t.Errorf("expected State=StateAlive, got %d", e.State)
 	}
 
-	label := fmt.Sprintf("[%d %s]", e.Pid(), e.Name())
+	label := fmt.Sprintf("[%d %s]", e.Pid, e.Name)
 	labelLen := len(label)
 
 	spawnMaxX := maxX - labelLen - 1
@@ -39,14 +39,14 @@ func TestNewTarget_WithinBounds(t *testing.T) {
 }
 
 func TestNewTarget_SmallTerminal(t *testing.T) {
-	e := NewTarget(fake.NewProcess(1, "x", 0), 5, 5)
+	e := NewTarget(process.Info{Pid: 1, Name: "xxx", Rss: 0}, 5, 5)
 	if e == nil {
 		t.Fatal("expected non-nil entity")
 	}
 }
 
 func TestTarget_Label_Alive(t *testing.T) {
-	e := &Target{Info: fake.NewProcess(42, "bash", 0), State: Alive}
+	e := &Target{Info: process.Info{Pid: 42, Name: "bash", Rss: 0}, State: Alive}
 	expected := "[42 bash]"
 	if got := e.Label(); got != expected {
 		t.Errorf("expected %q, got %q", expected, got)
@@ -54,14 +54,14 @@ func TestTarget_Label_Alive(t *testing.T) {
 }
 
 func TestTarget_Label_Dead(t *testing.T) {
-	e := &Target{Info: fake.NewProcess(42, "bash", 0), State: Dead}
+	e := &Target{Info: process.Info{Pid: 42, Name: "bash", Rss: 0}, State: Dead}
 	if got := e.Label(); got != "" {
 		t.Errorf("expected empty string, got %q", got)
 	}
 }
 
 func TestTarget_Label_Killing(t *testing.T) {
-	e := &Target{Info: fake.NewProcess(42, "bash", 0), State: Killing, KillAnimFrame: 0}
+	e := &Target{Info: process.Info{Pid: 42, Name: "bash", Rss: 0}, State: Killing, KillAnimFrame: 0}
 	label := e.Label()
 	if label == "" {
 		t.Error("expected non-empty kill animation label")
@@ -76,7 +76,7 @@ func TestTarget_Update_MultiByteRightWall(t *testing.T) {
 	//   fix:  new PosX = 71.0 — at the correct boundary, no bounce yet.
 	//   bug:  new PosX > 70 → bounce, VelX flips negative.
 	e := &Target{
-		Info:   fake.NewProcess(42, "café", 0),
+		Info:   process.Info{Pid: 42, Name: "café", Rss: 0},
 		Motion: Motion{PosX: 70.5, PosY: 5, VelX: 0.5, VelY: 0},
 		State:  Alive,
 	}
@@ -89,7 +89,7 @@ func TestTarget_Update_MultiByteRightWall(t *testing.T) {
 
 func TestTarget_Update_KillingState(t *testing.T) {
 	e := &Target{
-		Info:          fake.NewProcess(1, "x", 0),
+		Info:          process.Info{Pid: 1, Name: "xxx", Rss: 0},
 		State:         Killing,
 		KillAnimFrame: KillAnimFrames - 1,
 	}
@@ -103,7 +103,7 @@ func TestTarget_Update_KillingState(t *testing.T) {
 
 func TestTarget_Update_DeadNoOp(t *testing.T) {
 	e := &Target{
-		Info:   fake.NewProcess(1, "x", 0),
+		Info:   process.Info{Pid: 1, Name: "xxx", Rss: 0},
 		Motion: Motion{PosX: 10, PosY: 10, VelX: 1.0, VelY: 1.0},
 		State:  Dead,
 	}
@@ -117,7 +117,7 @@ func TestTarget_Update_DeadNoOp(t *testing.T) {
 
 func TestTarget_Contains(t *testing.T) {
 	e := &Target{
-		Info:   fake.NewProcess(42, "bash", 0),
+		Info:   process.Info{Pid: 42, Name: "bash", Rss: 0},
 		Motion: Motion{PosX: 10, PosY: 5},
 		State:  Alive,
 	}
@@ -146,7 +146,7 @@ func TestTarget_Contains_MultiByteProcessName(t *testing.T) {
 	// "café" is 5 UTF-8 bytes but 4 runes → label "[42 café]" is 10 bytes, 9 runes.
 	// With the byte-count bug, Contains over-counts by 1 and accepts column 19 as a hit.
 	e := &Target{
-		Info:   fake.NewProcess(42, "café", 0),
+		Info:   process.Info{Pid: 42, Name: "café", Rss: 0},
 		Motion: Motion{PosX: 10, PosY: 5},
 		State:  Alive,
 	}
@@ -162,7 +162,7 @@ func TestTarget_Contains_MultiByteProcessName(t *testing.T) {
 
 func TestTarget_Contains_NotAlive(t *testing.T) {
 	e := &Target{
-		Info:   fake.NewProcess(42, "bash", 0),
+		Info:   process.Info{Pid: 42, Name: "bash", Rss: 0},
 		Motion: Motion{PosX: 10, PosY: 5},
 		State:  Killing,
 	}
@@ -173,7 +173,7 @@ func TestTarget_Contains_NotAlive(t *testing.T) {
 }
 
 func TestTarget_StartKillAnim(t *testing.T) {
-	e := &Target{Info: fake.NewProcess(1, "x", 0), State: Alive, KillAnimFrame: 5}
+	e := &Target{Info: process.Info{Pid: 1, Name: "xxx", Rss: 0}, State: Alive, KillAnimFrame: 5}
 	e.StartKillAnim()
 
 	if e.State != Killing {

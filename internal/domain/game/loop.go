@@ -3,8 +3,8 @@ package game
 import (
 	"time"
 
+	"github.com/eirikur-ari/pidshooter/internal/domain/process"
 	gamedriven "github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driven"
-	procdriven "github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
 )
 
 const (
@@ -12,7 +12,7 @@ const (
 	frameDuration = time.Second / targetFPS
 )
 
-func (g *Game) populateEntities(processes []procdriven.Info, w, h int) {
+func (g *Game) populateEntities(processes []process.Info, w, h int) {
 	for _, p := range processes {
 		g.targets = append(g.targets, NewTarget(p, w, h))
 	}
@@ -75,7 +75,7 @@ func (g *Game) render() {
 
 	var cs *gamedriven.ConfirmState
 	if g.confirming != nil {
-		cs = &gamedriven.ConfirmState{PID: g.confirming.Pid(), Name: g.confirming.Name()}
+		cs = &gamedriven.ConfirmState{PID: g.confirming.Pid, Name: g.confirming.Name}
 	}
 
 	var timeLeft int
@@ -104,11 +104,11 @@ func (g *Game) killTarget(e *Target) {
 	if e.State != Alive {
 		return
 	}
-	if err := g.killer.Kill(e.Pid(), e.Name()); err != nil {
+	if err := g.killer.Kill(e.Pid, e.Name); err != nil {
 		return
 	}
 	e.StartKillAnim()
-	g.Session.RecordKill(e.Rss())
+	g.Session.RecordKill(e.Rss)
 }
 
 func (g *Game) timeRemaining() time.Duration {

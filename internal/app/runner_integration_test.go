@@ -9,7 +9,7 @@ import (
 
 	gamedriven "github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driven"
 	"github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driving"
-	procdriven "github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
+	"github.com/eirikur-ari/pidshooter/internal/domain/process"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/capture"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
@@ -20,7 +20,7 @@ func TestGameService_HappyPath(t *testing.T) {
 
 	store := &fake.Store{}
 	svc := NewGameService(
-		&fake.Finder{Processes: []procdriven.Info{fake.NewProcess(1, "target", 1024)}},
+		&fake.Finder{Processes: []process.Info{process.Info{Pid: 1, Name: "target", Rss: 1024}}},
 		&fake.Killer{},
 		store,
 		&stubRenderer{},
@@ -50,7 +50,7 @@ func TestGameService_SaveError_PrintsWarning(t *testing.T) {
 	events.ch <- gamedriven.KeyEvent{Ch: 'q'}
 
 	svc := NewGameService(
-		&fake.Finder{Processes: []procdriven.Info{fake.NewProcess(1, "target", 1024)}},
+		&fake.Finder{Processes: []process.Info{process.Info{Pid: 1, Name: "target", Rss: 1024}}},
 		&fake.Killer{},
 		&fake.Store{SaveErr: errors.New("disk full")},
 		&stubRenderer{},

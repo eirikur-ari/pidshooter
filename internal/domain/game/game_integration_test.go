@@ -9,7 +9,7 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/domain/game"
 	gamedriven "github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driven"
-	procdriven "github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
+	"github.com/eirikur-ari/pidshooter/internal/domain/process"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
@@ -28,7 +28,7 @@ func newTestEventSource() *testEventSource {
 func (e *testEventSource) Events() <-chan gamedriven.InputEvent { return e.ch }
 func (e *testEventSource) Send(ev gamedriven.InputEvent)        { e.ch <- ev }
 
-func newTestGame(t *testing.T, processes []procdriven.Info, timeLimit int) (*game.Game, *testEventSource) {
+func newTestGame(t *testing.T, processes []process.Info, timeLimit int) (*game.Game, *testEventSource) {
 	t.Helper()
 	events := newTestEventSource()
 	g := game.New(processes, false, 2.0, timeLimit,
@@ -40,7 +40,7 @@ func newTestGame(t *testing.T, processes []procdriven.Info, timeLimit int) (*gam
 }
 
 func TestPlay_QuitOnQ(t *testing.T) {
-	procs := []procdriven.Info{fake.NewProcess(100, "target", 1024)}
+	procs := []process.Info{process.Info{Pid: 100, Name: "target", Rss: 1024}}
 	g, events := newTestGame(t, procs, 0)
 
 	go func() {
@@ -54,7 +54,7 @@ func TestPlay_QuitOnQ(t *testing.T) {
 }
 
 func TestPlay_QuitOnEscape(t *testing.T) {
-	procs := []procdriven.Info{fake.NewProcess(101, "target", 1024)}
+	procs := []process.Info{process.Info{Pid: 101, Name: "target", Rss: 1024}}
 	g, events := newTestGame(t, procs, 0)
 
 	go func() {
@@ -68,7 +68,7 @@ func TestPlay_QuitOnEscape(t *testing.T) {
 }
 
 func TestPlay_TimeLimitExpires(t *testing.T) {
-	procs := []procdriven.Info{fake.NewProcess(102, "target", 1024)}
+	procs := []process.Info{process.Info{Pid: 102, Name: "target", Rss: 1024}}
 	g, _ := newTestGame(t, procs, 1)
 
 	start := time.Now()
@@ -86,7 +86,7 @@ func TestPlay_TimeLimitExpires(t *testing.T) {
 // stayed blocked on <-sigCh forever — one leaked goroutine per game session.
 func TestPlay_SignalGoroutineDoesNotAccumulate(t *testing.T) {
 	runGame := func(pid int) {
-		procs := []procdriven.Info{fake.NewProcess(pid, "target", 1024)}
+		procs := []process.Info{process.Info{Pid: pid, Name: "target", Rss: 1024}}
 		g, events := newTestGame(t, procs, 0)
 		go func() {
 			time.Sleep(50 * time.Millisecond)
@@ -121,7 +121,7 @@ func TestPlay_SignalGoroutineDoesNotAccumulate(t *testing.T) {
 }
 
 func TestPlay_SessionStateAfterQuit(t *testing.T) {
-	procs := []procdriven.Info{fake.NewProcess(103, "target", 1024)}
+	procs := []process.Info{process.Info{Pid: 103, Name: "target", Rss: 1024}}
 	g, events := newTestGame(t, procs, 0)
 
 	go func() {
