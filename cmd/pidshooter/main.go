@@ -6,7 +6,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"github.com/eirikur-ari/pidshooter/internal/adapter/driven/jsonscores"
+	"github.com/eirikur-ari/pidshooter/internal/adapter/driven/scorefilestore"
 	"github.com/eirikur-ari/pidshooter/internal/adapter/driven/osprocess"
 	"github.com/eirikur-ari/pidshooter/internal/adapter/driven/tcellui"
 	"github.com/eirikur-ari/pidshooter/internal/adapter/driving/cli"
@@ -29,7 +29,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	store := jsonscores.NewStore()
+	store := scorefilestore.NewStore()
 
 	screen, err := tcell.NewScreen()
 	if err != nil {

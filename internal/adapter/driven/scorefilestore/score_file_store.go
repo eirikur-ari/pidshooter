@@ -1,5 +1,5 @@
-// Package jsonscores implements scoredriven.Store backed by a JSON file on disk.
-package jsonscores
+// Package scorefilestore implements scoredriven.Store backed by a file on disk.
+package scorefilestore
 
 import (
 	"encoding/json"

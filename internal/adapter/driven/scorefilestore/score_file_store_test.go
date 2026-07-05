@@ -1,4 +1,4 @@
-package jsonscores
+package scorefilestore
 
 import (
 	"os"
