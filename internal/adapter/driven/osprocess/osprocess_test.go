@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/eirikur-ari/pidshooter/internal/domain/process"
-	"github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
 )
 
 func newTestFinder(t *testing.T) *Finder {
@@ -40,14 +39,14 @@ func TestValidate_TooShort(t *testing.T) {
 }
 
 func TestValidate_ExactMinLength(t *testing.T) {
-	min := strings.Repeat("a", driven.MinPatternLength)
+	min := strings.Repeat("a", process.MinPatternLength)
 	if err := validate([]string{min}); err != nil {
 		t.Errorf("expected no error for exactly min-length pattern, got %v", err)
 	}
 }
 
 func TestValidate_TooLong(t *testing.T) {
-	long := strings.Repeat("a", driven.MaxPatternLength+1)
+	long := strings.Repeat("a", process.MaxPatternLength+1)
 	if err := validate([]string{long}); err == nil {
 		t.Error("expected error for term exceeding max length")
 	}
@@ -243,7 +242,7 @@ func TestKiller_RefusesNameMismatch(t *testing.T) {
 }
 
 func TestValidate_ExactMaxLength(t *testing.T) {
-	exact := strings.Repeat("a", driven.MaxPatternLength)
+	exact := strings.Repeat("a", process.MaxPatternLength)
 	if err := validate([]string{exact}); err != nil {
 		t.Errorf("expected no error for exactly max-length pattern, got %v", err)
 	}

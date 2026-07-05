@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/eirikur-ari/pidshooter/internal/domain/game/ports/driving"
-	procdriven "github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
+	"github.com/eirikur-ari/pidshooter/internal/domain/process"
 )
 
 const usage = `pidshooter - First Person PID Shooter
@@ -98,11 +98,11 @@ func parseArgs(args []string) ([]string, bool, float64, int, error) {
 		case len(arg) > 0 && arg[0] == '-':
 			return nil, false, 0, 0, fmt.Errorf("unknown flag: %s\nRun 'pidshooter --help' for usage", arg)
 		default:
-			if len(arg) < procdriven.MinPatternLength {
-				return nil, false, 0, 0, fmt.Errorf("search pattern %q must be at least %d characters", arg, procdriven.MinPatternLength)
+			if len(arg) < process.MinPatternLength {
+				return nil, false, 0, 0, fmt.Errorf("search pattern %q must be at least %d characters", arg, process.MinPatternLength)
 			}
-			if len(arg) > procdriven.MaxPatternLength {
-				return nil, false, 0, 0, fmt.Errorf("search pattern %q exceeds maximum length of %d characters", arg, procdriven.MaxPatternLength)
+			if len(arg) > process.MaxPatternLength {
+				return nil, false, 0, 0, fmt.Errorf("search pattern %q exceeds maximum length of %d characters", arg, process.MaxPatternLength)
 			}
 			patterns = append(patterns, arg)
 		}

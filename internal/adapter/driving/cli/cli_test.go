@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	procdriven "github.com/eirikur-ari/pidshooter/internal/domain/process/ports/driven"
+	"github.com/eirikur-ari/pidshooter/internal/domain/process"
 )
 
 func TestParseArgs_BasicPattern(t *testing.T) {
@@ -142,7 +142,7 @@ func TestParseArgs_PatternTooShort(t *testing.T) {
 }
 
 func TestParseArgs_PatternExactMinLength(t *testing.T) {
-	min := strings.Repeat("a", procdriven.MinPatternLength)
+	min := strings.Repeat("a", process.MinPatternLength)
 	_, _, _, _, err := parseArgs([]string{min})
 	if err != nil {
 		t.Errorf("expected no error for min-length pattern, got %v", err)
@@ -150,7 +150,7 @@ func TestParseArgs_PatternExactMinLength(t *testing.T) {
 }
 
 func TestParseArgs_PatternTooLong(t *testing.T) {
-	longPattern := make([]byte, procdriven.MaxPatternLength+1)
+	longPattern := make([]byte, process.MaxPatternLength+1)
 	for i := range longPattern {
 		longPattern[i] = 'a'
 	}
