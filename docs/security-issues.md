@@ -31,22 +31,13 @@ Processes are discovered once at game start via `Find()`, and their PIDs are sto
 
 ---
 
-### [CRITICAL] SEC-02 — PID 0 is not excluded from Kill
+### ~~[CRITICAL] SEC-02 — PID 0 is not excluded from Kill~~ ✓ FIXED
 
 **File:** `internal/adapter/driven/osprocess/osprocess.go:113-115`, `internal/adapter/driven/osprocess/osprocess.go:135-141`
 
 The filter in `filter()` excludes only the current process PID and PID 1. On Unix, sending a signal to PID 0 sends it to **every process in the current process group**, not to a single process. If a process with PID 0 were ever returned by `ps` parsing (e.g., due to malformed output or a future platform difference), calling `os.FindProcess(0).Signal(SIGKILL)` would kill the entire process group.
 
-**Fix:** Add `p.Pid() <= 1` as the exclusion condition in `filter()`, and add a guard at the top of `Kill()`:
-
-```go
-func (k *Killer) Kill(pid int) error {
-    if pid <= 1 {
-        return fmt.Errorf("refusing to kill PID %d", pid)
-    }
-    // ...
-}
-```
+**Fix applied:** Changed `filter()` exclusion condition from `p.Pid() == 1` to `p.Pid() <= 1`, and added an explicit guard at the top of `Kill()` that returns an error for any `pid <= 1` (covers PID 0, PID 1, and all negative values) before any syscall is made.
 
 ---
 
@@ -129,7 +120,7 @@ Neither package is imported directly by pidshooter's runtime code, reducing actu
 | ID | Severity | Title | File |
 |---|---|---|---|
 | SEC-01 | Critical | TOCTOU PID recycling | `osprocess.go`, `loop.go` |
-| SEC-02 | Critical | PID 0 not excluded from Kill | `osprocess.go` |
+| SEC-02 | Critical | ~~PID 0 not excluded from Kill~~ ✓ FIXED | `osprocess.go` |
 | SEC-03 | High | Insufficient system process exclusion | `osprocess.go` |
 | SEC-04 | Medium | Kill errors silently discarded | `loop.go:107` |
 | SEC-05 | Medium | Score file world-readable permissions | `jsonscores.go` |

@@ -162,6 +162,47 @@ func TestKiller_InvalidPID(t *testing.T) {
 	}
 }
 
+func TestKiller_RefusesPID0(t *testing.T) {
+	k := NewKiller()
+	err := k.Kill(0)
+	if err == nil {
+		t.Error("expected error killing PID 0, got nil")
+	}
+}
+
+func TestKiller_RefusesPID1(t *testing.T) {
+	k := NewKiller()
+	err := k.Kill(1)
+	if err == nil {
+		t.Error("expected error killing PID 1, got nil")
+	}
+}
+
+func TestKiller_RefusesNegativePID(t *testing.T) {
+	k := NewKiller()
+	for _, pid := range []int{-1, -100, -99999} {
+		if err := k.Kill(pid); err == nil {
+			t.Errorf("expected error killing PID %d, got nil", pid)
+		}
+	}
+}
+
+func TestFilter_ExcludesPID0(t *testing.T) {
+	processes := []driven.Info{
+		&proc{pid: 0, name: "swapper", rss: 0},
+		&proc{pid: 100, name: "myapp", rss: 1024},
+	}
+	result := filter(processes, []string{"swapper", "myapp"})
+	for _, p := range result {
+		if p.Pid() <= 1 {
+			t.Errorf("filter should exclude PID %d", p.Pid())
+		}
+	}
+	if len(result) != 1 || result[0].Pid() != 100 {
+		t.Errorf("expected only PID 100, got %v", result)
+	}
+}
+
 func TestValidate_ExactMaxLength(t *testing.T) {
 	exact := strings.Repeat("a", driven.MaxPatternLength)
 	if err := validate([]string{exact}); err != nil {

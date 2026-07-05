@@ -117,7 +117,7 @@ func filter(processes []driven.Info, patterns []string) []driven.Info {
 	var result []driven.Info
 	myPID := os.Getpid()
 	for _, p := range processes {
-		if p.Pid() == myPID || p.Pid() == 1 {
+		if p.Pid() == myPID || p.Pid() <= 1 {
 			continue
 		}
 		for _, pattern := range patterns {
@@ -139,6 +139,9 @@ func NewKiller() gamedriven.ProcessKiller {
 }
 
 func (k *Killer) Kill(pid int) error {
+	if pid <= 1 {
+		return fmt.Errorf("refusing to kill PID %d", pid)
+	}
 	p, err := os.FindProcess(pid)
 	if err != nil {
 		return err
