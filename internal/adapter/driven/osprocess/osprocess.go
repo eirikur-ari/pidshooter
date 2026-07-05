@@ -131,20 +131,52 @@ func filter(processes []driven.Info, patterns []string) []driven.Info {
 }
 
 // Killer implements gamedriven.ProcessKiller by sending SIGKILL via the OS.
-type Killer struct{}
+type Killer struct{ psPath string }
 
 // NewKiller returns a gamedriven.ProcessKiller that sends SIGKILL to the target PID.
-func NewKiller() gamedriven.ProcessKiller {
-	return &Killer{}
+func NewKiller() (gamedriven.ProcessKiller, error) {
+	path, err := exec.LookPath("ps")
+	if err != nil {
+		return nil, fmt.Errorf("ps not found: %w", err)
+	}
+	return &Killer{psPath: path}, nil
 }
 
-func (k *Killer) Kill(pid int) error {
+func (k *Killer) Kill(pid int, name string) error {
 	if pid <= 1 {
 		return fmt.Errorf("refusing to kill PID %d", pid)
+	}
+	current, err := k.currentName(pid)
+	if err != nil {
+		return fmt.Errorf("could not verify PID %d: %w", pid, err)
+	}
+	if err := validateProcessName(name, current); err != nil {
+		return err
 	}
 	p, err := os.FindProcess(pid)
 	if err != nil {
 		return err
 	}
 	return p.Signal(syscall.SIGKILL)
+}
+
+// currentName returns the current comm name of pid from the OS, using the same
+// ps flags as discovery so truncation and format are consistent.
+func (k *Killer) currentName(pid int) (string, error) {
+	args := []string{"-p", strconv.Itoa(pid), "-o", "comm="}
+	if runtime.GOOS == "darwin" {
+		args = []string{"-c", "-p", strconv.Itoa(pid), "-o", "comm="}
+	}
+	out, err := exec.Command(k.psPath, args...).Output()
+	if err != nil {
+		return "", fmt.Errorf("ps lookup failed for PID %d: %w", pid, err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+func validateProcessName(expected, actual string) error {
+	if actual != expected {
+		return fmt.Errorf("PID name mismatch: expected %q, got %q", expected, actual)
+	}
+	return nil
 }

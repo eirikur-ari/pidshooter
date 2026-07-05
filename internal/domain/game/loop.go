@@ -104,7 +104,7 @@ func (g *Game) killTarget(e *Target) {
 	if e.State != Alive {
 		return
 	}
-	if err := g.killer.Kill(e.Pid()); err != nil {
+	if err := g.killer.Kill(e.Pid(), e.Name()); err != nil {
 		return
 	}
 	e.StartKillAnim()

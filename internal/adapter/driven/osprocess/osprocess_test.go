@@ -153,37 +153,73 @@ func TestProc_Fields(t *testing.T) {
 	}
 }
 
+func newTestKiller(t *testing.T) *Killer {
+	t.Helper()
+	k, err := NewKiller()
+	if err != nil {
+		t.Fatalf("NewKiller: %v", err)
+	}
+	return k.(*Killer)
+}
+
 func TestKiller_InvalidPID(t *testing.T) {
-	k := NewKiller()
+	k := newTestKiller(t)
 	// PID -1 is invalid on all platforms and should return an error.
-	err := k.Kill(-1)
+	err := k.Kill(-1, "")
 	if err == nil {
 		t.Error("expected error killing invalid PID -1, got nil")
 	}
 }
 
 func TestKiller_RefusesPID0(t *testing.T) {
-	k := NewKiller()
-	err := k.Kill(0)
-	if err == nil {
+	k := newTestKiller(t)
+	if err := k.Kill(0, ""); err == nil {
 		t.Error("expected error killing PID 0, got nil")
 	}
 }
 
 func TestKiller_RefusesPID1(t *testing.T) {
-	k := NewKiller()
-	err := k.Kill(1)
-	if err == nil {
+	k := newTestKiller(t)
+	if err := k.Kill(1, ""); err == nil {
 		t.Error("expected error killing PID 1, got nil")
 	}
 }
 
 func TestKiller_RefusesNegativePID(t *testing.T) {
-	k := NewKiller()
+	k := newTestKiller(t)
 	for _, pid := range []int{-1, -100, -99999} {
-		if err := k.Kill(pid); err == nil {
+		if err := k.Kill(pid, ""); err == nil {
 			t.Errorf("expected error killing PID %d, got nil", pid)
 		}
+	}
+}
+
+func TestValidateProcessName_Match(t *testing.T) {
+	if err := validateProcessName("myapp", "myapp"); err != nil {
+		t.Errorf("expected no error for matching names, got %v", err)
+	}
+}
+
+func TestValidateProcessName_Mismatch(t *testing.T) {
+	if err := validateProcessName("myapp", "otherd"); err == nil {
+		t.Error("expected error for mismatched names, got nil")
+	}
+}
+
+func TestValidateProcessName_EmptyActual(t *testing.T) {
+	if err := validateProcessName("myapp", ""); err == nil {
+		t.Error("expected error when actual name is empty, got nil")
+	}
+}
+
+func TestKiller_RefusesNameMismatch(t *testing.T) {
+	k := newTestKiller(t)
+	// Use our own PID with a wrong name; currentName will return the real name,
+	// which won't match "definitely-not-this-process".
+	ownPID := os.Getpid()
+	err := k.Kill(ownPID, "definitely-not-this-process")
+	if err == nil {
+		t.Error("expected error when name does not match current process name")
 	}
 }
 

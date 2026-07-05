@@ -41,6 +41,18 @@ func TestKillTarget_TransitionsToKilling(t *testing.T) {
 	}
 }
 
+func TestKillTarget_PassesNameToKiller(t *testing.T) {
+	fk := &fake.Killer{}
+	e := &Target{Info: fake.NewProcess(42, "myapp", 0), State: Alive}
+	g := &Game{killer: fk}
+
+	g.killTarget(e)
+
+	if len(fk.KilledNames) != 1 || fk.KilledNames[0] != "myapp" {
+		t.Errorf("expected Kill called with name %q, got %v", "myapp", fk.KilledNames)
+	}
+}
+
 func TestKillTarget_NoOpWhenNotAlive(t *testing.T) {
 	e := &Target{Info: fake.NewProcess(1, "target", 2048), State: Dead}
 	g := &Game{killer: &fake.Killer{}}

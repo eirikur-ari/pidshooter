@@ -25,7 +25,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	killer := osprocess.NewKiller()
+	killer, err := osprocess.NewKiller()
+	if err != nil {
+		return err
+	}
 	store := jsonscores.NewStore()
 
 	screen, err := tcell.NewScreen()

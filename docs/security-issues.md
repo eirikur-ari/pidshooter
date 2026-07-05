@@ -14,7 +14,7 @@ pidshooter is a terminal game that kills OS processes. Its core attack surface i
 
 ## Issues
 
-### [CRITICAL] SEC-01 — TOCTOU: PID recycling between discovery and kill
+### ~~[CRITICAL] SEC-01 — TOCTOU: PID recycling between discovery and kill~~ ✓ FIXED
 
 **File:** `internal/adapter/driven/osprocess/osprocess.go:36-45`, `internal/domain/game/loop.go:103-110`
 
@@ -27,7 +27,7 @@ Processes are discovered once at game start via `Find()`, and their PIDs are sto
 4. PID 1234 is reassigned to a new critical system daemon
 5. User clicks the stale target — the new daemon receives `SIGKILL`
 
-**Fix:** At kill time, re-validate that the process still exists and its name still matches the original discovery name before sending the signal. In `osprocess.go` `Kill()`, read `/proc/<pid>/comm` (Linux) or `ps -p <pid> -o comm=` (macOS) and compare to the stored name before issuing `SIGKILL`.
+**Fix applied:** The `ProcessKiller` interface was extended to `Kill(pid int, name string) error`. `loop.go` now passes `e.Name()` alongside the PID. In `osprocess.go`, `Kill()` runs `ps -p <pid> -o comm=` (with `-c` on macOS to match discovery flags) to get the process's current name, then compares it to the expected name before issuing `SIGKILL`. A mismatch or a dead process returns an error, which causes `killTarget` to skip the animation and kill-count increment — so a recycled PID is never killed.
 
 ---
 
@@ -119,7 +119,7 @@ Neither package is imported directly by pidshooter's runtime code, reducing actu
 
 | ID | Severity | Title | File |
 |---|---|---|---|
-| SEC-01 | Critical | TOCTOU PID recycling | `osprocess.go`, `loop.go` |
+| SEC-01 | Critical | ~~TOCTOU PID recycling~~ ✓ FIXED | `osprocess.go`, `loop.go` |
 | SEC-02 | Critical | ~~PID 0 not excluded from Kill~~ ✓ FIXED | `osprocess.go` |
 | SEC-03 | High | Insufficient system process exclusion | `osprocess.go` |
 | SEC-04 | Medium | Kill errors silently discarded | `loop.go:107` |
