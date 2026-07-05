@@ -73,20 +73,18 @@ File was written with `0644` (world-readable) and directory created with `0755` 
 
 ---
 
-### [LOW] SEC-06 — Outdated transitive dependencies with known vulnerabilities
+### ~~[LOW] SEC-06 — Outdated transitive dependencies with known vulnerabilities~~ ✓ FIXED
 
 **File:** `go.mod`
 
-The following transitive dependencies (pulled in by `golang.org/x/tools`) are pinned to old versions that contain known CVEs:
+The following transitive dependencies (pulled in by `golang.org/x/tools`) were pinned to old versions containing known CVEs:
 
-| Package | Version | Notes |
+| Package | Old version | New version |
 |---|---|---|
-| `golang.org/x/crypto` | `v0.0.0-20210921155107` | Multiple CVEs in SSH, TLS packages since 2021 |
-| `golang.org/x/net` | `v0.6.0` | HTTP/2 DoS CVEs (e.g., CVE-2023-44487) |
+| `golang.org/x/crypto` | `v0.0.0-20210921155107` | `v0.53.0` |
+| `golang.org/x/net` | `v0.6.0` | `v0.56.0` |
 
-Neither package is imported directly by pidshooter's runtime code, reducing actual risk. However, they surface in `go list -m all` and would appear in any automated dependency scan.
-
-**Fix:** Run `go get -u golang.org/x/crypto golang.org/x/net` to update to current versions, then run `go mod tidy`.
+**Fix applied:** Ran `go get -u golang.org/x/crypto golang.org/x/net` and `go mod tidy`. Also pulled in updated `golang.org/x/sys`, `golang.org/x/term`, and `golang.org/x/text`. The minimum Go version in `go.mod` was bumped from `1.22.0` to `1.25.0` as required by the new `crypto` version.
 
 ---
 
@@ -99,7 +97,7 @@ Neither package is imported directly by pidshooter's runtime code, reducing actu
 | SEC-03 | High | ~~Insufficient system process exclusion~~ ✓ FIXED | `osprocess.go` |
 | SEC-04 | Medium | ~~Kill errors silently discarded~~ ✓ FIXED | `loop.go:107` |
 | SEC-05 | Medium | ~~Score file world-readable permissions~~ ✓ FIXED | `jsonscores.go` |
-| SEC-06 | Low | Outdated transitive dependencies | `go.mod` |
+| SEC-06 | Low | ~~Outdated transitive dependencies~~ ✓ FIXED | `go.mod` |
 
 ## Fix Priority
 
