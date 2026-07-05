@@ -63,23 +63,13 @@ The kill error was explicitly ignored (`_ = g.killer.Kill(...)`). The animation 
 
 ---
 
-### [MEDIUM] SEC-05 — Score file and directory have world-readable permissions
+### ~~[MEDIUM] SEC-05 — Score file and directory have world-readable permissions~~ ✓ FIXED
 
 **File:** `internal/adapter/driven/jsonscores/jsonscores.go:53`, `internal/adapter/driven/jsonscores/jsonscores.go:71`
 
-```go
-os.WriteFile(s.path, data, 0644)   // world-readable
-os.MkdirAll(dir, 0755)             // world-executable and world-readable
-```
+File was written with `0644` (world-readable) and directory created with `0755` (world-readable/executable). On shared systems this leaks session activity recorded in the score file.
 
-While scores are not sensitive credentials, the file records game sessions with timestamps and memory statistics, which could reveal information about what processes were running on the machine. On shared systems (e.g., CI/CD runners, development servers with multiple users), this leaks session activity.
-
-**Fix:** Use `0600` for the file and `0700` for the directory:
-
-```go
-os.WriteFile(s.path, data, 0600)
-os.MkdirAll(dir, 0700)
-```
+**Fix applied:** Changed `WriteFile` permission to `0600` and `MkdirAll` permission to `0700`.
 
 ---
 
@@ -108,7 +98,7 @@ Neither package is imported directly by pidshooter's runtime code, reducing actu
 | SEC-02 | Critical | ~~PID 0 not excluded from Kill~~ ✓ FIXED | `osprocess.go` |
 | SEC-03 | High | ~~Insufficient system process exclusion~~ ✓ FIXED | `osprocess.go` |
 | SEC-04 | Medium | ~~Kill errors silently discarded~~ ✓ FIXED | `loop.go:107` |
-| SEC-05 | Medium | Score file world-readable permissions | `jsonscores.go` |
+| SEC-05 | Medium | ~~Score file world-readable permissions~~ ✓ FIXED | `jsonscores.go` |
 | SEC-06 | Low | Outdated transitive dependencies | `go.mod` |
 
 ## Fix Priority

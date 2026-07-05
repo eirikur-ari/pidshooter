@@ -50,7 +50,7 @@ func (s *Store) Save(board *score.Board) error {
 		return fmt.Errorf("failed to marshal scores: %w", err)
 	}
 
-	return os.WriteFile(s.path, data, 0644)
+	return os.WriteFile(s.path, data, 0600)
 }
 
 func defaultDir() string {
@@ -68,7 +68,7 @@ func defaultPath() string {
 
 func makeConfigDir() error {
 	dir := defaultDir()
-	err := os.MkdirAll(dir, 0755)
+	err := os.MkdirAll(dir, 0700)
 	if err != nil {
 		return fmt.Errorf("could not create directory %s: %v", dir, err)
 	}

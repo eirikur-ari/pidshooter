@@ -46,6 +46,20 @@ func TestSave_CreatesFile(t *testing.T) {
 	}
 }
 
+func TestSave_FilePermissions(t *testing.T) {
+	s := newTempStore(t)
+	if err := s.Save(&score.Board{}); err != nil {
+		t.Fatalf("save failed: %v", err)
+	}
+	info, err := os.Stat(s.path)
+	if err != nil {
+		t.Fatalf("stat failed: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm != 0600 {
+		t.Errorf("expected file permissions 0600, got %04o", perm)
+	}
+}
+
 func TestSave_Load_RoundTrip(t *testing.T) {
 	s := newTempStore(t)
 	board := &score.Board{}
