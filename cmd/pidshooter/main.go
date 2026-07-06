@@ -6,11 +6,11 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"github.com/eirikur-ari/pidshooter/internal/adapter/driven/scorefilestore"
-	"github.com/eirikur-ari/pidshooter/internal/adapter/driven/osprocess"
-	"github.com/eirikur-ari/pidshooter/internal/adapter/driven/tcellui"
-	"github.com/eirikur-ari/pidshooter/internal/adapter/driving/cli"
-	"github.com/eirikur-ari/pidshooter/internal/app"
+	"github.com/eirikur-ari/pidshooter/internal/application"
+	"github.com/eirikur-ari/pidshooter/internal/entrypoint/cli"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/scorefilestore"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
 func main() {
@@ -37,6 +37,6 @@ func run() error {
 	}
 	ui := tcellui.New(screen)
 
-	service := app.NewGameService(finder, killer, store, ui, ui)
+	service := application.NewGameRunner(finder, killer, store, ui, ui)
 	return cli.New(service).Run(os.Args[1:])
 }

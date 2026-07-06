@@ -1,7 +1,7 @@
 # Security Issues Report
 
 **Project:** pidshooter  
-**Date:** 2026-07-01  
+**Date:** 2026-07-06  
 **Branch:** refactoring-after-ai-creation  
 
 ---
@@ -16,7 +16,7 @@ pidshooter is a terminal game that kills OS processes. Its core attack surface i
 
 ### ~~[CRITICAL] SEC-01 — TOCTOU: PID recycling between discovery and kill~~ ✓ FIXED
 
-**File:** `internal/adapter/driven/osprocess/osprocess.go:36-45`, `internal/domain/game/loop.go:103-110`
+**File:** `internal/infrastructure/osprocess/osprocess.go:36-45`, `internal/application/runner.go` (`drainEvents`)
 
 Processes are discovered once at game start via `Find()`, and their PIDs are stored in `[]*Target`. When the user clicks a target, the stored PID is sent directly to `Kill()`. A game session can last 30+ seconds (or longer with `--time=0`). During that window, a discovered process may exit and its PID may be recycled by the OS to a completely different — potentially critical — process.
 
@@ -27,13 +27,13 @@ Processes are discovered once at game start via `Find()`, and their PIDs are sto
 4. PID 1234 is reassigned to a new critical system daemon
 5. User clicks the stale target — the new daemon receives `SIGKILL`
 
-**Fix applied:** The `ProcessKiller` interface was extended to `Kill(pid int, name string) error`. `loop.go` now passes `e.Name()` alongside the PID. In `osprocess.go`, `Kill()` runs `ps -p <pid> -o comm=` (with `-c` on macOS to match discovery flags) to get the process's current name, then compares it to the expected name before issuing `SIGKILL`. A mismatch or a dead process returns an error, which causes `killTarget` to skip the animation and kill-count increment — so a recycled PID is never killed.
+**Fix applied:** The `ProcessKiller` interface requires `Kill(pid int, name string) error`. The application layer (`runner.go`'s `drainEvents`) passes `req.Target.Name` alongside the PID. In `osprocess.go`, `Kill()` runs `ps -p <pid> -o comm=` (with `-c` on macOS to match discovery flags) to get the process's current name, then compares it to the expected name before issuing `SIGKILL`. A mismatch or a dead process returns an error, which causes `drainEvents` to skip `CompleteKill` — so a recycled PID is never killed and no kill animation or score credit is recorded.
 
 ---
 
 ### ~~[CRITICAL] SEC-02 — PID 0 is not excluded from Kill~~ ✓ FIXED
 
-**File:** `internal/adapter/driven/osprocess/osprocess.go:113-115`, `internal/adapter/driven/osprocess/osprocess.go:135-141`
+**File:** `internal/infrastructure/osprocess/osprocess.go` (`filter`, `Kill`)
 
 The filter in `filter()` excludes only the current process PID and PID 1. On Unix, sending a signal to PID 0 sends it to **every process in the current process group**, not to a single process. If a process with PID 0 were ever returned by `ps` parsing (e.g., due to malformed output or a future platform difference), calling `os.FindProcess(0).Signal(SIGKILL)` would kill the entire process group.
 
@@ -43,7 +43,7 @@ The filter in `filter()` excludes only the current process PID and PID 1. On Uni
 
 ### ~~[HIGH] SEC-03 — Insufficient system process exclusion~~ ✓ FIXED (minimum pattern length)
 
-**File:** `internal/adapter/driven/osprocess/osprocess.go:113-115`
+**File:** `internal/infrastructure/osprocess/osprocess.go` (`filter`)
 
 Only PID 1 (init/launchd) and the current process are excluded. Many other low-numbered PIDs are critical kernel threads or system daemons (e.g., PID 2 = `kthreadd` on Linux, launchd helpers on macOS). A broad pattern like `a` would match process names containing the letter "a" — which includes most system processes — and they would all be surfaced as valid kill targets.
 
@@ -55,17 +55,17 @@ There is also no minimum pattern length. A single-character pattern is accepted 
 
 ### ~~[MEDIUM] SEC-04 — Kill errors silently discarded~~ ✓ FIXED (resolved during SEC-01)
 
-**File:** `internal/domain/game/loop.go:107`
+**File:** `internal/application/runner.go` (`drainEvents`)
 
-The kill error was explicitly ignored (`_ = g.killer.Kill(...)`). The animation and kill count were recorded unconditionally, misrepresenting game state and hiding failures silently.
+The kill error was explicitly ignored. The animation and kill count were recorded unconditionally, misrepresenting game state and hiding failures silently.
 
-**Fix applied:** Resolved as part of the SEC-01 fix. `killTarget` now checks the error from `Kill` and returns early on failure — `StartKillAnim()` and `RecordKill()` are only called when the signal was sent successfully.
+**Fix applied:** Resolved as part of the SEC-01 fix. `drainEvents` now checks the error from `killer.Kill`; only on `nil` error does it call `g.CompleteKill(target)`, which starts the kill animation and records the kill. On error the target remains `Alive` with no score credit.
 
 ---
 
 ### ~~[MEDIUM] SEC-05 — Score file and directory have world-readable permissions~~ ✓ FIXED
 
-**File:** `internal/adapter/driven/jsonscores/jsonscores.go:53`, `internal/adapter/driven/jsonscores/jsonscores.go:71`
+**File:** `internal/infrastructure/scorefilestore/score_file_store.go`
 
 File was written with `0644` (world-readable) and directory created with `0755` (world-readable/executable). On shared systems this leaks session activity recorded in the score file.
 
@@ -92,11 +92,11 @@ The following transitive dependencies (pulled in by `golang.org/x/tools`) were p
 
 | ID | Severity | Title | File |
 |---|---|---|---|
-| SEC-01 | Critical | ~~TOCTOU PID recycling~~ ✓ FIXED | `osprocess.go`, `loop.go` |
+| SEC-01 | Critical | ~~TOCTOU PID recycling~~ ✓ FIXED | `osprocess.go`, `runner.go` (`drainEvents`) |
 | SEC-02 | Critical | ~~PID 0 not excluded from Kill~~ ✓ FIXED | `osprocess.go` |
 | SEC-03 | High | ~~Insufficient system process exclusion~~ ✓ FIXED | `osprocess.go` |
-| SEC-04 | Medium | ~~Kill errors silently discarded~~ ✓ FIXED | `loop.go:107` |
-| SEC-05 | Medium | ~~Score file world-readable permissions~~ ✓ FIXED | `jsonscores.go` |
+| SEC-04 | Medium | ~~Kill errors silently discarded~~ ✓ FIXED | `runner.go` (`drainEvents`) |
+| SEC-05 | Medium | ~~Score file world-readable permissions~~ ✓ FIXED | `score_file_store.go` |
 | SEC-06 | Low | ~~Outdated transitive dependencies~~ ✓ FIXED | `go.mod` |
 
 ## Fix Priority

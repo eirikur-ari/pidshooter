@@ -1,6 +1,6 @@
 # pidshooter — Package & Architecture Diagram
 
-*Updated 2026-07-01. Full hexagonal architecture (Ports & Adapters): domain core, driven/driving ports, driven/driving adapters, application service.*
+*Updated 2026-07-06. Full hexagonal architecture: pure-core domain, application/contract port interfaces, infrastructure adapters, entrypoint adapter, and a GameRunner application service that owns the game loop.*
 
 ---
 
@@ -11,51 +11,43 @@ cmd/pidshooter/
 └── main.go                             composition root — wires all dependencies, no logic
 
 internal/
-├── domain/
+├── core/                               pure domain — no infrastructure imports
 │   ├── game/
-│   │   ├── game.go                     Game · New() · Play() · stop()
+│   │   ├── game.go                     Game (pure state machine) · KillRequest · New() · Init() · Running() · Stop()
+│   │   ├── loop.go                     Update() · Frame() · CompleteKill() · timeRemaining()
+│   │   ├── event_handler.go            HandleEvent() · handleMouseClick() · handleKeyPress()
+│   │   ├── frame.go                    Frame · TargetView · HUDState · StatusState · ConfirmState
+│   │   ├── input.go                    InputEvent · ClickEvent · KeyEvent · ResizeEvent · KeyCode
 │   │   ├── session.go                  Session · RecordKill() · accessors
-│   │   ├── target.go                   Target · TargetState · NewTarget()
-│   │   ├── motion.go                   Motion · newMotion() · Update()
-│   │   ├── loop.go                     populateEntities() · run() · update() · render() · killTarget()
-│   │   ├── event_handler.go            drainEvents() · handleEvent() · handleKeyPress() · handleMouseClick()
-│   │   └── ports/
-│   │       ├── driven/                 ports the domain calls out through
-│   │       │   ├── renderer.go         Renderer · Frame · TargetView · HUDState · StatusState · ConfirmState
-│   │       │   ├── event_source.go     EventSource · InputEvent · ClickEvent · KeyEvent · ResizeEvent · KeyCode
-│   │       │   └── process_killer.go   ProcessKiller
-│   │       └── driving/                ports the outside world calls in through
-│   │           └── game_service.go     GameService · Config
+│   │   └── target.go                   Target · Vector · TargetState · NewTarget() · Label() · Update() · Contains() · StartKillAnim()
 │   ├── process/
-│   │   └── ports/
-│   │       └── driven/                 ports for process discovery
-│   │           ├── info.go             Info
-│   │           └── finder.go           Finder · MaxPatternLength
-│   ├── score/
-│   │   └── score.go                    Store · Board · Entry · Add() · HighScore() · PrintScores()
-│   └── util/
-│       └── util.go                     FormatBytes()
-├── adapter/
-│   ├── driven/                         infrastructure adapters — implement driven ports
-│   │   ├── tcellui/
-│   │   │   └── tcellui.go              UI  (implements Renderer + EventSource via tcell)
-│   │   ├── osprocess/
-│   │   │   └── osprocess.go            Finder · Killer  (implement process ports via OS ps + SIGKILL)
-│   │   └── jsonscores/
-│   │       └── jsonscores.go           Store  (implements score.Store via JSON file)
-│   └── driving/                        user-facing adapters — call through driving ports
-│       └── cli/
-│           └── cli.go                  CLI · Run() · parseArgs()
-├── app/
-│   └── runner.go                       GameService · NewGameService() · Play()
-└── testutil/
-    ├── capture/
-    │   └── capture.go                  Output()  (stdout capture helper)
-    └── fake/
-        ├── finder.go                   Finder
-        ├── killer.go                   Killer
-        ├── process.go                  NewProcess()
-        └── store.go                    Store
+│   │   └── process.go                  Info struct · MinPatternLength · MaxPatternLength
+│   └── score/
+│       └── score.go                    Board · Entry · Add() · HighScore() · PrintHighScore() · PrintScores()
+├── application/
+│   ├── contract/
+│   │   ├── inbound.go                  GameService (interface) · Config
+│   │   └── outbound.go                 Renderer · EventSource · ProcessKiller · Finder · Store
+│   └── runner.go                       GameRunner · NewGameRunner() · Play() · runLoop() · drainEvents()
+├── entrypoint/                         driving adapter — calls the application service
+│   └── cli/
+│       └── cli.go                      CLI · New() · Run() · parseArgs()
+├── infrastructure/                     driven adapters — called by the application service
+│   ├── osprocess/
+│   │   └── osprocess.go                Finder · Killer · NewFinder() · NewKiller()
+│   ├── scorefilestore/
+│   │   └── score_file_store.go         Store · NewStore()
+│   └── tcellui/
+│       └── tcellui.go                  UI · New()  (implements Renderer + EventSource)
+├── testutil/
+│   ├── capture/
+│   │   └── capture.go                  Output() · Stderr()  (stdout/stderr capture helpers)
+│   └── fake/
+│       ├── finder.go                   Finder  (test double)
+│       ├── killer.go                   Killer  (test double)
+│       └── store.go                    Store   (test double)
+└── util/
+    └── util.go                         FormatBytes()
 ```
 
 ---
@@ -68,55 +60,82 @@ Types, their fields/methods, and relationships across packages. Visibility follo
 classDiagram
     direction TB
 
-    %% ── domain/game/ports/driven ─────────────────────────────────────────────
+    %% ── application/contract ─────────────────────────────────────────────────
+
+    class GameServiceIface {
+        <<contract · interface · GameService>>
+        +Play(cfg Config) error
+    }
+
+    class Config {
+        <<contract>>
+        +Patterns []string
+        +ConfirmMode bool
+        +Speed float64
+        +TimeLimit int
+    }
 
     class Renderer {
-        <<game·ports·driven · interface>>
-        +Render(frame Frame)
-        +Size() int, int
+        <<contract · interface>>
         +Init() error
         +Cleanup()
+        +Size() int, int
+        +Render(frame game.Frame)
     }
 
     class EventSource {
-        <<game·ports·driven · interface>>
-        +Events() chan InputEvent
+        <<contract · interface>>
+        +Events() chan game.InputEvent
     }
 
     class ProcessKiller {
-        <<game·ports·driven · interface>>
-        +Kill(pid int) error
+        <<contract · interface>>
+        +Kill(pid int, name string) error
     }
 
+    class Finder {
+        <<contract · interface>>
+        +List() []process.Info, error
+        +Find(patterns []string) []process.Info, error
+    }
+
+    class Store {
+        <<contract · interface>>
+        +Load() Board, error
+        +Save(board Board) error
+    }
+
+    %% ── core/game — data types ───────────────────────────────────────────────
+
     class Frame {
-        <<game·ports·driven>>
+        <<core/game · frame.go>>
         +Targets []TargetView
         +HUD HUDState
         +StatusBar StatusState
     }
 
     class InputEvent {
-        <<game·ports·driven · interface>>
+        <<core/game · interface>>
         -inputEvent()
     }
 
     class ClickEvent {
-        <<game·ports·driven>>
+        <<core/game>>
         +X, Y int
     }
 
     class KeyEvent {
-        <<game·ports·driven>>
+        <<core/game>>
         +Key KeyCode
         +Ch rune
     }
 
     class ResizeEvent {
-        <<game·ports·driven>>
+        <<core/game>>
     }
 
     class KeyCode {
-        <<game·ports·driven · enum>>
+        <<core/game · enum>>
         KeyNone
         KeyEscape
         KeyCtrlC
@@ -129,46 +148,16 @@ classDiagram
     Frame *-- "0..*" TargetView : Targets
     EventSource --> InputEvent : produces
 
-    %% ── domain/game/ports/driving ────────────────────────────────────────────
+    %% ── core/game — state machine ────────────────────────────────────────────
 
-    class GameService {
-        <<game·ports·driving · interface>>
-        +Play(cfg Config) error
+    class KillRequest {
+        <<core/game · game.go>>
+        +Target *Target
     }
-
-    class Config {
-        <<game·ports·driving>>
-        +Patterns []string
-        +ConfirmMode bool
-        +Speed float64
-        +TimeLimit int
-    }
-
-    %% ── domain/process/ports/driven ─────────────────────────────────────────
-
-    class Info {
-        <<process·ports·driven · interface>>
-        +Pid() int
-        +Name() string
-        +Rss() int64
-    }
-
-    class ProcFinder {
-        <<process·ports·driven · interface · Finder>>
-        +List() []Info, error
-        +Find(patterns []string) []Info, error
-    }
-
-    ProcFinder ..> Info : produces
-
-    %% ── domain/game ──────────────────────────────────────────────────────────
 
     class Game {
-        <<domain/game · game.go>>
-        -renderer Renderer
-        -events EventSource
-        -killer ProcessKiller
-        -processes []Info
+        <<core/game · game.go>>
+        -processes []process.Info
         -targets []*Target
         -confirmMode bool
         -speed float64
@@ -176,13 +165,18 @@ classDiagram
         -running atomic.Bool
         -confirming *Target
         Session
-        +New(processes, confirmMode, speed, timeLimit, killer, renderer, events) *Game
-        +Play(highScore int) error
-        -stop()
+        +New(processes, confirmMode, speed, timeLimit) *Game
+        +Init(w, h int)
+        +Running() bool
+        +Stop()
+        +Update(w, h int)
+        +Frame() Frame
+        +HandleEvent(ev InputEvent) *KillRequest
+        +CompleteKill(t *Target)
     }
 
     class Session {
-        <<domain/game · session.go>>
+        <<core/game · session.go>>
         -kills int
         -freedMem int64
         -highScore int
@@ -195,61 +189,60 @@ classDiagram
     }
 
     class Target {
-        <<domain/game · target.go>>
-        Info
-        Motion
+        <<core/game · target.go>>
+        +Info process.Info
+        +Position Vector
+        +Velocity Vector
         +State TargetState
         +KillAnimFrame int
-        +NewTarget(info Info, maxX, maxY int) *Target
+        +NewTarget(info, maxX, maxY int) *Target
         +Label() string
         +Update(maxX, maxY int, speed float64)
         +Contains(x, y int) bool
         +StartKillAnim()
     }
 
-    class Motion {
-        <<domain/game · motion.go>>
-        +PosX, PosY float64
-        +VelX, VelY float64
-        -newMotion(maxX, maxY, labelLen int) Motion
-        +Update(maxX, maxY, labelLen int, speed float64)
+    class Vector {
+        <<core/game · target.go>>
+        +X, Y float64
     }
 
     class TargetState {
-        <<domain/game · enumeration>>
+        <<core/game · enumeration>>
         Alive
         Killing
         Dead
     }
 
-    Game *-- Session   : embeds
+    Game *-- Session       : embeds
     Game "1" *-- "0..*" Target : targets
-    Target *-- Motion  : embeds
-    Target ..> Info    : embeds interface
-    Target --> TargetState : state
-    Game --> Renderer      : driven port
-    Game --> EventSource   : driven port
-    Game --> ProcessKiller : driven port
-    Game --> Info          : processes
+    Game ..> KillRequest   : returns
+    Target *-- Vector      : Position
+    Target *-- Vector      : Velocity
+    Target --> TargetState : State
 
-    %% ── domain/score ─────────────────────────────────────────────────────────
+    %% ── core/process ─────────────────────────────────────────────────────────
 
-    class ScoreStore {
-        <<domain/score · interface · Store>>
-        +Load() Board, error
-        +Save(board Board) error
+    class ProcessInfo {
+        <<core/process · struct · Info>>
+        +Pid int
+        +Name string
+        +Rss int64
     }
 
+    %% ── core/score ───────────────────────────────────────────────────────────
+
     class Board {
-        <<domain/score · score.go>>
+        <<core/score · score.go>>
         +Scores []Entry
-        +Add(entry Entry) bool
+        +Add(entry Entry)
         +HighScore() int
+        +PrintHighScore(kills int)
         +PrintScores()
     }
 
     class Entry {
-        <<domain/score · score.go>>
+        <<core/score · score.go>>
         +Kills int
         +FreedMem int64
         +Speed float64
@@ -260,21 +253,37 @@ classDiagram
 
     Board "1" *-- "0..*" Entry : owns
 
-    %% ── domain/util ──────────────────────────────────────────────────────────
+    %% ── application/runner.go ────────────────────────────────────────────────
 
-    class util_pkg {
-        <<domain/util · package-level>>
-        +FormatBytes(bytes int64) string
+    class GameRunner {
+        <<application · runner.go>>
+        -finder Finder
+        -killer ProcessKiller
+        -store Store
+        -renderer Renderer
+        -events EventSource
+        +NewGameRunner(finder, killer, store, renderer, events) *GameRunner
+        +Play(cfg Config) error
+        -runLoop(g *Game) error
+        -drainEvents(g *Game)
     }
 
-    %% ── adapter/driven/tcellui ───────────────────────────────────────────────
+    GameRunner ..|> GameServiceIface   : implements
+    GameRunner --> Finder              : finder
+    GameRunner --> ProcessKiller       : killer
+    GameRunner --> Store               : store
+    GameRunner --> Renderer            : renderer
+    GameRunner --> EventSource         : events
+    GameRunner ..> Game                : creates
+
+    %% ── infrastructure/tcellui ───────────────────────────────────────────────
 
     class TcellUI {
-        <<adapter/driven/tcellui · UI>>
+        <<infrastructure/tcellui · UI>>
         -screen tcell.Screen
         -ch chan InputEvent
         -done chan struct
-        +New(screen tcell.Screen) UI
+        +New(screen tcell.Screen) *UI
         +Init() error
         +Cleanup()
         +Size() int, int
@@ -285,69 +294,48 @@ classDiagram
     TcellUI ..|> Renderer      : implements
     TcellUI ..|> EventSource   : implements
 
-    %% ── adapter/driven/osprocess ─────────────────────────────────────────────
+    %% ── infrastructure/osprocess ─────────────────────────────────────────────
 
     class OsFinder {
-        <<adapter/driven/osprocess · Finder>>
-        +NewFinder() Finder
-        +List() []Info, error
-        +Find(patterns []string) []Info, error
+        <<infrastructure/osprocess · Finder>>
+        +NewFinder() contract.Finder, error
+        +List() []process.Info, error
+        +Find(patterns []string) []process.Info, error
     }
 
     class OsKiller {
-        <<adapter/driven/osprocess · Killer>>
-        +NewKiller() Killer
-        +Kill(pid int) error
+        <<infrastructure/osprocess · Killer>>
+        +NewKiller() contract.ProcessKiller, error
+        +Kill(pid int, name string) error
     }
 
-    OsFinder ..|> ProcFinder   : implements
+    OsFinder ..|> Finder        : implements
     OsKiller ..|> ProcessKiller : implements
 
-    %% ── adapter/driven/jsonscores ────────────────────────────────────────────
+    %% ── infrastructure/scorefilestore ────────────────────────────────────────
 
-    class JsonStore {
-        <<adapter/driven/jsonscores · Store>>
+    class FileStore {
+        <<infrastructure/scorefilestore · Store>>
         -path string
-        +NewStore(path string) Store
-        +Load() Board, error
-        +Save(board Board) error
+        +NewStore() *Store
+        +Load() *Board, error
+        +Save(board *Board) error
     }
 
-    JsonStore ..|> ScoreStore : implements
+    FileStore ..|> Store : implements
 
-    %% ── adapter/driving/cli ──────────────────────────────────────────────────
+    %% ── entrypoint/cli ───────────────────────────────────────────────────────
 
     class CLI {
-        <<adapter/driving/cli · CLI>>
+        <<entrypoint/cli · CLI>>
         -service GameService
-        +New(service GameService) CLI
+        +New(service GameService) *CLI
         +Run(args []string) error
         -parseArgs(args []string) Config, error
     }
 
-    CLI --> GameService : calls Play()
-    CLI ..> Config          : builds
-
-    %% ── app ──────────────────────────────────────────────────────────────────
-
-    class GameService {
-        <<app · runner.go>>
-        -finder ProcFinder
-        -killer ProcessKiller
-        -store ScoreStore
-        -renderer Renderer
-        -events EventSource
-        +NewGameService(finder, killer, store, renderer, events) GameService
-        +Play(cfg Config) error
-    }
-
-    GameService ..|> GameService  : implements
-    GameService --> ProcFinder        : finder
-    GameService --> ProcessKiller     : killer
-    GameService --> ScoreStore        : store
-    GameService --> Renderer          : renderer
-    GameService --> EventSource       : events
-    GameService ..> Game              : creates
+    CLI --> GameServiceIface : calls Play()
+    CLI ..> Config           : builds
 ```
 
 ---
@@ -356,28 +344,28 @@ classDiagram
 
 ```
 cmd/pidshooter
-    ├─ adapter/driving/cli
-    │       ├─ domain/game/ports/driving        (GameService, Config)
-    │       └─ domain/process/ports/driven      (MaxPatternLength)
-    ├─ adapter/driven/tcellui
-    │       └─ domain/game/ports/driven         (Renderer, EventSource, Frame …)
-    ├─ adapter/driven/osprocess
-    │       └─ domain/process/ports/driven      (Finder, Info, MaxPatternLength)
-    ├─ adapter/driven/jsonscores
-    │       └─ domain/score                     (Store, Board)
-    └─ app
-            ├─ domain/game                      (Game, New)
-            │       ├─ domain/game/ports/driven
-            │       └─ domain/process/ports/driven
-            ├─ domain/game/ports/driven         (Renderer, EventSource, ProcessKiller)
-            ├─ domain/game/ports/driving        (Config)
-            ├─ domain/process/ports/driven      (Finder)
-            ├─ domain/score                     (Store, Board, Entry)
+    ├─ entrypoint/cli
+    │       └─ application/contract        (GameService, Config, MaxPatternLength via core/process)
+    ├─ infrastructure/tcellui
+    │       └─ core/game                   (Frame, InputEvent, ClickEvent, KeyEvent, ResizeEvent, KeyCode)
+    ├─ infrastructure/osprocess
+    │       ├─ application/contract        (Finder, ProcessKiller — satisfied structurally, no import needed)
+    │       └─ core/process                (Info, MinPatternLength, MaxPatternLength)
+    ├─ infrastructure/scorefilestore
+    │       └─ core/score                  (Board, Entry)
+    └─ application
+            ├─ application/contract        (Finder, ProcessKiller, Renderer, EventSource, Store, Config)
+            ├─ core/game                   (Game, New, Frame, InputEvent, KillRequest)
+            ├─ core/score                  (Board, Entry)
             └─ util
 
-Ports packages (domain/*/ports/*) import nothing from domain, adapter, or app.
-domain/game imports only port packages — never adapters or app.
-Adapter packages import only the port packages they implement — never other adapters.
+application/contract
+    ├─ core/game                           (Frame, InputEvent — data types referenced by interface signatures)
+    ├─ core/process                        (Info — referenced by Finder)
+    └─ core/score                          (Board — referenced by Store)
+
+core/* imports nothing from application, infrastructure, or entrypoint.
+Infrastructure packages satisfy contract interfaces via Go structural typing — no import of application/contract required.
 ```
 
 ---
@@ -387,32 +375,36 @@ Adapter packages import only the port packages they implement — never other ad
 ```
 main()
 └─ run()
-     ├─ osprocess.NewFinder()                → procdriven.Finder (ps + SIGKILL)
-     ├─ osprocess.NewKiller()                → gamedriven.ProcessKiller
-     ├─ jsonscores.NewStore(path)            → score.Store (JSON file)
+     ├─ osprocess.NewFinder()              → contract.Finder  (ps + filter)
+     ├─ osprocess.NewKiller()              → contract.ProcessKiller  (ps name-check + SIGKILL)
+     ├─ scorefilestore.NewStore()          → contract.Store  (JSON file at ~/.config/pidshooter/)
      ├─ tcell.NewScreen()
-     ├─ tcellui.New(screen)                  → *tcellui.UI (gamedriven.Renderer + EventSource)
-     ├─ app.NewGameService(finder, killer, store, ui, ui)
+     ├─ tcellui.New(screen)               → *tcellui.UI  (contract.Renderer + EventSource)
+     ├─ application.NewGameRunner(finder, killer, store, ui, ui)
      └─ cli.New(service).Run(os.Args[1:])
-              ├─ parseArgs()                 → patterns, confirmMode, speed, timeLimit
-              └─ service.Play(driving.Config{…})             [GameService]
-                   ├─ finder.Find(patterns)                  [Finder → osprocess]
-                   │     └─ validate() → List() → filter() → []procdriven.Info
-                   ├─ store.Load()                           [Store → jsonscores]
-                   ├─ game.New(processes, …)                 → *game.Game
-                   └─ g.Play(board.HighScore())
-                        ├─ renderer.Init()                   [Renderer → tcellui: starts poll goroutine]
-                        ├─ renderer.Size()
-                        ├─ populateEntities()                → []*Target (each wraps procdriven.Info)
-                        ├─ go: signal → g.stop()
-                        └─ run()  ◄── 20 FPS loop ─────────────────────────────────────────────────┐
-                              ├─ drainEvents()               [EventSource → tcellui channel]        │
-                              │     └─ handleEvent(driven.InputEvent)                               │
-                              │           ├─ handleMouseClick() → killTarget() → killer.Kill(pid)   │
-                              │           └─ handleKeyPress()   → quit / confirm / speed adjust     │
-                              ├─ update()                    → Target.Update() per alive target      │
-                              └─ render()                    → renderer.Render(driven.Frame)        ─┘
-                   ├─ store.Save(board)                      [Store → jsonscores]
+              ├─ parseArgs()              → patterns, confirmMode, speed, timeLimit
+              └─ service.Play(contract.Config{…})          [GameRunner implements GameService]
+                   ├─ finder.Find(patterns)                [Finder → osprocess]
+                   │     └─ validate() → List() → filter() → []process.Info
+                   ├─ fmt.Printf("Found N process(es)…")
+                   ├─ store.Load()                         [Store → scorefilestore]
+                   ├─ game.New(processes, …)               → *game.Game
+                   ├─ g.SetHighScore(board.HighScore())
+                   └─ runLoop(g)
+                        ├─ renderer.Init()                 [Renderer → tcellui: screen.Init + poll goroutine]
+                        ├─ g.Init(w, h)                    → populates targets, sets startTime
+                        ├─ go: signal → g.Stop()           [SIGINT/SIGTERM/SIGTSTP]
+                        └─ 20 FPS ticker loop ─────────────────────────────────────────────────┐
+                              ├─ drainEvents(g)            [EventSource → tcellui channel]     │
+                              │     └─ g.HandleEvent(ev)   → *KillRequest or nil               │
+                              │           ├─ hit: killer.Kill(pid, name)  [ProcessKiller → osprocess]
+                              │           └─ success: g.CompleteKill(target)                   │
+                              ├─ g.Update(w, h)            → Target.Update() per target        │
+                              └─ renderer.Render(g.Frame()) [Frame snapshot → tcellui]        ─┘
+                   ├─ board.Add(score.Entry{…})
+                   ├─ store.Save(board)                    [Store → scorefilestore]
+                   ├─ fmt.Printf("Game Over!…")
+                   ├─ board.PrintHighScore(kills)
                    └─ board.PrintScores()
 ```
 
@@ -422,16 +414,16 @@ main()
 
 | Package | Exported identifiers |
 |---|---|
-| `domain/game/ports/driven` | `Renderer`, `EventSource`, `ProcessKiller`, `Frame`, `TargetView`, `HUDState`, `StatusState`, `ConfirmState`, `InputEvent`, `ClickEvent`, `KeyEvent`, `ResizeEvent`, `KeyCode`, `KeyNone`, `KeyEscape`, `KeyCtrlC`, `KeyCtrlZ` |
-| `domain/game/ports/driving` | `GameService`, `Config` |
-| `domain/process/ports/driven` | `Info`, `Finder`, `MaxPatternLength` |
-| `domain/game` | `Game`, `New`, `Session`, `Target`, `NewTarget`, `Motion`, `TargetState`, `Alive`, `Killing`, `Dead` |
-| `domain/score` | `Store`, `Board`, `Entry` |
-| `domain/util` | `FormatBytes` |
-| `adapter/driven/tcellui` | `UI`, `New` |
-| `adapter/driven/osprocess` | `Finder`, `Killer`, `NewFinder`, `NewKiller` |
-| `adapter/driven/jsonscores` | `Store`, `NewStore` |
-| `adapter/driving/cli` | `CLI`, `New` |
-| `app` | `GameService`, `NewGameService` |
-| `testutil/fake` | `Finder`, `Killer`, `Store`, `NewProcess` |
-| `testutil/capture` | `Output` |
+| `application/contract` (inbound) | `GameService`, `Config` |
+| `application/contract` (outbound) | `Renderer`, `EventSource`, `ProcessKiller`, `Finder`, `Store` |
+| `core/game` | `Game`, `KillRequest`, `New`, `Session`, `Target`, `Vector`, `NewTarget`, `TargetState`, `Alive`, `Killing`, `Dead`, `KillAnimFrames`, `Frame`, `TargetView`, `HUDState`, `StatusState`, `ConfirmState`, `InputEvent`, `ClickEvent`, `KeyEvent`, `ResizeEvent`, `KeyCode`, `KeyNone`, `KeyEscape`, `KeyCtrlC`, `KeyCtrlZ` |
+| `core/process` | `Info`, `MinPatternLength`, `MaxPatternLength` |
+| `core/score` | `Board`, `Entry` |
+| `application` | `GameRunner`, `NewGameRunner` |
+| `infrastructure/tcellui` | `UI`, `New` |
+| `infrastructure/osprocess` | `Finder`, `Killer`, `NewFinder`, `NewKiller` |
+| `infrastructure/scorefilestore` | `Store`, `NewStore` |
+| `entrypoint/cli` | `CLI`, `New` |
+| `testutil/fake` | `Finder`, `Killer`, `Store` |
+| `testutil/capture` | `Output`, `Stderr` |
+| `util` | `FormatBytes` |

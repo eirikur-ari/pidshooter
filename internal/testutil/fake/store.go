@@ -1,8 +1,8 @@
 package fake
 
-import "github.com/eirikur-ari/pidshooter/internal/domain/score"
+import "github.com/eirikur-ari/pidshooter/internal/core/score"
 
-// Store is a test double for scoredriven.Store.
+// Store is a test double for spi.Store.
 type Store struct {
 	Board   *score.Board
 	LoadErr error

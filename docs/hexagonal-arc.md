@@ -1,21 +1,21 @@
 # Hexagonal Architecture — Design Record for pidshooter
 
-*Originally a migration proposal (2026-06-26). Migration completed 2026-07-01. The structure described in sections 5–9 is now the live codebase. Sections 2, 10, and 11 document the pre-refactor state and the reasoning behind each change — kept as a design record.*
+*Originally a migration proposal (2026-06-26). Migration completed 2026-07-01. Further refactoring completed 2026-07-06: `domain` → `core`, `adapter` → `infrastructure`/`entrypoint`, `app` → `application`, port interfaces moved to `application/contract`. The structure described in sections 3–9 is now the live codebase. Sections 2, 10, and 11 document the pre-refactor state and the reasoning behind each change — kept as a design record.*
 
 ---
 
 ## Contents
 
 1. [What hexagonal architecture means here](#1-what-hexagonal-architecture-means-here)
-2. [Current architecture: what works and what leaks](#2-current-architecture-what-works-and-what-leaks)
+2. [Previous architecture: what works and what leaks](#2-previous-architecture-what-works-and-what-leaks)
 3. [The three layers](#3-the-three-layers)
 4. [Conceptual diagram](#4-conceptual-diagram)
-5. [Proposed package structure](#5-proposed-package-structure)
+5. [Package structure](#5-package-structure)
 6. [Component-by-component mapping](#6-component-by-component-mapping)
 7. [Port interfaces (contracts)](#7-port-interfaces-contracts)
 8. [Detailed package dependency graph](#8-detailed-package-dependency-graph)
 9. [Composition root (main.go)](#9-composition-root-maingo)
-10. [What changes and why](#10-what-changes-and-why)
+10. [What changed and why](#10-what-changed-and-why)
 11. [Migration path](#11-migration-path)
 12. [Trade-offs](#12-trade-offs)
 
@@ -28,7 +28,7 @@ Hexagonal architecture (Ports & Adapters, Alistair Cockburn, 2005) separates sof
 | Zone | Responsibility | Rule |
 |---|---|---|
 | **Domain** | Business logic — what the application *is* | No imports from outer layers; no infrastructure |
-| **Ports** | Contracts — what the domain *needs* or *exposes* | Interfaces only, owned by the domain side |
+| **Ports** | Contracts — what the domain *needs* or *exposes* | Interfaces only, owned by the application layer |
 | **Adapters** | Infrastructure — how the world *connects* to the domain | Implements ports; imports libraries and OS APIs |
 
 The "hexagon" is just the domain + its port interfaces. Everything outside is an adapter. There is no hexagonal shape; the name refers to the six notional faces Cockburn drew to show multiple interchangeable adapters around a single core.
@@ -36,67 +36,70 @@ The "hexagon" is just the domain + its port interfaces. Everything outside is an
 Two kinds of adapters:
 
 - **Driving (primary)** — they initiate action: the CLI parses `os.Args` and calls into the application.
-- **Driven (secondary)** — they are called by the domain: OS process discovery, tcell rendering, JSON score storage.
+- **Driven (secondary)** — they are called by the application service: OS process discovery, tcell rendering, JSON score storage.
 
 ---
 
-## 2. Current architecture: what works and what leaks
+## 2. Previous architecture: what works and what leaks
 
-### What already follows the pattern
+### What already followed the pattern
 
-- `process.Finder` and `process.Info` are interfaces — `finder` is already an unexported implementation detail.
-- `internal/testutil` exists for test doubles, meaning the seams are already being felt.
-- `runner.go` separates the orchestration concern from `main.go`.
-- `score`, `game`, and `process` are in distinct packages with clear responsibility labels.
+- `process.Finder` and `process.Info` were interfaces — `finder` was already an unexported implementation detail.
+- `internal/testutil` existed for test doubles, meaning the seams were already being felt.
+- `runner.go` separated the orchestration concern from `main.go`.
+- `score`, `game`, and `process` were in distinct packages with clear responsibility labels.
 
-### Where infrastructure leaks into the domain
+### Where infrastructure leaked into the domain
 
 | Location | Leak |
 |---|---|
-| `game/target.go: Kill()` | Calls `os.FindProcess` + `syscall.SIGKILL` directly — the OS syscall is inside a domain entity |
-| `game/loop.go: render()` | Calls `tcell.Screen.SetContent` directly — rendering technology is baked into game logic |
-| `game/loop.go: init()` | Creates `tcell.NewScreen()` inside the game — screen lifecycle is the game's problem |
-| `game/loop.go: run()` | Polls `g.screen.PollEvent()` inside the game loop — input source is hardwired |
-| `score/score.go` | Calls `os.ReadFile` / `os.WriteFile` directly — persistence technology is inside a domain type |
-| `runner.go` | Prints to stdout (`fmt.Printf`) — output side effects in the orchestrator |
+| `game/target.go: Kill()` | Called `os.FindProcess` + `syscall.SIGKILL` directly — the OS syscall was inside a domain entity |
+| `game/loop.go: render()` | Called `tcell.Screen.SetContent` directly — rendering technology was baked into game logic |
+| `game/loop.go: init()` | Created `tcell.NewScreen()` inside the game — screen lifecycle was the game's problem |
+| `game/loop.go: run()` | Polled `g.screen.PollEvent()` inside the game loop — input source was hardwired |
+| `score/score.go` | Called `os.ReadFile` / `os.WriteFile` directly — persistence technology was inside a domain type |
 
-These are not catastrophic — they are typical for a first implementation. The value of extracting them is that each concern becomes independently testable and swappable without touching game logic.
+These were typical for a first implementation. Extracting each concern makes it independently testable and swappable without touching game logic.
 
 ---
 
 ## 3. The three layers
 
-### Layer 1 — Domain
+### Layer 1 — Core domain
 
-Pure Go. No imports except the standard library and `internal/util`. Contains the game's invariants, entities, and value objects.
+Pure Go. No imports except the standard library, `internal/util`, and other core packages. Contains the game's invariants, entities, and value objects.
 
-- **`domain/game`** — `Game` state machine, `Target` entity, `Motion` value object, `Session` value object, `TargetState` enum, and the *port interfaces* the game needs: `Renderer`, `EventSource`, `ProcessKiller`.
-- **`domain/process`** — `ProcessInfo` value object and interface, `ProcessFinder` port.
-- **`domain/score`** — `Board`, `Entry`, ranking logic, `ScoreStore` port.
+- **`core/game`** — `Game` pure state machine, `Target` entity (with embedded position/velocity vectors), `Session` value object, `TargetState` enum, `KillRequest`, and all rendering/input data types (`Frame`, `InputEvent`, etc.).
+- **`core/process`** — `Info` struct and `MinPatternLength`/`MaxPatternLength` constants.
+- **`core/score`** — `Board`, `Entry`, ranking logic.
+
+The core domain contains **no port interfaces**. It exposes data types that the contracts in `application/contract` reference. This keeps import cycles impossible: core never imports application or infrastructure.
 
 ### Layer 2 — Application service
 
-One layer above the domain. Implements the use-case: given a configuration, find processes, run a game, persist the score. This is what was `runner.go`. It wires domain objects together and calls out through ports.
+One layer above the core. Defines the port interfaces (contracts) and implements the use-case: given a configuration, find processes, run a game, persist the score.
 
-- **`app/runner.go`** — `GameService` struct implementing a `GameService` interface; orchestrates domain + driven ports.
+- **`application/contract/inbound.go`** — `GameService` interface, `Config` struct.
+- **`application/contract/outbound.go`** — `Renderer`, `EventSource`, `ProcessKiller`, `Finder`, `Store` interfaces.
+- **`application/runner.go`** — `GameRunner` struct implementing `GameService`; orchestrates core + outbound ports.
 
 ### Layer 3 — Adapters
 
-One adapters directory per integration point. Adapters import libraries; the domain never does.
+One directory per integration point. Adapters import libraries; the core domain never does.
 
-**Driven adapters** (domain calls them):
+**Infrastructure adapters** (driven — the application service calls them):
 
-| Adapter | Port it implements | Technology |
+| Adapter | Contracts it satisfies | Technology |
 |---|---|---|
-| `adapter/driven/osprocess` | `ProcessFinder`, `ProcessKiller` | `os/exec ps`, `os.FindProcess`, `syscall.SIGKILL` |
-| `adapter/driven/tcellui` | `Renderer`, `EventSource` | `github.com/gdamore/tcell/v2` |
-| `adapter/driven/jsonscores` | `ScoreStore` | `encoding/json`, `os.ReadFile/WriteFile` |
+| `infrastructure/osprocess` | `Finder`, `ProcessKiller` | `os/exec ps`, `os.FindProcess`, `syscall.SIGKILL` |
+| `infrastructure/tcellui` | `Renderer`, `EventSource` | `github.com/gdamore/tcell/v2` |
+| `infrastructure/scorefilestore` | `Store` | `encoding/json`, `os.ReadFile/WriteFile` |
 
-**Driving adapters** (they call the application service):
+**Entrypoint adapters** (driving — they call the application service):
 
-| Adapter | Port it drives | Technology |
+| Adapter | Contract it calls | Technology |
 |---|---|---|
-| `adapter/driving/cli` | `GameService` | `os.Args`, `fmt`, `strconv` |
+| `entrypoint/cli` | `GameService` | `os.Args`, `fmt`, `strconv` |
 
 ---
 
@@ -105,245 +108,129 @@ One adapters directory per integration point. Adapters import libraries; the dom
 ```mermaid
 flowchart LR
     subgraph Driving["Driving (Primary) Side"]
-        CLI["CLI Adapter\nadapter/driving/cli\n\nos.Args → Config → Play()"]
+        CLI["CLI Adapter\nentrypoint/cli\n\nos.Args → Config → Play()"]
     end
 
     subgraph Hexagon["The Hexagon"]
         direction TB
-        App["Application Service\napp/runner.go\nGameService"]
-        subgraph Domain["Domain"]
+        App["Application Service\napplication/runner.go\nGameRunner"]
+        Contracts["application/contract\nGameService · Config\nRenderer · EventSource\nProcessKiller · Finder · Store"]
+        subgraph Core["Core Domain"]
             direction LR
-            DGame["domain/game\nGame · Target\nMotion · Session"]
-            DProc["domain/process\nProcessInfo"]
-            DScore["domain/score\nBoard · Entry"]
+            DGame["core/game\nGame · Target · Session\nFrame · InputEvent · KillRequest"]
+            DProc["core/process\nInfo"]
+            DScore["core/score\nBoard · Entry"]
         end
-        App --> Domain
+        App --> Contracts
+        App --> Core
     end
 
     subgraph Driven["Driven (Secondary) Side"]
         direction TB
-        OSProc["OS Process Adapter\nadapter/driven/osprocess\n\nps cmd + SIGKILL"]
-        TcellUI["tcell UI Adapter\nadapter/driven/tcellui\n\ntcell.Screen"]
-        JSONScore["JSON Score Adapter\nadapter/driven/jsonscores\n\nhighscores.json"]
+        OSProc["OS Process Adapter\ninfrastructure/osprocess\n\nps cmd + SIGKILL"]
+        TcellUI["tcell UI Adapter\ninfrastructure/tcellui\n\ntcell.Screen"]
+        ScoreStore["Score File Adapter\ninfrastructure/scorefilestore\n\nhighscores.json"]
     end
 
     CLI -- "GameService" --> App
-    App -- "ProcessFinder\nProcessKiller" --> OSProc
+    App -- "Finder\nProcessKiller" --> OSProc
     App -- "Renderer\nEventSource" --> TcellUI
-    App -- "ScoreStore" --> JSONScore
+    App -- "Store" --> ScoreStore
 ```
 
 ---
 
-## 5. Proposed package structure
+## 5. Package structure
 
 ```
 pidshooter/
 │
 ├── cmd/
 │   └── pidshooter/
-│       └── main.go                       # Composition root only — no logic
+│       └── main.go                           # Composition root only — no logic
 │
 └── internal/
     │
-    ├── domain/                           # The hexagon — pure business logic
+    ├── core/                                 # Pure domain — no infrastructure imports
     │   ├── game/
-    │   │   ├── game.go                   # Game struct: state machine + constructor
-    │   │   ├── session.go                # Session value object
-    │   │   ├── target.go                 # Target entity (no Kill syscall)
-    │   │   ├── motion.go                 # Motion value object (unchanged)
-    │   │   ├── state.go                  # TargetState enum
-    │   │   └── ports.go                  # Renderer, EventSource, ProcessKiller interfaces
+    │   │   ├── game.go                       # Game (pure state machine) · New() · Init() · Running() · Stop()
+    │   │   ├── loop.go                       # Update() · Frame() · CompleteKill() · timeRemaining()
+    │   │   ├── event_handler.go              # HandleEvent() · handleMouseClick() · handleKeyPress()
+    │   │   ├── frame.go                      # Frame · TargetView · HUDState · StatusState · ConfirmState
+    │   │   ├── input.go                      # InputEvent · ClickEvent · KeyEvent · ResizeEvent · KeyCode
+    │   │   ├── session.go                    # Session · RecordKill() · accessors
+    │   │   └── target.go                     # Target · Vector · TargetState · NewTarget() · Label() · Update() · Contains() · StartKillAnim()
     │   ├── process/
-    │   │   └── process.go                # ProcessInfo interface + value; ProcessFinder interface
+    │   │   └── process.go                    # Info struct · MinPatternLength · MaxPatternLength
     │   └── score/
-    │       └── score.go                  # Board, Entry, ranking; ScoreStore interface
+    │       └── score.go                      # Board · Entry · Add() · HighScore() · PrintHighScore() · PrintScores()
     │
-    ├── app/
-    │   └── runner.go                     # GameService: use-case orchestrator
+    ├── application/
+    │   ├── contract/
+    │   │   ├── inbound.go                    # GameService (interface) · Config
+    │   │   └── outbound.go                   # Renderer · EventSource · ProcessKiller · Finder · Store
+    │   └── runner.go                         # GameRunner · NewGameRunner() · Play() · runLoop() · drainEvents()
     │
-    ├── adapter/
-    │   ├── driven/
-    │   │   ├── osprocess/
-    │   │   │   └── adapter.go            # Implements ProcessFinder + ProcessKiller
-    │   │   ├── tcellui/
-    │   │   │   └── adapter.go            # Implements Renderer + EventSource
-    │   │   └── jsonscores/
-    │   │       └── adapter.go            # Implements ScoreStore
-    │   └── driving/
-    │       └── cli/
-    │           └── cli.go                # Parses os.Args; calls GameService
+    ├── entrypoint/                           # Driving adapters — call the application service
+    │   └── cli/
+    │       └── cli.go                        # CLI · New() · Run() · parseArgs()
+    │
+    ├── infrastructure/                       # Driven adapters — called by the application service
+    │   ├── osprocess/
+    │   │   └── osprocess.go                  # Finder · Killer · NewFinder() · NewKiller()
+    │   ├── scorefilestore/
+    │   │   └── score_file_store.go           # Store · NewStore()
+    │   └── tcellui/
+    │       └── tcellui.go                    # UI · New() (implements Renderer + EventSource)
+    │
+    ├── testutil/
+    │   ├── capture/
+    │   │   └── capture.go                    # Output() · Stderr() (stdout/stderr capture helpers)
+    │   └── fake/
+    │       ├── finder.go                     # Finder (test double)
+    │       ├── killer.go                     # Killer (test double)
+    │       └── store.go                      # Store (test double)
     │
     └── util/
-        └── util.go                       # FormatBytes — pure leaf, no change needed
+        └── util.go                           # FormatBytes() — pure leaf
 ```
 
 ---
 
 ## 6. Component-by-component mapping
 
-### Current → Proposed
+### Pre-refactor → Current
 
-| Current location | New location | Change |
+| Pre-refactor location | Current location | Change |
 |---|---|---|
-| `internal/process/info.go` | `internal/domain/process/process.go` | Rename package path; logic unchanged |
-| `internal/process/finder.go` | `internal/domain/process/process.go` + `internal/adapter/driven/osprocess/adapter.go` | `Finder` interface stays in domain; `finder` impl moves to adapter |
-| `internal/game/game.go` | `internal/domain/game/game.go` | Remove screen field; inject Renderer/EventSource/ProcessKiller |
-| `internal/game/loop.go` | Split: domain logic stays in `domain/game/game.go`; tcell calls move to `adapter/driven/tcellui/adapter.go` |
-| `internal/game/event_handler.go` | Domain event-handling logic stays in `domain/game/game.go`; tcell event types move to adapter |
-| `internal/game/target.go` | `internal/domain/game/target.go` | Remove `Kill()` method; state machine and Label unchanged |
-| `internal/game/motion.go` | `internal/domain/game/motion.go` | No change |
-| `internal/game/session.go` | `internal/domain/game/session.go` | No change |
-| `internal/score/score.go` | `internal/domain/score/score.go` + `internal/adapter/driven/jsonscores/adapter.go` | Board/Entry ranking stays in domain; file I/O moves to adapter |
-| `internal/runner/runner.go` | `internal/app/runner.go` | Rewritten to use port interfaces instead of concrete types |
-| `cmd/pidshooter/main.go` | `cmd/pidshooter/main.go` | Rewritten as composition root |
-| `internal/testutil/` | `internal/testutil/` | Unchanged (already test doubles for ports) |
-| `internal/util/util.go` | `internal/util/util.go` | Unchanged |
+| `internal/domain/process/process.go` | `internal/core/process/process.go` | Package path renamed; `Info` changed from interface to struct |
+| `internal/domain/game/game.go` | `internal/core/game/game.go` | Removed renderer/events/killer fields; pure state machine; added `KillRequest` |
+| `internal/domain/game/loop.go` | `internal/core/game/loop.go` | `render()` → `Frame()`; `update()` → `Update(w,h)`; `killTarget()` → `CompleteKill()` |
+| `internal/domain/game/event_handler.go` | `internal/core/game/event_handler.go` | Returns `*KillRequest` instead of calling killer directly |
+| `internal/domain/game/motion.go` | Merged into `internal/core/game/target.go` | `Motion` struct removed; `Position`/`Velocity` are `Vector` fields on `Target` |
+| `internal/domain/game/target.go` | `internal/core/game/target.go` | Updated imports; absorbed motion logic |
+| `internal/domain/game/session.go` | `internal/core/game/session.go` | Updated package path |
+| `internal/domain/game/ports/driven/` | `internal/application/contract/outbound.go` + `internal/core/game/frame.go` + `internal/core/game/input.go` | Interfaces moved to contract; data types stayed in core/game |
+| `internal/domain/game/ports/driving/` | `internal/application/contract/inbound.go` | Moved to application/contract |
+| `internal/domain/score/score.go` | `internal/core/score/score.go` | Updated package path |
+| `internal/app/runner.go` | `internal/application/runner.go` | Owns the game loop; handles KillRequest two-phase kill |
+| `internal/adapter/driven/osprocess/` | `internal/infrastructure/osprocess/` | Package path renamed |
+| `internal/adapter/driven/tcellui/` | `internal/infrastructure/tcellui/` | Package path renamed |
+| `internal/adapter/driven/jsonscores/` | `internal/infrastructure/scorefilestore/` | Package path renamed; file renamed |
+| `internal/adapter/driving/cli/` | `internal/entrypoint/cli/` | Package path renamed; uses `contract.GameService`/`contract.Config` |
+| `cmd/pidshooter/main.go` | `cmd/pidshooter/main.go` | Updated imports; `tcellui.New` returns one `*UI` for both Renderer+EventSource |
 
 ---
 
 ## 7. Port interfaces (contracts)
 
-These interfaces live in the domain packages. In Go, the consumer defines the interface it needs.
+All port interfaces live in `application/contract`. In Go, the consumer (the application layer) defines the interfaces it needs. Infrastructure adapters satisfy them via structural typing — no explicit import of `contract` is needed in the adapter packages.
 
-### `domain/game/ports.go`
-
-```go
-package game
-
-// Renderer draws the current game state to the display.
-// The domain describes what to show; the adapter decides how.
-type Renderer interface {
-    Render(frame Frame)
-    Size() (width, height int)
-    Init() error
-    Cleanup()
-}
-
-// Frame is the complete game state snapshot passed to the Renderer each tick.
-type Frame struct {
-    Targets   []TargetView
-    HUD       HUDState
-    StatusBar StatusState
-}
-
-type TargetView struct {
-    X, Y    int
-    Label   string
-    Killing bool
-}
-
-type HUDState struct {
-    FreedMem  int64
-    Kills     int
-    HighScore int
-}
-
-type StatusState struct {
-    Alive        int
-    Speed        float64
-    TimeLimit    int
-    TimeLeft     int // seconds, 0 = no limit
-    Confirming   *ConfirmState
-}
-
-type ConfirmState struct {
-    PID  int
-    Name string
-}
-
-// EventSource delivers input events from the user.
-// The domain defines the event types; the adapter translates from its source.
-type EventSource interface {
-    Events() <-chan InputEvent
-}
-
-// InputEvent is a sealed interface — only domain-defined types satisfy it.
-type InputEvent interface{ inputEvent() }
-
-type ClickEvent  struct{ X, Y int }
-type KeyEvent    struct{ Key KeyCode; Ch rune }
-type ResizeEvent struct{}
-
-func (ClickEvent)  inputEvent() {}
-func (KeyEvent)    inputEvent() {}
-func (ResizeEvent) inputEvent() {}
-
-// KeyCode mirrors the small subset of tcell keys the game actually uses,
-// expressed as domain constants — the adapter maps from tcell.Key.
-type KeyCode int
-
-const (
-    KeyNone    KeyCode = iota
-    KeyEscape
-    KeyCtrlC
-    KeyCtrlZ
-)
-
-// ProcessKiller sends the kill signal to a process by PID.
-type ProcessKiller interface {
-    Kill(pid int) error
-}
-```
-
-### `domain/process/process.go`
+### `application/contract/inbound.go`
 
 ```go
-package process
+package contract
 
-// Info describes a single running process.
-type Info interface {
-    Pid() int
-    Name() string
-    Rss() int64
-}
-
-// Finder discovers processes on the host.
-type Finder interface {
-    List() ([]Info, error)
-    Find(patterns []string) ([]Info, error)
-}
-
-const MaxPatternLength = 256
-```
-
-### `domain/score/score.go`
-
-```go
-package score
-
-import "time"
-
-// Store persists and retrieves the score board.
-type Store interface {
-    Load() (*Board, error)
-    Save(board *Board) error
-}
-
-// Board and Entry contain pure ranking logic — no I/O.
-type Board struct { /* same as today */ }
-type Entry struct { /* same as today */ }
-
-// HighScore, Add, etc. — same as today, no file calls.
-```
-
-### `app/runner.go` — the application service
-
-```go
-package app
-
-import (
-    "github.com/eirikur-ari/pidshooter/internal/domain/game"
-    "github.com/eirikur-ari/pidshooter/internal/domain/process"
-    "github.com/eirikur-ari/pidshooter/internal/domain/score"
-)
-
-// GameService is the driving port: what the CLI adapter calls.
-type GameService interface {
-    Play(cfg Config) error
-}
-
-// Config carries user intent — mirroring the current runner.Config.
 type Config struct {
     Patterns    []string
     ConfirmMode bool
@@ -351,33 +238,96 @@ type Config struct {
     TimeLimit   int
 }
 
-// GameService implements GameService by wiring domain objects + driven ports.
-type GameService struct {
-    finder   process.Finder
-    killer   game.ProcessKiller
-    store    score.Store
-    renderer game.Renderer
-    events   game.EventSource
+type GameService interface {
+    Play(cfg Config) error
+}
+```
+
+### `application/contract/outbound.go`
+
+```go
+package contract
+
+import (
+    "github.com/eirikur-ari/pidshooter/internal/core/game"
+    "github.com/eirikur-ari/pidshooter/internal/core/process"
+    "github.com/eirikur-ari/pidshooter/internal/core/score"
+)
+
+type Renderer interface {
+    Init() error
+    Cleanup()
+    Size() (width, height int)
+    Render(frame game.Frame)
 }
 
-func NewGameService(
-    finder   process.Finder,
-    killer   game.ProcessKiller,
-    store    score.Store,
-    renderer game.Renderer,
-    events   game.EventSource,
-) *GameService { /* ... */ }
+type EventSource interface {
+    Events() <-chan game.InputEvent
+}
 
-func (s *GameService) Play(cfg Config) error {
-    processes, err := s.finder.Find(cfg.Patterns)
-    // ...
-    board, _ := s.store.Load()
-    g := game.New(processes, cfg.ConfirmMode, cfg.Speed, cfg.TimeLimit, s.killer, s.renderer, s.events)
-    result, err := g.Play(board.HighScore())
-    // ...
-    board.Add(toEntry(result, cfg))
-    _ = s.store.Save(board)
-    return nil
+// ProcessKiller verifies the process name before sending SIGKILL (TOCTOU guard).
+type ProcessKiller interface {
+    Kill(pid int, name string) error
+}
+
+type Finder interface {
+    List() ([]process.Info, error)
+    Find(patterns []string) ([]process.Info, error)
+}
+
+type Store interface {
+    Load() (*score.Board, error)
+    Save(board *score.Board) error
+}
+```
+
+### `application/runner.go` — the application service
+
+```go
+package application
+
+const frameDuration = time.Second / 20
+
+type GameRunner struct {
+    finder   contract.Finder
+    killer   contract.ProcessKiller
+    store    contract.Store
+    renderer contract.Renderer
+    events   contract.EventSource
+}
+
+func NewGameRunner(finder, killer, store, renderer, events) *GameRunner
+
+func (s *GameRunner) Play(cfg contract.Config) error {
+    processes, _ := s.finder.Find(cfg.Patterns)
+    board, _     := s.store.Load()
+    g := game.New(processes, cfg.ConfirmMode, cfg.Speed, cfg.TimeLimit)
+    g.SetHighScore(board.HighScore())
+    s.runLoop(g)
+    // persist + display score
+}
+
+func (s *GameRunner) runLoop(g *game.Game) error {
+    s.renderer.Init()
+    g.Init(w, h)
+    // signal goroutine: SIGINT/SIGTERM/SIGTSTP → g.Stop()
+    // 20 FPS ticker loop
+    for g.Running() {
+        s.drainEvents(g)
+        g.Update(w, h)
+        s.renderer.Render(g.Frame())
+        <-ticker.C
+    }
+}
+
+func (s *GameRunner) drainEvents(g *game.Game) {
+    for ev := range events channel {
+        if req := g.HandleEvent(ev); req != nil {
+            if s.killer.Kill(req.Target.Pid, req.Target.Name) == nil {
+                g.CompleteKill(req.Target)
+            }
+        }
+    }
 }
 ```
 
@@ -391,21 +341,25 @@ Arrows point in the direction of the import (`A → B` means A imports B).
 flowchart TD
     main["cmd/pidshooter/main.go\ncomposition root"]
 
-    subgraph Adapters
-        cli["adapter/driving/cli"]
-        osprocess["adapter/driven/osprocess"]
-        tcellui["adapter/driven/tcellui"]
-        jsonscores["adapter/driven/jsonscores"]
+    subgraph Entrypoint
+        cli["entrypoint/cli"]
     end
 
-    subgraph App
-        runner["app/runner.go\nGameService"]
+    subgraph Infrastructure
+        osprocess["infrastructure/osprocess"]
+        tcellui["infrastructure/tcellui"]
+        scorefilestore["infrastructure/scorefilestore"]
     end
 
-    subgraph Domain
-        dgame["domain/game\nGame · Target · Motion\nSession · ports.go"]
-        dprocess["domain/process\nInfo · Finder · MaxPatternLength"]
-        dscore["domain/score\nBoard · Entry · ScoreStore"]
+    subgraph Application
+        runner["application/runner.go\nGameRunner"]
+        contract["application/contract\ninbound + outbound"]
+    end
+
+    subgraph Core
+        cgame["core/game\nGame · Target · Session\nFrame · InputEvent · KillRequest"]
+        cprocess["core/process\nInfo · constants"]
+        cscore["core/score\nBoard · Entry"]
     end
 
     util["util/util.go"]
@@ -414,29 +368,35 @@ flowchart TD
     main --> runner
     main --> osprocess
     main --> tcellui
-    main --> jsonscores
+    main --> scorefilestore
 
-    cli --> runner
+    cli --> contract
 
-    runner --> dgame
-    runner --> dprocess
-    runner --> dscore
+    runner --> contract
+    runner --> cgame
+    runner --> cscore
+    runner --> util
 
-    osprocess --> dprocess
-    tcellui --> dgame
-    jsonscores --> dscore
+    contract --> cgame
+    contract --> cprocess
+    contract --> cscore
 
-    dgame --> util
-    dscore --> util
+    osprocess --> cprocess
+    tcellui --> cgame
+    scorefilestore --> cscore
+
+    cgame --> util
 ```
 
-**Key property:** the domain packages (`domain/game`, `domain/process`, `domain/score`) have no arrows pointing *outward* to adapters or app. Dependency only flows inward toward the domain.
+**Key property:** the core packages (`core/game`, `core/process`, `core/score`) have no arrows pointing *outward* to application, infrastructure, or entrypoint. Dependency only flows inward toward the core.
+
+**Why contracts live in application, not core:** Placing interface definitions in `application/contract` (rather than in the domain packages they reference) avoids a dependency inversion problem: if `core/game` defined `Renderer`, it would need to know about `Frame` (fine, it already does), but any package importing `core/game` for the interface would also pull in the rendering contract. Keeping contracts in `application/contract` makes the application the single point of assembly.
 
 ---
 
 ## 9. Composition root (`main.go`)
 
-In hexagonal architecture `main.go` is not logic — it is wiring. All the wiring happens here and nowhere else.
+In hexagonal architecture `main.go` is not logic — it is wiring. All wiring happens here and nowhere else.
 
 ```go
 package main
@@ -447,109 +407,109 @@ import (
 
     "github.com/gdamore/tcell/v2"
 
-    "github.com/eirikur-ari/pidshooter/internal/adapter/driven/jsonscores"
-    "github.com/eirikur-ari/pidshooter/internal/adapter/driven/osprocess"
-    "github.com/eirikur-ari/pidshooter/internal/adapter/driven/tcellui"
-    "github.com/eirikur-ari/pidshooter/internal/adapter/driving/cli"
-    "github.com/eirikur-ari/pidshooter/internal/app"
+    "github.com/eirikur-ari/pidshooter/internal/application"
+    "github.com/eirikur-ari/pidshooter/internal/entrypoint/cli"
+    "github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
+    "github.com/eirikur-ari/pidshooter/internal/infrastructure/scorefilestore"
+    "github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
 func main() {
-    // 1. Build driven adapters
-    finder := osprocess.NewFinder()
-    killer := osprocess.NewKiller()
-    store  := jsonscores.NewStore()
+    finder, _ := osprocess.NewFinder()
+    killer, _ := osprocess.NewKiller()
+    store      := scorefilestore.NewStore()
 
-    screen, err := tcell.NewScreen()
-    if err != nil {
-        fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-        os.Exit(1)
-    }
-    renderer := tcellui.NewRenderer(screen)
-    events   := tcellui.NewEventSource(screen)
+    screen, _ := tcell.NewScreen()
+    ui         := tcellui.New(screen)   // *UI implements both Renderer and EventSource
 
-    // 2. Build application service
-    service := app.NewGameService(finder, killer, store, renderer, events)
-
-    // 3. Build driving adapter and run
-    if err := cli.New(service).Run(os.Args[1:]); err != nil {
-        fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-        os.Exit(1)
-    }
+    service := application.NewGameRunner(finder, killer, store, ui, ui)
+    cli.New(service).Run(os.Args[1:])
 }
 ```
 
 ---
 
-## 10. What changes and why
+## 10. What changed and why
 
-### `Target.Kill()` is removed
+### `Game` becomes a pure state machine
 
-Currently `Target` embeds `process.Info` and calls `os.FindProcess` + `syscall.SIGKILL`. A domain entity should not perform OS syscalls. The `Kill()` method moves entirely to `osprocess.Killer`, which implements `game.ProcessKiller`. The game loop calls `g.killer.Kill(target.Pid())` instead.
+Originally `Game` held a `renderer game.Renderer`, `events game.EventSource`, and `killer game.ProcessKiller` and drove its own loop via `Play()`. This created an import-cycle risk: the domain owned the port interfaces, and infrastructure would import those ports from the domain.
 
-**Effect:** `target.go` no longer imports `os`, `syscall`, or any OS package. Unit tests for Target need no OS.
+The solution (Option 2 / "functional core, imperative shell"): `Game` contains only pure state. The application layer (`runner.go`) owns the loop, drains the event channel, calls the OS killer, and feeds the result back into the game via `CompleteKill()`.
 
-### `render()` becomes a data push
+**Kill flow (two-phase):**
+1. `g.HandleEvent(ev)` returns `*KillRequest{Target}` — pure state change, no side effect
+2. Application layer calls `s.killer.Kill(pid, name)` — OS side effect
+3. On success: `g.CompleteKill(target)` — transitions target to Killing, records session stats
+4. On failure: nothing — target stays Alive; no animation, no score credit
 
-Currently `loop.go: render()` calls `tcell.Screen.SetContent` in a loop. In the new model the domain `Game.render()` method builds a `Frame` value (pure data: what targets exist, where they are, what the HUD says) and calls `g.renderer.Render(frame)`. The `tcellui.Renderer` adapter translates that frame to tcell calls.
+**Render flow:** `g.Frame()` returns a pure data snapshot; `s.renderer.Render(frame)` draws it.
 
-**Effect:** the game loop can be unit-tested by injecting a spy renderer that records frames. Switching to a different terminal library (bubbletea, termbox, even a headless test screen) requires only a new adapter.
+### `motion.go` merged into `target.go`
 
-### Score I/O extracted to `jsonscores` adapter
+The original design had a separate `Motion` struct. After the refactor, position and velocity are `Vector` fields directly on `Target`. The motion update logic lives in `Target.Update()`. This reduced file count without losing clarity since position/velocity are intrinsic to a target entity.
 
-`score.Board` currently calls `os.ReadFile` / `os.WriteFile` via `Load()` / `Save()`. Those file operations move to `jsonscores.Store`, which implements `score.Store`. The `Board` type keeps the ranking and high-score logic.
+### `process.Info` changed from interface to struct
 
-**Effect:** `domain/score` tests are pure in-memory. Testing score persistence means testing `jsonscores.Store` in isolation with a temp directory.
+Originally `process.Info` was an interface with `Pid()`, `Name()`, `Rss()` accessor methods. It is now a plain struct with exported fields (`Pid int`, `Name string`, `Rss int64`). This simplification removes the need for a concrete implementation type (`osprocess.proc`) and lets test code construct `process.Info` literals directly without a constructor.
+
+### Port interfaces moved from domain to application
+
+The pre-refactor design placed port interfaces in `domain/game/ports/driven/` and `domain/game/ports/driving/`. The current design places them all in `application/contract/`. This means:
+- Core packages have zero interface definitions → easier to reason about dependencies
+- `application/contract` is the single authoritative location for "what does the game need from the outside world?"
+- Infrastructure adapters satisfy contracts via Go's structural typing — no explicit import of `application/contract` needed in adapters
+
+### Score I/O extracted to `scorefilestore` adapter
+
+`score.Board` no longer calls `os.ReadFile` / `os.WriteFile`. File operations live in `infrastructure/scorefilestore`, which implements `contract.Store`. `Board` keeps ranking and high-score logic only.
 
 ### Event loop decoupled from tcell
 
-`loop.go: run()` polls `g.screen.PollEvent()` in a goroutine. In the new design the `tcellui.EventSource` adapter owns that goroutine and delivers `game.InputEvent` values on a channel. The game loop only sees `InputEvent` values — no `tcell.EventMouse` or `tcell.EventKey`.
-
-**Effect:** the event-handling tests (`event_handler_test.go`) can inject synthetic events without needing a simulation screen.
-
-### `runner.go` becomes a pure orchestrator
-
-The application service (`app/runner.go`) drives the use-case but holds no infrastructure references — only port interfaces. It can be tested by injecting fake adapters for every port, with zero tcell or OS involvement.
+`infrastructure/tcellui.UI` owns the poll goroutine. It delivers `game.InputEvent` values on a buffered channel. The game loop only sees `game.InputEvent` — no `tcell.EventMouse` or `tcell.EventKey`.
 
 ---
 
 ## 11. Migration path
 
-The migration can be done incrementally without breaking any existing tests.
+The migration was done in stages, each with a passing test suite at the end.
 
 ```
 Step 1  Extract ScoreStore interface
-        Move file I/O out of score.Board into a new jsonscores adapter.
-        Board.Save() / Board.Load() become Store.Save() / Store.Load().
-        runner.go accepts a score.Store argument.
+        Moved file I/O out of score.Board into scorefilestore adapter.
 
 Step 2  Extract ProcessKiller interface
-        Remove Kill() from Target. Add game.ProcessKiller interface.
-        Move os.FindProcess + syscall to osprocess adapter.
-        Game accepts a ProcessKiller at construction.
+        Removed Kill() from Target. Added ProcessKiller interface.
+        Moved os.FindProcess + syscall to osprocess adapter.
 
 Step 3  Extract EventSource interface
-        Define game.InputEvent sealed interface with ClickEvent / KeyEvent / ResizeEvent.
-        Move PollEvent goroutine to tcellui.EventSource adapter.
-        Game.run() accepts a <-chan InputEvent.
+        Defined game.InputEvent sealed interface.
+        Moved PollEvent goroutine to tcellui.EventSource adapter.
 
 Step 4  Extract Renderer interface
-        Define game.Renderer interface with Render(Frame) / Size() / Init() / Cleanup().
-        Implement tcellui.Renderer wrapping tcell.Screen.
-        Game.render() builds a Frame and calls g.renderer.Render(frame).
+        Defined Renderer interface with Render(Frame) / Size() / Init() / Cleanup().
+        Implemented tcellui.Renderer wrapping tcell.Screen.
 
 Step 5  Reorganise packages
-        Move domain types to domain/game, domain/process, domain/score.
-        Move adapters to adapter/driven/*, adapter/driving/cli.
-        Move orchestration to app/runner.go.
-        Rewrite main.go as composition root.
+        domain/ → core/
+        app/ → application/
+        adapter/driven/ → infrastructure/
+        adapter/driving/ → entrypoint/
+        domain/game/ports/ → application/contract/ (interfaces) + core/game/ (data types)
 
-Step 6  Simplify testutil
-        FakeFinder and FakeProcessInfo remain; add FakeKiller, FakeRenderer,
-        FakeEventSource for the new ports. All test doubles implement domain interfaces.
+Step 6  Pure state machine (Option 2)
+        Removed renderer/events/killer fields from Game.
+        Game loop moved entirely to application/runner.go.
+        HandleEvent() returns *KillRequest instead of calling killer.
+        CompleteKill() is the callback when the OS kill succeeds.
+
+Step 7  Merge motion.go into target.go
+        Motion struct removed; Vector fields on Target.
+
+Step 8  Simplify process.Info
+        Info changed from interface to struct.
+        Removed osprocess.proc concrete implementation.
 ```
-
-Each step is a self-contained refactor with a passing test suite at the end.
 
 ---
 
@@ -557,17 +517,14 @@ Each step is a self-contained refactor with a passing test suite at the end.
 
 ### Benefits
 
-- **Independent testability** — every layer can be tested in isolation. Domain tests need no tcell, no OS, no file system.
-- **Swappable adapters** — the game could render to a web UI or a different terminal library by writing one new adapter. Scores could persist to SQLite. Processes could come from a `/proc` reader instead of `ps`.
-- **Clear dependency rule** — `grep -r "tcell" internal/domain` must return nothing. The build enforces the architecture.
+- **Independent testability** — every layer can be tested in isolation. Core tests need no tcell, no OS, no file system.
+- **Swappable adapters** — a new terminal library, a `/proc` reader, or SQLite score storage each require only one new adapter.
+- **Clear dependency rule** — `grep -r "tcell" internal/core` must return nothing. The build enforces the architecture.
+- **Functional core** — `Game.HandleEvent()`, `Game.Update()`, and `Game.Frame()` are pure functions on pure state. No side effects in the domain.
 - **Thinner `main.go`** — wiring is explicit and all in one place; logic is zero.
 
 ### Costs
 
-- **More packages** — the structure is deeper. For a project of this size that overhead is real. Five files in `game/` become ~10 files across `domain/game`, `adapter/driven/tcellui`, and `app/`.
-- **Frame serialisation overhead** — building a `Frame` value each tick adds a small allocation. At 20 FPS on a terminal game this is imperceptible, but it is not free.
-- **Indirection** — a reader following a bug from tcell input to game state now crosses two package boundaries (adapter → domain via EventSource, domain → adapter via Renderer). Naming and docs need to compensate.
-
-### Recommendation
-
-For a project at this scale the full hexagonal split of driven ports is worthwhile primarily for `ScoreStore` and `ProcessKiller` — those are the two places where infrastructure concerns (file I/O, OS signals) currently sit inside domain types and block unit testing. The `Renderer`/`EventSource` split is architecturally correct but adds the most structural overhead for the least immediate gain; it could be deferred to a second pass or implemented only if a second renderer (e.g. web, headless test) is needed.
+- **More packages** — the structure is deeper. For a project of this size that overhead is real.
+- **Two-phase kill adds indirection** — a reader following a bug from click to process exit now crosses more lines. The `KillRequest` return value and `CompleteKill` callback are a seam; naming and tests compensate.
+- **Frame allocation each tick** — building a `Frame` value at 20 FPS adds a small allocation. Imperceptible, but not free.
