@@ -8,7 +8,7 @@ type Config struct {
 	TimeLimit   int
 }
 
-// GameService is the inbound port: the contract the delivery adapter calls.
-type GameService interface {
+// GamePlay is the inbound port: the contract the entrypoint adapter calls.
+type GamePlay interface {
 	Play(cfg Config) error
 }
