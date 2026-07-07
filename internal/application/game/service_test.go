@@ -1,4 +1,4 @@
-package application
+package game
 
 import (
 	"errors"
@@ -23,29 +23,29 @@ func newStubEventSource() *stubEventSource {
 }
 func (e *stubEventSource) Events() <-chan contract.InputEvent { return e.ch }
 
-func TestGameRunner_FinderError(t *testing.T) {
-	svc := NewGameRunner(
+func TestGameService_FinderError(t *testing.T) {
+	svc := NewGameService(
 		&fake.Finder{Err: errors.New("ps failed")},
 		&fake.Killer{},
 		&fake.Store{},
 		&stubRenderer{},
 		newStubEventSource(),
 	)
-	err := svc.Run(contract.Config{Patterns: []string{"foo"}, Speed: 2.0, TimeLimit: 30})
+	err := svc.Play(contract.Config{Patterns: []string{"foo"}, Speed: 2.0, TimeLimit: 30})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
 }
 
-func TestGameRunner_NoProcesses(t *testing.T) {
-	svc := NewGameRunner(
+func TestGameService_NoProcesses(t *testing.T) {
+	svc := NewGameService(
 		&fake.Finder{},
 		&fake.Killer{},
 		&fake.Store{},
 		&stubRenderer{},
 		newStubEventSource(),
 	)
-	err := svc.Run(contract.Config{Patterns: []string{"nonexistent"}, Speed: 2.0, TimeLimit: 30})
+	err := svc.Play(contract.Config{Patterns: []string{"nonexistent"}, Speed: 2.0, TimeLimit: 30})
 	if err != nil {
 		t.Errorf("expected nil error for empty results, got %v", err)
 	}

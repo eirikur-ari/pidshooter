@@ -8,7 +8,7 @@ type Config struct {
 	TimeLimit   int
 }
 
-// Runner is the inbound port: the contract the delivery adapter calls.
-type Runner interface {
-	Run(cfg Config) error
+// GameService is the inbound port: the contract the delivery adapter calls.
+type GameService interface {
+	Play(cfg Config) error
 }

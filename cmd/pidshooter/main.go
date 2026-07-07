@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/gdamore/tcell/v2"
 
-	"github.com/eirikur-ari/pidshooter/internal/application"
 	"github.com/eirikur-ari/pidshooter/internal/entrypoint/cli"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/scorefilestore"
@@ -37,6 +37,6 @@ func run() error {
 	}
 	ui := tcellui.New(screen)
 
-	service := application.NewGameRunner(finder, killer, store, ui, ui)
+	service := game.NewGameService(finder, killer, store, ui, ui)
 	return cli.New(service).Run(os.Args[1:])
 }

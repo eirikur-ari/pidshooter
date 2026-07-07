@@ -1,6 +1,6 @@
 //go:build integration
 
-package application
+package game
 
 import (
 	"errors"
@@ -16,11 +16,11 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
-func newIntegrationRunner(finder *fake.Finder, killer *fake.Killer, store *fake.Store, events *stubEventSource) *GameRunner {
-	return NewGameRunner(finder, killer, store, &stubRenderer{}, events)
+func newIntegrationRunner(finder *fake.Finder, killer *fake.Killer, store *fake.Store, events *stubEventSource) *GameService {
+	return NewGameService(finder, killer, store, &stubRenderer{}, events)
 }
 
-func TestGameRunner_HappyPath(t *testing.T) {
+func TestGameService_HappyPath(t *testing.T) {
 	events := newStubEventSource()
 	events.ch <- game.KeyEvent{Ch: 'q'}
 
@@ -32,7 +32,7 @@ func TestGameRunner_HappyPath(t *testing.T) {
 		events,
 	)
 
-	if err := svc.Run(contract.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0}); err != nil {
+	if err := svc.Play(contract.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0}); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 	if store.Saved == nil {
@@ -50,7 +50,7 @@ func TestGameRunner_HappyPath(t *testing.T) {
 	}
 }
 
-func TestGameRunner_SaveError_PrintsWarning(t *testing.T) {
+func TestGameService_SaveError_PrintsWarning(t *testing.T) {
 	events := newStubEventSource()
 	events.ch <- game.KeyEvent{Ch: 'q'}
 
@@ -63,7 +63,7 @@ func TestGameRunner_SaveError_PrintsWarning(t *testing.T) {
 
 	var err error
 	stderr := capture.Stderr(func() {
-		err = svc.Run(contract.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+		err = svc.Play(contract.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 	})
 
 	if err != nil {
@@ -77,7 +77,7 @@ func TestGameRunner_SaveError_PrintsWarning(t *testing.T) {
 	}
 }
 
-func TestGameRunner_QuitOnQ(t *testing.T) {
+func TestGameService_QuitOnQ(t *testing.T) {
 	events := newStubEventSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -90,12 +90,12 @@ func TestGameRunner_QuitOnQ(t *testing.T) {
 		&fake.Store{},
 		events,
 	)
-	if err := svc.Run(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
+	if err := svc.Play(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestGameRunner_QuitOnEscape(t *testing.T) {
+func TestGameService_QuitOnEscape(t *testing.T) {
 	events := newStubEventSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -108,12 +108,12 @@ func TestGameRunner_QuitOnEscape(t *testing.T) {
 		&fake.Store{},
 		events,
 	)
-	if err := svc.Run(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
+	if err := svc.Play(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestGameRunner_QuitOnCtrlC(t *testing.T) {
+func TestGameService_QuitOnCtrlC(t *testing.T) {
 	events := newStubEventSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -126,12 +126,12 @@ func TestGameRunner_QuitOnCtrlC(t *testing.T) {
 		&fake.Store{},
 		events,
 	)
-	if err := svc.Run(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
+	if err := svc.Play(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestGameRunner_QuitOnCtrlZ(t *testing.T) {
+func TestGameService_QuitOnCtrlZ(t *testing.T) {
 	events := newStubEventSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -144,12 +144,12 @@ func TestGameRunner_QuitOnCtrlZ(t *testing.T) {
 		&fake.Store{},
 		events,
 	)
-	if err := svc.Run(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
+	if err := svc.Play(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
-func TestGameRunner_TimeLimitExpires(t *testing.T) {
+func TestGameService_TimeLimitExpires(t *testing.T) {
 	svc := newIntegrationRunner(
 		&fake.Finder{Processes: []process.Info{{Pid: 102, Name: "target", Rss: 1024}}},
 		&fake.Killer{},
@@ -158,7 +158,7 @@ func TestGameRunner_TimeLimitExpires(t *testing.T) {
 	)
 
 	start := time.Now()
-	if err := svc.Run(contract.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 1}); err != nil {
+	if err := svc.Play(contract.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 1}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if elapsed := time.Since(start); elapsed > 3*time.Second {
@@ -166,9 +166,9 @@ func TestGameRunner_TimeLimitExpires(t *testing.T) {
 	}
 }
 
-// TestGameRunner_SignalGoroutineDoesNotAccumulate verifies the signal goroutine
+// TestGameService_SignalGoroutineDoesNotAccumulate verifies the signal goroutine
 // started inside runLoop exits when Play returns, preventing goroutine leaks.
-func TestGameRunner_SignalGoroutineDoesNotAccumulate(t *testing.T) {
+func TestGameService_SignalGoroutineDoesNotAccumulate(t *testing.T) {
 	runGame := func(pid int) {
 		events := newStubEventSource()
 		go func() {
@@ -181,7 +181,7 @@ func TestGameRunner_SignalGoroutineDoesNotAccumulate(t *testing.T) {
 			&fake.Store{},
 			events,
 		)
-		if err := svc.Run(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
+		if err := svc.Play(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
 			t.Fatalf("pid %d: unexpected error: %v", pid, err)
 		}
 	}
