@@ -15,8 +15,8 @@ import (
 
 const frameDuration = time.Second / 20
 
-// GameService implements contract.GameService by orchestrating core domain objects and outbound ports.
-type GameService struct {
+// Service implements contract.Service by orchestrating core domain objects and outbound ports.
+type Service struct {
 	finder   contract.Finder
 	killer   contract.ProcessKiller
 	store    contract.Store
@@ -24,15 +24,15 @@ type GameService struct {
 	events   contract.EventSource
 }
 
-// NewGameService constructs a GameService with all required outbound ports injected.
-func NewGameService(
+// NewService constructs a Service with all required outbound ports injected.
+func NewService(
 	finder contract.Finder,
 	killer contract.ProcessKiller,
 	store contract.Store,
 	renderer contract.Renderer,
 	events contract.EventSource,
-) *GameService {
-	return &GameService{
+) *Service {
+	return &Service{
 		finder:   finder,
 		killer:   killer,
 		store:    store,
@@ -42,7 +42,7 @@ func NewGameService(
 }
 
 // Play runs a complete game session: discovery → game loop → score persistence → display.
-func (s *GameService) Play(cfg contract.Config) error {
+func (s *Service) Play(cfg contract.Config) error {
 	processes, err := s.finder.Find(cfg.Patterns)
 	if err != nil {
 		return fmt.Errorf("process search failed: %w", err)
@@ -91,7 +91,7 @@ func (s *GameService) Play(cfg contract.Config) error {
 	return nil
 }
 
-func (s *GameService) runLoop(g *game.Game) error {
+func (s *Service) runLoop(g *game.Game) error {
 	if err := s.renderer.Init(); err != nil {
 		return fmt.Errorf("renderer initialization failed: %w", err)
 	}
@@ -126,7 +126,7 @@ func (s *GameService) runLoop(g *game.Game) error {
 	return nil
 }
 
-func (s *GameService) drainEvents(g *game.Game) {
+func (s *Service) drainEvents(g *game.Game) {
 	for {
 		select {
 		case ev := <-s.events.Events():

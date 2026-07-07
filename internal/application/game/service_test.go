@@ -24,7 +24,7 @@ func newStubEventSource() *stubEventSource {
 func (e *stubEventSource) Events() <-chan contract.InputEvent { return e.ch }
 
 func TestGameService_FinderError(t *testing.T) {
-	svc := NewGameService(
+	svc := NewService(
 		&fake.Finder{Err: errors.New("ps failed")},
 		&fake.Killer{},
 		&fake.Store{},
@@ -38,7 +38,7 @@ func TestGameService_FinderError(t *testing.T) {
 }
 
 func TestGameService_NoProcesses(t *testing.T) {
-	svc := NewGameService(
+	svc := NewService(
 		&fake.Finder{},
 		&fake.Killer{},
 		&fake.Store{},

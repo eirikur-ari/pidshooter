@@ -37,6 +37,6 @@ func run() error {
 	}
 	ui := tcellui.New(screen)
 
-	service := game.NewGameService(finder, killer, store, ui, ui)
+	service := game.NewService(finder, killer, store, ui, ui)
 	return cli.New(service).Run(os.Args[1:])
 }
