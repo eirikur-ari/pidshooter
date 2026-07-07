@@ -19,8 +19,7 @@ const frameDuration = time.Second / 20
 
 // GameService implements inbound.GamePlay by orchestrating core domain objects and outbound ports.
 type GameService struct {
-	finder   outbound.ProcessFinder
-	killer   outbound.ProcessKiller
+	process  outbound.Process
 	store    outbound.ScoreStore
 	renderer outbound.Renderer
 	events   outbound.InputSource
@@ -28,15 +27,13 @@ type GameService struct {
 
 // NewGameService constructs a GameService with all required outbound ports injected.
 func NewGameService(
-	finder outbound.ProcessFinder,
-	killer outbound.ProcessKiller,
+	process outbound.Process,
 	store outbound.ScoreStore,
 	renderer outbound.Renderer,
 	events outbound.InputSource,
 ) *GameService {
 	return &GameService{
-		finder:   finder,
-		killer:   killer,
+		process:  process,
 		store:    store,
 		renderer: renderer,
 		events:   events,
@@ -45,7 +42,7 @@ func NewGameService(
 
 // Play runs a complete game session: discovery → game loop → score persistence → display.
 func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
-	processes, err := s.finder.Find(cfg.Patterns)
+	processes, err := s.process.Find(cfg.Patterns)
 	if err != nil {
 		return fmt.Errorf("process search failed: %w", err)
 	}
@@ -145,7 +142,7 @@ func (s *GameService) drainEvents(g *game.Game) {
 				}
 			}
 			if req != nil {
-				if s.killer.Kill(req.Target.Pid, req.Target.Name) == nil {
+				if killed, err := s.process.Kill(req.Target.Pid, req.Target.Name); err == nil && killed {
 					g.CompleteKill(req.Target)
 				}
 			}

@@ -14,38 +14,38 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-// Finder implements outbound.ProcessFinder using the ps command.
-type Finder struct{ psPath string }
+// Process implements outbound.Process using the ps command.
+type Process struct{ psPath string }
 
-// NewFinder returns a outbound.ProcessFinder backed by the OS ps command.
+// NewProcess returns an outbound.Process backed by the OS ps command.
 // It resolves the absolute path to ps at construction time so the
 // adapter does not depend on $PATH at runtime.
-func NewFinder() (outbound.ProcessFinder, error) {
+func NewProcess() (outbound.Process, error) {
 	path, err := exec.LookPath("ps")
 	if err != nil {
 		return nil, fmt.Errorf("ps not found: %w", err)
 	}
-	return &Finder{psPath: path}, nil
+	return &Process{psPath: path}, nil
 }
 
-func (f *Finder) Find(patterns []string) ([]process.Info, error) {
+func (p *Process) Find(patterns []string) ([]process.Info, error) {
 	if err := validate(patterns); err != nil {
 		return nil, err
 	}
-	processes, err := f.List()
+	processes, err := p.List()
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect processes: %w", err)
 	}
 	return filter(processes, patterns), nil
 }
 
-func (f *Finder) List() ([]process.Info, error) {
+func (p *Process) List() ([]process.Info, error) {
 	flags := "-eo"
 	if runtime.GOOS == "darwin" {
 		flags = "-ceo"
 	}
 	//TODO: we might want to cover nushell requirements, as well review if we need to adjust ps command according to OS
-	cmd := exec.Command(f.psPath, flags, "pid,rss,comm")
+	cmd := exec.Command(p.psPath, flags, "pid,rss,comm")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("ps command failed: %w", err)
@@ -87,6 +87,44 @@ func (f *Finder) List() ([]process.Info, error) {
 	return processes, nil
 }
 
+// Kill sends SIGKILL to the process identified by pid. It first verifies the
+// process still has the expected name. Returns true if the signal was sent,
+// false (with nil error) if the name no longer matches.
+func (p *Process) Kill(pid int, name string) (bool, error) {
+	if pid <= 1 {
+		return false, fmt.Errorf("refusing to kill PID %d", pid)
+	}
+	current, err := p.currentName(pid)
+	if err != nil {
+		return false, fmt.Errorf("could not verify PID %d: %w", pid, err)
+	}
+	if err := validateProcessName(name, current); err != nil {
+		return false, nil
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return false, err
+	}
+	if err := proc.Signal(syscall.SIGKILL); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// currentName returns the current comm name of pid from the OS, using the same
+// ps flags as discovery so truncation and format are consistent.
+func (p *Process) currentName(pid int) (string, error) {
+	args := []string{"-p", strconv.Itoa(pid), "-o", "comm="}
+	if runtime.GOOS == "darwin" {
+		args = []string{"-c", "-p", strconv.Itoa(pid), "-o", "comm="}
+	}
+	out, err := exec.Command(p.psPath, args...).Output()
+	if err != nil {
+		return "", fmt.Errorf("ps lookup failed for PID %d: %w", pid, err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 func validate(patterns []string) error {
 	if len(patterns) == 0 {
 		return fmt.Errorf("at least one search pattern is required")
@@ -117,50 +155,6 @@ func filter(processes []process.Info, patterns []string) []process.Info {
 		}
 	}
 	return result
-}
-
-// Killer implements outbound.ProcessKiller by sending SIGKILL via the OS.
-type Killer struct{ psPath string }
-
-// NewKiller returns a outbound.ProcessKiller that sends SIGKILL to the target PID.
-func NewKiller() (outbound.ProcessKiller, error) {
-	path, err := exec.LookPath("ps")
-	if err != nil {
-		return nil, fmt.Errorf("ps not found: %w", err)
-	}
-	return &Killer{psPath: path}, nil
-}
-
-func (k *Killer) Kill(pid int, name string) error {
-	if pid <= 1 {
-		return fmt.Errorf("refusing to kill PID %d", pid)
-	}
-	current, err := k.currentName(pid)
-	if err != nil {
-		return fmt.Errorf("could not verify PID %d: %w", pid, err)
-	}
-	if err := validateProcessName(name, current); err != nil {
-		return err
-	}
-	p, err := os.FindProcess(pid)
-	if err != nil {
-		return err
-	}
-	return p.Signal(syscall.SIGKILL)
-}
-
-// currentName returns the current comm name of pid from the OS, using the same
-// ps flags as discovery so truncation and format are consistent.
-func (k *Killer) currentName(pid int) (string, error) {
-	args := []string{"-p", strconv.Itoa(pid), "-o", "comm="}
-	if runtime.GOOS == "darwin" {
-		args = []string{"-c", "-p", strconv.Itoa(pid), "-o", "comm="}
-	}
-	out, err := exec.Command(k.psPath, args...).Output()
-	if err != nil {
-		return "", fmt.Errorf("ps lookup failed for PID %d: %w", pid, err)
-	}
-	return strings.TrimSpace(string(out)), nil
 }
 
 func validateProcessName(expected, actual string) error {

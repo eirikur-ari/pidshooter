@@ -21,11 +21,7 @@ func main() {
 }
 
 func run() error {
-	finder, err := osprocess.NewFinder()
-	if err != nil {
-		return err
-	}
-	killer, err := osprocess.NewKiller()
+	proc, err := osprocess.NewProcess()
 	if err != nil {
 		return err
 	}
@@ -37,6 +33,6 @@ func run() error {
 	}
 	ui := tcellui.New(screen)
 
-	svc := service.NewGameService(finder, killer, store, ui, ui)
+	svc := service.NewGameService(proc, store, ui, ui)
 	return cli.New(svc).Run(os.Args[1:])
 }

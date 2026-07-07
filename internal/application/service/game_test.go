@@ -26,8 +26,7 @@ func (e *stubEventSource) Events() <-chan event.InputEvent { return e.ch }
 
 func TestGameService_FinderError(t *testing.T) {
 	svc := NewGameService(
-		&fake.Finder{Err: errors.New("ps failed")},
-		&fake.Killer{},
+		&fake.Process{FindErr: errors.New("ps failed")},
 		&fake.Store{},
 		&stubRenderer{},
 		newStubEventSource(),
@@ -40,8 +39,7 @@ func TestGameService_FinderError(t *testing.T) {
 
 func TestGameService_NoProcesses(t *testing.T) {
 	svc := NewGameService(
-		&fake.Finder{},
-		&fake.Killer{},
+		&fake.Process{},
 		&fake.Store{},
 		&stubRenderer{},
 		newStubEventSource(),

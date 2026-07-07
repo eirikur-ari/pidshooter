@@ -16,8 +16,8 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
-func newGameService(finder *fake.Finder, killer *fake.Killer, store *fake.Store, events *stubEventSource) *GameService {
-	return NewGameService(finder, killer, store, &stubRenderer{}, events)
+func newGameService(proc *fake.Process, store *fake.Store, events *stubEventSource) *GameService {
+	return NewGameService(proc, store, &stubRenderer{}, events)
 }
 
 func TestGameService_HappyPath(t *testing.T) {
@@ -26,8 +26,7 @@ func TestGameService_HappyPath(t *testing.T) {
 
 	store := &fake.Store{}
 	svc := newGameService(
-		&fake.Finder{Processes: []process.Info{{Pid: 1, Name: "target", Rss: 1024}}},
-		&fake.Killer{},
+		&fake.Process{Processes: []process.Info{{Pid: 1, Name: "target", Rss: 1024}}},
 		store,
 		events,
 	)
@@ -55,8 +54,7 @@ func TestGameService_SaveError_PrintsWarning(t *testing.T) {
 	events.ch <- event.KeyEvent{Ch: 'q'}
 
 	svc := newGameService(
-		&fake.Finder{Processes: []process.Info{{Pid: 1, Name: "target", Rss: 1024}}},
-		&fake.Killer{},
+		&fake.Process{Processes: []process.Info{{Pid: 1, Name: "target", Rss: 1024}}},
 		&fake.Store{SaveErr: errors.New("disk full")},
 		events,
 	)
@@ -85,8 +83,7 @@ func TestGameService_QuitOnQ(t *testing.T) {
 	}()
 
 	svc := newGameService(
-		&fake.Finder{Processes: []process.Info{{Pid: 100, Name: "target", Rss: 1024}}},
-		&fake.Killer{},
+		&fake.Process{Processes: []process.Info{{Pid: 100, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
 	)
@@ -103,8 +100,7 @@ func TestGameService_QuitOnEscape(t *testing.T) {
 	}()
 
 	svc := newGameService(
-		&fake.Finder{Processes: []process.Info{{Pid: 101, Name: "target", Rss: 1024}}},
-		&fake.Killer{},
+		&fake.Process{Processes: []process.Info{{Pid: 101, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
 	)
@@ -121,8 +117,7 @@ func TestGameService_QuitOnCtrlC(t *testing.T) {
 	}()
 
 	svc := newGameService(
-		&fake.Finder{Processes: []process.Info{{Pid: 104, Name: "target", Rss: 1024}}},
-		&fake.Killer{},
+		&fake.Process{Processes: []process.Info{{Pid: 104, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
 	)
@@ -139,8 +134,7 @@ func TestGameService_QuitOnCtrlZ(t *testing.T) {
 	}()
 
 	svc := newGameService(
-		&fake.Finder{Processes: []process.Info{{Pid: 105, Name: "target", Rss: 1024}}},
-		&fake.Killer{},
+		&fake.Process{Processes: []process.Info{{Pid: 105, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
 	)
@@ -151,8 +145,7 @@ func TestGameService_QuitOnCtrlZ(t *testing.T) {
 
 func TestGameService_TimeLimitExpires(t *testing.T) {
 	svc := newGameService(
-		&fake.Finder{Processes: []process.Info{{Pid: 102, Name: "target", Rss: 1024}}},
-		&fake.Killer{},
+		&fake.Process{Processes: []process.Info{{Pid: 102, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		newStubEventSource(),
 	)
@@ -176,8 +169,7 @@ func TestGameService_SignalGoroutineDoesNotAccumulate(t *testing.T) {
 			events.ch <- event.KeyEvent{Ch: 'q'}
 		}()
 		svc := newGameService(
-			&fake.Finder{Processes: []process.Info{{Pid: pid, Name: "target", Rss: 1024}}},
-			&fake.Killer{},
+			&fake.Process{Processes: []process.Info{{Pid: pid, Name: "target", Rss: 1024}}},
 			&fake.Store{},
 			events,
 		)

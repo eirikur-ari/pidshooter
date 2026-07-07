@@ -9,13 +9,13 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-func newTestFinder(t *testing.T) *Finder {
+func newTestProcess(t *testing.T) *Process {
 	t.Helper()
 	path, err := exec.LookPath("ps")
 	if err != nil {
 		t.Fatalf("ps not found: %v", err)
 	}
-	return &Finder{psPath: path}
+	return &Process{psPath: path}
 }
 
 func TestValidate_EmptySlice(t *testing.T) {
@@ -59,14 +59,14 @@ func TestValidate_Valid(t *testing.T) {
 }
 
 func TestFind_EmptyPatterns(t *testing.T) {
-	_, err := newTestFinder(t).Find([]string{})
+	_, err := newTestProcess(t).Find([]string{})
 	if err == nil {
 		t.Error("expected error for empty patterns")
 	}
 }
 
 func TestFind_EmptyTerm(t *testing.T) {
-	_, err := newTestFinder(t).Find([]string{""})
+	_, err := newTestProcess(t).Find([]string{""})
 	if err == nil {
 		t.Error("expected error for empty term")
 	}
@@ -171,41 +171,29 @@ func TestFilter_ExcludesPID0(t *testing.T) {
 	}
 }
 
-func newTestKiller(t *testing.T) *Killer {
-	t.Helper()
-	k, err := NewKiller()
-	if err != nil {
-		t.Fatalf("NewKiller: %v", err)
-	}
-	return k.(*Killer)
-}
-
 func TestKiller_InvalidPID(t *testing.T) {
-	k := newTestKiller(t)
-	err := k.Kill(-1, "")
+	_, err := newTestProcess(t).Kill(-1, "")
 	if err == nil {
 		t.Error("expected error killing invalid PID -1, got nil")
 	}
 }
 
 func TestKiller_RefusesPID0(t *testing.T) {
-	k := newTestKiller(t)
-	if err := k.Kill(0, ""); err == nil {
+	if _, err := newTestProcess(t).Kill(0, ""); err == nil {
 		t.Error("expected error killing PID 0, got nil")
 	}
 }
 
 func TestKiller_RefusesPID1(t *testing.T) {
-	k := newTestKiller(t)
-	if err := k.Kill(1, ""); err == nil {
+	if _, err := newTestProcess(t).Kill(1, ""); err == nil {
 		t.Error("expected error killing PID 1, got nil")
 	}
 }
 
 func TestKiller_RefusesNegativePID(t *testing.T) {
-	k := newTestKiller(t)
+	p := newTestProcess(t)
 	for _, pid := range []int{-1, -100, -99999} {
-		if err := k.Kill(pid, ""); err == nil {
+		if _, err := p.Kill(pid, ""); err == nil {
 			t.Errorf("expected error killing PID %d, got nil", pid)
 		}
 	}
@@ -230,11 +218,13 @@ func TestValidateProcessName_EmptyActual(t *testing.T) {
 }
 
 func TestKiller_RefusesNameMismatch(t *testing.T) {
-	k := newTestKiller(t)
 	ownPID := os.Getpid()
-	err := k.Kill(ownPID, "definitely-not-this-process")
-	if err == nil {
-		t.Error("expected error when name does not match current process name")
+	killed, err := newTestProcess(t).Kill(ownPID, "definitely-not-this-process")
+	if err != nil {
+		t.Errorf("unexpected error on name mismatch: %v", err)
+	}
+	if killed {
+		t.Error("expected not killed when name does not match current process name")
 	}
 }
 
