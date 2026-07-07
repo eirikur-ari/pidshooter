@@ -15,7 +15,7 @@ import (
 
 const frameDuration = time.Second / 20
 
-// GameRunner implements contract.GameService by orchestrating core domain objects and outbound ports.
+// GameRunner implements contract.Runner by orchestrating core domain objects and outbound ports.
 type GameRunner struct {
 	finder   contract.Finder
 	killer   contract.ProcessKiller
@@ -42,7 +42,7 @@ func NewGameRunner(
 }
 
 // Play runs a complete game session: discovery → game loop → score persistence → display.
-func (s *GameRunner) Play(cfg contract.Config) error {
+func (s *GameRunner) Run(cfg contract.Config) error {
 	processes, err := s.finder.Find(cfg.Patterns)
 	if err != nil {
 		return fmt.Errorf("process search failed: %w", err)

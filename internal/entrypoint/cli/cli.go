@@ -37,11 +37,11 @@ Examples:
 
 // CLI is the delivery adapter that translates command-line arguments to application calls.
 type CLI struct {
-	service contract.GameService
+	service contract.Runner
 }
 
 // New returns a CLI adapter wrapping the given application service.
-func New(service contract.GameService) *CLI {
+func New(service contract.Runner) *CLI {
 	return &CLI{service: service}
 }
 
@@ -55,7 +55,7 @@ func (c *CLI) Run(args []string) error {
 	if err != nil {
 		return err
 	}
-	return c.service.Play(cfg)
+	return c.service.Run(cfg)
 }
 
 func parseArgs(args []string) (contract.Config, error) {

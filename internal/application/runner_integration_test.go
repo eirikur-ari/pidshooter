@@ -32,7 +32,7 @@ func TestGameRunner_HappyPath(t *testing.T) {
 		events,
 	)
 
-	if err := svc.Play(contract.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0}); err != nil {
+	if err := svc.Run(contract.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0}); err != nil {
 		t.Fatalf("expected nil error, got %v", err)
 	}
 	if store.Saved == nil {
@@ -63,7 +63,7 @@ func TestGameRunner_SaveError_PrintsWarning(t *testing.T) {
 
 	var err error
 	stderr := capture.Stderr(func() {
-		err = svc.Play(contract.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+		err = svc.Run(contract.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 	})
 
 	if err != nil {
@@ -90,7 +90,7 @@ func TestGameRunner_QuitOnQ(t *testing.T) {
 		&fake.Store{},
 		events,
 	)
-	if err := svc.Play(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
+	if err := svc.Run(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -108,7 +108,7 @@ func TestGameRunner_QuitOnEscape(t *testing.T) {
 		&fake.Store{},
 		events,
 	)
-	if err := svc.Play(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
+	if err := svc.Run(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -126,7 +126,7 @@ func TestGameRunner_QuitOnCtrlC(t *testing.T) {
 		&fake.Store{},
 		events,
 	)
-	if err := svc.Play(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
+	if err := svc.Run(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -144,7 +144,7 @@ func TestGameRunner_QuitOnCtrlZ(t *testing.T) {
 		&fake.Store{},
 		events,
 	)
-	if err := svc.Play(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
+	if err := svc.Run(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -158,7 +158,7 @@ func TestGameRunner_TimeLimitExpires(t *testing.T) {
 	)
 
 	start := time.Now()
-	if err := svc.Play(contract.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 1}); err != nil {
+	if err := svc.Run(contract.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 1}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if elapsed := time.Since(start); elapsed > 3*time.Second {
@@ -181,7 +181,7 @@ func TestGameRunner_SignalGoroutineDoesNotAccumulate(t *testing.T) {
 			&fake.Store{},
 			events,
 		)
-		if err := svc.Play(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
+		if err := svc.Run(contract.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
 			t.Fatalf("pid %d: unexpected error: %v", pid, err)
 		}
 	}
