@@ -1,11 +1,53 @@
 package cli
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/contract"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
+
+type stubService struct{ err error }
+
+func (s *stubService) Play(_ contract.Config) error { return s.err }
+
+func TestRun_NoArgs_PrintsUsageAndReturnsNil(t *testing.T) {
+	c := New(&stubService{})
+	if err := c.Run([]string{}); err != nil {
+		t.Errorf("expected nil, got %v", err)
+	}
+}
+
+func TestRun_HelpFlag_PrintsUsageAndReturnsNil(t *testing.T) {
+	for _, flag := range []string{"--help", "-h"} {
+		t.Run(flag, func(t *testing.T) {
+			c := New(&stubService{})
+			if err := c.Run([]string{flag}); err != nil {
+				t.Errorf("expected nil, got %v", err)
+			}
+		})
+	}
+}
+
+func TestParseArgs_NoArgs_ReturnsErrUsage(t *testing.T) {
+	_, _, _, _, err := parseArgs([]string{})
+	if !errors.Is(err, errUsage) {
+		t.Errorf("expected errUsage, got %v", err)
+	}
+}
+
+func TestParseArgs_HelpFlag_ReturnsErrUsage(t *testing.T) {
+	for _, flag := range []string{"--help", "-h"} {
+		t.Run(flag, func(t *testing.T) {
+			_, _, _, _, err := parseArgs([]string{flag})
+			if !errors.Is(err, errUsage) {
+				t.Errorf("expected errUsage, got %v", err)
+			}
+		})
+	}
+}
 
 func TestParseArgs_BasicPattern(t *testing.T) {
 	patterns, confirm, speed, timeLimit, err := parseArgs([]string{"firefox"})

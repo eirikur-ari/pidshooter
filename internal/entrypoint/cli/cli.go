@@ -2,14 +2,16 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
+
+var errUsage = errors.New("usage")
 
 const usage = `pidshooter - First Person PID Shooter
 
@@ -46,6 +48,10 @@ func New(service contract.GameService) *CLI {
 // Run parses args and calls the application service.
 func (c *CLI) Run(args []string) error {
 	patterns, confirmMode, speed, timeLimit, err := parseArgs(args)
+	if errors.Is(err, errUsage) {
+		fmt.Println(usage)
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -59,8 +65,7 @@ func (c *CLI) Run(args []string) error {
 
 func parseArgs(args []string) ([]string, bool, float64, int, error) {
 	if len(args) == 0 {
-		fmt.Println(usage)
-		os.Exit(0)
+		return nil, false, 0, 0, errUsage
 	}
 
 	var patterns []string
@@ -93,8 +98,7 @@ func parseArgs(args []string) ([]string, bool, float64, int, error) {
 			}
 			timeLimit = t
 		case arg == "--help" || arg == "-h":
-			fmt.Println(usage)
-			os.Exit(0)
+			return nil, false, 0, 0, errUsage
 		case len(arg) > 0 && arg[0] == '-':
 			return nil, false, 0, 0, fmt.Errorf("unknown flag: %s\nRun 'pidshooter --help' for usage", arg)
 		default:
