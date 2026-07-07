@@ -1,6 +1,6 @@
 # pidshooter — Code Review Report
 
-*Updated 2026-07-06. Reflects current package layout: `core/` domain, `application/` service with `contract/` port interfaces, `entrypoint/cli` driving adapter, `infrastructure/osprocess`/`tcellui`/`scorefilestore` driven adapters.*
+*Updated 2026-07-07. Reflects current package layout: `core/` domain, `application/service` orchestration with `contract/inbound` and `contract/outbound` port packages, `entrypoint/cli` delivery adapter, `infrastructure/osprocess`/`tcellui`/`scorefilestore` driven adapters.*
 
 ---
 
@@ -18,7 +18,7 @@ All reported bugs have been resolved — see Resolved table below.
 
 ### ~~4. `parseArgs` returns five values — `entrypoint/cli/cli.go`~~ ✓ Resolved
 
-`parseArgs` now returns `(contract.Config, error)`. Defaults (`Speed: 2.0`, `TimeLimit: 30`) are set directly on the struct; each flag mutates the field in place. `CLI.Run()` passes the returned config straight to `service.Play()`, eliminating the five-value destructure and the manual field assignment.
+`parseArgs` now returns `(inbound.GamePlayConfig, error)`. Defaults (`Speed: 2.0`, `TimeLimit: 30`) are set directly on the struct; each flag mutates the field in place. `CLI.Run()` passes the returned config straight to `service.Play()`, eliminating the five-value destructure and the manual field assignment.
 
 ### ~~5. `defaultPath()` creates a directory as a side effect~~ ✓ Resolved
 
@@ -40,17 +40,33 @@ All reported bugs have been resolved — see Resolved table below.
 
 `Session.RecordKill` now updates `highScore` in-place whenever `kills` exceeds it, so `g.highScore` tracks the live kill count and the HUD reflects the new record as soon as it is set. `TestSession_RecordKill_UpdatesHighScore` verifies the boundary: no update while kills ≤ previous high score, then increments correctly on each kill that beats it.
 
-### ~~10. Score save errors silently discarded — `app/runner.go:75`~~ ✓ Resolved
+### ~~10. Score save errors silently discarded — `application/service/game.go`~~ ✓ Resolved
 
 `s.store.Save(board)` error is now checked; on failure a `warning: score not saved: <err>` line is printed to stderr. `Play` still returns `nil` — a save failure is not fatal. `fake.Store` now has separate `LoadErr`/`SaveErr` fields so the two paths can be controlled independently. `TestGameService_SaveError_PrintsWarning` (integration) verifies the warning appears and `Play` returns `nil`.
 
+### ~~20. `contract/` mixes inbound and outbound ports in flat files — `application/contract/`~~ ✓ Resolved
+
+`contract/inbound.go` and `contract/outbound.go` replaced by two sub-packages with topic-focused files:
+
+```
+contract/
+  inbound/
+    gameplay.go     → GamePlay, GamePlayConfig
+  outbound/
+    ui.go           → Renderer, InputEvent, InputSource
+    process.go      → ProcessFinder, ProcessKiller
+    store.go        → ScoreStore
+```
+
+Three interfaces renamed for consistency: `Finder` → `ProcessFinder`, `EventSource` → `InputSource`, `Store` → `ScoreStore`. Port direction is now encoded in the import path — callers write `inbound.GamePlay`, `outbound.ProcessFinder`, `outbound.ScoreStore`.
+
 ### 11. `PrintScores()` couples the domain to stdout — `core/score/score.go`
 
-`Board.PrintScores()` calls `fmt.Println` and `fmt.Printf` directly, making the core domain package responsible for terminal output. This violates the layering used everywhere else in the codebase (where output goes through the `Renderer` port or the application layer). The display logic belongs in `application/runner.go`'s `Play()` after the game completes — the domain should only provide the data.
+`Board.PrintScores()` calls `fmt.Println` and `fmt.Printf` directly, making the core domain package responsible for terminal output. This violates the layering used everywhere else in the codebase (where output goes through the `Renderer` port or the application layer). The display logic belongs in `application/game.go`'s `Play()` after the game completes — the domain should only provide the data.
 
 ### ~~12. `NewKiller()` returns a concrete type~~ ✓ Resolved
 
-`NewKiller()` now returns `contract.ProcessKiller`, consistent with `NewFinder()` returning `contract.Finder`.
+`NewKiller()` now returns `outbound.ProcessKiller`, consistent with `NewFinder()` returning `outbound.ProcessFinder`.
 
 ---
 
@@ -66,7 +82,7 @@ All reported bugs have been resolved — see Resolved table below.
 
 ### ~~15. `ps` resolved via `$PATH` — `osprocess/osprocess.go:52`~~ ✓ Resolved
 
-`NewFinder()` now calls `exec.LookPath("ps")` at construction time and stores the absolute path in `Finder.psPath`; `List()` uses `f.psPath` instead of the bare string `"ps"`. `NewFinder` returns `(contract.Finder, error)` so callers fail fast if `ps` is absent. `main.go` and both test files updated accordingly.
+`NewFinder()` now calls `exec.LookPath("ps")` at construction time and stores the absolute path in `Finder.psPath`; `List()` uses `f.psPath` instead of the bare string `"ps"`. `NewFinder` returns `(outbound.ProcessFinder, error)` so callers fail fast if `ps` is absent. `main.go` and both test files updated accordingly.
 
 ### 16. Score table header does not match data — `core/score/score.go`
 
@@ -81,7 +97,7 @@ fmt.Println("  ║  # ║ Kills ║   Freed    ║ Speed ║    Date    ║")
 
 `"patterns is"` → `"pattern is"`.
 
-### ~~18. `GameService` has no happy-path test — `app/runner_test.go`~~ ✓ Resolved
+### ~~18. `GameService` has no happy-path test — `application/service/game_test.go`~~ ✓ Resolved
 
 `TestGameService_HappyPath` (integration) pre-queues a quit event, runs `Play` to completion, and asserts: `Play` returns `nil`; `store.Saved` is non-nil (Save was called); the board contains one entry with `kills=0` and `duration>0` (confirming `StartTime` was recorded). `fake.Store` gained a `Saved *score.Board` field to capture the argument passed to `Save`.
 
@@ -97,7 +113,7 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 |---|---|
 | Stale TODO "Is label the correct word?" (`target.go`) | Removed; `Target` / `Label()` naming is now self-evident |
 | Monolithic `game.go` | Split into `game.go`, `loop.go`, `event_handler.go`, `target.go`, `motion.go`, `session.go` |
-| `main.go` owning game/session orchestration | Extracted to `application.GameRunner`; `main.go` is now wiring only |
+| `main.go` owning game/session orchestration | Extracted to `application/service.GameService`; `main.go` is now wiring only |
 | Duplicate test double types across test packages | Reorganised into `internal/testutil/fake` package (`Killer`, `Finder`, `Store`, `NewProcess`) with idiomatic Go naming (no `Fake` prefix, no package name in file names) |
 | #1 — Latent data race on `game.running` | `running bool` → `atomic.Bool`; `stop()`, `update()`, and `event_handler.go` use `Store/Load`; test files use `newRunningGame()` helper for two-step init |
 | #2 — `Board.Add()` bool return value dead code | Removed return value; `Board` captures `highScore` before append; new `PrintHighScore(kills int)` method encapsulates the new-high-score decision and output |
@@ -107,14 +123,15 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | `game_util.go` in wrong package | Moved to `internal/util/util.go` |
 | Testability required `tcell.SimulationScreen` | Game ports (`Renderer`, `EventSource`) are now plain interfaces; integration tests use hand-rolled stubs defined inline, no tcell dependency in tests |
 | No separation between domain and infrastructure | Full hexagonal layout: port interfaces in `application/contract/`; core domain in `core/`; adapters in `infrastructure/` and `entrypoint/` |
-| #8 — Kill score recorded even if SIGKILL fails | `drainEvents` in `runner.go` guards `CompleteKill` behind a nil error check; target stays `Alive` on failure; no score credit |
+| #8 — Kill score recorded even if SIGKILL fails | `drainEvents` in `game.go` guards `CompleteKill` behind a nil error check; target stays `Alive` on failure; no score credit |
 | #9 — High score display stale mid-game | `Session.RecordKill` now updates `highScore` in-place when `kills` exceeds it; covered by `TestSession_RecordKill_UpdatesHighScore` |
-| #10 — Score save error silently discarded | `runner.go` now prints `warning: score not saved: <err>` to stderr on save failure; `fake.Store` split into `LoadErr`/`SaveErr`; covered by `TestGameRunner_SaveError_PrintsWarning` (integration) |
-| #15 — `ps` resolved via `$PATH` | `NewFinder()` calls `exec.LookPath("ps")` at construction, stores absolute path in `Finder.psPath`; signature changed to `(contract.Finder, error)`; `main.go` and test files updated |
-| #18 — No happy-path test for `GameRunner` | `TestGameRunner_HappyPath` (integration) verifies end-to-end success, Save called, session state recorded; `fake.Store` gained `Saved` field |
+| #10 — Score save error silently discarded | `game.go` now prints `warning: score not saved: <err>` to stderr on save failure; `fake.Store` split into `LoadErr`/`SaveErr`; covered by `TestGameService_SaveError_PrintsWarning` (integration) |
+| #15 — `ps` resolved via `$PATH` | `NewFinder()` calls `exec.LookPath("ps")` at construction, stores absolute path in `Finder.psPath`; signature changed to `(outbound.ProcessFinder, error)`; `main.go` and test files updated |
+| #18 — No happy-path test for `GameService` | `TestGameService_HappyPath` (integration) verifies end-to-end success, Save called, session state recorded; `fake.Store` gained `Saved` field |
 | #19 — No tests for `tcellui` | Added goroutine-exit, HUD, multi-byte rendering, `translateKey` (×4), poll routing (×3), and `drawStatusBar` (×4) tests using `tcell.NewSimulationScreen()` |
 | #3 — `parseArgs` calls `os.Exit` | `errUsage` sentinel returned instead; `Run()` prints usage and returns `nil`; four new tests cover both zero-args and `--help`/`-h` paths |
-| #4 — `parseArgs` returns five values | Returns `(contract.Config, error)`; defaults set on struct literal; `Run()` passes config directly to `service.Play()` |
+| #4 — `parseArgs` returns five values | Returns `(inbound.GamePlayConfig, error)`; defaults set on struct literal; `Run()` passes config directly to `service.Play()` |
+| #20 — `contract/` flat file layout | Split into `contract/inbound/` and `contract/outbound/` sub-packages; outbound split into `ui.go`, `process.go`, `store.go`; `Finder` → `ProcessFinder`, `EventSource` → `InputSource`, `Store` → `ScoreStore` |
 
 ---
 
@@ -123,15 +140,15 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | # | File | Severity | Issue |
 |---|------|----------|-------|
 | 1 | `core/game/game.go` | ✓ Resolved | Latent data race on `game.running` (signal goroutine vs game loop) |
-| 2 | `core/score/score.go`, `application/runner.go` | ✓ Resolved | `Board.Add()` bool return value is dead code; never consumed at call site |
+| 2 | `core/score/score.go`, `application/service/game.go` | ✓ Resolved | `Board.Add()` bool return value is dead code; never consumed at call site |
 | 3 | `entrypoint/cli/cli.go` | ✓ Resolved | `parseArgs` calls `os.Exit` — zero-args and `--help` paths untestable |
-| 4 | `entrypoint/cli/cli.go` | ✓ Resolved | Five return values; `contract.Config` already exists |
+| 4 | `entrypoint/cli/cli.go` | ✓ Resolved | Five return values; `inbound.GamePlayConfig` already exists |
 | 5 | `scorefilestore/score_file_store.go` | ✓ Resolved | `defaultPath()` creates directory as side effect with silently discarded error |
 | 6 | `infrastructure/tcellui/tcellui.go` | ✓ Resolved | Poll goroutine blocks on channel send after game exits — goroutine leak |
 | 7 | `core/game/game.go` | ✓ Resolved | Signal goroutine leaks after game ends |
-| 8 | `application/runner.go` (`drainEvents`) | ✓ Resolved | Kill score recorded even if SIGKILL fails |
+| 8 | `application/service/game.go` (`drainEvents`) | ✓ Resolved | Kill score recorded even if SIGKILL fails |
 | 9 | `core/game/loop.go` | ✓ Resolved | High score display stale mid-game |
-| 10 | `application/runner.go` | ✓ Resolved | Save error silently discarded |
+| 10 | `application/service/game.go` | ✓ Resolved | Save error silently discarded |
 | 11 | `core/score/score.go` | Design | `PrintScores()` on domain type — stdout I/O belongs in app layer |
 | 12 | `infrastructure/osprocess/osprocess.go` | ✓ Resolved | `NewKiller()` returns `*Killer` not the port interface |
 | 13 | `core/game/target.go`; `infrastructure/tcellui/tcellui.go` | ✓ Resolved | Byte count/offset used for bounds, hit-detection, and rendering — breaks for multi-byte chars |
@@ -139,10 +156,9 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | 15 | `infrastructure/osprocess/osprocess.go` | ✓ Resolved | `ps` found via `$PATH` |
 | 16 | `core/score/score.go` | Minor | Score table shows Speed column; TODO says replace with Time |
 | 17 | `infrastructure/osprocess/osprocess.go` | ✓ Resolved | Grammar: "patterns is" → "pattern is" |
-| 18 | `application/runner_integration_test.go` | ✓ Resolved | No happy-path test for `GameRunner` |
+| 18 | `application/service/game_integration_test.go` | ✓ Resolved | No happy-path test for `GameService` |
 | 19 | `infrastructure/tcellui/tcellui_test.go` | ✓ Resolved | No tests for `tcellui` package |
-
-All design issues have been resolved.
+| 20 | `application/contract/` | ✓ Resolved | Flat file layout mixes inbound/outbound; outbound groups four unrelated concerns; `Finder`, `EventSource`, `Store` names lack specificity |
 
 ---
 
@@ -154,12 +170,12 @@ Fourteen test files cover all packages. Pure logic and state transitions are wel
 
 Two files carry `//go:build integration` tags:
 
-- `application/runner_integration_test.go` — runs a full game loop with hand-rolled stub renderer and event source (no tcell dependency). Covers quit-on-Q, quit-on-Escape, time-limit expiry, happy-path save, save-error warning, and signal goroutine lifecycle. Run with `go test -tags integration ./...`.
+- `application/service/game_integration_test.go` — runs a full game loop with hand-rolled stub renderer and event source (no tcell dependency). Covers quit-on-Q, quit-on-Escape, time-limit expiry, happy-path save, save-error warning, and signal goroutine lifecycle. Run with `go test -tags integration ./...`.
 - `infrastructure/osprocess/osprocess_integration_test.go` — calls the real `ps` command. Covers non-empty results, valid fields, short names, and own-PID exclusion on a live system.
 
 ### Race detector
 
-Issue #1 (data race on `game.running`) has been resolved — `running` is now an `atomic.Bool` and all reads/writes go through `Store`/`Load`. Issue #7 (signal goroutine leak) has also been resolved — `runLoop()` uses a done channel so the signal goroutine exits via `select` when the game ends rather than blocking indefinitely on `<-sigCh`. Verified by `TestGameRunner_SignalGoroutineDoesNotAccumulate`.
+Issue #1 (data race on `game.running`) has been resolved — `running` is now an `atomic.Bool` and all reads/writes go through `Store`/`Load`. Issue #7 (signal goroutine leak) has also been resolved — `runLoop()` uses a done channel so the signal goroutine exits via `select` when the game ends rather than blocking indefinitely on `<-sigCh`. Verified by `TestGameService_SignalGoroutineDoesNotAccumulate`.
 
 ### Score cap assertion is loose — `score_test.go`
 
@@ -175,7 +191,7 @@ The loop produces entries with kills `0–14`; the top `maxScores` retained entr
 
 ### ~~`TestHandleKeyPress_ConfirmYes` does not verify the signal — `core/game/event_handler_test.go`~~ ✓ Resolved
 
-`TestHandleKeyPress_ConfirmYes_ReturnsKillRequest` verifies the returned `*KillRequest` carries the target. The kill-error path is now an application-layer concern tested by `TestGameRunner_*` integration tests. `TestHandleMouseClick_ReturnsKillRequest` verifies click-to-kill returns a `*KillRequest`.
+`TestHandleKeyPress_ConfirmYes_ReturnsKillRequest` verifies the returned `*KillRequest` carries the target. The kill-error path is now an application-layer concern tested by `TestGameService_*` integration tests. `TestHandleMouseClick_ReturnsKillRequest` verifies click-to-kill returns a `*KillRequest`.
 
 ### Undocumented confirm-cancel-with-q behaviour
 

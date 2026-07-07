@@ -10,17 +10,17 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/contract"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-// Finder implements contract.Finder using the ps command.
+// Finder implements outbound.ProcessFinder using the ps command.
 type Finder struct{ psPath string }
 
-// NewFinder returns a contract.Finder backed by the OS ps command.
+// NewFinder returns a outbound.ProcessFinder backed by the OS ps command.
 // It resolves the absolute path to ps at construction time so the
 // adapter does not depend on $PATH at runtime.
-func NewFinder() (contract.Finder, error) {
+func NewFinder() (outbound.ProcessFinder, error) {
 	path, err := exec.LookPath("ps")
 	if err != nil {
 		return nil, fmt.Errorf("ps not found: %w", err)
@@ -119,11 +119,11 @@ func filter(processes []process.Info, patterns []string) []process.Info {
 	return result
 }
 
-// Killer implements contract.ProcessKiller by sending SIGKILL via the OS.
+// Killer implements outbound.ProcessKiller by sending SIGKILL via the OS.
 type Killer struct{ psPath string }
 
-// NewKiller returns a contract.ProcessKiller that sends SIGKILL to the target PID.
-func NewKiller() (contract.ProcessKiller, error) {
+// NewKiller returns a outbound.ProcessKiller that sends SIGKILL to the target PID.
+func NewKiller() (outbound.ProcessKiller, error) {
 	path, err := exec.LookPath("ps")
 	if err != nil {
 		return nil, fmt.Errorf("ps not found: %w", err)

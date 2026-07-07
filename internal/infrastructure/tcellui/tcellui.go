@@ -6,7 +6,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/contract"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
@@ -15,7 +15,7 @@ import (
 // The event poll goroutine is started inside Init() after the screen is ready.
 type UI struct {
 	screen tcell.Screen
-	ch     chan contract.InputEvent
+	ch     chan outbound.InputEvent
 	done   chan struct{}
 }
 
@@ -24,7 +24,7 @@ type UI struct {
 func New(screen tcell.Screen) *UI {
 	return &UI{
 		screen: screen,
-		ch:     make(chan contract.InputEvent, 10),
+		ch:     make(chan outbound.InputEvent, 10),
 		done:   make(chan struct{}),
 	}
 }
@@ -144,7 +144,7 @@ func (a *UI) drawStatusBar(w, h int, status game.StatusState) {
 }
 
 // Events returns the channel of translated game input events.
-func (a *UI) Events() <-chan contract.InputEvent {
+func (a *UI) Events() <-chan outbound.InputEvent {
 	return a.ch
 }
 
@@ -154,7 +154,7 @@ func (a *UI) poll() {
 		if ev == nil {
 			return
 		}
-		var event contract.InputEvent
+		var event outbound.InputEvent
 		switch ev := ev.(type) {
 		case *tcell.EventMouse:
 			if ev.Buttons() != tcell.Button1 {

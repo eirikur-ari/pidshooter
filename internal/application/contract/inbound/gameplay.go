@@ -1,4 +1,4 @@
-package contract
+package inbound
 
 // GamePlayConfig carries the user's intent for a game session.
 type GamePlayConfig struct {
@@ -8,7 +8,7 @@ type GamePlayConfig struct {
 	TimeLimit   int
 }
 
-// GamePlay is the inbound port: the contract the entrypoint adapter calls.
+// GamePlay is the inbound port: the contract the delivery adapter calls.
 type GamePlay interface {
 	Play(cfg GamePlayConfig) error
 }

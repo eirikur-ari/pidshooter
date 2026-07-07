@@ -4,7 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/contract"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
@@ -16,12 +17,12 @@ func (r *stubRenderer) Cleanup()            {}
 func (r *stubRenderer) Size() (int, int)    { return 80, 24 }
 func (r *stubRenderer) Render(_ game.Frame) {}
 
-type stubEventSource struct{ ch chan contract.InputEvent }
+type stubEventSource struct{ ch chan outbound.InputEvent }
 
 func newStubEventSource() *stubEventSource {
-	return &stubEventSource{ch: make(chan contract.InputEvent, 100)}
+	return &stubEventSource{ch: make(chan outbound.InputEvent, 100)}
 }
-func (e *stubEventSource) Events() <-chan contract.InputEvent { return e.ch }
+func (e *stubEventSource) Events() <-chan outbound.InputEvent { return e.ch }
 
 func TestGameService_FinderError(t *testing.T) {
 	svc := NewGameService(
@@ -31,7 +32,7 @@ func TestGameService_FinderError(t *testing.T) {
 		&stubRenderer{},
 		newStubEventSource(),
 	)
-	err := svc.Play(contract.GamePlayConfig{Patterns: []string{"foo"}, Speed: 2.0, TimeLimit: 30})
+	err := svc.Play(inbound.GamePlayConfig{Patterns: []string{"foo"}, Speed: 2.0, TimeLimit: 30})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -45,7 +46,7 @@ func TestGameService_NoProcesses(t *testing.T) {
 		&stubRenderer{},
 		newStubEventSource(),
 	)
-	err := svc.Play(contract.GamePlayConfig{Patterns: []string{"nonexistent"}, Speed: 2.0, TimeLimit: 30})
+	err := svc.Play(inbound.GamePlayConfig{Patterns: []string{"nonexistent"}, Speed: 2.0, TimeLimit: 30})
 	if err != nil {
 		t.Errorf("expected nil error for empty results, got %v", err)
 	}

@@ -5,13 +5,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/contract"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
 type stubService struct{ err error }
 
-func (s *stubService) Play(_ contract.GamePlayConfig) error { return s.err }
+func (s *stubService) Play(_ inbound.GamePlayConfig) error { return s.err }
 
 func TestRun_NoArgs_PrintsUsageAndReturnsNil(t *testing.T) {
 	c := New(&stubService{})

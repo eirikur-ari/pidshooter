@@ -8,7 +8,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/contract"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
@@ -29,7 +29,7 @@ func newUI(t *testing.T) (*tcellui.UI, tcell.SimulationScreen) {
 
 // nextEvent reads one event from the UI with a timeout so tests fail fast
 // instead of blocking forever if the expected event is never produced.
-func nextEvent(t *testing.T, ui *tcellui.UI) contract.InputEvent {
+func nextEvent(t *testing.T, ui *tcellui.UI) outbound.InputEvent {
 	t.Helper()
 	select {
 	case ev := <-ui.Events():

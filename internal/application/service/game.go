@@ -7,7 +7,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/contract"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
 	"github.com/eirikur-ari/pidshooter/internal/util"
@@ -15,22 +16,22 @@ import (
 
 const frameDuration = time.Second / 20
 
-// GameService implements contract.GamePlay by orchestrating core domain objects and outbound ports.
+// GameService implements inbound.GamePlay by orchestrating core domain objects and outbound ports.
 type GameService struct {
-	finder   contract.Finder
-	killer   contract.ProcessKiller
-	store    contract.Store
-	renderer contract.Renderer
-	events   contract.EventSource
+	finder   outbound.ProcessFinder
+	killer   outbound.ProcessKiller
+	store    outbound.ScoreStore
+	renderer outbound.Renderer
+	events   outbound.InputSource
 }
 
 // NewGameService constructs a GameService with all required outbound ports injected.
 func NewGameService(
-	finder contract.Finder,
-	killer contract.ProcessKiller,
-	store contract.Store,
-	renderer contract.Renderer,
-	events contract.EventSource,
+	finder outbound.ProcessFinder,
+	killer outbound.ProcessKiller,
+	store outbound.ScoreStore,
+	renderer outbound.Renderer,
+	events outbound.InputSource,
 ) *GameService {
 	return &GameService{
 		finder:   finder,
@@ -42,7 +43,7 @@ func NewGameService(
 }
 
 // Play runs a complete game session: discovery → game loop → score persistence → display.
-func (s *GameService) Play(cfg contract.GamePlayConfig) error {
+func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 	processes, err := s.finder.Find(cfg.Patterns)
 	if err != nil {
 		return fmt.Errorf("process search failed: %w", err)
