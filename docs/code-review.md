@@ -16,13 +16,9 @@ All reported bugs have been resolved — see Resolved table below.
 
 `parseArgs` now returns `errUsage` (a package-level sentinel) instead of calling `os.Exit`. `CLI.Run()` detects `errors.Is(err, errUsage)`, prints usage, and returns `nil`. The zero-args and `--help`/`-h` paths are now covered by `TestParseArgs_NoArgs_ReturnsErrUsage`, `TestParseArgs_HelpFlag_ReturnsErrUsage`, `TestRun_NoArgs_PrintsUsageAndReturnsNil`, and `TestRun_HelpFlag_PrintsUsageAndReturnsNil`.
 
-### 4. `parseArgs` returns five values — `entrypoint/cli/cli.go`
+### ~~4. `parseArgs` returns five values — `entrypoint/cli/cli.go`~~ ✓ Resolved
 
-```go
-func parseArgs(args []string) ([]string, bool, float64, int, error)
-```
-
-`contract.Config` already has exactly these four data fields. `parseArgs` could return `(contract.Config, error)`, eliminating the five-value return and the manual field assignment inside `CLI.Run()`.
+`parseArgs` now returns `(contract.Config, error)`. Defaults (`Speed: 2.0`, `TimeLimit: 30`) are set directly on the struct; each flag mutates the field in place. `CLI.Run()` passes the returned config straight to `service.Play()`, eliminating the five-value destructure and the manual field assignment.
 
 ### ~~5. `defaultPath()` creates a directory as a side effect~~ ✓ Resolved
 
@@ -118,6 +114,7 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | #18 — No happy-path test for `GameRunner` | `TestGameRunner_HappyPath` (integration) verifies end-to-end success, Save called, session state recorded; `fake.Store` gained `Saved` field |
 | #19 — No tests for `tcellui` | Added goroutine-exit, HUD, multi-byte rendering, `translateKey` (×4), poll routing (×3), and `drawStatusBar` (×4) tests using `tcell.NewSimulationScreen()` |
 | #3 — `parseArgs` calls `os.Exit` | `errUsage` sentinel returned instead; `Run()` prints usage and returns `nil`; four new tests cover both zero-args and `--help`/`-h` paths |
+| #4 — `parseArgs` returns five values | Returns `(contract.Config, error)`; defaults set on struct literal; `Run()` passes config directly to `service.Play()` |
 
 ---
 
@@ -128,7 +125,7 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | 1 | `core/game/game.go` | ✓ Resolved | Latent data race on `game.running` (signal goroutine vs game loop) |
 | 2 | `core/score/score.go`, `application/runner.go` | ✓ Resolved | `Board.Add()` bool return value is dead code; never consumed at call site |
 | 3 | `entrypoint/cli/cli.go` | ✓ Resolved | `parseArgs` calls `os.Exit` — zero-args and `--help` paths untestable |
-| 4 | `entrypoint/cli/cli.go` | Design | Five return values; `contract.Config` already exists |
+| 4 | `entrypoint/cli/cli.go` | ✓ Resolved | Five return values; `contract.Config` already exists |
 | 5 | `scorefilestore/score_file_store.go` | ✓ Resolved | `defaultPath()` creates directory as side effect with silently discarded error |
 | 6 | `infrastructure/tcellui/tcellui.go` | ✓ Resolved | Poll goroutine blocks on channel send after game exits — goroutine leak |
 | 7 | `core/game/game.go` | ✓ Resolved | Signal goroutine leaks after game ends |
@@ -145,7 +142,7 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | 18 | `application/runner_integration_test.go` | ✓ Resolved | No happy-path test for `GameRunner` |
 | 19 | `infrastructure/tcellui/tcellui_test.go` | ✓ Resolved | No tests for `tcellui` package |
 
-The highest-priority open design fix is **#4** (five return values from `parseArgs`).
+All design issues have been resolved.
 
 ---
 

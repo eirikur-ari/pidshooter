@@ -32,7 +32,7 @@ func TestRun_HelpFlag_PrintsUsageAndReturnsNil(t *testing.T) {
 }
 
 func TestParseArgs_NoArgs_ReturnsErrUsage(t *testing.T) {
-	_, _, _, _, err := parseArgs([]string{})
+	_, err := parseArgs([]string{})
 	if !errors.Is(err, errUsage) {
 		t.Errorf("expected errUsage, got %v", err)
 	}
@@ -41,7 +41,7 @@ func TestParseArgs_NoArgs_ReturnsErrUsage(t *testing.T) {
 func TestParseArgs_HelpFlag_ReturnsErrUsage(t *testing.T) {
 	for _, flag := range []string{"--help", "-h"} {
 		t.Run(flag, func(t *testing.T) {
-			_, _, _, _, err := parseArgs([]string{flag})
+			_, err := parseArgs([]string{flag})
 			if !errors.Is(err, errUsage) {
 				t.Errorf("expected errUsage, got %v", err)
 			}
@@ -50,34 +50,34 @@ func TestParseArgs_HelpFlag_ReturnsErrUsage(t *testing.T) {
 }
 
 func TestParseArgs_BasicPattern(t *testing.T) {
-	patterns, confirm, speed, timeLimit, err := parseArgs([]string{"firefox"})
+	cfg, err := parseArgs([]string{"firefox"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(patterns) != 1 || patterns[0] != "firefox" {
-		t.Errorf("expected patterns=[firefox], got %v", patterns)
+	if len(cfg.Patterns) != 1 || cfg.Patterns[0] != "firefox" {
+		t.Errorf("expected patterns=[firefox], got %v", cfg.Patterns)
 	}
-	if confirm {
-		t.Error("expected confirm=false")
+	if cfg.ConfirmMode {
+		t.Error("expected ConfirmMode=false")
 	}
-	if speed != 2.0 {
-		t.Errorf("expected speed=2.0, got %f", speed)
+	if cfg.Speed != 2.0 {
+		t.Errorf("expected Speed=2.0, got %f", cfg.Speed)
 	}
-	if timeLimit != 30 {
-		t.Errorf("expected timeLimit=30, got %d", timeLimit)
+	if cfg.TimeLimit != 30 {
+		t.Errorf("expected TimeLimit=30, got %d", cfg.TimeLimit)
 	}
 }
 
 func TestParseArgs_MultiplePatterns(t *testing.T) {
-	patterns, _, _, _, err := parseArgs([]string{"chrome", "firefox", "node"})
+	cfg, err := parseArgs([]string{"chrome", "firefox", "node"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(patterns) != 3 {
-		t.Fatalf("expected 3 patterns, got %d", len(patterns))
+	if len(cfg.Patterns) != 3 {
+		t.Fatalf("expected 3 patterns, got %d", len(cfg.Patterns))
 	}
 	expected := []string{"chrome", "firefox", "node"}
-	for i, p := range patterns {
+	for i, p := range cfg.Patterns {
 		if p != expected[i] {
 			t.Errorf("pattern[%d]: expected %q, got %q", i, expected[i], p)
 		}
@@ -85,12 +85,12 @@ func TestParseArgs_MultiplePatterns(t *testing.T) {
 }
 
 func TestParseArgs_ConfirmFlag(t *testing.T) {
-	_, confirm, _, _, err := parseArgs([]string{"sleep", "--confirm"})
+	cfg, err := parseArgs([]string{"sleep", "--confirm"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !confirm {
-		t.Error("expected confirm=true")
+	if !cfg.ConfirmMode {
+		t.Error("expected ConfirmMode=true")
 	}
 }
 
@@ -111,7 +111,7 @@ func TestParseArgs_SpeedFlag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, speed, _, err := parseArgs([]string{"proc", tt.arg})
+			cfg, err := parseArgs([]string{"proc", tt.arg})
 			if tt.wantErr {
 				if err == nil {
 					t.Error("expected error, got nil")
@@ -120,8 +120,8 @@ func TestParseArgs_SpeedFlag(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
-				if speed != tt.want {
-					t.Errorf("expected speed=%f, got %f", tt.want, speed)
+				if cfg.Speed != tt.want {
+					t.Errorf("expected Speed=%f, got %f", tt.want, cfg.Speed)
 				}
 			}
 		})
@@ -143,7 +143,7 @@ func TestParseArgs_TimeFlag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, _, _, timeLimit, err := parseArgs([]string{"proc", tt.arg})
+			cfg, err := parseArgs([]string{"proc", tt.arg})
 			if tt.wantErr {
 				if err == nil {
 					t.Error("expected error, got nil")
@@ -152,8 +152,8 @@ func TestParseArgs_TimeFlag(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
-				if timeLimit != tt.want {
-					t.Errorf("expected time=%d, got %d", tt.want, timeLimit)
+				if cfg.TimeLimit != tt.want {
+					t.Errorf("expected TimeLimit=%d, got %d", tt.want, cfg.TimeLimit)
 				}
 			}
 		})
@@ -161,14 +161,14 @@ func TestParseArgs_TimeFlag(t *testing.T) {
 }
 
 func TestParseArgs_UnknownFlag(t *testing.T) {
-	_, _, _, _, err := parseArgs([]string{"proc", "--unknown"})
+	_, err := parseArgs([]string{"proc", "--unknown"})
 	if err == nil {
 		t.Error("expected error for unknown flag")
 	}
 }
 
 func TestParseArgs_NoPatterns(t *testing.T) {
-	_, _, _, _, err := parseArgs([]string{"--confirm"})
+	_, err := parseArgs([]string{"--confirm"})
 	if err == nil {
 		t.Error("expected error when no patterns provided")
 	}
@@ -176,7 +176,7 @@ func TestParseArgs_NoPatterns(t *testing.T) {
 
 func TestParseArgs_PatternTooShort(t *testing.T) {
 	for _, p := range []string{"a", "ab"} {
-		_, _, _, _, err := parseArgs([]string{p})
+		_, err := parseArgs([]string{p})
 		if err == nil {
 			t.Errorf("expected error for pattern %q shorter than MinPatternLength", p)
 		}
@@ -185,7 +185,7 @@ func TestParseArgs_PatternTooShort(t *testing.T) {
 
 func TestParseArgs_PatternExactMinLength(t *testing.T) {
 	min := strings.Repeat("a", process.MinPatternLength)
-	_, _, _, _, err := parseArgs([]string{min})
+	_, err := parseArgs([]string{min})
 	if err != nil {
 		t.Errorf("expected no error for min-length pattern, got %v", err)
 	}
@@ -196,7 +196,7 @@ func TestParseArgs_PatternTooLong(t *testing.T) {
 	for i := range longPattern {
 		longPattern[i] = 'a'
 	}
-	_, _, _, _, err := parseArgs([]string{string(longPattern)})
+	_, err := parseArgs([]string{string(longPattern)})
 	if err == nil {
 		t.Error("expected error for pattern exceeding max length")
 	}

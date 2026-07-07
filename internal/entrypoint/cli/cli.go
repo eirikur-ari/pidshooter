@@ -47,7 +47,7 @@ func New(service contract.GameService) *CLI {
 
 // Run parses args and calls the application service.
 func (c *CLI) Run(args []string) error {
-	patterns, confirmMode, speed, timeLimit, err := parseArgs(args)
+	cfg, err := parseArgs(args)
 	if errors.Is(err, errUsage) {
 		fmt.Println(usage)
 		return nil
@@ -55,66 +55,58 @@ func (c *CLI) Run(args []string) error {
 	if err != nil {
 		return err
 	}
-	return c.service.Play(contract.Config{
-		Patterns:    patterns,
-		ConfirmMode: confirmMode,
-		Speed:       speed,
-		TimeLimit:   timeLimit,
-	})
+	return c.service.Play(cfg)
 }
 
-func parseArgs(args []string) ([]string, bool, float64, int, error) {
+func parseArgs(args []string) (contract.Config, error) {
 	if len(args) == 0 {
-		return nil, false, 0, 0, errUsage
+		return contract.Config{}, errUsage
 	}
 
-	var patterns []string
-	var confirmMode bool
-	speed := 2.0
-	timeLimit := 30
+	cfg := contract.Config{Speed: 2.0, TimeLimit: 30}
 
 	for _, arg := range args {
 		switch {
 		case arg == "--confirm":
-			confirmMode = true
+			cfg.ConfirmMode = true
 		case strings.HasPrefix(arg, "--speed="):
 			val := strings.TrimPrefix(arg, "--speed=")
 			s, err := strconv.ParseFloat(val, 64)
 			if err != nil {
-				return nil, false, 0, 0, fmt.Errorf("invalid speed value: %s\nRun 'pidshooter --help' for usage", val)
+				return contract.Config{}, fmt.Errorf("invalid speed value: %s\nRun 'pidshooter --help' for usage", val)
 			}
 			if s < 0.1 || s > 5.0 {
-				return nil, false, 0, 0, fmt.Errorf("speed must be between 0.1 and 5.0, got: %s", val)
+				return contract.Config{}, fmt.Errorf("speed must be between 0.1 and 5.0, got: %s", val)
 			}
-			speed = s
+			cfg.Speed = s
 		case strings.HasPrefix(arg, "--time="):
 			val := strings.TrimPrefix(arg, "--time=")
 			t, err := strconv.Atoi(val)
 			if err != nil {
-				return nil, false, 0, 0, fmt.Errorf("invalid time value: %s\nRun 'pidshooter --help' for usage", val)
+				return contract.Config{}, fmt.Errorf("invalid time value: %s\nRun 'pidshooter --help' for usage", val)
 			}
 			if t < 0 {
-				return nil, false, 0, 0, fmt.Errorf("time must be 0 or positive, got: %s", val)
+				return contract.Config{}, fmt.Errorf("time must be 0 or positive, got: %s", val)
 			}
-			timeLimit = t
+			cfg.TimeLimit = t
 		case arg == "--help" || arg == "-h":
-			return nil, false, 0, 0, errUsage
+			return contract.Config{}, errUsage
 		case len(arg) > 0 && arg[0] == '-':
-			return nil, false, 0, 0, fmt.Errorf("unknown flag: %s\nRun 'pidshooter --help' for usage", arg)
+			return contract.Config{}, fmt.Errorf("unknown flag: %s\nRun 'pidshooter --help' for usage", arg)
 		default:
 			if len(arg) < process.MinPatternLength {
-				return nil, false, 0, 0, fmt.Errorf("search pattern %q must be at least %d characters", arg, process.MinPatternLength)
+				return contract.Config{}, fmt.Errorf("search pattern %q must be at least %d characters", arg, process.MinPatternLength)
 			}
 			if len(arg) > process.MaxPatternLength {
-				return nil, false, 0, 0, fmt.Errorf("search pattern %q exceeds maximum length of %d characters", arg, process.MaxPatternLength)
+				return contract.Config{}, fmt.Errorf("search pattern %q exceeds maximum length of %d characters", arg, process.MaxPatternLength)
 			}
-			patterns = append(patterns, arg)
+			cfg.Patterns = append(cfg.Patterns, arg)
 		}
 	}
 
-	if len(patterns) == 0 {
-		return nil, false, 0, 0, fmt.Errorf("at least one search pattern is required\nRun 'pidshooter --help' for usage")
+	if len(cfg.Patterns) == 0 {
+		return contract.Config{}, fmt.Errorf("at least one search pattern is required\nRun 'pidshooter --help' for usage")
 	}
 
-	return patterns, confirmMode, speed, timeLimit, nil
+	return cfg, nil
 }
