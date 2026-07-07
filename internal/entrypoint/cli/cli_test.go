@@ -11,7 +11,7 @@ import (
 
 type stubService struct{ err error }
 
-func (s *stubService) Play(_ contract.Config) error { return s.err }
+func (s *stubService) Play(_ contract.GamePlayConfig) error { return s.err }
 
 func TestRun_NoArgs_PrintsUsageAndReturnsNil(t *testing.T) {
 	c := New(&stubService{})

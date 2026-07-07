@@ -42,7 +42,7 @@ func NewGameService(
 }
 
 // Play runs a complete game session: discovery → game loop → score persistence → display.
-func (s *GameService) Play(cfg contract.Config) error {
+func (s *GameService) Play(cfg contract.GamePlayConfig) error {
 	processes, err := s.finder.Find(cfg.Patterns)
 	if err != nil {
 		return fmt.Errorf("process search failed: %w", err)

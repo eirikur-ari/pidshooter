@@ -1,7 +1,7 @@
 package contract
 
-// Config carries the user's intent for a game session.
-type Config struct {
+// GamePlayConfig carries the user's intent for a game session.
+type GamePlayConfig struct {
 	Patterns    []string
 	ConfirmMode bool
 	Speed       float64
@@ -10,5 +10,5 @@ type Config struct {
 
 // GamePlay is the inbound port: the contract the entrypoint adapter calls.
 type GamePlay interface {
-	Play(cfg Config) error
+	Play(cfg GamePlayConfig) error
 }

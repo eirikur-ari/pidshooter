@@ -31,7 +31,7 @@ func TestGameService_FinderError(t *testing.T) {
 		&stubRenderer{},
 		newStubEventSource(),
 	)
-	err := svc.Play(contract.Config{Patterns: []string{"foo"}, Speed: 2.0, TimeLimit: 30})
+	err := svc.Play(contract.GamePlayConfig{Patterns: []string{"foo"}, Speed: 2.0, TimeLimit: 30})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -45,7 +45,7 @@ func TestGameService_NoProcesses(t *testing.T) {
 		&stubRenderer{},
 		newStubEventSource(),
 	)
-	err := svc.Play(contract.Config{Patterns: []string{"nonexistent"}, Speed: 2.0, TimeLimit: 30})
+	err := svc.Play(contract.GamePlayConfig{Patterns: []string{"nonexistent"}, Speed: 2.0, TimeLimit: 30})
 	if err != nil {
 		t.Errorf("expected nil error for empty results, got %v", err)
 	}

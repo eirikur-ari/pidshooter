@@ -58,12 +58,12 @@ func (c *CLI) Run(args []string) error {
 	return c.service.Play(cfg)
 }
 
-func parseArgs(args []string) (contract.Config, error) {
+func parseArgs(args []string) (contract.GamePlayConfig, error) {
 	if len(args) == 0 {
-		return contract.Config{}, errUsage
+		return contract.GamePlayConfig{}, errUsage
 	}
 
-	cfg := contract.Config{Speed: 2.0, TimeLimit: 30}
+	cfg := contract.GamePlayConfig{Speed: 2.0, TimeLimit: 30}
 
 	for _, arg := range args {
 		switch {
@@ -73,39 +73,39 @@ func parseArgs(args []string) (contract.Config, error) {
 			val := strings.TrimPrefix(arg, "--speed=")
 			s, err := strconv.ParseFloat(val, 64)
 			if err != nil {
-				return contract.Config{}, fmt.Errorf("invalid speed value: %s\nRun 'pidshooter --help' for usage", val)
+				return contract.GamePlayConfig{}, fmt.Errorf("invalid speed value: %s\nRun 'pidshooter --help' for usage", val)
 			}
 			if s < 0.1 || s > 5.0 {
-				return contract.Config{}, fmt.Errorf("speed must be between 0.1 and 5.0, got: %s", val)
+				return contract.GamePlayConfig{}, fmt.Errorf("speed must be between 0.1 and 5.0, got: %s", val)
 			}
 			cfg.Speed = s
 		case strings.HasPrefix(arg, "--time="):
 			val := strings.TrimPrefix(arg, "--time=")
 			t, err := strconv.Atoi(val)
 			if err != nil {
-				return contract.Config{}, fmt.Errorf("invalid time value: %s\nRun 'pidshooter --help' for usage", val)
+				return contract.GamePlayConfig{}, fmt.Errorf("invalid time value: %s\nRun 'pidshooter --help' for usage", val)
 			}
 			if t < 0 {
-				return contract.Config{}, fmt.Errorf("time must be 0 or positive, got: %s", val)
+				return contract.GamePlayConfig{}, fmt.Errorf("time must be 0 or positive, got: %s", val)
 			}
 			cfg.TimeLimit = t
 		case arg == "--help" || arg == "-h":
-			return contract.Config{}, errUsage
+			return contract.GamePlayConfig{}, errUsage
 		case len(arg) > 0 && arg[0] == '-':
-			return contract.Config{}, fmt.Errorf("unknown flag: %s\nRun 'pidshooter --help' for usage", arg)
+			return contract.GamePlayConfig{}, fmt.Errorf("unknown flag: %s\nRun 'pidshooter --help' for usage", arg)
 		default:
 			if len(arg) < process.MinPatternLength {
-				return contract.Config{}, fmt.Errorf("search pattern %q must be at least %d characters", arg, process.MinPatternLength)
+				return contract.GamePlayConfig{}, fmt.Errorf("search pattern %q must be at least %d characters", arg, process.MinPatternLength)
 			}
 			if len(arg) > process.MaxPatternLength {
-				return contract.Config{}, fmt.Errorf("search pattern %q exceeds maximum length of %d characters", arg, process.MaxPatternLength)
+				return contract.GamePlayConfig{}, fmt.Errorf("search pattern %q exceeds maximum length of %d characters", arg, process.MaxPatternLength)
 			}
 			cfg.Patterns = append(cfg.Patterns, arg)
 		}
 	}
 
 	if len(cfg.Patterns) == 0 {
-		return contract.Config{}, fmt.Errorf("at least one search pattern is required\nRun 'pidshooter --help' for usage")
+		return contract.GamePlayConfig{}, fmt.Errorf("at least one search pattern is required\nRun 'pidshooter --help' for usage")
 	}
 
 	return cfg, nil
