@@ -9,6 +9,7 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
+	"github.com/eirikur-ari/pidshooter/internal/core/event"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
 	"github.com/eirikur-ari/pidshooter/internal/util"
@@ -133,11 +134,11 @@ func (s *GameService) drainEvents(g *game.Game) {
 		case ev := <-s.events.Events():
 			var req *game.KillRequest
 			switch ev := ev.(type) {
-			case game.ClickEvent:
+			case event.ClickEvent:
 				req = g.HandleClick(ev.X, ev.Y)
-			case game.KeyEvent:
+			case event.KeyEvent:
 				switch ev.Key {
-				case game.KeyEscape, game.KeyCtrlC, game.KeyCtrlZ:
+				case event.KeyEscape, event.KeyCtrlC, event.KeyCtrlZ:
 					g.Stop()
 				default:
 					req = g.HandleKey(ev.Ch)

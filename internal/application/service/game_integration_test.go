@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
-	"github.com/eirikur-ari/pidshooter/internal/core/game"
+	"github.com/eirikur-ari/pidshooter/internal/core/event"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/capture"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
@@ -22,7 +22,7 @@ func newGameService(finder *fake.Finder, killer *fake.Killer, store *fake.Store,
 
 func TestGameService_HappyPath(t *testing.T) {
 	events := newStubEventSource()
-	events.ch <- game.KeyEvent{Ch: 'q'}
+	events.ch <- event.KeyEvent{Ch: 'q'}
 
 	store := &fake.Store{}
 	svc := newGameService(
@@ -52,7 +52,7 @@ func TestGameService_HappyPath(t *testing.T) {
 
 func TestGameService_SaveError_PrintsWarning(t *testing.T) {
 	events := newStubEventSource()
-	events.ch <- game.KeyEvent{Ch: 'q'}
+	events.ch <- event.KeyEvent{Ch: 'q'}
 
 	svc := newGameService(
 		&fake.Finder{Processes: []process.Info{{Pid: 1, Name: "target", Rss: 1024}}},
@@ -81,7 +81,7 @@ func TestGameService_QuitOnQ(t *testing.T) {
 	events := newStubEventSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		events.ch <- game.KeyEvent{Ch: 'q'}
+		events.ch <- event.KeyEvent{Ch: 'q'}
 	}()
 
 	svc := newGameService(
@@ -99,7 +99,7 @@ func TestGameService_QuitOnEscape(t *testing.T) {
 	events := newStubEventSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		events.ch <- game.KeyEvent{Key: game.KeyEscape}
+		events.ch <- event.KeyEvent{Key: event.KeyEscape}
 	}()
 
 	svc := newGameService(
@@ -117,7 +117,7 @@ func TestGameService_QuitOnCtrlC(t *testing.T) {
 	events := newStubEventSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		events.ch <- game.KeyEvent{Key: game.KeyCtrlC}
+		events.ch <- event.KeyEvent{Key: event.KeyCtrlC}
 	}()
 
 	svc := newGameService(
@@ -135,7 +135,7 @@ func TestGameService_QuitOnCtrlZ(t *testing.T) {
 	events := newStubEventSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		events.ch <- game.KeyEvent{Key: game.KeyCtrlZ}
+		events.ch <- event.KeyEvent{Key: event.KeyCtrlZ}
 	}()
 
 	svc := newGameService(
@@ -173,7 +173,7 @@ func TestGameService_SignalGoroutineDoesNotAccumulate(t *testing.T) {
 		events := newStubEventSource()
 		go func() {
 			time.Sleep(50 * time.Millisecond)
-			events.ch <- game.KeyEvent{Ch: 'q'}
+			events.ch <- event.KeyEvent{Ch: 'q'}
 		}()
 		svc := newGameService(
 			&fake.Finder{Processes: []process.Info{{Pid: pid, Name: "target", Rss: 1024}}},

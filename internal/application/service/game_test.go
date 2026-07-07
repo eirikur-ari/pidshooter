@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
+	"github.com/eirikur-ari/pidshooter/internal/core/event"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
@@ -17,12 +17,12 @@ func (r *stubRenderer) Cleanup()            {}
 func (r *stubRenderer) Size() (int, int)    { return 80, 24 }
 func (r *stubRenderer) Render(_ game.Frame) {}
 
-type stubEventSource struct{ ch chan outbound.InputEvent }
+type stubEventSource struct{ ch chan event.InputEvent }
 
 func newStubEventSource() *stubEventSource {
-	return &stubEventSource{ch: make(chan outbound.InputEvent, 100)}
+	return &stubEventSource{ch: make(chan event.InputEvent, 100)}
 }
-func (e *stubEventSource) Events() <-chan outbound.InputEvent { return e.ch }
+func (e *stubEventSource) Events() <-chan event.InputEvent { return e.ch }
 
 func TestGameService_FinderError(t *testing.T) {
 	svc := NewGameService(

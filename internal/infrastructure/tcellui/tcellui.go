@@ -6,7 +6,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
+	"github.com/eirikur-ari/pidshooter/internal/core/event"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
@@ -15,7 +15,7 @@ import (
 // The event poll goroutine is started inside Init() after the screen is ready.
 type UI struct {
 	screen tcell.Screen
-	ch     chan outbound.InputEvent
+	ch     chan event.InputEvent
 	done   chan struct{}
 }
 
@@ -24,7 +24,7 @@ type UI struct {
 func New(screen tcell.Screen) *UI {
 	return &UI{
 		screen: screen,
-		ch:     make(chan outbound.InputEvent, 10),
+		ch:     make(chan event.InputEvent, 10),
 		done:   make(chan struct{}),
 	}
 }
@@ -144,7 +144,7 @@ func (a *UI) drawStatusBar(w, h int, status game.StatusState) {
 }
 
 // Events returns the channel of translated game input events.
-func (a *UI) Events() <-chan outbound.InputEvent {
+func (a *UI) Events() <-chan event.InputEvent {
 	return a.ch
 }
 
@@ -154,40 +154,40 @@ func (a *UI) poll() {
 		if ev == nil {
 			return
 		}
-		var event outbound.InputEvent
+		var inputEvent event.InputEvent
 		switch ev := ev.(type) {
 		case *tcell.EventMouse:
 			if ev.Buttons() != tcell.Button1 {
 				continue
 			}
 			x, y := ev.Position()
-			event = game.ClickEvent{X: x, Y: y}
+			inputEvent = event.ClickEvent{X: x, Y: y}
 		case *tcell.EventKey:
-			event = game.KeyEvent{Key: translateKey(ev.Key()), Ch: ev.Rune()}
+			inputEvent = event.KeyEvent{Key: translateKey(ev.Key()), Ch: ev.Rune()}
 		case *tcell.EventResize:
 			a.screen.Sync()
-			event = game.ResizeEvent{}
+			inputEvent = event.ResizeEvent{}
 		default:
 			continue
 		}
 		select {
-		case a.ch <- event:
+		case a.ch <- inputEvent:
 		case <-a.done:
 			return
 		}
 	}
 }
 
-func translateKey(k tcell.Key) game.KeyCode {
+func translateKey(k tcell.Key) event.KeyCode {
 	switch k {
 	case tcell.KeyEscape:
-		return game.KeyEscape
+		return event.KeyEscape
 	case tcell.KeyCtrlC:
-		return game.KeyCtrlC
+		return event.KeyCtrlC
 	case tcell.KeyCtrlZ:
-		return game.KeyCtrlZ
+		return event.KeyCtrlZ
 	default:
-		return game.KeyNone
+		return event.KeyNone
 	}
 }
 

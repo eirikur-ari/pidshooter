@@ -8,7 +8,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
+	"github.com/eirikur-ari/pidshooter/internal/core/event"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
@@ -29,7 +29,7 @@ func newUI(t *testing.T) (*tcellui.UI, tcell.SimulationScreen) {
 
 // nextEvent reads one event from the UI with a timeout so tests fail fast
 // instead of blocking forever if the expected event is never produced.
-func nextEvent(t *testing.T, ui *tcellui.UI) outbound.InputEvent {
+func nextEvent(t *testing.T, ui *tcellui.UI) event.InputEvent {
 	t.Helper()
 	select {
 	case ev := <-ui.Events():
@@ -168,11 +168,11 @@ func TestRender_MultiByteLabel_ColumnLayout(t *testing.T) {
 func TestPoll_TranslatesEscape(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyEscape, 0, tcell.ModNone)
-	ke, ok := nextEvent(t, ui).(game.KeyEvent)
+	ke, ok := nextEvent(t, ui).(event.KeyEvent)
 	if !ok {
 		t.Fatal("expected KeyEvent")
 	}
-	if ke.Key != game.KeyEscape {
+	if ke.Key != event.KeyEscape {
 		t.Errorf("expected KeyEscape, got %v", ke.Key)
 	}
 }
@@ -180,11 +180,11 @@ func TestPoll_TranslatesEscape(t *testing.T) {
 func TestPoll_TranslatesCtrlC(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyCtrlC, 0, tcell.ModNone)
-	ke, ok := nextEvent(t, ui).(game.KeyEvent)
+	ke, ok := nextEvent(t, ui).(event.KeyEvent)
 	if !ok {
 		t.Fatal("expected KeyEvent")
 	}
-	if ke.Key != game.KeyCtrlC {
+	if ke.Key != event.KeyCtrlC {
 		t.Errorf("expected KeyCtrlC, got %v", ke.Key)
 	}
 }
@@ -192,11 +192,11 @@ func TestPoll_TranslatesCtrlC(t *testing.T) {
 func TestPoll_TranslatesCtrlZ(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyCtrlZ, 0, tcell.ModNone)
-	ke, ok := nextEvent(t, ui).(game.KeyEvent)
+	ke, ok := nextEvent(t, ui).(event.KeyEvent)
 	if !ok {
 		t.Fatal("expected KeyEvent")
 	}
-	if ke.Key != game.KeyCtrlZ {
+	if ke.Key != event.KeyCtrlZ {
 		t.Errorf("expected KeyCtrlZ, got %v", ke.Key)
 	}
 }
@@ -204,11 +204,11 @@ func TestPoll_TranslatesCtrlZ(t *testing.T) {
 func TestPoll_TranslatesRune(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
-	ke, ok := nextEvent(t, ui).(game.KeyEvent)
+	ke, ok := nextEvent(t, ui).(event.KeyEvent)
 	if !ok {
 		t.Fatal("expected KeyEvent")
 	}
-	if ke.Key != game.KeyNone {
+	if ke.Key != event.KeyNone {
 		t.Errorf("expected KeyNone for plain rune, got %v", ke.Key)
 	}
 	if ke.Ch != 'q' {
@@ -221,7 +221,7 @@ func TestPoll_TranslatesRune(t *testing.T) {
 func TestPoll_MouseButton1_EmitsClickEvent(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectMouse(5, 10, tcell.Button1, tcell.ModNone)
-	ce, ok := nextEvent(t, ui).(game.ClickEvent)
+	ce, ok := nextEvent(t, ui).(event.ClickEvent)
 	if !ok {
 		t.Fatal("expected ClickEvent")
 	}
@@ -235,10 +235,10 @@ func TestPoll_NonButton1_DropsEvent(t *testing.T) {
 	screen.InjectMouse(5, 10, tcell.Button2, tcell.ModNone)
 	screen.InjectKey(tcell.KeyRune, 'z', tcell.ModNone)
 	ev := nextEvent(t, ui)
-	if _, isClick := ev.(game.ClickEvent); isClick {
+	if _, isClick := ev.(event.ClickEvent); isClick {
 		t.Error("Button2 should not produce a ClickEvent")
 	}
-	ke, ok := ev.(game.KeyEvent)
+	ke, ok := ev.(event.KeyEvent)
 	if !ok || ke.Ch != 'z' {
 		t.Errorf("expected KeyEvent{Ch:'z'} after dropped Button2, got %T %v", ev, ev)
 	}
@@ -247,7 +247,7 @@ func TestPoll_NonButton1_DropsEvent(t *testing.T) {
 func TestPoll_ResizeEvent_EmitsResizeEvent(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.PostEvent(tcell.NewEventResize(100, 40))
-	if _, ok := nextEvent(t, ui).(game.ResizeEvent); !ok {
+	if _, ok := nextEvent(t, ui).(event.ResizeEvent); !ok {
 		t.Error("expected ResizeEvent from screen resize")
 	}
 }
