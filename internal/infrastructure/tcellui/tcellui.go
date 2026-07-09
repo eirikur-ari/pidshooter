@@ -166,7 +166,7 @@ func (a *UI) poll() {
 			inputEvent = event.KeyEvent{Key: translateKey(ev.Key()), Ch: ev.Rune()}
 		case *tcell.EventResize:
 			a.screen.Sync()
-			inputEvent = event.ResizeEvent{}
+			continue
 		default:
 			continue
 		}

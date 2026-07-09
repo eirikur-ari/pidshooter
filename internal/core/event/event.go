@@ -16,11 +16,6 @@ type KeyEvent struct {
 
 func (KeyEvent) isInputEvent() {}
 
-// ResizeEvent signals a terminal resize; dimensions are re-queried from the renderer.
-type ResizeEvent struct{}
-
-func (ResizeEvent) isInputEvent() {}
-
 // KeyCode represents a named non-character key.
 type KeyCode int
 

@@ -250,7 +250,7 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | 26 | `core/game/target.go` | ✓ Resolved | Seven inline comments from `entity.go` not carried into `target.go` |
 | 27 | `core/game/loop.go:28-45` | ✓ Resolved | `Frame()` iterates `g.targets` twice; alive count can be accumulated in the first pass |
 | 28 | `core/game/target.go:74` | ✓ Resolved | Kill-animation `frames` slice allocated on every `Label()` call; should be package-level var |
-| 29 | `infrastructure/tcellui/tcellui.go:169` | Minor | `ResizeEvent` emitted but never consumed — dead abstraction |
+| 29 | `infrastructure/tcellui/tcellui.go:169` | ✓ Resolved | `ResizeEvent` emitted but never consumed — dead abstraction |
 | 30 | `entrypoint/cli/cli.go:76-108` | Minor | `--help` hint inconsistently appended to some cli error messages but not others |
 
 ---
@@ -329,7 +329,7 @@ func (e *Target) Label() string {
 
 `Label()` is called at least twice per tick per killing target (in `Frame()` and in `Update()`). The slice literal is constant; it should be a package-level `var` to allocate once.
 
-### 29. `ResizeEvent` emitted but never consumed — `infrastructure/tcellui/tcellui.go`
+### ~~29. `ResizeEvent` emitted but never consumed — `infrastructure/tcellui/tcellui.go`~~ ✓ Resolved
 
 `poll()` emits `event.ResizeEvent{}` into the event channel on every terminal resize, but `drainEvents` has no case for it — the value is read from the channel and silently dropped. Actual resize handling works correctly by re-querying `s.renderer.Size()` at the top of each game tick. `ResizeEvent` is dead infrastructure: it occupies channel capacity on every resize without serving any purpose. Either remove it or wire it to a resize handler.
 

@@ -244,14 +244,6 @@ func TestPoll_NonButton1_DropsEvent(t *testing.T) {
 	}
 }
 
-func TestPoll_ResizeEvent_EmitsResizeEvent(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.PostEvent(tcell.NewEventResize(100, 40))
-	if _, ok := nextEvent(t, ui).(event.ResizeEvent); !ok {
-		t.Error("expected ResizeEvent from screen resize")
-	}
-}
-
 // --- drawStatusBar ---
 
 func TestDrawStatusBar_Normal(t *testing.T) {
