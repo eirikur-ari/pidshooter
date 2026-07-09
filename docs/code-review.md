@@ -26,7 +26,7 @@ func (b *Board) PrintHighScore(kills int) {
 
 `PrintHighScore` now uses `kills >= b.highScore`, restoring the original behaviour from `main.go`. `TestBoard_PrintHighScore_PrintsWhenTiesRecord` pins the exact tie case.
 
-### 23. Score `Duration` includes `renderer.Cleanup()` time — `application/service/game.go`
+### ~~23. Score `Duration` includes `renderer.Cleanup()` time — `application/service/game.go`~~ ✓ Resolved
 
 `runLoop` defers `s.renderer.Cleanup()` before returning. `Play` computes the recorded duration after `runLoop` returns:
 
@@ -37,6 +37,8 @@ duration := time.Since(g.StartTime()).Seconds()   // includes Cleanup() time
 ```
 
 The old code computed elapsed time inside the loop before cleanup. The saved `Entry.Duration` now includes terminal teardown time (`tcell.Screen.Fini`). The fix is to snapshot the duration before `runLoop` returns, e.g. via a return value or by reading `g.StartTime()` inside `runLoop` just before the deferred cleanup fires.
+
+`runLoop` now returns `(time.Time, error)`, capturing `time.Now()` as the last statement before the deferred `Cleanup()` fires. `Play` computes `duration := endTime.Sub(g.StartTime()).Seconds()` from that snapshot.
 
 ---
 
@@ -238,7 +240,7 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | 20 | `application/contract/` | ✓ Resolved | Flat file layout mixes inbound/outbound; outbound groups four unrelated concerns; `Finder`, `EventSource`, `Store` names lack specificity |
 | 21 | `application/service/game.go:57-59` | ✓ Resolved | Corrupt score file silently overwrites all prior scores |
 | 22 | `core/score/score.go:51` | ✓ Resolved | Trophy not shown when player ties existing high score (`>` should be `>=`) |
-| 23 | `application/service/game.go:71` | Bug | Recorded `Duration` includes `renderer.Cleanup()` time, not pure game time |
+| 23 | `application/service/game.go:71` | ✓ Resolved | Recorded `Duration` includes `renderer.Cleanup()` time, not pure game time |
 | 24 | `application/service/game.go:145` | Design | `Kill()` blocks the 50 fps game loop with a synchronous `ps` subprocess |
 | 25 | `core/game/event_handler.go:43` | Bug/Regression | Speed-up key `=` alias dropped — now requires Shift on standard US keyboard |
 | 26 | `core/game/target.go` | CLAUDE.md | Seven inline comments from `entity.go` not carried into `target.go` |

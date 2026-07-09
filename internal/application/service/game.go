@@ -63,13 +63,14 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 	g := game.New(processes, cfg.ConfirmMode, cfg.Speed, cfg.TimeLimit)
 	g.SetHighScore(board.HighScore())
 
-	if err := s.runLoop(g); err != nil {
+	endTime, err := s.runLoop(g)
+	if err != nil {
 		return err
 	}
 
 	kills := g.Kills()
 	freedMem := g.FreedMem()
-	duration := time.Since(g.StartTime()).Seconds()
+	duration := endTime.Sub(g.StartTime()).Seconds()
 
 	board.Add(score.Entry{
 		Kills:    kills,
@@ -93,9 +94,9 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 	return nil
 }
 
-func (s *GameService) runLoop(g *game.Game) error {
+func (s *GameService) runLoop(g *game.Game) (time.Time, error) {
 	if err := s.renderer.Init(); err != nil {
-		return fmt.Errorf("renderer initialization failed: %w", err)
+		return time.Time{}, fmt.Errorf("renderer initialization failed: %w", err)
 	}
 	defer s.renderer.Cleanup()
 
@@ -125,7 +126,8 @@ func (s *GameService) runLoop(g *game.Game) error {
 		s.renderer.Render(g.Frame())
 		<-ticker.C
 	}
-	return nil
+	// Capture end time before deferred Cleanup() runs.
+	return time.Now(), nil
 }
 
 func (s *GameService) drainEvents(g *game.Game) {
