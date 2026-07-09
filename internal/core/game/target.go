@@ -70,12 +70,14 @@ func NewTarget(info process.Info, maxX, maxY int) *Target {
 	}
 }
 
+var killFrames = []string{"💥", "✦ KILLED ✦", "· · ·", "  ·  ", "     "}
+
 // Label returns the display string for this entity.
 func (e *Target) Label() string {
 	switch e.State {
 	case Killing:
 		// Kill animation frames
-		frames := []string{"💥", "✦ KILLED ✦", "· · ·", "  ·  ", "     "}
+		frames := killFrames
 		idx := e.KillAnimFrame * len(frames) / KillAnimFrames
 		if idx >= len(frames) {
 			idx = len(frames) - 1

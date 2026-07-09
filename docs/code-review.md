@@ -249,7 +249,7 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | 25 | `core/game/event_handler.go:43` | ✓ Resolved | Speed-up key `=` alias dropped — now requires Shift on standard US keyboard |
 | 26 | `core/game/target.go` | ✓ Resolved | Seven inline comments from `entity.go` not carried into `target.go` |
 | 27 | `core/game/loop.go:28-45` | ✓ Resolved | `Frame()` iterates `g.targets` twice; alive count can be accumulated in the first pass |
-| 28 | `core/game/target.go:74` | Minor | Kill-animation `frames` slice allocated on every `Label()` call; should be package-level var |
+| 28 | `core/game/target.go:74` | ✓ Resolved | Kill-animation `frames` slice allocated on every `Label()` call; should be package-level var |
 | 29 | `infrastructure/tcellui/tcellui.go:169` | Minor | `ResizeEvent` emitted but never consumed — dead abstraction |
 | 30 | `entrypoint/cli/cli.go:76-108` | Minor | `--help` hint inconsistently appended to some cli error messages but not others |
 
@@ -319,7 +319,7 @@ for _, e := range g.targets {
 }
 ```
 
-### 28. Kill-animation `frames` slice allocated on every `Label()` call — `core/game/target.go`
+### ~~28. Kill-animation `frames` slice allocated on every `Label()` call — `core/game/target.go`~~ ✓ Resolved
 
 ```go
 func (e *Target) Label() string {
