@@ -248,7 +248,7 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | 24 | `application/service/game.go:145` | ✓ Resolved | `Kill()` blocks the 50 fps game loop with a synchronous `ps` subprocess |
 | 25 | `core/game/event_handler.go:43` | ✓ Resolved | Speed-up key `=` alias dropped — now requires Shift on standard US keyboard |
 | 26 | `core/game/target.go` | ✓ Resolved | Seven inline comments from `entity.go` not carried into `target.go` |
-| 27 | `core/game/loop.go:28-45` | Minor | `Frame()` iterates `g.targets` twice; alive count can be accumulated in the first pass |
+| 27 | `core/game/loop.go:28-45` | ✓ Resolved | `Frame()` iterates `g.targets` twice; alive count can be accumulated in the first pass |
 | 28 | `core/game/target.go:74` | Minor | Kill-animation `frames` slice allocated on every `Label()` call; should be package-level var |
 | 29 | `infrastructure/tcellui/tcellui.go:169` | Minor | `ResizeEvent` emitted but never consumed — dead abstraction |
 | 30 | `entrypoint/cli/cli.go:76-108` | Minor | `--help` hint inconsistently appended to some cli error messages but not others |
@@ -302,7 +302,7 @@ The loop produces entries with kills `0–14`; the top `maxScores` retained entr
 
 `TestHandleKeyPress_ConfirmYes_ReturnsKillRequest` verifies the returned `*KillRequest` carries the target. The kill-error path is now an application-layer concern tested by `TestGameService_*` integration tests. `TestHandleMouseClick_ReturnsKillRequest` verifies click-to-kill returns a `*KillRequest`.
 
-### 27. `Frame()` iterates `g.targets` twice per tick — `core/game/loop.go`
+### ~~27. `Frame()` iterates `g.targets` twice per tick — `core/game/loop.go`~~ ✓ Resolved
 
 `Frame()` has two independent for-range loops over the same slice: one builds the `TargetView` list (skipping `Dead`) and a separate one counts `Alive` targets. The alive count can be accumulated in the first pass, halving the iterations per render tick:
 
