@@ -251,7 +251,7 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | 27 | `core/game/loop.go:28-45` | ✓ Resolved | `Frame()` iterates `g.targets` twice; alive count can be accumulated in the first pass |
 | 28 | `core/game/target.go:74` | ✓ Resolved | Kill-animation `frames` slice allocated on every `Label()` call; should be package-level var |
 | 29 | `infrastructure/tcellui/tcellui.go:169` | ✓ Resolved | `ResizeEvent` emitted but never consumed — dead abstraction |
-| 30 | `entrypoint/cli/cli.go:76-108` | Minor | `--help` hint inconsistently appended to some cli error messages but not others |
+| 30 | `entrypoint/cli/cli.go:76-108` | ✓ Resolved | `--help` hint inconsistently appended to some cli error messages but not others |
 
 ---
 
@@ -333,7 +333,7 @@ func (e *Target) Label() string {
 
 `poll()` emits `event.ResizeEvent{}` into the event channel on every terminal resize, but `drainEvents` has no case for it — the value is read from the channel and silently dropped. Actual resize handling works correctly by re-querying `s.renderer.Size()` at the top of each game tick. `ResizeEvent` is dead infrastructure: it occupies channel capacity on every resize without serving any purpose. Either remove it or wire it to a resize handler.
 
-### 30. `--help` hint inconsistently appended in cli.go error messages — `entrypoint/cli/cli.go`
+### ~~30. `--help` hint inconsistently appended in cli.go error messages — `entrypoint/cli/cli.go`~~ ✓ Resolved
 
 `"\nRun 'pidshooter --help' for usage"` is appended to some error messages (invalid flag, bad parse) but omitted from others (speed out-of-range, time out-of-range, missing pattern). The hint should be applied uniformly — either added once in `Run()` after any parse error, or appended consistently at every error site.
 

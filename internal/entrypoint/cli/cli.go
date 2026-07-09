@@ -53,7 +53,7 @@ func (c *CLI) Run(args []string) error {
 		return nil
 	}
 	if err != nil {
-		return err
+		return fmt.Errorf("%w\nRun 'pidshooter --help' for usage", err)
 	}
 	return c.service.Play(cfg)
 }
@@ -73,7 +73,7 @@ func parseArgs(args []string) (inbound.GamePlayConfig, error) {
 			val := strings.TrimPrefix(arg, "--speed=")
 			s, err := strconv.ParseFloat(val, 64)
 			if err != nil {
-				return inbound.GamePlayConfig{}, fmt.Errorf("invalid speed value: %s\nRun 'pidshooter --help' for usage", val)
+				return inbound.GamePlayConfig{}, fmt.Errorf("invalid speed value: %s", val)
 			}
 			if s < 0.1 || s > 5.0 {
 				return inbound.GamePlayConfig{}, fmt.Errorf("speed must be between 0.1 and 5.0, got: %s", val)
@@ -83,7 +83,7 @@ func parseArgs(args []string) (inbound.GamePlayConfig, error) {
 			val := strings.TrimPrefix(arg, "--time=")
 			t, err := strconv.Atoi(val)
 			if err != nil {
-				return inbound.GamePlayConfig{}, fmt.Errorf("invalid time value: %s\nRun 'pidshooter --help' for usage", val)
+				return inbound.GamePlayConfig{}, fmt.Errorf("invalid time value: %s", val)
 			}
 			if t < 0 {
 				return inbound.GamePlayConfig{}, fmt.Errorf("time must be 0 or positive, got: %s", val)
@@ -92,7 +92,7 @@ func parseArgs(args []string) (inbound.GamePlayConfig, error) {
 		case arg == "--help" || arg == "-h":
 			return inbound.GamePlayConfig{}, errUsage
 		case len(arg) > 0 && arg[0] == '-':
-			return inbound.GamePlayConfig{}, fmt.Errorf("unknown flag: %s\nRun 'pidshooter --help' for usage", arg)
+			return inbound.GamePlayConfig{}, fmt.Errorf("unknown flag: %s", arg)
 		default:
 			if len(arg) < process.MinPatternLength {
 				return inbound.GamePlayConfig{}, fmt.Errorf("search pattern %q must be at least %d characters", arg, process.MinPatternLength)
@@ -105,7 +105,7 @@ func parseArgs(args []string) (inbound.GamePlayConfig, error) {
 	}
 
 	if len(cfg.Patterns) == 0 {
-		return inbound.GamePlayConfig{}, fmt.Errorf("at least one search pattern is required\nRun 'pidshooter --help' for usage")
+		return inbound.GamePlayConfig{}, fmt.Errorf("at least one search pattern is required")
 	}
 
 	return cfg, nil
