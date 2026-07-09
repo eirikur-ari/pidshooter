@@ -1,12 +1,49 @@
 # pidshooter — Code Review Report
 
-*Updated 2026-07-07. Reflects current package layout: `core/` domain, `application/service` orchestration with `contract/inbound` and `contract/outbound` port packages, `entrypoint/cli` delivery adapter, `infrastructure/osprocess`/`tcellui`/`scorefilestore` driven adapters.*
+*Updated 2026-07-09. Reflects current package layout: `core/` domain, `application/service` orchestration with `contract/inbound` and `contract/outbound` port packages, `entrypoint/cli` delivery adapter, `infrastructure/osprocess`/`tcellui`/`scorefilestore` driven adapters.*
 
 ---
 
 ## Bugs
 
-All reported bugs have been resolved — see Resolved table below.
+### 21. Corrupt score file silently overwrites all prior scores — `application/service/game.go`
+
+`s.store.Load()` returns `(emptyBoard, error)` when the JSON is corrupt. `Play()` discards the error and uses the empty board:
+
+```go
+board, err := s.store.Load()
+if err != nil {
+    board = &score.Board{}   // load error silently ignored
+}
+```
+
+`board.Add(newEntry)` then `s.store.Save(board)` replace the file with a single-entry board. All prior high scores are destroyed without any user-visible warning. `scorefilestore.Load()` correctly distinguishes "file not found" (nil error) from "file corrupt" (non-nil error), but the caller discards that distinction. The fix is to warn on stderr and skip the save when the load error is non-nil-and-not-ENOENT, or at minimum print a warning before overwriting.
+
+### 22. Trophy not shown when player ties the existing high score — `core/score/score.go`
+
+The old code (`main.go:105`) used `game.kills >= scoreBoard.HighScore()` — a tie earned the trophy. The new `PrintHighScore` uses strict greater-than:
+
+```go
+func (b *Board) PrintHighScore(kills int) {
+    if kills > 0 && kills > b.highScore {   // was >= in old code
+        fmt.Println("  🏆 New high score!")
+    }
+}
+```
+
+`b.highScore` is captured in `Add()` as the pre-add top score. If the player matches it exactly (e.g. both 5 kills), `5 > 5` is false and no trophy is shown. The operator should be `>=` to restore the previous behaviour.
+
+### 23. Score `Duration` includes `renderer.Cleanup()` time — `application/service/game.go`
+
+`runLoop` defers `s.renderer.Cleanup()` before returning. `Play` computes the recorded duration after `runLoop` returns:
+
+```go
+if err := s.runLoop(g); err != nil { ... }  // Cleanup() already ran inside here
+// ...
+duration := time.Since(g.StartTime()).Seconds()   // includes Cleanup() time
+```
+
+The old code computed elapsed time inside the loop before cleanup. The saved `Entry.Duration` now includes terminal teardown time (`tcell.Screen.Fini`). The fix is to snapshot the duration before `runLoop` returns, e.g. via a return value or by reading `g.StartTime()` inside `runLoop` just before the deferred cleanup fires.
 
 ---
 
@@ -60,6 +97,35 @@ contract/
 
 Three interfaces renamed for consistency: `Finder` → `ProcessFinder`, `EventSource` → `InputSource`, `Store` → `ScoreStore`. Port direction is now encoded in the import path — callers write `inbound.GamePlay`, `outbound.ProcessFinder`, `outbound.ScoreStore`.
 
+### 24. `Kill()` blocks the 50 fps game loop with a synchronous `ps` subprocess — `application/service/game.go`
+
+`drainEvents` is called every tick inside the frame loop. When a `KillRequest` is returned, it calls `s.process.Kill()` synchronously before the tick continues:
+
+```go
+for g.Running() {
+    s.drainEvents(g)      // Kill() called here, may block for hundreds of ms
+    w, h = s.renderer.Size()
+    g.Update(w, h)
+    s.renderer.Render(g.Frame())
+    <-ticker.C
+}
+```
+
+`osprocess.Kill()` spawns a `ps` subprocess (`currentName`) to verify the process name before sending SIGKILL. On a loaded system this can take hundreds of milliseconds, stalling the render loop, skipping kill-animation frames, and starving the `poll()` goroutine (buffer size 10) so subsequent user events are dropped. Consider performing the OS kill asynchronously or finding the name via a faster method.
+
+### 25. Speed-up key `=` alias dropped — requires Shift on standard US keyboard — `core/game/event_handler.go`
+
+The old `handleKeyPress` handled both `r == '+' || r == '='` and `r == '-' || r == '_'`. On a standard US keyboard `+` requires Shift while `=` does not; the old aliases let players adjust speed without modifier keys. The new `HandleKey` only handles bare `'+'` and `'-'`:
+
+```go
+case ch == '+':
+    g.speed += 0.5
+case ch == '-':
+    g.speed -= 0.5
+```
+
+Speeding up now requires holding Shift on the main keyboard. The usage string (`+/- speed`) does not hint at the change. Fix: restore `ch == '+' || ch == '='` and `ch == '-' || ch == '_'`.
+
 ### 11. `PrintScores()` couples the domain to stdout — `core/score/score.go`
 
 `Board.PrintScores()` calls `fmt.Println` and `fmt.Printf` directly, making the core domain package responsible for terminal output. This violates the layering used everywhere else in the codebase (where output goes through the `Renderer` port or the application layer). The display logic belongs in `application/game.go`'s `Play()` after the game completes — the domain should only provide the data.
@@ -83,6 +149,24 @@ Three interfaces renamed for consistency: `Finder` → `ProcessFinder`, `EventSo
 ### ~~15. `ps` resolved via `$PATH` — `osprocess/osprocess.go:52`~~ ✓ Resolved
 
 `NewFinder()` now calls `exec.LookPath("ps")` at construction time and stores the absolute path in `Finder.psPath`; `List()` uses `f.psPath` instead of the bare string `"ps"`. `NewFinder` returns `(outbound.ProcessFinder, error)` so callers fail fast if `ps` is absent. `main.go` and both test files updated accordingly.
+
+### 26. Seven inline implementation comments removed from `entity.go` not carried into `target.go` — CLAUDE.md violation
+
+CLAUDE.md rule: *"Never remove comments, Javadoc, loggers, or annotations unless explicitly asked to."*
+
+The deleted `entity.go` contained these inline body comments explaining non-obvious choices:
+
+```go
+// Ensure entity fits within bounds
+spawnMaxY := maxY - 2 // Leave room for status bar
+// Random position
+// Random velocity scaled by speed multiplier (default slower)
+// Kill animation frames
+// Bounce off horizontal walls
+// Bounce off vertical walls (leave bottom row for status)
+```
+
+None appear in the replacement `internal/core/game/target.go`. The godoc lines were re-written under new names (acceptable), but the inline implementation notes explaining *why* were dropped.
 
 ### 16. Score table header does not match data — `core/score/score.go`
 
@@ -159,6 +243,16 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | 18 | `application/service/game_integration_test.go` | ✓ Resolved | No happy-path test for `GameService` |
 | 19 | `infrastructure/tcellui/tcellui_test.go` | ✓ Resolved | No tests for `tcellui` package |
 | 20 | `application/contract/` | ✓ Resolved | Flat file layout mixes inbound/outbound; outbound groups four unrelated concerns; `Finder`, `EventSource`, `Store` names lack specificity |
+| 21 | `application/service/game.go:57-59` | Bug | Corrupt score file silently overwrites all prior scores |
+| 22 | `core/score/score.go:51` | Bug | Trophy not shown when player ties existing high score (`>` should be `>=`) |
+| 23 | `application/service/game.go:71` | Bug | Recorded `Duration` includes `renderer.Cleanup()` time, not pure game time |
+| 24 | `application/service/game.go:145` | Design | `Kill()` blocks the 50 fps game loop with a synchronous `ps` subprocess |
+| 25 | `core/game/event_handler.go:43` | Bug/Regression | Speed-up key `=` alias dropped — now requires Shift on standard US keyboard |
+| 26 | `core/game/target.go` | CLAUDE.md | Seven inline comments from `entity.go` not carried into `target.go` |
+| 27 | `core/game/loop.go:28-45` | Minor | `Frame()` iterates `g.targets` twice; alive count can be accumulated in the first pass |
+| 28 | `core/game/target.go:74` | Minor | Kill-animation `frames` slice allocated on every `Label()` call; should be package-level var |
+| 29 | `infrastructure/tcellui/tcellui.go:169` | Minor | `ResizeEvent` emitted but never consumed — dead abstraction |
+| 30 | `entrypoint/cli/cli.go:76-108` | Minor | `--help` hint inconsistently appended to some cli error messages but not others |
 
 ---
 
@@ -192,6 +286,41 @@ The loop produces entries with kills `0–14`; the top `maxScores` retained entr
 ### ~~`TestHandleKeyPress_ConfirmYes` does not verify the signal — `core/game/event_handler_test.go`~~ ✓ Resolved
 
 `TestHandleKeyPress_ConfirmYes_ReturnsKillRequest` verifies the returned `*KillRequest` carries the target. The kill-error path is now an application-layer concern tested by `TestGameService_*` integration tests. `TestHandleMouseClick_ReturnsKillRequest` verifies click-to-kill returns a `*KillRequest`.
+
+### 27. `Frame()` iterates `g.targets` twice per tick — `core/game/loop.go`
+
+`Frame()` has two independent for-range loops over the same slice: one builds the `TargetView` list (skipping `Dead`) and a separate one counts `Alive` targets. The alive count can be accumulated in the first pass, halving the iterations per render tick:
+
+```go
+// current: two passes
+for _, e := range g.targets { /* build TargetView */ }
+for _, e := range g.targets { if e.State == Alive { alive++ } }  // redundant
+
+// fix: accumulate alive in first pass
+for _, e := range g.targets {
+    if e.State == Dead { continue }
+    if e.State == Alive { alive++ }
+    targets = append(targets, TargetView{...})
+}
+```
+
+### 28. Kill-animation `frames` slice allocated on every `Label()` call — `core/game/target.go`
+
+```go
+func (e *Target) Label() string {
+    case Killing:
+        frames := []string{"💥", "✦ KILLED ✦", "· · ·", "  ·  ", "     "}  // new alloc every call
+```
+
+`Label()` is called at least twice per tick per killing target (in `Frame()` and in `Update()`). The slice literal is constant; it should be a package-level `var` to allocate once.
+
+### 29. `ResizeEvent` emitted but never consumed — `infrastructure/tcellui/tcellui.go`
+
+`poll()` emits `event.ResizeEvent{}` into the event channel on every terminal resize, but `drainEvents` has no case for it — the value is read from the channel and silently dropped. Actual resize handling works correctly by re-querying `s.renderer.Size()` at the top of each game tick. `ResizeEvent` is dead infrastructure: it occupies channel capacity on every resize without serving any purpose. Either remove it or wire it to a resize handler.
+
+### 30. `--help` hint inconsistently appended in cli.go error messages — `entrypoint/cli/cli.go`
+
+`"\nRun 'pidshooter --help' for usage"` is appended to some error messages (invalid flag, bad parse) but omitted from others (speed out-of-range, time out-of-range, missing pattern). The hint should be applied uniformly — either added once in `Run()` after any parse error, or appended consistently at every error site.
 
 ### Undocumented confirm-cancel-with-q behaviour
 
