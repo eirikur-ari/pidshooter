@@ -149,7 +149,7 @@ Speeding up now requires holding Shift on the main keyboard. The usage string (`
 
 `NewFinder()` now calls `exec.LookPath("ps")` at construction time and stores the absolute path in `Finder.psPath`; `List()` uses `f.psPath` instead of the bare string `"ps"`. `NewFinder` returns `(outbound.ProcessFinder, error)` so callers fail fast if `ps` is absent. `main.go` and both test files updated accordingly.
 
-### 26. Seven inline implementation comments removed from `entity.go` not carried into `target.go` — CLAUDE.md violation
+### ~~26. Seven inline implementation comments removed from `entity.go` not carried into `target.go` — CLAUDE.md violation~~ ✓ Resolved
 
 CLAUDE.md rule: *"Never remove comments, Javadoc, loggers, or annotations unless explicitly asked to."*
 
@@ -247,7 +247,7 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | 23 | `application/service/game.go:71` | ✓ Resolved | Recorded `Duration` includes `renderer.Cleanup()` time, not pure game time |
 | 24 | `application/service/game.go:145` | ✓ Resolved | `Kill()` blocks the 50 fps game loop with a synchronous `ps` subprocess |
 | 25 | `core/game/event_handler.go:43` | ✓ Resolved | Speed-up key `=` alias dropped — now requires Shift on standard US keyboard |
-| 26 | `core/game/target.go` | CLAUDE.md | Seven inline comments from `entity.go` not carried into `target.go` |
+| 26 | `core/game/target.go` | ✓ Resolved | Seven inline comments from `entity.go` not carried into `target.go` |
 | 27 | `core/game/loop.go:28-45` | Minor | `Frame()` iterates `g.targets` twice; alive count can be accumulated in the first pass |
 | 28 | `core/game/target.go:74` | Minor | Kill-animation `frames` slice allocated on every `Label()` call; should be package-level var |
 | 29 | `infrastructure/tcellui/tcellui.go:169` | Minor | `ResizeEvent` emitted but never consumed — dead abstraction |

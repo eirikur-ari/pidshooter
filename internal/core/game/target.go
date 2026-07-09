@@ -41,15 +41,17 @@ type Target struct {
 func NewTarget(info process.Info, maxX, maxY int) *Target {
 	labelLen := utf8.RuneCountInString(fmt.Sprintf("[%d %s]", info.Pid, info.Name))
 
+	// Ensure entity fits within bounds
 	spawnMaxX := maxX - labelLen - 1
 	if spawnMaxX < 1 {
 		spawnMaxX = 1
 	}
-	spawnMaxY := maxY - 2
+	spawnMaxY := maxY - 2 // Leave room for status bar
 	if spawnMaxY < 1 {
 		spawnMaxY = 1
 	}
 
+	// Random velocity scaled by speed multiplier (default slower)
 	velX := rand.Float64()*0.8 + 0.2
 	if rand.Intn(2) == 0 {
 		velX = -velX
@@ -59,6 +61,7 @@ func NewTarget(info process.Info, maxX, maxY int) *Target {
 		velY = -velY
 	}
 
+	// Random position
 	return &Target{
 		Info:     info,
 		Position: Vector{X: float64(rand.Intn(spawnMaxX) + 1), Y: float64(rand.Intn(spawnMaxY) + 1)},
@@ -71,6 +74,7 @@ func NewTarget(info process.Info, maxX, maxY int) *Target {
 func (e *Target) Label() string {
 	switch e.State {
 	case Killing:
+		// Kill animation frames
 		frames := []string{"💥", "✦ KILLED ✦", "· · ·", "  ·  ", "     "}
 		idx := e.KillAnimFrame * len(frames) / KillAnimFrames
 		if idx >= len(frames) {
@@ -97,6 +101,7 @@ func (e *Target) Update(maxX, maxY int, speed float64) {
 		e.Position.X += e.Velocity.X * speed
 		e.Position.Y += e.Velocity.Y * speed
 
+		// Bounce off horizontal walls
 		if e.Position.X < 0 {
 			e.Position.X = 0
 			e.Velocity.X = -e.Velocity.X
@@ -110,6 +115,7 @@ func (e *Target) Update(maxX, maxY int, speed float64) {
 			e.Velocity.X = -e.Velocity.X
 		}
 
+		// Bounce off vertical walls (leave bottom row for status)
 		if e.Position.Y < 0 {
 			e.Position.Y = 0
 			e.Velocity.Y = -e.Velocity.Y
