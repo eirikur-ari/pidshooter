@@ -23,6 +23,7 @@ type GameService struct {
 	store    outbound.ScoreStore
 	renderer outbound.Renderer
 	events   outbound.InputSource
+	kills    chan *game.Target
 }
 
 // NewGameService constructs a GameService with all required outbound ports injected.
@@ -119,8 +120,11 @@ func (s *GameService) runLoop(g *game.Game) (time.Time, error) {
 	ticker := time.NewTicker(frameDuration)
 	defer ticker.Stop()
 
+	s.kills = make(chan *game.Target, 10)
+
 	for g.Running() {
-		s.drainEvents(g)
+		s.applyKills(g)
+		s.drainEvents(g, done)
 		w, h = s.renderer.Size()
 		g.Update(w, h)
 		s.renderer.Render(g.Frame())
@@ -130,7 +134,18 @@ func (s *GameService) runLoop(g *game.Game) (time.Time, error) {
 	return time.Now(), nil
 }
 
-func (s *GameService) drainEvents(g *game.Game) {
+func (s *GameService) applyKills(g *game.Game) {
+	for {
+		select {
+		case t := <-s.kills:
+			g.CompleteKill(t)
+		default:
+			return
+		}
+	}
+}
+
+func (s *GameService) drainEvents(g *game.Game, done <-chan struct{}) {
 	for {
 		select {
 		case ev := <-s.events.Events():
@@ -147,9 +162,15 @@ func (s *GameService) drainEvents(g *game.Game) {
 				}
 			}
 			if req != nil {
-				if killed, err := s.process.Kill(req.Target.Pid, req.Target.Name); err == nil && killed {
-					g.CompleteKill(req.Target)
-				}
+				target := req.Target
+				go func() {
+					if killed, err := s.process.Kill(target.Pid, target.Name); err == nil && killed {
+						select {
+						case s.kills <- target:
+						case <-done:
+						}
+					}
+				}()
 			}
 		default:
 			return
