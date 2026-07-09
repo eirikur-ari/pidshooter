@@ -135,6 +135,17 @@ func TestBoard_PrintHighScore_SilentWhenZeroKills(t *testing.T) {
 	}
 }
 
+func TestBoard_PrintHighScore_PrintsWhenTiesRecord(t *testing.T) {
+	b := &Board{}
+	b.Add(Entry{Kills: 5, Date: time.Now()}) // b.highScore = 0 before append
+	b.Add(Entry{Kills: 3, Date: time.Now()}) // b.highScore = 5 before append
+
+	out := capture.Output(func() { b.PrintHighScore(5) })
+	if !strings.Contains(out, "New high score") {
+		t.Errorf("expected trophy message when tying the high score, got %q", out)
+	}
+}
+
 func TestBoard_PrintHighScore_PrintsForFirstEntry(t *testing.T) {
 	b := &Board{}
 	b.Add(Entry{Kills: 5, Date: time.Now()}) // b.highScore = 0

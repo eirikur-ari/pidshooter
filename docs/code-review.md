@@ -10,7 +10,7 @@
 
 `loadErr` is now propagated past the game loop. On a non-nil load error a `warning: could not load scores: <err>` line is printed to stderr and the save is skipped, preserving the file for manual recovery. On a nil load error (including the "file not found" path, which `scorefilestore.Load` already converts to nil) behaviour is unchanged. `TestGameService_LoadError_PrintsWarningAndSkipsSave` (integration) verifies the warning appears, `Play` returns nil, and `Save` is not called.
 
-### 22. Trophy not shown when player ties the existing high score — `core/score/score.go`
+### ~~22. Trophy not shown when player ties the existing high score — `core/score/score.go`~~ ✓ Resolved
 
 The old code (`main.go:105`) used `game.kills >= scoreBoard.HighScore()` — a tie earned the trophy. The new `PrintHighScore` uses strict greater-than:
 
@@ -23,6 +23,8 @@ func (b *Board) PrintHighScore(kills int) {
 ```
 
 `b.highScore` is captured in `Add()` as the pre-add top score. If the player matches it exactly (e.g. both 5 kills), `5 > 5` is false and no trophy is shown. The operator should be `>=` to restore the previous behaviour.
+
+`PrintHighScore` now uses `kills >= b.highScore`, restoring the original behaviour from `main.go`. `TestBoard_PrintHighScore_PrintsWhenTiesRecord` pins the exact tie case.
 
 ### 23. Score `Duration` includes `renderer.Cleanup()` time — `application/service/game.go`
 
@@ -235,7 +237,7 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | 19 | `infrastructure/tcellui/tcellui_test.go` | ✓ Resolved | No tests for `tcellui` package |
 | 20 | `application/contract/` | ✓ Resolved | Flat file layout mixes inbound/outbound; outbound groups four unrelated concerns; `Finder`, `EventSource`, `Store` names lack specificity |
 | 21 | `application/service/game.go:57-59` | ✓ Resolved | Corrupt score file silently overwrites all prior scores |
-| 22 | `core/score/score.go:51` | Bug | Trophy not shown when player ties existing high score (`>` should be `>=`) |
+| 22 | `core/score/score.go:51` | ✓ Resolved | Trophy not shown when player ties existing high score (`>` should be `>=`) |
 | 23 | `application/service/game.go:71` | Bug | Recorded `Duration` includes `renderer.Cleanup()` time, not pure game time |
 | 24 | `application/service/game.go:145` | Design | `Kill()` blocks the 50 fps game loop with a synchronous `ps` subprocess |
 | 25 | `core/game/event_handler.go:43` | Bug/Regression | Speed-up key `=` alias dropped — now requires Shift on standard US keyboard |

@@ -48,7 +48,7 @@ func (b *Board) HighScore() int {
 // PrintHighScore prints a trophy message if kills beats the high score
 // recorded at the time of the last Add call.
 func (b *Board) PrintHighScore(kills int) {
-	if kills > 0 && kills > b.highScore {
+	if kills > 0 && kills >= b.highScore {
 		fmt.Println("  🏆 New high score!")
 	}
 }
