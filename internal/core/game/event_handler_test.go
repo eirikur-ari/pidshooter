@@ -46,6 +46,22 @@ func TestHandleKey_SpeedDown(t *testing.T) {
 	}
 }
 
+func TestHandleKey_SpeedUpAlias(t *testing.T) {
+	g := newRunningGame(&Game{speed: 2.0})
+	g.HandleKey('=')
+	if g.speed != 2.5 {
+		t.Errorf("expected speed=2.5 with '=' alias, got %f", g.speed)
+	}
+}
+
+func TestHandleKey_SpeedDownAlias(t *testing.T) {
+	g := newRunningGame(&Game{speed: 2.0})
+	g.HandleKey('_')
+	if g.speed != 1.5 {
+		t.Errorf("expected speed=1.5 with '_' alias, got %f", g.speed)
+	}
+}
+
 func TestHandleKey_SpeedCapsAtMax(t *testing.T) {
 	g := newRunningGame(&Game{speed: 4.8})
 	g.HandleKey('+')

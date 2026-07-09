@@ -110,7 +110,7 @@ for g.Running() {
 
 `drainEvents` now dispatches each kill in a goroutine. Successful results are sent to `s.kills` (a buffered `chan *game.Target` field on `GameService`, initialised per session in `runLoop`). A new `applyKills(g)` method drains that channel at the top of every tick and calls `g.CompleteKill`. Kill goroutines select on both `s.kills` and `done` so they exit promptly when the session ends.
 
-### 25. Speed-up key `=` alias dropped — requires Shift on standard US keyboard — `core/game/event_handler.go`
+### ~~25. Speed-up key `=` alias dropped — requires Shift on standard US keyboard — `core/game/event_handler.go`~~ ✓ Resolved
 
 The old `handleKeyPress` handled both `r == '+' || r == '='` and `r == '-' || r == '_'`. On a standard US keyboard `+` requires Shift while `=` does not; the old aliases let players adjust speed without modifier keys. The new `HandleKey` only handles bare `'+'` and `'-'`:
 
@@ -122,6 +122,8 @@ case ch == '-':
 ```
 
 Speeding up now requires holding Shift on the main keyboard. The usage string (`+/- speed`) does not hint at the change. Fix: restore `ch == '+' || ch == '='` and `ch == '-' || ch == '_'`.
+
+`HandleKey` now uses `ch == '+' || ch == '='` and `ch == '-' || ch == '_'`. Covered by `TestHandleKey_SpeedUpAlias` and `TestHandleKey_SpeedDownAlias`.
 
 ### 11. `PrintScores()` couples the domain to stdout — `core/score/score.go`
 
@@ -244,7 +246,7 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | 22 | `core/score/score.go:51` | ✓ Resolved | Trophy not shown when player ties existing high score (`>` should be `>=`) |
 | 23 | `application/service/game.go:71` | ✓ Resolved | Recorded `Duration` includes `renderer.Cleanup()` time, not pure game time |
 | 24 | `application/service/game.go:145` | ✓ Resolved | `Kill()` blocks the 50 fps game loop with a synchronous `ps` subprocess |
-| 25 | `core/game/event_handler.go:43` | Bug/Regression | Speed-up key `=` alias dropped — now requires Shift on standard US keyboard |
+| 25 | `core/game/event_handler.go:43` | ✓ Resolved | Speed-up key `=` alias dropped — now requires Shift on standard US keyboard |
 | 26 | `core/game/target.go` | CLAUDE.md | Seven inline comments from `entity.go` not carried into `target.go` |
 | 27 | `core/game/loop.go:28-45` | Minor | `Frame()` iterates `g.targets` twice; alive count can be accumulated in the first pass |
 | 28 | `core/game/target.go:74` | Minor | Kill-animation `frames` slice allocated on every `Label()` call; should be package-level var |

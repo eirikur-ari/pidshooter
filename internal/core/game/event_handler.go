@@ -39,12 +39,12 @@ func (g *Game) HandleKey(ch rune) *KillRequest {
 		if g.confirming != nil {
 			g.confirming = nil
 		}
-	case ch == '+':
+	case ch == '+' || ch == '=':
 		g.speed += 0.5
 		if g.speed > 5.0 {
 			g.speed = 5.0
 		}
-	case ch == '-':
+	case ch == '-' || ch == '_':
 		g.speed -= 0.5
 		if g.speed < 0.1 {
 			g.speed = 0.1
