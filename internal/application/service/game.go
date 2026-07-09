@@ -54,8 +54,9 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 
 	fmt.Printf("Found %d process(es) matching %v. Starting game...\n", len(processes), cfg.Patterns)
 
-	board, err := s.store.Load()
-	if err != nil {
+	board, loadErr := s.store.Load()
+	if loadErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not load scores: %v\n", loadErr)
 		board = &score.Board{}
 	}
 
@@ -78,8 +79,10 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 		Duration: duration,
 		Date:     time.Now(),
 	})
-	if err := s.store.Save(board); err != nil {
-		fmt.Fprintf(os.Stderr, "warning: score not saved: %v\n", err)
+	if loadErr == nil {
+		if err := s.store.Save(board); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: score not saved: %v\n", err)
+		}
 	}
 
 	fmt.Printf("\n  Game Over! Kills: %d | Freed: %s | Time: %.1fs\n",

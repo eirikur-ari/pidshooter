@@ -20,7 +20,7 @@ func newGameService(proc *fake.Process, store *fake.Store, events *stubEventSour
 	return NewGameService(proc, store, &stubRenderer{}, events)
 }
 
-func TestGameService_HappyPath(t *testing.T) {
+func TestIntegration_GameService_HappyPath(t *testing.T) {
 	events := newStubEventSource()
 	events.ch <- event.KeyEvent{Ch: 'q'}
 
@@ -49,7 +49,34 @@ func TestGameService_HappyPath(t *testing.T) {
 	}
 }
 
-func TestGameService_SaveError_PrintsWarning(t *testing.T) {
+func TestIntegration_GameService_LoadError_PrintsWarningAndSkipsSave(t *testing.T) {
+	events := newStubEventSource()
+	events.ch <- event.KeyEvent{Ch: 'q'}
+
+	store := &fake.Store{LoadErr: errors.New("json: invalid character")}
+	svc := newGameService(
+		&fake.Process{Processes: []process.Info{{Pid: 1, Name: "target", Rss: 1024}}},
+		store,
+		events,
+	)
+
+	var err error
+	stderr := capture.Stderr(func() {
+		err = svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+	})
+
+	if err != nil {
+		t.Fatalf("expected Play to return nil, got %v", err)
+	}
+	if !strings.Contains(stderr, "could not load scores") {
+		t.Errorf("expected stderr warning about load failure, got: %q", stderr)
+	}
+	if store.Saved != nil {
+		t.Error("expected Save to be skipped after load failure, but it was called")
+	}
+}
+
+func TestIntegration_GameService_SaveError_PrintsWarning(t *testing.T) {
 	events := newStubEventSource()
 	events.ch <- event.KeyEvent{Ch: 'q'}
 
@@ -75,7 +102,7 @@ func TestGameService_SaveError_PrintsWarning(t *testing.T) {
 	}
 }
 
-func TestGameService_QuitOnQ(t *testing.T) {
+func TestIntegration_GameService_QuitOnQ(t *testing.T) {
 	events := newStubEventSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -92,7 +119,7 @@ func TestGameService_QuitOnQ(t *testing.T) {
 	}
 }
 
-func TestGameService_QuitOnEscape(t *testing.T) {
+func TestIntegration_GameService_QuitOnEscape(t *testing.T) {
 	events := newStubEventSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -109,7 +136,7 @@ func TestGameService_QuitOnEscape(t *testing.T) {
 	}
 }
 
-func TestGameService_QuitOnCtrlC(t *testing.T) {
+func TestIntegration_GameService_QuitOnCtrlC(t *testing.T) {
 	events := newStubEventSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -126,7 +153,7 @@ func TestGameService_QuitOnCtrlC(t *testing.T) {
 	}
 }
 
-func TestGameService_QuitOnCtrlZ(t *testing.T) {
+func TestIntegration_GameService_QuitOnCtrlZ(t *testing.T) {
 	events := newStubEventSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -143,7 +170,7 @@ func TestGameService_QuitOnCtrlZ(t *testing.T) {
 	}
 }
 
-func TestGameService_TimeLimitExpires(t *testing.T) {
+func TestIntegration_GameService_TimeLimitExpires(t *testing.T) {
 	svc := newGameService(
 		&fake.Process{Processes: []process.Info{{Pid: 102, Name: "target", Rss: 1024}}},
 		&fake.Store{},
@@ -159,9 +186,9 @@ func TestGameService_TimeLimitExpires(t *testing.T) {
 	}
 }
 
-// TestGameService_SignalGoroutineDoesNotAccumulate verifies the signal goroutine
+// TestIntegration_GameService_SignalGoroutineDoesNotAccumulate verifies the signal goroutine
 // started inside runLoop exits when Play returns, preventing goroutine leaks.
-func TestGameService_SignalGoroutineDoesNotAccumulate(t *testing.T) {
+func TestIntegration_GameService_SignalGoroutineDoesNotAccumulate(t *testing.T) {
 	runGame := func(pid int) {
 		events := newStubEventSource()
 		go func() {

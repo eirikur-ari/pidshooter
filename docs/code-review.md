@@ -6,18 +6,9 @@
 
 ## Bugs
 
-### 21. Corrupt score file silently overwrites all prior scores — `application/service/game.go`
+### ~~21. Corrupt score file silently overwrites all prior scores — `application/service/game.go`~~ ✓ Resolved
 
-`s.store.Load()` returns `(emptyBoard, error)` when the JSON is corrupt. `Play()` discards the error and uses the empty board:
-
-```go
-board, err := s.store.Load()
-if err != nil {
-    board = &score.Board{}   // load error silently ignored
-}
-```
-
-`board.Add(newEntry)` then `s.store.Save(board)` replace the file with a single-entry board. All prior high scores are destroyed without any user-visible warning. `scorefilestore.Load()` correctly distinguishes "file not found" (nil error) from "file corrupt" (non-nil error), but the caller discards that distinction. The fix is to warn on stderr and skip the save when the load error is non-nil-and-not-ENOENT, or at minimum print a warning before overwriting.
+`loadErr` is now propagated past the game loop. On a non-nil load error a `warning: could not load scores: <err>` line is printed to stderr and the save is skipped, preserving the file for manual recovery. On a nil load error (including the "file not found" path, which `scorefilestore.Load` already converts to nil) behaviour is unchanged. `TestGameService_LoadError_PrintsWarningAndSkipsSave` (integration) verifies the warning appears, `Play` returns nil, and `Save` is not called.
 
 ### 22. Trophy not shown when player ties the existing high score — `core/score/score.go`
 
@@ -243,7 +234,7 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | 18 | `application/service/game_integration_test.go` | ✓ Resolved | No happy-path test for `GameService` |
 | 19 | `infrastructure/tcellui/tcellui_test.go` | ✓ Resolved | No tests for `tcellui` package |
 | 20 | `application/contract/` | ✓ Resolved | Flat file layout mixes inbound/outbound; outbound groups four unrelated concerns; `Finder`, `EventSource`, `Store` names lack specificity |
-| 21 | `application/service/game.go:57-59` | Bug | Corrupt score file silently overwrites all prior scores |
+| 21 | `application/service/game.go:57-59` | ✓ Resolved | Corrupt score file silently overwrites all prior scores |
 | 22 | `core/score/score.go:51` | Bug | Trophy not shown when player ties existing high score (`>` should be `>=`) |
 | 23 | `application/service/game.go:71` | Bug | Recorded `Duration` includes `renderer.Cleanup()` time, not pure game time |
 | 24 | `application/service/game.go:145` | Design | `Kill()` blocks the 50 fps game loop with a synchronous `ps` subprocess |
@@ -260,11 +251,27 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 
 Fourteen test files cover all packages. Pure logic and state transitions are well covered. All packages including `tcellui` have direct unit tests.
 
+### Build and test commands
+
+| Command | What it runs |
+|---|---|
+| `make build` | Compiles `bin/pidshooter` |
+| `make test` | All tests (unit + integration) with verbose output |
+| `make test-unit` | Unit tests only (no `integration` build tag) |
+| `make test-integration` | All tests including integration files |
+| `make test-short` | All tests, no verbose output |
+| `make test-race` | All tests under the race detector |
+| `make coverage` | Unit test coverage report in `bin/coverage.out` |
+| `make vet` | `go vet ./...` |
+| `make fmt` | `go fmt ./...` |
+| `make run ARGS="firefox"` | Build and run with the given pattern |
+| `make clean` | Remove `bin/` |
+
 ### Integration tests
 
 Two files carry `//go:build integration` tags:
 
-- `application/service/game_integration_test.go` — runs a full game loop with hand-rolled stub renderer and event source (no tcell dependency). Covers quit-on-Q, quit-on-Escape, time-limit expiry, happy-path save, save-error warning, and signal goroutine lifecycle. Run with `go test -tags integration ./...`.
+- `application/service/game_integration_test.go` — runs a full game loop with hand-rolled stub renderer and event source (no tcell dependency). Covers quit-on-Q, quit-on-Escape, time-limit expiry, happy-path save, corrupt-load warning, save-error warning, and signal goroutine lifecycle. All tests are named `TestIntegration_GameService_*`. Run with `make test-integration`.
 - `infrastructure/osprocess/osprocess_integration_test.go` — calls the real `ps` command. Covers non-empty results, valid fields, short names, and own-PID exclusion on a live system.
 
 ### Race detector

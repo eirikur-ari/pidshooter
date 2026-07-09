@@ -5,7 +5,7 @@ BUILD_DIR := bin
 
 LDFLAGS := -s -w
 
-.PHONY: all build test test-short test-race coverage vet fmt clean run help
+.PHONY: all build test test-unit test-integration test-short test-race coverage vet fmt clean run help
 
 all: clean test build
 
@@ -22,7 +22,7 @@ test:
 test-unit:
 	go test -v -count=1 ./...
 
-# test-integration: Run only integration test
+# test-integration: Run only integration tests
 test-integration:
 	go test -v -tags integration -run TestIntegration -count=1 ./...
 
