@@ -25,13 +25,13 @@ func TestGame_timeRemaining_Expired(t *testing.T) {
 }
 
 func TestCompleteKill_TransitionsToKilling(t *testing.T) {
-	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 2048}, State: Alive}
+	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 2048}, State: Alive}
 	g := &Game{}
 
-	g.CompleteKill(e)
+	g.CompleteKill(tgt)
 
-	if e.State != Killing {
-		t.Errorf("expected entity Killing, got %d", e.State)
+	if tgt.State != Killing {
+		t.Errorf("expected entity Killing, got %d", tgt.State)
 	}
 	if g.kills != 1 {
 		t.Errorf("expected kills=1, got %d", g.kills)
@@ -42,10 +42,10 @@ func TestCompleteKill_TransitionsToKilling(t *testing.T) {
 }
 
 func TestCompleteKill_NoOpWhenNotAlive(t *testing.T) {
-	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 2048}, State: Dead}
+	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 2048}, State: Dead}
 	g := &Game{}
 
-	g.CompleteKill(e)
+	g.CompleteKill(tgt)
 
 	if g.kills != 0 {
 		t.Errorf("expected kills=0 for dead entity, got %d", g.kills)
@@ -65,8 +65,8 @@ func TestUpdate_StopsWhenTimeLimitExpired(t *testing.T) {
 }
 
 func TestUpdate_StopsWhenAllTargetsDead(t *testing.T) {
-	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 0}, State: Dead}
-	g := &Game{targets: []*Target{e}}
+	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 0}, State: Dead}
+	g := &Game{targets: []*Target{tgt}}
 	g.running.Store(true)
 	g.startTime = time.Now()
 
@@ -78,8 +78,8 @@ func TestUpdate_StopsWhenAllTargetsDead(t *testing.T) {
 }
 
 func TestFrame_AliveTargetIncluded(t *testing.T) {
-	e := &Target{Info: process.Info{Pid: 1, Name: "myapp", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
-	g := &Game{targets: []*Target{e}}
+	tgt := &Target{Info: process.Info{Pid: 1, Name: "myapp", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
+	g := &Game{targets: []*Target{tgt}}
 
 	frame := g.Frame()
 
@@ -96,8 +96,8 @@ func TestFrame_AliveTargetIncluded(t *testing.T) {
 }
 
 func TestFrame_DeadTargetExcluded(t *testing.T) {
-	e := &Target{Info: process.Info{Pid: 1, Name: "myapp", Rss: 1024}, State: Dead}
-	g := &Game{targets: []*Target{e}}
+	tgt := &Target{Info: process.Info{Pid: 1, Name: "myapp", Rss: 1024}, State: Dead}
+	g := &Game{targets: []*Target{tgt}}
 
 	frame := g.Frame()
 
@@ -107,8 +107,8 @@ func TestFrame_DeadTargetExcluded(t *testing.T) {
 }
 
 func TestFrame_KillingTargetMarked(t *testing.T) {
-	e := &Target{Info: process.Info{Pid: 1, Name: "myapp", Rss: 1024}, State: Killing}
-	g := &Game{targets: []*Target{e}}
+	tgt := &Target{Info: process.Info{Pid: 1, Name: "myapp", Rss: 1024}, State: Killing}
+	g := &Game{targets: []*Target{tgt}}
 
 	frame := g.Frame()
 
@@ -138,7 +138,7 @@ func TestFrame_HUDReflectsSession(t *testing.T) {
 
 func TestFrame_ConfirmStateInStatusBar(t *testing.T) {
 	target := &Target{Info: process.Info{Pid: 42, Name: "suspect", Rss: 0}, State: Alive}
-	g := &Game{targets: []*Target{target}, confirming: target}
+	g := &Game{targets: []*Target{target}, confirm: Confirmation{target: target}}
 
 	frame := g.Frame()
 

@@ -42,8 +42,8 @@ func (g *Game) Frame() Frame {
 	}
 
 	var cs *ConfirmState
-	if g.confirming != nil {
-		cs = &ConfirmState{PID: g.confirming.Pid, Name: g.confirming.Name}
+	if g.confirm.Pending() {
+		cs = &ConfirmState{PID: g.confirm.target.Pid, Name: g.confirm.target.Name}
 	}
 
 	var timeLeft int

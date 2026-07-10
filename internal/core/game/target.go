@@ -133,7 +133,8 @@ func (e *Target) Update(maxX, maxY int, speed float64) {
 	}
 }
 
-// Contains checks if the given screen coordinates are within this entity's label.
+// Contains reports whether the given game-space coordinates (x=column, y=row)
+// fall within this target's label.
 func (e *Target) Contains(x, y int) bool {
 	if e.State != Alive {
 		return false

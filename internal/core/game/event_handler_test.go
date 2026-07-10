@@ -83,44 +83,44 @@ func TestHandleKey_SpeedCapsAtMin(t *testing.T) {
 }
 
 func TestHandleKey_ConfirmYes_ReturnsTarget(t *testing.T) {
-	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 4096}, State: Alive}
-	g := newRunningGame(&Game{confirming: e})
+	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 4096}, State: Alive}
+	g := newRunningGame(&Game{confirm: Confirmation{target: tgt}})
 
 	target := g.HandleKey('y')
 
-	if target == nil || target != e {
+	if target == nil || target != tgt {
 		t.Error("expected confirmed target to be returned")
 	}
-	if g.confirming != nil {
-		t.Error("expected confirming=nil after 'y'")
+	if g.confirm.Pending() {
+		t.Error("expected confirm cleared after 'y'")
 	}
 }
 
 func TestHandleKey_ConfirmNo(t *testing.T) {
-	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 0}, State: Alive}
-	g := newRunningGame(&Game{confirming: e})
+	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 0}, State: Alive}
+	g := newRunningGame(&Game{confirm: Confirmation{target: tgt}})
 
 	target := g.HandleKey('n')
 
 	if target != nil {
 		t.Error("expected no target after 'n'")
 	}
-	if g.confirming != nil {
-		t.Error("expected confirming=nil after 'n'")
+	if g.confirm.Pending() {
+		t.Error("expected confirm cleared after 'n'")
 	}
-	if e.State != Alive {
-		t.Errorf("expected entity still alive, got %d", e.State)
+	if tgt.State != Alive {
+		t.Errorf("expected target still alive, got %d", tgt.State)
 	}
 }
 
 func TestHandleKey_QCancelsConfirm(t *testing.T) {
-	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 0}, State: Alive}
-	g := newRunningGame(&Game{confirming: e})
+	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 0}, State: Alive}
+	g := newRunningGame(&Game{confirm: Confirmation{target: tgt}})
 
 	g.HandleKey('q')
 
-	if g.confirming != nil {
-		t.Error("expected confirming=nil after 'q' during confirmation")
+	if g.confirm.Pending() {
+		t.Error("expected confirm cleared after 'q' during confirmation")
 	}
 	if !g.running.Load() {
 		t.Error("expected game still running (q cancels confirm, doesn't quit)")
@@ -130,58 +130,58 @@ func TestHandleKey_QCancelsConfirm(t *testing.T) {
 // --- HandleClick ---
 
 func TestHandleClick_ReturnsTarget(t *testing.T) {
-	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
-	g := &Game{targets: []*Target{e}}
+	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
+	g := &Game{targets: []*Target{tgt}}
 
 	target := g.HandleClick(10, 5)
 
-	if target == nil || target != e {
+	if target == nil || target != tgt {
 		t.Error("expected clicked target to be returned")
 	}
 }
 
 func TestHandleClick_SetsConfirmingInConfirmMode(t *testing.T) {
-	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
-	g := &Game{targets: []*Target{e}, cfg: Config{ConfirmMode: true}}
+	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
+	g := &Game{targets: []*Target{tgt}, cfg: Config{ConfirmMode: true}}
 
 	target := g.HandleClick(10, 5)
 
 	if target != nil {
 		t.Error("expected no target in confirm mode (should set confirming instead)")
 	}
-	if g.confirming != e {
-		t.Error("expected entity set as confirming")
+	if g.confirm.target != tgt {
+		t.Error("expected target set as pending confirmation")
 	}
-	if e.State != Alive {
-		t.Errorf("expected entity still Alive in confirm mode, got %d", e.State)
+	if tgt.State != Alive {
+		t.Errorf("expected target still Alive in confirm mode, got %d", tgt.State)
 	}
 }
 
 func TestHandleClick_NoOpWhenAlreadyConfirming(t *testing.T) {
 	existing := &Target{Info: process.Info{Pid: 1, Name: "other", Rss: 0}, State: Alive}
-	target := &Target{Info: process.Info{Pid: 2, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
-	g := &Game{targets: []*Target{target}, confirming: existing}
+	tgt := &Target{Info: process.Info{Pid: 2, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
+	g := &Game{targets: []*Target{tgt}, confirm: Confirmation{target: existing}}
 
 	result := g.HandleClick(10, 5)
 
 	if result != nil {
 		t.Error("expected no target when already confirming")
 	}
-	if g.confirming != existing {
-		t.Error("expected confirming to remain unchanged")
+	if g.confirm.target != existing {
+		t.Error("expected pending confirmation to remain unchanged")
 	}
 }
 
 func TestHandleClick_NoOpOnMiss(t *testing.T) {
-	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
-	g := &Game{targets: []*Target{e}}
+	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
+	g := &Game{targets: []*Target{tgt}}
 
 	target := g.HandleClick(0, 0)
 
 	if target != nil {
 		t.Error("expected no target on miss")
 	}
-	if e.State != Alive {
-		t.Error("expected entity to remain alive on miss")
+	if tgt.State != Alive {
+		t.Error("expected target to remain alive on miss")
 	}
 }

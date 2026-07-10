@@ -21,9 +21,9 @@ type Game struct {
 	cfg        Config
 	processes  []process.Info
 	targets    []*Target
-	velocity   Velocity
-	running    atomic.Bool
-	confirming *Target
+	velocity Velocity
+	confirm  Confirmation
+	running  atomic.Bool
 	Session
 }
 
