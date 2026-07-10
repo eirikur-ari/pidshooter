@@ -6,9 +6,9 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-// newRunningGame returns a Game with running=true and the given fields set.
+// newRunningGame returns a Game in the Running state with the given fields set.
 func newRunningGame(fields *Game) *Game {
-	fields.running.Store(true)
+	fields.Start(0, 0)
 	return fields
 }
 
@@ -17,7 +17,7 @@ func newRunningGame(fields *Game) *Game {
 func TestHandleKey_Quit(t *testing.T) {
 	g := newRunningGame(&Game{})
 	g.HandleKey('q')
-	if g.running.Load() {
+	if g.IsRunning() {
 		t.Error("expected running=false after 'q'")
 	}
 }
@@ -25,7 +25,7 @@ func TestHandleKey_Quit(t *testing.T) {
 func TestHandleKey_QuitUppercase(t *testing.T) {
 	g := newRunningGame(&Game{})
 	g.HandleKey('Q')
-	if g.running.Load() {
+	if g.IsRunning() {
 		t.Error("expected running=false after 'Q'")
 	}
 }
@@ -122,7 +122,7 @@ func TestHandleKey_QCancelsConfirm(t *testing.T) {
 	if g.confirm.Pending() {
 		t.Error("expected confirm cleared after 'q' during confirmation")
 	}
-	if !g.running.Load() {
+	if !g.IsRunning() {
 		t.Error("expected game still running (q cancels confirm, doesn't quit)")
 	}
 }

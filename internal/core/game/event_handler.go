@@ -35,6 +35,7 @@ func (g *Game) HandleKey(ch rune) *Target {
 	return nil
 }
 
+// onQuit cancels a pending confirmation if one exists, otherwise stops the game.
 func (g *Game) onQuit() {
 	if g.confirm.Pending() {
 		g.confirm.Clear()

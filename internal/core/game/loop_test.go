@@ -54,12 +54,12 @@ func TestCompleteKill_NoOpWhenNotAlive(t *testing.T) {
 
 func TestUpdate_StopsWhenTimeLimitExpired(t *testing.T) {
 	g := &Game{cfg: Config{TimeLimit: 1}}
-	g.running.Store(true)
+	g.Start(0, 0)
 	g.startTime = time.Now().Add(-2 * time.Second)
 
 	g.Update(80, 24)
 
-	if g.running.Load() {
+	if g.IsRunning() {
 		t.Error("expected game stopped when time limit expired")
 	}
 }
@@ -67,12 +67,11 @@ func TestUpdate_StopsWhenTimeLimitExpired(t *testing.T) {
 func TestUpdate_StopsWhenAllTargetsDead(t *testing.T) {
 	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 0}, State: Dead}
 	g := &Game{targets: []*Target{tgt}}
-	g.running.Store(true)
-	g.startTime = time.Now()
+	g.Start(0, 0)
 
 	g.Update(80, 24)
 
-	if g.running.Load() {
+	if g.IsRunning() {
 		t.Error("expected game stopped when all targets dead")
 	}
 }

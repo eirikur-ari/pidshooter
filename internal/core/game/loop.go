@@ -5,7 +5,7 @@ import "time"
 // Update advances the game state by one tick. w and h are the current terminal dimensions.
 func (g *Game) Update(w, h int) {
 	if g.cfg.TimeLimit > 0 && g.timeRemaining() == 0 {
-		g.running.Store(false)
+		g.Stop()
 		return
 	}
 
@@ -18,7 +18,7 @@ func (g *Game) Update(w, h int) {
 	}
 
 	if allDead && len(g.targets) > 0 {
-		g.running.Store(false)
+		g.Stop()
 	}
 }
 

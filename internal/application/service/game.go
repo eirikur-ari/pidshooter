@@ -102,7 +102,7 @@ func (s *GameService) runLoop(g *game.Game) (time.Time, error) {
 	defer s.renderer.Cleanup()
 
 	w, h := s.renderer.Size()
-	g.Init(w, h)
+	g.Start(w, h)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGTSTP)
@@ -122,7 +122,7 @@ func (s *GameService) runLoop(g *game.Game) (time.Time, error) {
 
 	s.kills = make(chan *game.Target, 10)
 
-	for g.Running() {
+	for g.IsRunning() {
 		s.applyKills(g)
 		s.drainEvents(g, done)
 		w, h = s.renderer.Size()
