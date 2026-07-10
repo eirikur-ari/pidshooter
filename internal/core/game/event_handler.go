@@ -9,11 +9,7 @@ func (g *Game) HandleClick(x, y int) *Target {
 	}
 	for _, t := range g.targets {
 		if t.Contains(x, y) {
-			if g.cfg.ConfirmMode {
-				g.confirm.Set(t)
-				return nil
-			}
-			return t
+			return g.confirm.Set(t)
 		}
 	}
 	return nil

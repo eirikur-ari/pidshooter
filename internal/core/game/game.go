@@ -34,6 +34,7 @@ func New(processes []process.Info, cfg Config) *Game {
 		processes: processes,
 		targets:   make([]*Target, 0, len(processes)),
 		velocity:  NewVelocity(cfg.Speed),
+		confirm:   NewConfirmation(cfg.ConfirmMode),
 	}
 	g.running.Store(true)
 	return g

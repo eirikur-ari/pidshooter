@@ -142,7 +142,7 @@ func TestHandleClick_ReturnsTarget(t *testing.T) {
 
 func TestHandleClick_SetsConfirmingInConfirmMode(t *testing.T) {
 	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
-	g := &Game{targets: []*Target{tgt}, cfg: Config{ConfirmMode: true}}
+	g := &Game{targets: []*Target{tgt}, confirm: NewConfirmation(true)}
 
 	target := g.HandleClick(10, 5)
 
