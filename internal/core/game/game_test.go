@@ -12,16 +12,16 @@ func TestNew(t *testing.T) {
 		{Pid: 2, Name: "b", Rss: 200},
 	}
 
-	g := New(processes, true, 3.5, 60)
+	g := New(processes, Config{ConfirmMode: true, Speed: 3.5, TimeLimit: 60})
 
-	if !g.confirmMode {
+	if !g.cfg.ConfirmMode {
 		t.Error("expected confirmMode=true")
 	}
 	if g.velocity.Speed() != 3.5 {
 		t.Errorf("expected speed=3.5, got %f", g.velocity.Speed())
 	}
-	if g.timeLimit != 60 {
-		t.Errorf("expected timeLimit=60, got %d", g.timeLimit)
+	if g.cfg.TimeLimit != 60 {
+		t.Errorf("expected timeLimit=60, got %d", g.cfg.TimeLimit)
 	}
 	if !g.running.Load() {
 		t.Error("expected running=true")

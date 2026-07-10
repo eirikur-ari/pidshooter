@@ -43,7 +43,7 @@ func TestGameService_ApplyKills_CompletesPendingKill(t *testing.T) {
 	svc := NewGameService(&fake.Process{}, &fake.Store{}, &stubRenderer{}, newStubEventSource())
 	svc.kills = make(chan *game.Target, 1)
 
-	g := game.New([]process.Info{info}, false, 2.0, 0)
+	g := game.New([]process.Info{info}, game.Config{Speed: 2.0})
 
 	target := game.NewTarget(info, 80, 24)
 	svc.kills <- target
@@ -62,7 +62,7 @@ func TestGameService_ApplyKills_EmptyChannelNoOps(t *testing.T) {
 	svc := NewGameService(&fake.Process{}, &fake.Store{}, &stubRenderer{}, newStubEventSource())
 	svc.kills = make(chan *game.Target, 1)
 
-	g := game.New([]process.Info{}, false, 2.0, 0)
+	g := game.New([]process.Info{}, game.Config{Speed: 2.0})
 
 	svc.applyKills(g) // must not block
 

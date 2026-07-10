@@ -82,14 +82,14 @@ func TestHandleKey_SpeedCapsAtMin(t *testing.T) {
 	}
 }
 
-func TestHandleKey_ConfirmYes_ReturnsKillRequest(t *testing.T) {
+func TestHandleKey_ConfirmYes_ReturnsTarget(t *testing.T) {
 	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 4096}, State: Alive}
 	g := newRunningGame(&Game{confirming: e})
 
-	req := g.HandleKey('y')
+	target := g.HandleKey('y')
 
-	if req == nil || req.Target != e {
-		t.Error("expected KillRequest with the confirming target")
+	if target == nil || target != e {
+		t.Error("expected confirmed target to be returned")
 	}
 	if g.confirming != nil {
 		t.Error("expected confirming=nil after 'y'")
@@ -100,10 +100,10 @@ func TestHandleKey_ConfirmNo(t *testing.T) {
 	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 0}, State: Alive}
 	g := newRunningGame(&Game{confirming: e})
 
-	req := g.HandleKey('n')
+	target := g.HandleKey('n')
 
-	if req != nil {
-		t.Error("expected no KillRequest after 'n'")
+	if target != nil {
+		t.Error("expected no target after 'n'")
 	}
 	if g.confirming != nil {
 		t.Error("expected confirming=nil after 'n'")
@@ -129,25 +129,25 @@ func TestHandleKey_QCancelsConfirm(t *testing.T) {
 
 // --- HandleClick ---
 
-func TestHandleClick_ReturnsKillRequest(t *testing.T) {
+func TestHandleClick_ReturnsTarget(t *testing.T) {
 	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
 	g := &Game{targets: []*Target{e}}
 
-	req := g.HandleClick(10, 5)
+	target := g.HandleClick(10, 5)
 
-	if req == nil || req.Target != e {
-		t.Error("expected KillRequest for the clicked target")
+	if target == nil || target != e {
+		t.Error("expected clicked target to be returned")
 	}
 }
 
 func TestHandleClick_SetsConfirmingInConfirmMode(t *testing.T) {
 	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
-	g := &Game{targets: []*Target{e}, confirmMode: true}
+	g := &Game{targets: []*Target{e}, cfg: Config{ConfirmMode: true}}
 
-	req := g.HandleClick(10, 5)
+	target := g.HandleClick(10, 5)
 
-	if req != nil {
-		t.Error("expected no KillRequest in confirm mode (should set confirming instead)")
+	if target != nil {
+		t.Error("expected no target in confirm mode (should set confirming instead)")
 	}
 	if g.confirming != e {
 		t.Error("expected entity set as confirming")
@@ -162,10 +162,10 @@ func TestHandleClick_NoOpWhenAlreadyConfirming(t *testing.T) {
 	target := &Target{Info: process.Info{Pid: 2, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
 	g := &Game{targets: []*Target{target}, confirming: existing}
 
-	req := g.HandleClick(10, 5)
+	result := g.HandleClick(10, 5)
 
-	if req != nil {
-		t.Error("expected no KillRequest when already confirming")
+	if result != nil {
+		t.Error("expected no target when already confirming")
 	}
 	if g.confirming != existing {
 		t.Error("expected confirming to remain unchanged")
@@ -176,10 +176,10 @@ func TestHandleClick_NoOpOnMiss(t *testing.T) {
 	e := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
 	g := &Game{targets: []*Target{e}}
 
-	req := g.HandleClick(0, 0)
+	target := g.HandleClick(0, 0)
 
-	if req != nil {
-		t.Error("expected no KillRequest on miss")
+	if target != nil {
+		t.Error("expected no target on miss")
 	}
 	if e.State != Alive {
 		t.Error("expected entity to remain alive on miss")

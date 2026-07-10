@@ -61,7 +61,7 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 		board = &score.Board{}
 	}
 
-	g := game.New(processes, cfg.ConfirmMode, cfg.Speed, cfg.TimeLimit)
+	g := game.New(processes, game.Config{ConfirmMode: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
 	g.SetHighScore(board.HighScore())
 
 	endTime, err := s.runLoop(g)
@@ -149,20 +149,19 @@ func (s *GameService) drainEvents(g *game.Game, done <-chan struct{}) {
 	for {
 		select {
 		case ev := <-s.events.Events():
-			var req *game.KillRequest
+			var target *game.Target
 			switch ev := ev.(type) {
 			case event.ClickEvent:
-				req = g.HandleClick(ev.X, ev.Y)
+				target = g.HandleClick(ev.X, ev.Y)
 			case event.KeyEvent:
 				switch ev.Key {
 				case event.KeyEscape, event.KeyCtrlC, event.KeyCtrlZ:
 					g.Stop()
 				default:
-					req = g.HandleKey(ev.Ch)
+					target = g.HandleKey(ev.Ch)
 				}
 			}
-			if req != nil {
-				target := req.Target
+			if target != nil {
 				go func() {
 					if killed, err := s.process.Kill(target.Pid, target.Name); err == nil && killed {
 						select {

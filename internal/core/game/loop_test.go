@@ -8,7 +8,7 @@ import (
 )
 
 func TestGame_timeRemaining_WithinLimit(t *testing.T) {
-	g := &Game{timeLimit: 60}
+	g := &Game{cfg: Config{TimeLimit: 60}}
 	g.startTime = time.Now()
 	remaining := g.timeRemaining()
 	if remaining <= 0 || remaining > 60*time.Second {
@@ -17,7 +17,7 @@ func TestGame_timeRemaining_WithinLimit(t *testing.T) {
 }
 
 func TestGame_timeRemaining_Expired(t *testing.T) {
-	g := &Game{timeLimit: 1}
+	g := &Game{cfg: Config{TimeLimit: 1}}
 	g.startTime = time.Now().Add(-2 * time.Second)
 	if got := g.timeRemaining(); got != 0 {
 		t.Errorf("expected 0 after expiry, got %v", got)
@@ -53,7 +53,7 @@ func TestCompleteKill_NoOpWhenNotAlive(t *testing.T) {
 }
 
 func TestUpdate_StopsWhenTimeLimitExpired(t *testing.T) {
-	g := &Game{timeLimit: 1}
+	g := &Game{cfg: Config{TimeLimit: 1}}
 	g.running.Store(true)
 	g.startTime = time.Now().Add(-2 * time.Second)
 

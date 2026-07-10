@@ -4,7 +4,7 @@ import "time"
 
 // Update advances the game state by one tick. w and h are the current terminal dimensions.
 func (g *Game) Update(w, h int) {
-	if g.timeLimit > 0 && g.timeRemaining() == 0 {
+	if g.cfg.TimeLimit > 0 && g.timeRemaining() == 0 {
 		g.running.Store(false)
 		return
 	}
@@ -47,7 +47,7 @@ func (g *Game) Frame() Frame {
 	}
 
 	var timeLeft int
-	if g.timeLimit > 0 {
+	if g.cfg.TimeLimit > 0 {
 		timeLeft = int(g.timeRemaining().Seconds())
 	}
 
@@ -61,7 +61,7 @@ func (g *Game) Frame() Frame {
 		StatusBar: StatusState{
 			Alive:      alive,
 			Speed:      g.velocity.Speed(),
-			TimeLimit:  g.timeLimit,
+			TimeLimit:  g.cfg.TimeLimit,
 			TimeLeft:   timeLeft,
 			Confirming: cs,
 		},
@@ -79,7 +79,7 @@ func (g *Game) CompleteKill(t *Target) {
 }
 
 func (g *Game) timeRemaining() time.Duration {
-	remaining := time.Duration(g.timeLimit)*time.Second - time.Since(g.startTime)
+	remaining := time.Duration(g.cfg.TimeLimit)*time.Second - time.Since(g.startTime)
 	if remaining < 0 {
 		return 0
 	}

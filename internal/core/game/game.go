@@ -8,33 +8,32 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
+// Config holds the gameplay parameters for a session.
+type Config struct {
+	ConfirmMode bool
+	Speed       float64
+	TimeLimit   int
+}
+
 // Game manages targets and session state as a pure state machine.
 // The application layer owns the loop, renderer, event source, and process killer.
 type Game struct {
-	processes   []process.Info
-	targets     []*Target
-	confirmMode bool
-	velocity    Velocity
-	timeLimit   int
-	running     atomic.Bool
-	confirming  *Target
+	cfg        Config
+	processes  []process.Info
+	targets    []*Target
+	velocity   Velocity
+	running    atomic.Bool
+	confirming *Target
 	Session
 }
 
-// KillRequest is returned by HandleClick or HandleKey when a target should be killed.
-// The application layer performs the actual kill and calls CompleteKill on success.
-type KillRequest struct {
-	Target *Target
-}
-
 // New creates a new Game with the given configuration. Call Init before the first Update.
-func New(processes []process.Info, confirmMode bool, speed float64, timeLimit int) *Game {
+func New(processes []process.Info, cfg Config) *Game {
 	g := &Game{
-		processes:   processes,
-		targets:     make([]*Target, 0, len(processes)),
-		confirmMode: confirmMode,
-		velocity:    NewVelocity(speed),
-		timeLimit:   timeLimit,
+		cfg:       cfg,
+		processes: processes,
+		targets:   make([]*Target, 0, len(processes)),
+		velocity:  NewVelocity(cfg.Speed),
 	}
 	g.running.Store(true)
 	return g
