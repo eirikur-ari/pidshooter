@@ -31,54 +31,54 @@ func TestHandleKey_QuitUppercase(t *testing.T) {
 }
 
 func TestHandleKey_SpeedUp(t *testing.T) {
-	g := newRunningGame(&Game{speed: 2.0})
+	g := newRunningGame(&Game{velocity: NewVelocity(2.0)})
 	g.HandleKey('+')
-	if g.speed != 2.5 {
-		t.Errorf("expected speed=2.5, got %f", g.speed)
+	if g.velocity.Speed() != 2.5 {
+		t.Errorf("expected speed=2.5, got %f", g.velocity.Speed())
 	}
 }
 
 func TestHandleKey_SpeedDown(t *testing.T) {
-	g := newRunningGame(&Game{speed: 2.0})
+	g := newRunningGame(&Game{velocity: NewVelocity(2.0)})
 	g.HandleKey('-')
-	if g.speed != 1.5 {
-		t.Errorf("expected speed=1.5, got %f", g.speed)
+	if g.velocity.Speed() != 1.5 {
+		t.Errorf("expected speed=1.5, got %f", g.velocity.Speed())
 	}
 }
 
 func TestHandleKey_SpeedUpAlias(t *testing.T) {
-	g := newRunningGame(&Game{speed: 2.0})
+	g := newRunningGame(&Game{velocity: NewVelocity(2.0)})
 	g.HandleKey('=')
-	if g.speed != 2.5 {
-		t.Errorf("expected speed=2.5 with '=' alias, got %f", g.speed)
+	if g.velocity.Speed() != 2.5 {
+		t.Errorf("expected speed=2.5 with '=' alias, got %f", g.velocity.Speed())
 	}
 }
 
 func TestHandleKey_SpeedDownAlias(t *testing.T) {
-	g := newRunningGame(&Game{speed: 2.0})
+	g := newRunningGame(&Game{velocity: NewVelocity(2.0)})
 	g.HandleKey('_')
-	if g.speed != 1.5 {
-		t.Errorf("expected speed=1.5 with '_' alias, got %f", g.speed)
+	if g.velocity.Speed() != 1.5 {
+		t.Errorf("expected speed=1.5 with '_' alias, got %f", g.velocity.Speed())
 	}
 }
 
 func TestHandleKey_SpeedCapsAtMax(t *testing.T) {
-	g := newRunningGame(&Game{speed: 4.8})
+	g := newRunningGame(&Game{velocity: NewVelocity(4.8)})
 	g.HandleKey('+')
-	if g.speed != 5.0 {
-		t.Errorf("expected speed capped at 5.0, got %f", g.speed)
+	if g.velocity.Speed() != 5.0 {
+		t.Errorf("expected speed capped at 5.0, got %f", g.velocity.Speed())
 	}
 	g.HandleKey('+')
-	if g.speed != 5.0 {
-		t.Errorf("expected speed still 5.0, got %f", g.speed)
+	if g.velocity.Speed() != 5.0 {
+		t.Errorf("expected speed still 5.0, got %f", g.velocity.Speed())
 	}
 }
 
 func TestHandleKey_SpeedCapsAtMin(t *testing.T) {
-	g := newRunningGame(&Game{speed: 0.3})
+	g := newRunningGame(&Game{velocity: NewVelocity(0.3)})
 	g.HandleKey('-')
-	if g.speed != 0.1 {
-		t.Errorf("expected speed capped at 0.1, got %f", g.speed)
+	if g.velocity.Speed() != 0.1 {
+		t.Errorf("expected speed capped at 0.1, got %f", g.velocity.Speed())
 	}
 }
 

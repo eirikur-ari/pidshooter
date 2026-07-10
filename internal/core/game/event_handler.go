@@ -40,15 +40,10 @@ func (g *Game) HandleKey(ch rune) *KillRequest {
 			g.confirming = nil
 		}
 	case ch == '+' || ch == '=':
-		g.speed += 0.5
-		if g.speed > 5.0 {
-			g.speed = 5.0
-		}
+		g.velocity.Increase()
 	case ch == '-' || ch == '_':
-		g.speed -= 0.5
-		if g.speed < 0.1 {
-			g.speed = 0.1
-		}
+		g.velocity.Decrease()
 	}
 	return nil
 }
+

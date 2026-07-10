@@ -17,8 +17,8 @@ func TestNew(t *testing.T) {
 	if !g.confirmMode {
 		t.Error("expected confirmMode=true")
 	}
-	if g.speed != 3.5 {
-		t.Errorf("expected speed=3.5, got %f", g.speed)
+	if g.velocity.Speed() != 3.5 {
+		t.Errorf("expected speed=3.5, got %f", g.velocity.Speed())
 	}
 	if g.timeLimit != 60 {
 		t.Errorf("expected timeLimit=60, got %d", g.timeLimit)

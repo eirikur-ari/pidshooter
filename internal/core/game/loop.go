@@ -11,7 +11,7 @@ func (g *Game) Update(w, h int) {
 
 	allDead := true
 	for _, e := range g.targets {
-		e.Update(w, h, g.speed)
+		e.Update(w, h, g.velocity.Speed())
 		if e.State != Dead {
 			allDead = false
 		}
@@ -60,7 +60,7 @@ func (g *Game) Frame() Frame {
 		},
 		StatusBar: StatusState{
 			Alive:      alive,
-			Speed:      g.speed,
+			Speed:      g.velocity.Speed(),
 			TimeLimit:  g.timeLimit,
 			TimeLeft:   timeLeft,
 			Confirming: cs,

@@ -14,7 +14,7 @@ type Game struct {
 	processes   []process.Info
 	targets     []*Target
 	confirmMode bool
-	speed       float64
+	velocity    Velocity
 	timeLimit   int
 	running     atomic.Bool
 	confirming  *Target
@@ -33,7 +33,7 @@ func New(processes []process.Info, confirmMode bool, speed float64, timeLimit in
 		processes:   processes,
 		targets:     make([]*Target, 0, len(processes)),
 		confirmMode: confirmMode,
-		speed:       speed,
+		velocity:    NewVelocity(speed),
 		timeLimit:   timeLimit,
 	}
 	g.running.Store(true)
