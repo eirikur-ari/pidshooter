@@ -20,7 +20,7 @@ func (KeyEvent) isInputEvent() {}
 type KeyCode int
 
 const (
-	KeyNone   KeyCode = iota
+	KeyNone KeyCode = iota
 	KeyEscape
 	KeyCtrlC
 	KeyCtrlZ

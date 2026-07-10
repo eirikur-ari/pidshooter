@@ -190,4 +190,3 @@ func translateKey(k tcell.Key) event.KeyCode {
 		return event.KeyNone
 	}
 }
-
