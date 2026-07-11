@@ -5,32 +5,17 @@ import (
 	"testing"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
-	"github.com/eirikur-ari/pidshooter/internal/core/event"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
-type stubRenderer struct{}
-
-func (r *stubRenderer) Init() error         { return nil }
-func (r *stubRenderer) Cleanup()            {}
-func (r *stubRenderer) Size() (int, int)    { return 80, 24 }
-func (r *stubRenderer) Render(_ game.Frame) {}
-
-type stubEventSource struct{ ch chan event.InputEvent }
-
-func newStubEventSource() *stubEventSource {
-	return &stubEventSource{ch: make(chan event.InputEvent, 100)}
-}
-func (e *stubEventSource) Events() <-chan event.InputEvent { return e.ch }
-
 func TestGameService_FinderError(t *testing.T) {
 	svc := NewGameService(
 		&fake.Process{FindErr: errors.New("ps failed")},
 		&fake.Store{},
-		&stubRenderer{},
-		newStubEventSource(),
+		&fake.Renderer{},
+		fake.NewInputSource(),
 	)
 	err := svc.Play(inbound.GamePlayConfig{Patterns: []string{"foo"}, Speed: 2.0, TimeLimit: 30})
 	if err == nil {
@@ -40,7 +25,7 @@ func TestGameService_FinderError(t *testing.T) {
 
 func TestGameService_ApplyKills_CompletesPendingKill(t *testing.T) {
 	info := process.Info{Pid: 100, Name: "target", Rss: 4096}
-	svc := NewGameService(&fake.Process{}, &fake.Store{}, &stubRenderer{}, newStubEventSource())
+	svc := NewGameService(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	svc.kills = make(chan *game.Target, 1)
 
 	g := game.New([]process.Info{info}, game.Config{Speed: 2.0})
@@ -59,7 +44,7 @@ func TestGameService_ApplyKills_CompletesPendingKill(t *testing.T) {
 }
 
 func TestGameService_ApplyKills_EmptyChannelNoOps(t *testing.T) {
-	svc := NewGameService(&fake.Process{}, &fake.Store{}, &stubRenderer{}, newStubEventSource())
+	svc := NewGameService(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	svc.kills = make(chan *game.Target, 1)
 
 	g := game.New([]process.Info{}, game.Config{Speed: 2.0})
@@ -75,8 +60,8 @@ func TestGameService_NoProcesses(t *testing.T) {
 	svc := NewGameService(
 		&fake.Process{},
 		&fake.Store{},
-		&stubRenderer{},
-		newStubEventSource(),
+		&fake.Renderer{},
+		fake.NewInputSource(),
 	)
 	err := svc.Play(inbound.GamePlayConfig{Patterns: []string{"nonexistent"}, Speed: 2.0, TimeLimit: 30})
 	if err != nil {
