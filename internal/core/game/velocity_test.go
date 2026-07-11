@@ -1,50 +1,40 @@
 package game
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestNewVelocity(t *testing.T) {
 	v := NewVelocity(2.0)
-	if v.Speed() != 2.0 {
-		t.Errorf("expected 2.0, got %f", v.Speed())
-	}
+	assert.Equal(t, 2.0, v.Speed())
 }
 
 func TestVelocity_Increase(t *testing.T) {
 	v := NewVelocity(2.0)
 	v.Increase()
-	if v.Speed() != 2.5 {
-		t.Errorf("expected 2.5, got %f", v.Speed())
-	}
+	assert.Equal(t, 2.5, v.Speed())
 }
 
 func TestVelocity_Decrease(t *testing.T) {
 	v := NewVelocity(2.0)
 	v.Decrease()
-	if v.Speed() != 1.5 {
-		t.Errorf("expected 1.5, got %f", v.Speed())
-	}
+	assert.Equal(t, 1.5, v.Speed())
 }
 
 func TestVelocity_IncreaseCapsAtMax(t *testing.T) {
 	v := NewVelocity(4.8)
 	v.Increase()
-	if v.Speed() != MaxSpeed {
-		t.Errorf("expected %f, got %f", MaxSpeed, v.Speed())
-	}
+	assert.Equal(t, MaxSpeed, v.Speed())
 	v.Increase()
-	if v.Speed() != MaxSpeed {
-		t.Errorf("expected speed to remain %f, got %f", MaxSpeed, v.Speed())
-	}
+	assert.Equal(t, MaxSpeed, v.Speed(), "expected speed to remain %f", MaxSpeed)
 }
 
 func TestVelocity_DecreaseFloorsAtMin(t *testing.T) {
 	v := NewVelocity(0.3)
 	v.Decrease()
-	if v.Speed() != MinSpeed {
-		t.Errorf("expected %f, got %f", MinSpeed, v.Speed())
-	}
+	assert.Equal(t, MinSpeed, v.Speed())
 	v.Decrease()
-	if v.Speed() != MinSpeed {
-		t.Errorf("expected speed to remain %f, got %f", MinSpeed, v.Speed())
-	}
+	assert.Equal(t, MinSpeed, v.Speed(), "expected speed to remain %f", MinSpeed)
 }

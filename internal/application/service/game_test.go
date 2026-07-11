@@ -4,6 +4,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
@@ -18,9 +21,7 @@ func TestGameService_FinderError(t *testing.T) {
 		fake.NewInputSource(),
 	)
 	err := svc.Play(inbound.GamePlayConfig{Patterns: []string{"foo"}, Speed: 2.0, TimeLimit: 30})
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestGameService_ApplyKills_CompletesPendingKill(t *testing.T) {
@@ -35,12 +36,8 @@ func TestGameService_ApplyKills_CompletesPendingKill(t *testing.T) {
 
 	svc.applyKills(g)
 
-	if target.State != game.Killing {
-		t.Errorf("expected target state Killing, got %v", target.State)
-	}
-	if g.Kills() != 1 {
-		t.Errorf("expected 1 kill recorded, got %d", g.Kills())
-	}
+	assert.Equal(t, game.Killing, target.State)
+	assert.Equal(t, 1, g.Kills())
 }
 
 func TestGameService_ApplyKills_EmptyChannelNoOps(t *testing.T) {
@@ -51,9 +48,7 @@ func TestGameService_ApplyKills_EmptyChannelNoOps(t *testing.T) {
 
 	svc.applyKills(g) // must not block
 
-	if g.Kills() != 0 {
-		t.Errorf("expected 0 kills, got %d", g.Kills())
-	}
+	assert.Equal(t, 0, g.Kills())
 }
 
 func TestGameService_NoProcesses(t *testing.T) {
@@ -64,7 +59,5 @@ func TestGameService_NoProcesses(t *testing.T) {
 		fake.NewInputSource(),
 	)
 	err := svc.Play(inbound.GamePlayConfig{Patterns: []string{"nonexistent"}, Speed: 2.0, TimeLimit: 30})
-	if err != nil {
-		t.Errorf("expected nil error for empty results, got %v", err)
-	}
+	assert.NoError(t, err)
 }

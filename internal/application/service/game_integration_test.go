@@ -5,9 +5,11 @@ package service
 import (
 	"errors"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/event"
@@ -31,22 +33,12 @@ func TestIntegration_GameService_HappyPath(t *testing.T) {
 		events,
 	)
 
-	if err := svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0}); err != nil {
-		t.Fatalf("expected nil error, got %v", err)
-	}
-	if store.Saved == nil {
-		t.Fatal("expected Save to be called, got nil")
-	}
-	if len(store.Saved.Scores) != 1 {
-		t.Fatalf("expected 1 score entry, got %d", len(store.Saved.Scores))
-	}
+	require.NoError(t, svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0}))
+	require.NotNil(t, store.Saved)
+	require.Len(t, store.Saved.Scores, 1)
 	entry := store.Saved.Scores[0]
-	if entry.Kills != 0 {
-		t.Errorf("expected 0 kills after immediate quit, got %d", entry.Kills)
-	}
-	if entry.Duration <= 0 {
-		t.Errorf("expected positive duration, got %f", entry.Duration)
-	}
+	assert.Equal(t, 0, entry.Kills)
+	assert.Greater(t, entry.Duration, 0.0)
 }
 
 func TestIntegration_GameService_LoadError_PrintsWarningAndSkipsSave(t *testing.T) {
@@ -65,15 +57,9 @@ func TestIntegration_GameService_LoadError_PrintsWarningAndSkipsSave(t *testing.
 		err = svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 	})
 
-	if err != nil {
-		t.Fatalf("expected Play to return nil, got %v", err)
-	}
-	if !strings.Contains(stderr, "could not load scores") {
-		t.Errorf("expected stderr warning about load failure, got: %q", stderr)
-	}
-	if store.Saved != nil {
-		t.Error("expected Save to be skipped after load failure, but it was called")
-	}
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "could not load scores")
+	assert.Nil(t, store.Saved)
 }
 
 func TestIntegration_GameService_SaveError_PrintsWarning(t *testing.T) {
@@ -91,15 +77,9 @@ func TestIntegration_GameService_SaveError_PrintsWarning(t *testing.T) {
 		err = svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 	})
 
-	if err != nil {
-		t.Fatalf("expected Play to return nil, got %v", err)
-	}
-	if !strings.Contains(stderr, "score not saved") {
-		t.Errorf("expected stderr warning about save failure, got: %q", stderr)
-	}
-	if !strings.Contains(stderr, "disk full") {
-		t.Errorf("expected stderr to include underlying error, got: %q", stderr)
-	}
+	require.NoError(t, err)
+	assert.Contains(t, stderr, "score not saved")
+	assert.Contains(t, stderr, "disk full")
 }
 
 func TestIntegration_GameService_QuitOnQ(t *testing.T) {
@@ -114,9 +94,7 @@ func TestIntegration_GameService_QuitOnQ(t *testing.T) {
 		&fake.Store{},
 		events,
 	)
-	if err := svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	assert.NoError(t, svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}))
 }
 
 func TestIntegration_GameService_QuitOnEscape(t *testing.T) {
@@ -131,9 +109,7 @@ func TestIntegration_GameService_QuitOnEscape(t *testing.T) {
 		&fake.Store{},
 		events,
 	)
-	if err := svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	assert.NoError(t, svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}))
 }
 
 func TestIntegration_GameService_QuitOnCtrlC(t *testing.T) {
@@ -148,9 +124,7 @@ func TestIntegration_GameService_QuitOnCtrlC(t *testing.T) {
 		&fake.Store{},
 		events,
 	)
-	if err := svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	assert.NoError(t, svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}))
 }
 
 func TestIntegration_GameService_QuitOnCtrlZ(t *testing.T) {
@@ -165,9 +139,7 @@ func TestIntegration_GameService_QuitOnCtrlZ(t *testing.T) {
 		&fake.Store{},
 		events,
 	)
-	if err := svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	assert.NoError(t, svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}))
 }
 
 func TestIntegration_GameService_TimeLimitExpires(t *testing.T) {
@@ -178,12 +150,8 @@ func TestIntegration_GameService_TimeLimitExpires(t *testing.T) {
 	)
 
 	start := time.Now()
-	if err := svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 1}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if elapsed := time.Since(start); elapsed > 3*time.Second {
-		t.Errorf("game took too long to exit on time limit: %v", elapsed)
-	}
+	require.NoError(t, svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 1}))
+	assert.LessOrEqual(t, time.Since(start), 3*time.Second, "game took too long to exit on time limit")
 }
 
 // TestIntegration_GameService_SignalGoroutineDoesNotAccumulate verifies the signal goroutine

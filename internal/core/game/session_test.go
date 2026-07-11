@@ -1,25 +1,21 @@
 package game
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestSession_RecordKill(t *testing.T) {
 	s := Session{}
 
 	s.RecordKill(1024)
-	if s.Kills() != 1 {
-		t.Errorf("expected kills=1, got %d", s.Kills())
-	}
-	if s.FreedMem() != 1024 {
-		t.Errorf("expected freedMem=1024, got %d", s.FreedMem())
-	}
+	assert.Equal(t, 1, s.Kills())
+	assert.Equal(t, int64(1024), s.FreedMem())
 
 	s.RecordKill(2048)
-	if s.Kills() != 2 {
-		t.Errorf("expected kills=2, got %d", s.Kills())
-	}
-	if s.FreedMem() != 3072 {
-		t.Errorf("expected freedMem=3072, got %d", s.FreedMem())
-	}
+	assert.Equal(t, 2, s.Kills())
+	assert.Equal(t, int64(3072), s.FreedMem())
 }
 
 func TestSession_RecordKill_UpdatesHighScore(t *testing.T) {
@@ -28,33 +24,23 @@ func TestSession_RecordKill_UpdatesHighScore(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		s.RecordKill(0)
-		if s.highScore != 5 {
-			t.Errorf("after %d kills: expected highScore=5 (not beaten yet), got %d", i+1, s.highScore)
-		}
+		assert.Equal(t, 5, s.highScore, "after %d kills: expected highScore=5 (not beaten yet)", i+1)
 	}
 
 	s.RecordKill(0)
-	if s.highScore != 6 {
-		t.Errorf("expected highScore=6 after beating old record, got %d", s.highScore)
-	}
+	assert.Equal(t, 6, s.highScore, "expected highScore=6 after beating old record")
 
 	s.RecordKill(0)
-	if s.highScore != 7 {
-		t.Errorf("expected highScore=7 after second beat, got %d", s.highScore)
-	}
+	assert.Equal(t, 7, s.highScore, "expected highScore=7 after second beat")
 }
 
 func TestSession_SetHighScore(t *testing.T) {
 	s := Session{}
 	s.SetHighScore(100)
-	if s.highScore != 100 {
-		t.Errorf("expected highScore=100, got %d", s.highScore)
-	}
+	assert.Equal(t, 100, s.highScore)
 }
 
 func TestSession_StartTime_ZeroOnNew(t *testing.T) {
 	s := Session{}
-	if !s.StartTime().IsZero() {
-		t.Error("expected zero StartTime on a new session")
-	}
+	assert.True(t, s.StartTime().IsZero(), "expected zero StartTime on a new session")
 }

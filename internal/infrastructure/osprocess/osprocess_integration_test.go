@@ -4,80 +4,52 @@ package osprocess_test
 
 import (
 	"os"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
 )
 
 func TestIntegration_List_ReturnsResults(t *testing.T) {
 	f, err := osprocess.NewProcess()
-	if err != nil {
-		t.Fatalf("NewProcess: %v", err)
-	}
+	require.NoError(t, err)
 	processes, err := f.List()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(processes) == 0 {
-		t.Error("expected at least one process")
-	}
+	require.NoError(t, err)
+	assert.NotEmpty(t, processes)
 }
 
 func TestIntegration_List_ValidFields(t *testing.T) {
 	f, err := osprocess.NewProcess()
-	if err != nil {
-		t.Fatalf("NewProcess: %v", err)
-	}
+	require.NoError(t, err)
 	processes, err := f.List()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	for _, p := range processes {
-		if p.Pid <= 0 {
-			t.Errorf("invalid PID: %d", p.Pid)
-		}
-		if p.Name == "" {
-			t.Errorf("empty name for PID %d", p.Pid)
-		}
-		if p.Rss < 0 {
-			t.Errorf("negative RSS for PID %d: %d", p.Pid, p.Rss)
-		}
+		assert.Greater(t, p.Pid, 0, "invalid PID")
+		assert.NotEmpty(t, p.Name, "empty name for PID %d", p.Pid)
+		assert.GreaterOrEqual(t, p.Rss, int64(0), "negative RSS for PID %d", p.Pid)
 	}
 }
 
 func TestIntegration_List_ShortProcessNames(t *testing.T) {
 	f, err := osprocess.NewProcess()
-	if err != nil {
-		t.Fatalf("NewProcess: %v", err)
-	}
+	require.NoError(t, err)
 	processes, err := f.List()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	for _, p := range processes {
-		if strings.Contains(p.Name, "/") {
-			t.Errorf("PID %d has a full path in name: %q", p.Pid, p.Name)
-		}
+		assert.NotContains(t, p.Name, "/", "PID %d has a full path in name: %q", p.Pid, p.Name)
 	}
 }
 
 func TestIntegration_Find_ExcludesOwnPID(t *testing.T) {
 	f, err := osprocess.NewProcess()
-	if err != nil {
-		t.Fatalf("NewProcess: %v", err)
-	}
+	require.NoError(t, err)
 	ownPID := os.Getpid()
 	results, err := f.Find([]string{"proc"})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	require.NoError(t, err)
 	for _, p := range results {
-		if p.Pid == ownPID {
-			t.Errorf("own PID %d should be excluded", ownPID)
-		}
-		if p.Pid == 1 {
-			t.Error("PID 1 should be excluded")
-		}
+		assert.NotEqual(t, ownPID, p.Pid, "own PID should be excluded")
+		assert.NotEqual(t, 1, p.Pid, "PID 1 should be excluded")
 	}
 }

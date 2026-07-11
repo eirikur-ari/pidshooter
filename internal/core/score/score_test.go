@@ -1,9 +1,11 @@
 package score
 
 import (
-	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/testutil/capture"
 )
@@ -13,23 +15,15 @@ import (
 func TestEntry_Beats_ByKills(t *testing.T) {
 	high := Entry{Kills: 10, FreedMem: 100}
 	low := Entry{Kills: 5, FreedMem: 9000}
-	if !high.beats(low) {
-		t.Error("expected higher kills to win regardless of freed mem")
-	}
-	if low.beats(high) {
-		t.Error("expected lower kills to lose")
-	}
+	assert.True(t, high.beats(low), "expected higher kills to win regardless of freed mem")
+	assert.False(t, low.beats(high), "expected lower kills to lose")
 }
 
 func TestEntry_Beats_TiebreakByFreedMem(t *testing.T) {
 	more := Entry{Kills: 5, FreedMem: 2000}
 	less := Entry{Kills: 5, FreedMem: 1000}
-	if !more.beats(less) {
-		t.Error("expected higher freed mem to win on kills tie")
-	}
-	if less.beats(more) {
-		t.Error("expected lower freed mem to lose on kills tie")
-	}
+	assert.True(t, more.beats(less), "expected higher freed mem to win on kills tie")
+	assert.False(t, less.beats(more), "expected lower freed mem to lose on kills tie")
 }
 
 // --- Board.Add ---
@@ -41,18 +35,10 @@ func TestBoard_Add_SortsDescending(t *testing.T) {
 	b.Add(Entry{Kills: 7, FreedMem: 200, Date: time.Now()})
 	b.Add(Entry{Kills: 5, FreedMem: 150, Date: time.Now()})
 
-	if len(b.Scores) != 3 {
-		t.Fatalf("expected 3 scores, got %d", len(b.Scores))
-	}
-	if b.Scores[0].Kills != 7 {
-		t.Errorf("expected top score=7, got %d", b.Scores[0].Kills)
-	}
-	if b.Scores[1].Kills != 5 {
-		t.Errorf("expected second score=5, got %d", b.Scores[1].Kills)
-	}
-	if b.Scores[2].Kills != 3 {
-		t.Errorf("expected third score=3, got %d", b.Scores[2].Kills)
-	}
+	require.Len(t, b.Scores, 3)
+	assert.Equal(t, 7, b.Scores[0].Kills)
+	assert.Equal(t, 5, b.Scores[1].Kills)
+	assert.Equal(t, 3, b.Scores[2].Kills)
 }
 
 func TestBoard_Add_TiebreakByMemory(t *testing.T) {
@@ -61,9 +47,7 @@ func TestBoard_Add_TiebreakByMemory(t *testing.T) {
 	b.Add(Entry{Kills: 5, FreedMem: 100, Date: time.Now()})
 	b.Add(Entry{Kills: 5, FreedMem: 500, Date: time.Now()})
 
-	if b.Scores[0].FreedMem != 500 {
-		t.Errorf("expected higher memory first, got %d", b.Scores[0].FreedMem)
-	}
+	assert.Equal(t, int64(500), b.Scores[0].FreedMem, "expected higher memory first")
 }
 
 func TestBoard_Add_CapsAtMax(t *testing.T) {
@@ -73,23 +57,17 @@ func TestBoard_Add_CapsAtMax(t *testing.T) {
 		b.Add(Entry{Kills: i, FreedMem: int64(i * 100), Date: time.Now()})
 	}
 
-	if len(b.Scores) != maxScores {
-		t.Errorf("expected %d scores, got %d", maxScores, len(b.Scores))
-	}
+	assert.Len(t, b.Scores, maxScores)
 
 	expectedLowest := 5 // entries 0..4 are evicted; 5..14 are kept
-	if got := b.Scores[len(b.Scores)-1].Kills; got != expectedLowest {
-		t.Errorf("expected lowest retained kills=%d, got %d", expectedLowest, got)
-	}
+	assert.Equal(t, expectedLowest, b.Scores[len(b.Scores)-1].Kills)
 }
 
 // --- Board.HighScore ---
 
 func TestBoard_HighScore_Empty(t *testing.T) {
 	b := &Board{}
-	if b.HighScore() != 0 {
-		t.Errorf("expected 0 for empty board, got %d", b.HighScore())
-	}
+	assert.Equal(t, 0, b.HighScore())
 }
 
 func TestBoard_HighScore_WithEntries(t *testing.T) {
@@ -98,9 +76,7 @@ func TestBoard_HighScore_WithEntries(t *testing.T) {
 	b.Add(Entry{Kills: 10, Date: time.Now()})
 	b.Add(Entry{Kills: 7, Date: time.Now()})
 
-	if b.HighScore() != 10 {
-		t.Errorf("expected high score=10, got %d", b.HighScore())
-	}
+	assert.Equal(t, 10, b.HighScore())
 }
 
 // --- Board.PrintHighScore ---
@@ -111,9 +87,7 @@ func TestBoard_PrintHighScore_PrintsWhenBeatsRecord(t *testing.T) {
 	b.Add(Entry{Kills: 7, Date: time.Now()}) // b.highScore = 3
 
 	out := capture.Output(func() { b.PrintHighScore(7) })
-	if !strings.Contains(out, "New high score") {
-		t.Errorf("expected trophy message, got %q", out)
-	}
+	assert.Contains(t, out, "New high score")
 }
 
 func TestBoard_PrintHighScore_SilentWhenDoesNotBeatRecord(t *testing.T) {
@@ -122,17 +96,13 @@ func TestBoard_PrintHighScore_SilentWhenDoesNotBeatRecord(t *testing.T) {
 	b.Add(Entry{Kills: 3, Date: time.Now()}) // b.highScore = 7
 
 	out := capture.Output(func() { b.PrintHighScore(3) })
-	if out != "" {
-		t.Errorf("expected no output, got %q", out)
-	}
+	assert.Empty(t, out)
 }
 
 func TestBoard_PrintHighScore_SilentWhenZeroKills(t *testing.T) {
 	b := &Board{}
 	out := capture.Output(func() { b.PrintHighScore(0) })
-	if out != "" {
-		t.Errorf("expected no output for zero kills, got %q", out)
-	}
+	assert.Empty(t, out)
 }
 
 func TestBoard_PrintHighScore_PrintsWhenTiesRecord(t *testing.T) {
@@ -141,9 +111,7 @@ func TestBoard_PrintHighScore_PrintsWhenTiesRecord(t *testing.T) {
 	b.Add(Entry{Kills: 3, Date: time.Now()}) // b.highScore = 5 before append
 
 	out := capture.Output(func() { b.PrintHighScore(5) })
-	if !strings.Contains(out, "New high score") {
-		t.Errorf("expected trophy message when tying the high score, got %q", out)
-	}
+	assert.Contains(t, out, "New high score", "expected trophy message when tying the high score")
 }
 
 func TestBoard_PrintHighScore_PrintsForFirstEntry(t *testing.T) {
@@ -151,7 +119,5 @@ func TestBoard_PrintHighScore_PrintsForFirstEntry(t *testing.T) {
 	b.Add(Entry{Kills: 5, Date: time.Now()}) // b.highScore = 0
 
 	out := capture.Output(func() { b.PrintHighScore(5) })
-	if !strings.Contains(out, "New high score") {
-		t.Errorf("expected trophy message for first entry, got %q", out)
-	}
+	assert.Contains(t, out, "New high score", "expected trophy message for first entry")
 }
