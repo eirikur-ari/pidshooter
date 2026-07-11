@@ -30,3 +30,11 @@ func (c *Confirmation) Kill() *Target { t := c.target; c.target = nil; return t 
 
 // Clear cancels the pending confirmation without issuing a kill.
 func (c *Confirmation) Clear() { c.target = nil }
+
+// View returns a ConfirmState for the pending target, or nil if none is pending.
+func (c *Confirmation) View() *ConfirmState {
+	if c.target == nil {
+		return nil
+	}
+	return &ConfirmState{PID: c.target.Pid, Name: c.target.Name}
+}
