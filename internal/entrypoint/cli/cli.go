@@ -35,13 +35,13 @@ Examples:
   pidshooter node --speed=2.5 --time=60
   pidshooter node --time=0`
 
-// CLI is the delivery adapter that translates command-line arguments to application calls.
+// CLI is the entrypoint adapter that translates command-line arguments to application calls.
 type CLI struct {
 	service inbound.GamePlay
 }
 
-// New returns a CLI adapter wrapping the given application service.
-func New(service inbound.GamePlay) *CLI {
+// NewCLI returns a CLI adapter wrapping the given application service.
+func NewCLI(service inbound.GamePlay) *CLI {
 	return &CLI{service: service}
 }
 

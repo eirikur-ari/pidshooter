@@ -31,8 +31,8 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("failed to create screen: %w", err)
 	}
-	ui := tcellui.New(screen)
+	ui := tcellui.NewUI(screen)
 
 	svc := service.NewGameService(proc, store, ui, ui)
-	return cli.New(svc).Run(os.Args[1:])
+	return cli.NewCLI(svc).Run(os.Args[1:])
 }

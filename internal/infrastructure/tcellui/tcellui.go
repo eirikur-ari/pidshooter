@@ -19,9 +19,9 @@ type UI struct {
 	done   chan struct{}
 }
 
-// New returns a tcellui.UI wrapping the given screen.
+// NewUI returns a tcellui.UI wrapping the given screen.
 // The caller must not call tcell.Screen.Init directly; use UI.Init() instead.
-func New(screen tcell.Screen) *UI {
+func NewUI(screen tcell.Screen) *UI {
 	return &UI{
 		screen: screen,
 		ch:     make(chan event.InputEvent, 10),

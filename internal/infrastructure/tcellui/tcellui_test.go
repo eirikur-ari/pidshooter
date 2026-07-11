@@ -19,7 +19,7 @@ func newUI(t *testing.T) (*tcellui.UI, tcell.SimulationScreen) {
 	t.Helper()
 	screen := tcell.NewSimulationScreen("")
 	screen.SetSize(80, 25)
-	ui := tcellui.New(screen)
+	ui := tcellui.NewUI(screen)
 	if err := ui.Init(); err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func rowContent(screen tcell.SimulationScreen, row int) string {
 // TestPollGoroutineExitsAfterCleanup is a regression test for issue #6.
 func TestPollGoroutineExitsAfterCleanup(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
-	ui := tcellui.New(screen)
+	ui := tcellui.NewUI(screen)
 	before := runtime.NumGoroutine()
 
 	if err := ui.Init(); err != nil {
@@ -83,7 +83,7 @@ func TestPollGoroutineExitsAfterCleanup(t *testing.T) {
 // TestDrawHUD_NarrowTerminalSuppressesCenter is a regression test for issue #14.
 func TestDrawHUD_NarrowTerminalSuppressesCenter(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
-	ui := tcellui.New(screen)
+	ui := tcellui.NewUI(screen)
 	if err := ui.Init(); err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestDrawHUD_NarrowTerminalSuppressesCenter(t *testing.T) {
 // TestDrawHUD_WideTerminalDrawsAllThree verifies all three HUD elements are visible on wide terminals.
 func TestDrawHUD_WideTerminalDrawsAllThree(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
-	ui := tcellui.New(screen)
+	ui := tcellui.NewUI(screen)
 	if err := ui.Init(); err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestDrawHUD_WideTerminalDrawsAllThree(t *testing.T) {
 // TestRender_MultiByteLabel_ColumnLayout is a regression test for issue #13.
 func TestRender_MultiByteLabel_ColumnLayout(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
-	ui := tcellui.New(screen)
+	ui := tcellui.NewUI(screen)
 	if err := ui.Init(); err != nil {
 		t.Fatal(err)
 	}

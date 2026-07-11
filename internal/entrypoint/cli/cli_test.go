@@ -14,7 +14,7 @@ type stubService struct{ err error }
 func (s *stubService) Play(_ inbound.GamePlayConfig) error { return s.err }
 
 func TestRun_NoArgs_PrintsUsageAndReturnsNil(t *testing.T) {
-	c := New(&stubService{})
+	c := NewCLI(&stubService{})
 	if err := c.Run([]string{}); err != nil {
 		t.Errorf("expected nil, got %v", err)
 	}
@@ -23,7 +23,7 @@ func TestRun_NoArgs_PrintsUsageAndReturnsNil(t *testing.T) {
 func TestRun_HelpFlag_PrintsUsageAndReturnsNil(t *testing.T) {
 	for _, flag := range []string{"--help", "-h"} {
 		t.Run(flag, func(t *testing.T) {
-			c := New(&stubService{})
+			c := NewCLI(&stubService{})
 			if err := c.Run([]string{flag}); err != nil {
 				t.Errorf("expected nil, got %v", err)
 			}
