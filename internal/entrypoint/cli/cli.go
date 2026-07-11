@@ -2,111 +2,98 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
-	"strconv"
-	"strings"
+	"io"
+	"os"
+
+	"github.com/spf13/cobra"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
+	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-var errUsage = errors.New("usage")
-
-const usage = `pidshooter - First Person PID Shooter
-
-Usage: pidshooter <pattern> [pattern2] [pattern3...] [--confirm] [--speed=N] [--time=N]
-
-Arguments:
-  pattern     One or more substrings to match against process names
-  --confirm   Ask for confirmation before killing (optional)
-  --speed=N   Speed multiplier (default: 2.0, range: 0.1-5.0)
-  --time=N    Time limit in seconds (default: 30, 0 = no limit)
-
-Controls:
-  Click       Kill the process under cursor
-  +/-         Speed up / slow down
-  q / Escape  Quit the program
-
-Examples:
-  pidshooter firefox
-  pidshooter chrome firefox node
-  pidshooter firefox --confirm
-  pidshooter node --speed=2.5 --time=60
-  pidshooter node --time=0`
-
 // CLI is the entrypoint adapter that translates command-line arguments to application calls.
 type CLI struct {
-	service inbound.GamePlay
+	service   inbound.GamePlay
+	out       io.Writer
+	errOut    io.Writer
+	confirm   bool
+	speed     float64
+	timeLimit int
 }
 
 // NewCLI returns a CLI adapter wrapping the given application service.
 func NewCLI(service inbound.GamePlay) *CLI {
-	return &CLI{service: service}
+	return &CLI{service: service, out: os.Stdout, errOut: os.Stderr}
 }
 
 // Run parses args and calls the application service.
 func (c *CLI) Run(args []string) error {
-	cfg, err := parseArgs(args)
-	if errors.Is(err, errUsage) {
-		fmt.Println(usage)
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("%w\nRun 'pidshooter --help' for usage", err)
-	}
-	return c.service.Play(cfg)
+	cmd := c.buildCommand()
+	cmd.SetArgs(args)
+	return cmd.Execute()
 }
 
-func parseArgs(args []string) (inbound.GamePlayConfig, error) {
-	if len(args) == 0 {
-		return inbound.GamePlayConfig{}, errUsage
+func (c *CLI) buildCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "pidshooter <pattern> [pattern2] [pattern3...]",
+		Short: "Process ID Shooter",
+		Long:  `Hunt running processes by name and kill them in a terminal shooter game.`,
+		Example: `  pidshooter firefox
+  pidshooter chrome firefox node
+  pidshooter firefox --confirm
+  pidshooter node --speed=2.5 --time=60
+  pidshooter node --time=0`,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE:          c.play,
 	}
 
-	cfg := inbound.GamePlayConfig{Speed: 2.0, TimeLimit: 30}
+	cmd.SetOut(c.out)
+	cmd.SetErr(c.errOut)
 
-	for _, arg := range args {
-		switch {
-		case arg == "--confirm":
-			cfg.ConfirmMode = true
-		case strings.HasPrefix(arg, "--speed="):
-			val := strings.TrimPrefix(arg, "--speed=")
-			s, err := strconv.ParseFloat(val, 64)
-			if err != nil {
-				return inbound.GamePlayConfig{}, fmt.Errorf("invalid speed value: %s", val)
-			}
-			if s < 0.1 || s > 5.0 {
-				return inbound.GamePlayConfig{}, fmt.Errorf("speed must be between 0.1 and 5.0, got: %s", val)
-			}
-			cfg.Speed = s
-		case strings.HasPrefix(arg, "--time="):
-			val := strings.TrimPrefix(arg, "--time=")
-			t, err := strconv.Atoi(val)
-			if err != nil {
-				return inbound.GamePlayConfig{}, fmt.Errorf("invalid time value: %s", val)
-			}
-			if t < 0 {
-				return inbound.GamePlayConfig{}, fmt.Errorf("time must be 0 or positive, got: %s", val)
-			}
-			cfg.TimeLimit = t
-		case arg == "--help" || arg == "-h":
-			return inbound.GamePlayConfig{}, errUsage
-		case len(arg) > 0 && arg[0] == '-':
-			return inbound.GamePlayConfig{}, fmt.Errorf("unknown flag: %s", arg)
-		default:
-			if len(arg) < process.MinPatternLength {
-				return inbound.GamePlayConfig{}, fmt.Errorf("search pattern %q must be at least %d characters", arg, process.MinPatternLength)
-			}
-			if len(arg) > process.MaxPatternLength {
-				return inbound.GamePlayConfig{}, fmt.Errorf("search pattern %q exceeds maximum length of %d characters", arg, process.MaxPatternLength)
-			}
-			cfg.Patterns = append(cfg.Patterns, arg)
+	cmd.Flags().BoolVar(&c.confirm, "confirm", false, "Ask for confirmation before killing")
+	cmd.Flags().Float64Var(&c.speed, "speed", 2.0, "Speed multiplier (range: 0.1-5.0)")
+	cmd.Flags().IntVar(&c.timeLimit, "time", 30, "Time limit in seconds (0 = no limit)")
+
+	return cmd
+}
+
+func (c *CLI) play(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		if cmd.Flags().NFlag() > 0 {
+			return process.ErrNoPatterns
+		}
+		return cmd.Help()
+	}
+
+	if err := validate(args, c.speed, c.timeLimit); err != nil {
+		return err
+	}
+
+	return c.service.Play(inbound.GamePlayConfig{
+		Patterns:    args,
+		ConfirmMode: c.confirm,
+		Speed:       c.speed,
+		TimeLimit:   c.timeLimit,
+	})
+}
+
+func validate(patterns []string, speed float64, timeLimit int) error {
+	for _, p := range patterns {
+		if err := process.Validate(p); err != nil {
+			return err
 		}
 	}
 
-	if len(cfg.Patterns) == 0 {
-		return inbound.GamePlayConfig{}, fmt.Errorf("at least one search pattern is required")
+	if speed < game.MinSpeed || speed > game.MaxSpeed {
+		return fmt.Errorf("speed must be between %g and %g, got: %g", game.MinSpeed, game.MaxSpeed, speed)
 	}
 
-	return cfg, nil
+	if timeLimit < 0 {
+		return fmt.Errorf("time must be 0 or positive, got: %d", timeLimit)
+	}
+
+	return nil
 }

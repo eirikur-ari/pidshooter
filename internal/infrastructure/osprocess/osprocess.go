@@ -127,14 +127,11 @@ func (p *Process) currentName(pid int) (string, error) {
 
 func validate(patterns []string) error {
 	if len(patterns) == 0 {
-		return fmt.Errorf("at least one search pattern is required")
+		return process.ErrNoPatterns
 	}
 	for _, pattern := range patterns {
-		if len(pattern) < process.MinPatternLength {
-			return fmt.Errorf("search pattern %q must be at least %d characters", pattern, process.MinPatternLength)
-		}
-		if len(pattern) > process.MaxPatternLength {
-			return fmt.Errorf("search pattern %q exceeds maximum length of %d characters", pattern, process.MaxPatternLength)
+		if err := process.Validate(pattern); err != nil {
+			return err
 		}
 	}
 	return nil

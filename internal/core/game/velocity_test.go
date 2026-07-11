@@ -28,23 +28,23 @@ func TestVelocity_Decrease(t *testing.T) {
 func TestVelocity_IncreaseCapsAtMax(t *testing.T) {
 	v := NewVelocity(4.8)
 	v.Increase()
-	if v.Speed() != 5.0 {
-		t.Errorf("expected 5.0, got %f", v.Speed())
+	if v.Speed() != MaxSpeed {
+		t.Errorf("expected %f, got %f", MaxSpeed, v.Speed())
 	}
 	v.Increase()
-	if v.Speed() != 5.0 {
-		t.Errorf("expected speed to remain 5.0, got %f", v.Speed())
+	if v.Speed() != MaxSpeed {
+		t.Errorf("expected speed to remain %f, got %f", MaxSpeed, v.Speed())
 	}
 }
 
 func TestVelocity_DecreaseFloorsAtMin(t *testing.T) {
 	v := NewVelocity(0.3)
 	v.Decrease()
-	if v.Speed() != 0.1 {
-		t.Errorf("expected 0.1, got %f", v.Speed())
+	if v.Speed() != MinSpeed {
+		t.Errorf("expected %f, got %f", MinSpeed, v.Speed())
 	}
 	v.Decrease()
-	if v.Speed() != 0.1 {
-		t.Errorf("expected speed to remain 0.1, got %f", v.Speed())
+	if v.Speed() != MinSpeed {
+		t.Errorf("expected speed to remain %f, got %f", MinSpeed, v.Speed())
 	}
 }

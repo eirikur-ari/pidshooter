@@ -1,6 +1,7 @@
 package osprocess
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"strings"
@@ -19,8 +20,12 @@ func newTestProcess(t *testing.T) *Process {
 }
 
 func TestValidate_EmptySlice(t *testing.T) {
-	if err := validate([]string{}); err == nil {
-		t.Error("expected error for empty slice")
+	err := validate([]string{})
+	if err == nil {
+		t.Fatal("expected error for empty slice")
+	}
+	if !errors.Is(err, process.ErrNoPatterns) {
+		t.Errorf("expected process.ErrNoPatterns, got %v", err)
 	}
 }
 
