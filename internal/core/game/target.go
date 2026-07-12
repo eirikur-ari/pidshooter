@@ -52,11 +52,11 @@ func NewTarget(info process.Info, maxX, maxY int) *Target {
 	}
 
 	// Random velocity scaled by speed multiplier (default slower)
-	velX := rand.Float64()*0.8 + 0.2
+	velX := rand.Float64()*0.5 + 0.5
 	if rand.Intn(2) == 0 {
 		velX = -velX
 	}
-	velY := rand.Float64()*0.4 + 0.1
+	velY := rand.Float64()*0.25 + 0.25
 	if rand.Intn(2) == 0 {
 		velY = -velY
 	}

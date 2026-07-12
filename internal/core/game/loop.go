@@ -1,6 +1,9 @@
 package game
 
-import "time"
+import (
+	"math"
+	"time"
+)
 
 // Update advances the game state by one tick. w and h are the current terminal dimensions.
 func (g *Game) Update(w, h int) {
@@ -34,8 +37,8 @@ func (g *Game) Frame() Frame {
 			alive++
 		}
 		targets = append(targets, TargetView{
-			X:       int(e.Position.X),
-			Y:       int(e.Position.Y),
+			X:       int(math.Round(e.Position.X)),
+			Y:       int(math.Round(e.Position.Y)),
 			Label:   e.Label(),
 			Killing: e.State == Killing,
 		})
