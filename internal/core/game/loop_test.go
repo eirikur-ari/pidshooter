@@ -24,22 +24,22 @@ func TestGame_timeRemaining_Expired(t *testing.T) {
 	assert.Equal(t, time.Duration(0), g.timeRemaining())
 }
 
-func TestCompleteKill_TransitionsToKilling(t *testing.T) {
+func TestKill_TransitionsToKilling(t *testing.T) {
 	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 2048}, State: Alive}
 	g := &Game{}
 
-	g.CompleteKill(tgt)
+	g.Kill(tgt)
 
 	assert.Equal(t, Killing, tgt.State)
 	assert.Equal(t, 1, g.kills)
 	assert.Equal(t, int64(2048), g.freedMem)
 }
 
-func TestCompleteKill_NoOpWhenNotAlive(t *testing.T) {
+func TestKill_NoOpWhenNotAlive(t *testing.T) {
 	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 2048}, State: Dead}
 	g := &Game{}
 
-	g.CompleteKill(tgt)
+	g.Kill(tgt)
 
 	assert.Equal(t, 0, g.kills)
 }

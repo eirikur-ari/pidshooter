@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"unicode/utf8"
 
@@ -66,6 +67,15 @@ func (t *Target) Update(bounds FrameBounds, speed float64) {
 	}
 }
 
+// IsDead reports whether the target has finished its kill animation and been removed.
+func (t *Target) IsDead() bool { return t.State == Dead }
+
+// IsAlive reports whether the target is flying around and can be shot.
+func (t *Target) IsAlive() bool { return t.State == Alive }
+
+// IsKilling reports whether the kill animation is playing.
+func (t *Target) IsKilling() bool { return t.State == Killing }
+
 // IsHitAt reports whether the given game-space coordinates (x=column, y=row)
 // fall within this target's tag.
 func (t *Target) IsHitAt(x, y int) bool {
@@ -76,10 +86,25 @@ func (t *Target) IsHitAt(x, y int) bool {
 	return y == int(t.Position.Y) && x >= int(t.Position.X) && x < int(t.Position.X)+width
 }
 
-// StartKillAnimation transitions the entity to the killing state.
-func (t *Target) StartKillAnimation() {
+// ViewState returns the render representation of this target.
+func (t *Target) ViewState() TargetViewState {
+	return TargetViewState{
+		X:       int(math.Round(t.Position.X)),
+		Y:       int(math.Round(t.Position.Y)),
+		Tag:     t.Tag(),
+		Killing: t.IsKilling(),
+	}
+}
+
+// Kill transitions the target to the dying state and returns true.
+// Returns false without changing state if the target is not alive.
+func (t *Target) Kill() bool {
+	if !t.IsAlive() {
+		return false
+	}
 	t.State = Killing
 	t.KillAnimationTick = 0
+	return true
 }
 
 // newRandomPosition returns a random spawn position that keeps the target within bounds.

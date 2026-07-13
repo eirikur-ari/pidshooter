@@ -125,6 +125,23 @@ Speeding up now requires holding Shift on the main keyboard. The usage string (`
 
 `HandleKey` now uses `ch == '+' || ch == '='` and `ch == '-' || ch == '_'`. Covered by `TestHandleKey_SpeedUpAlias` and `TestHandleKey_SpeedDownAlias`.
 
+### 31. Frame snapshot types live in the core domain instead of the output port — `core/game/frame.go`
+
+`FrameState`, `TargetViewState`, `HUDState`, `StatusState`, and `ConfirmState` are defined in `internal/core/game/frame.go`. They represent the rendering contract — what the game promises to hand to the renderer each tick — not internal domain state. Yet they live inside the core package, forcing the outbound port to import the domain just to name the type:
+
+```go
+// application/contract/outbound/ui.go
+import "github.com/eirikur-ari/pidshooter/internal/core/game"
+
+type Renderer interface {
+    Render(frame game.FrameState)   // outbound port references a core type
+}
+```
+
+In a strict hexagonal layout the output port contract (the *what* the renderer receives) should be owned by the application boundary, not the domain core. Moving the five types to `application/contract/outbound/` — alongside the `Renderer` interface they serve — would make the outbound package the single source of truth for the rendering contract and remove the `game` import from `ui.go`.
+
+The trade-off: `game.Frame()` currently returns `game.FrameState`. After the move it would return `outbound.FrameState`, introducing a core → application-contract dependency. Whether that direction is acceptable depends on how strictly the project treats the contract packages. An alternative is a dedicated `core/gamestate` (or similar neutral) package that both `game` and `outbound` import, keeping the dependency arrows clean in both directions.
+
 ### 11. `PrintScores()` couples the domain to stdout — `core/score/score.go`
 
 `Board.PrintScores()` calls `fmt.Println` and `fmt.Printf` directly, making the core domain package responsible for terminal output. This violates the layering used everywhere else in the codebase (where output goes through the `Renderer` port or the application layer). The display logic belongs in `application/game.go`'s `Play()` after the game completes — the domain should only provide the data.
@@ -252,6 +269,7 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | 28 | `core/game/target.go:74` | ✓ Resolved | Kill-animation `frames` slice allocated on every `Label()` call; should be package-level var |
 | 29 | `infrastructure/tcellui/tcellui.go:169` | ✓ Resolved | `ResizeEvent` emitted but never consumed — dead abstraction |
 | 30 | `entrypoint/cli/cli.go:76-108` | ✓ Resolved | `--help` hint inconsistently appended to some cli error messages but not others |
+| 31 | `core/game/frame.go` | Design | Frame snapshot types owned by core domain; arguably belong in `application/contract/outbound/` alongside `Renderer` |
 
 ---
 

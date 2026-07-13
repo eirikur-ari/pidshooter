@@ -138,7 +138,7 @@ func (s *GameService) applyKills(g *game.Game) {
 	for {
 		select {
 		case t := <-s.kills:
-			g.CompleteKill(t)
+			g.Kill(t)
 		default:
 			return
 		}
