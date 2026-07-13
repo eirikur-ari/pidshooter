@@ -53,8 +53,10 @@ func TestTimer_SecondsLeft(t *testing.T) {
 }
 
 func TestTimer_LimitSeconds(t *testing.T) {
-	assert.Equal(t, 30, NewTimer(30).LimitSeconds())
-	assert.Equal(t, 0, NewTimer(0).LimitSeconds())
+	tr30 := NewTimer(30)
+	assert.Equal(t, 30, tr30.LimitSeconds())
+	tr0 := NewTimer(0)
+	assert.Equal(t, 0, tr0.LimitSeconds())
 }
 
 func TestTimer_StartTime_ZeroBeforeStart(t *testing.T) {

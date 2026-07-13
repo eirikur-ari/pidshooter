@@ -28,13 +28,13 @@ func (t *Timer) Start() {
 
 // Expired reports whether the time limit has been reached.
 // Always false when no limit is set.
-func (t Timer) Expired() bool {
+func (t *Timer) Expired() bool {
 	return t.limit > 0 && t.Remaining() == 0
 }
 
 // Remaining returns the time left in the session.
 // Returns 0 when expired or when no limit is set.
-func (t Timer) Remaining() time.Duration {
+func (t *Timer) Remaining() time.Duration {
 	if t.limit <= 0 {
 		return 0
 	}
@@ -51,16 +51,16 @@ func (t Timer) Remaining() time.Duration {
 
 // SecondsLeft returns the whole seconds remaining, for display.
 // Returns 0 when there is no limit.
-func (t Timer) SecondsLeft() int {
+func (t *Timer) SecondsLeft() int {
 	return int(t.Remaining().Seconds())
 }
 
 // LimitSeconds returns the configured time limit in seconds. Zero means unlimited.
-func (t Timer) LimitSeconds() int {
+func (t *Timer) LimitSeconds() int {
 	return int(t.limit.Seconds())
 }
 
 // StartTime returns when the timer was started.
-func (t Timer) StartTime() time.Time {
+func (t *Timer) StartTime() time.Time {
 	return t.start
 }
