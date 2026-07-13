@@ -39,8 +39,3 @@ func TestSession_SetHighScore(t *testing.T) {
 	s.SetHighScore(100)
 	assert.Equal(t, 100, s.highScore)
 }
-
-func TestSession_StartTime_ZeroOnNew(t *testing.T) {
-	s := Session{}
-	assert.True(t, s.StartTime().IsZero(), "expected zero StartTime on a new session")
-}

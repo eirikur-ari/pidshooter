@@ -19,6 +19,7 @@ type Config struct {
 type Game struct {
 	cfg       Config
 	state     state
+	timer     Timer
 	confirm   Confirmation
 	velocity  Velocity
 	processes []process.Info
@@ -32,6 +33,7 @@ func New(processes []process.Info, cfg Config) *Game {
 		cfg:       cfg,
 		processes: processes,
 		targets:   make([]*Target, 0, len(processes)),
+		timer:     NewTimer(cfg.TimeLimit),
 		velocity:  NewVelocity(cfg.Speed),
 		confirm:   NewConfirmation(cfg.ConfirmMode),
 	}
@@ -59,8 +61,11 @@ func (g *Game) IsRunning() bool { return g.state.Load() == Running }
 // Stop transitions the game to Stopped, signaling the loop to exit.
 func (g *Game) Stop() { g.state.Store(Stopped) }
 
+// StartTime returns when the game session was started.
+func (g *Game) StartTime() time.Time { return g.timer.StartTime() }
+
 func (g *Game) initialize(w, h int) {
-	g.startTime = time.Now()
+	g.timer.Start()
 	for _, p := range g.processes {
 		g.targets = append(g.targets, NewTarget(p, FrameBounds{Width: w, Height: h}))
 	}

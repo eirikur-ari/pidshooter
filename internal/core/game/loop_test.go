@@ -10,20 +10,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-func TestGame_timeRemaining_WithinLimit(t *testing.T) {
-	g := &Game{cfg: Config{TimeLimit: 60}}
-	g.startTime = time.Now()
-	remaining := g.timeRemaining()
-	assert.Greater(t, remaining, time.Duration(0))
-	assert.LessOrEqual(t, remaining, 60*time.Second)
-}
-
-func TestGame_timeRemaining_Expired(t *testing.T) {
-	g := &Game{cfg: Config{TimeLimit: 1}}
-	g.startTime = time.Now().Add(-2 * time.Second)
-	assert.Equal(t, time.Duration(0), g.timeRemaining())
-}
-
 func TestKill_TransitionsToKilling(t *testing.T) {
 	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 2048}, State: Alive}
 	g := &Game{}
@@ -45,9 +31,9 @@ func TestKill_NoOpWhenNotAlive(t *testing.T) {
 }
 
 func TestUpdate_StopsWhenTimeLimitExpired(t *testing.T) {
-	g := &Game{cfg: Config{TimeLimit: 1}}
+	g := New(nil, Config{TimeLimit: 1})
 	g.Start(0, 0)
-	g.startTime = time.Now().Add(-2 * time.Second)
+	g.timer.start = time.Now().Add(-2 * time.Second)
 
 	g.Update(80, 24)
 

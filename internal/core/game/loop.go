@@ -1,12 +1,9 @@
 package game
 
-import (
-	"time"
-)
 
 // Update advances the game state by one tick. w and h are the current terminal dimensions.
 func (g *Game) Update(w, h int) {
-	if g.timeExpired() {
+	if g.timer.Expired() {
 		g.Stop()
 		return
 	}
@@ -32,8 +29,8 @@ func (g *Game) Frame() FrameState {
 		StatusBar: StatusState{
 			Alive:      alive,
 			Speed:      g.velocity.Speed(),
-			TimeLimit:  g.cfg.TimeLimit,
-			TimeLeft:   g.timeLeftSeconds(),
+			TimeLimit:  g.timer.LimitSeconds(),
+			TimeLeft:   g.timer.SecondsLeft(),
 			Confirming: g.confirm.ViewState(),
 		},
 	}
@@ -69,17 +66,6 @@ func (g *Game) targetViews() (views []TargetViewState, alive int) {
 	return views, alive
 }
 
-func (g *Game) timeLeftSeconds() int {
-	if g.cfg.TimeLimit <= 0 {
-		return 0
-	}
-	return int(g.timeRemaining().Seconds())
-}
-
-func (g *Game) timeExpired() bool {
-	return g.cfg.TimeLimit > 0 && g.timeRemaining() == 0
-}
-
 func (g *Game) allTargetsDead() bool {
 	// No targets mean nothing was ever killed, not that everything was.
 	if len(g.targets) == 0 {
@@ -91,12 +77,4 @@ func (g *Game) allTargetsDead() bool {
 		}
 	}
 	return true
-}
-
-func (g *Game) timeRemaining() time.Duration {
-	remaining := time.Duration(g.cfg.TimeLimit)*time.Second - time.Since(g.startTime)
-	if remaining < 0 {
-		return 0
-	}
-	return remaining
 }
