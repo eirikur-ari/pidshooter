@@ -31,7 +31,7 @@ func TestGameService_ApplyKills_CompletesPendingKill(t *testing.T) {
 
 	g := game.New([]process.Info{info}, game.Config{Speed: 2.0})
 
-	target := game.NewTarget(info, game.FrameBounds{W: 80, H: 24})
+	target := game.NewTarget(info, game.FrameBounds{Width: 80, Height: 24})
 	svc.kills <- target
 
 	svc.applyKills(g)

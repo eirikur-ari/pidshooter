@@ -23,7 +23,7 @@ const (
 // KillAnimationDuration is the number of game ticks the kill animation plays before the target disappears.
 const KillAnimationDuration = 12
 
-// Target represents a process displayed as a flying label in the terminal.
+// Target represents a process displayed as a flying tag in the terminal.
 type Target struct {
 	process.Info
 	Position          FrameVector
@@ -36,7 +36,7 @@ type Target struct {
 func NewTarget(info process.Info, bounds FrameBounds) *Target {
 	return &Target{
 		Info:     info,
-		Position: newRandomPosition(info, bounds.W, bounds.H),
+		Position: newRandomPosition(info, bounds.Width, bounds.Height),
 		Velocity: newRandomVelocity(),
 		State:    Alive,
 	}

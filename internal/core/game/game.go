@@ -62,7 +62,7 @@ func (g *Game) Stop() { g.state.Store(Stopped) }
 func (g *Game) initialize(w, h int) {
 	g.startTime = time.Now()
 	for _, p := range g.processes {
-		g.targets = append(g.targets, NewTarget(p, FrameBounds{W: w, H: h}))
+		g.targets = append(g.targets, NewTarget(p, FrameBounds{Width: w, Height: h}))
 	}
 	g.state.Store(Running)
 }

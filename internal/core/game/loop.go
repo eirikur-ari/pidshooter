@@ -12,7 +12,7 @@ func (g *Game) Update(w, h int) {
 		return
 	}
 
-	bounds := FrameBounds{W: w, H: h}
+	bounds := FrameBounds{Width: w, Height: h}
 	allDead := true
 	for _, t := range g.targets {
 		t.Update(bounds, g.velocity.Speed())

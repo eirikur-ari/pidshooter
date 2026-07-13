@@ -13,7 +13,7 @@ import (
 
 func TestNewTarget_WithinBounds(t *testing.T) {
 	maxX, maxY := 80, 24
-	e := NewTarget(process.Info{Pid: 1234, Name: "test", Rss: 1024}, FrameBounds{W: maxX, H: maxY})
+	e := NewTarget(process.Info{Pid: 1234, Name: "test", Rss: 1024}, FrameBounds{Width:maxX, Height:maxY})
 
 	assert.Equal(t, 1234, e.Pid)
 	assert.Equal(t, "test", e.Name)
@@ -31,7 +31,7 @@ func TestNewTarget_WithinBounds(t *testing.T) {
 }
 
 func TestNewTarget_SmallTerminal(t *testing.T) {
-	e := NewTarget(process.Info{Pid: 1, Name: "xxx", Rss: 0}, FrameBounds{W: 5, H: 5})
+	e := NewTarget(process.Info{Pid: 1, Name: "xxx", Rss: 0}, FrameBounds{Width:5, Height:5})
 	require.NotNil(t, e)
 }
 
@@ -56,7 +56,7 @@ func TestTarget_Update_KillingState(t *testing.T) {
 		State:         Killing,
 		KillAnimationTick: KillAnimationDuration - 1,
 	}
-	e.Update(FrameBounds{W: 80, H: 24}, 1.0)
+	e.Update(FrameBounds{Width:80, Height:24}, 1.0)
 	assert.Equal(t, Dead, e.State)
 }
 
@@ -67,7 +67,7 @@ func TestTarget_Update_DeadNoOp(t *testing.T) {
 		Velocity: FrameVector{X: 1.0, Y: 1.0},
 		State:    Dead,
 	}
-	e.Update(FrameBounds{W: 80, H: 24}, 1.0)
+	e.Update(FrameBounds{Width:80, Height:24}, 1.0)
 	assert.Equal(t, 10.0, e.Position.X, "dead entity should not move")
 	assert.Equal(t, 10.0, e.Position.Y, "dead entity should not move")
 }
@@ -79,7 +79,7 @@ func TestTarget_Update_BounceLeft(t *testing.T) {
 		Velocity: FrameVector{X: -1.0, Y: 0},
 		State:    Alive,
 	}
-	e.Update(FrameBounds{W: 80, H: 24}, 1.0)
+	e.Update(FrameBounds{Width:80, Height:24}, 1.0)
 	assert.GreaterOrEqual(t, e.Position.X, 0.0, "Position.X should not be negative after left bounce")
 	assert.Greater(t, e.Velocity.X, 0.0, "Velocity.X should be positive after left bounce")
 }
@@ -92,7 +92,7 @@ func TestTarget_Update_BounceRight(t *testing.T) {
 		Velocity: FrameVector{X: 2.0, Y: 0},
 		State:    Alive,
 	}
-	e.Update(FrameBounds{W: 80, H: 24}, 1.0)
+	e.Update(FrameBounds{Width:80, Height:24}, 1.0)
 	rightBound := 75.0
 	assert.LessOrEqual(t, e.Position.X, rightBound, "Position.X should not exceed right bound after right bounce")
 	assert.Less(t, e.Velocity.X, 0.0, "Velocity.X should be negative after right bounce")
@@ -105,7 +105,7 @@ func TestTarget_Update_BounceTop(t *testing.T) {
 		Velocity: FrameVector{X: 0, Y: -1.0},
 		State:    Alive,
 	}
-	e.Update(FrameBounds{W: 80, H: 24}, 1.0)
+	e.Update(FrameBounds{Width:80, Height:24}, 1.0)
 	assert.GreaterOrEqual(t, e.Position.Y, 0.0, "Position.Y should not be negative after top bounce")
 	assert.Greater(t, e.Velocity.Y, 0.0, "Velocity.Y should be positive after top bounce")
 }
@@ -117,7 +117,7 @@ func TestTarget_Update_BounceBottom(t *testing.T) {
 		Velocity: FrameVector{X: 0, Y: 2.0},
 		State:    Alive,
 	}
-	e.Update(FrameBounds{W: 80, H: 24}, 1.0)
+	e.Update(FrameBounds{Width:80, Height:24}, 1.0)
 	bottomBound := float64(24 - 2)
 	assert.LessOrEqual(t, e.Position.Y, bottomBound, "Position.Y should not exceed bottom bound after bottom bounce")
 	assert.Less(t, e.Velocity.Y, 0.0, "Velocity.Y should be negative after bottom bounce")
@@ -131,7 +131,7 @@ func TestTarget_Update_SpeedMultiplier(t *testing.T) {
 		Velocity: FrameVector{X: 1.0, Y: 0.5},
 		State:    Alive,
 	}
-	e.Update(FrameBounds{W: 80, H: 24}, 3.0)
+	e.Update(FrameBounds{Width:80, Height:24}, 3.0)
 	assert.Equal(t, 43.0, e.Position.X)
 	assert.Equal(t, 11.5, e.Position.Y)
 }
@@ -149,7 +149,7 @@ func TestTarget_Update_MultiByteRightWall(t *testing.T) {
 		Velocity: FrameVector{X: 0.5, Y: 0},
 		State:    Alive,
 	}
-	e.Update(FrameBounds{W: 80, H: 24}, 1.0)
+	e.Update(FrameBounds{Width:80, Height:24}, 1.0)
 	assert.Greater(t, e.Velocity.X, 0.0,
 		"entity bounced prematurely at right wall — byte-count bug in Update? Position.X=%.1f Velocity.X=%.1f",
 		e.Position.X, e.Velocity.X)

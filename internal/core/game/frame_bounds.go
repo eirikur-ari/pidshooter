@@ -2,7 +2,7 @@ package game
 
 // FrameBounds holds the terminal dimensions that constrain target movement.
 type FrameBounds struct {
-	W, H int
+	Width, Height int
 }
 
 // Bounce adjusts pos and vel so the target stays within the frame,
@@ -22,7 +22,7 @@ func (b FrameBounds) bounceLeft(pos, vel *FrameVector) {
 }
 
 func (b FrameBounds) bounceRight(pos, vel *FrameVector, width float64) {
-	bound := float64(b.W) - width
+	bound := float64(b.Width) - width
 	if bound < 0 {
 		bound = 0
 	}
@@ -40,7 +40,7 @@ func (b FrameBounds) bounceTop(pos, vel *FrameVector) {
 }
 
 func (b FrameBounds) bounceBottom(pos, vel *FrameVector) {
-	bound := float64(b.H - 2) // reserve bottom row for status bar
+	bound := float64(b.Height - 2) // reserve bottom row for status bar
 	if bound < 0 {
 		bound = 0
 	}
