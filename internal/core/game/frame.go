@@ -10,7 +10,7 @@ type FrameState struct {
 // TargetViewState is the render representation of a single target.
 type TargetViewState struct {
 	X, Y    int
-	Label   string
+	Tag     string
 	Killing bool
 }
 

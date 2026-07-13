@@ -102,7 +102,7 @@ func TestHandleKey_QCancelsConfirm(t *testing.T) {
 // --- HandleClick ---
 
 func TestHandleClick_ReturnsTarget(t *testing.T) {
-	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
+	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: FrameVector{X: 10, Y: 5}, State: Alive}
 	g := &Game{targets: []*Target{tgt}}
 
 	target := g.HandleClick(10, 5)
@@ -112,7 +112,7 @@ func TestHandleClick_ReturnsTarget(t *testing.T) {
 }
 
 func TestHandleClick_SetsConfirmingInConfirmMode(t *testing.T) {
-	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
+	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: FrameVector{X: 10, Y: 5}, State: Alive}
 	g := &Game{targets: []*Target{tgt}, confirm: NewConfirmation(true)}
 
 	target := g.HandleClick(10, 5)
@@ -124,7 +124,7 @@ func TestHandleClick_SetsConfirmingInConfirmMode(t *testing.T) {
 
 func TestHandleClick_NoOpWhenAlreadyConfirming(t *testing.T) {
 	existing := &Target{Info: process.Info{Pid: 1, Name: "other", Rss: 0}, State: Alive}
-	tgt := &Target{Info: process.Info{Pid: 2, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
+	tgt := &Target{Info: process.Info{Pid: 2, Name: "target", Rss: 1024}, Position: FrameVector{X: 10, Y: 5}, State: Alive}
 	g := &Game{targets: []*Target{tgt}, confirm: Confirmation{target: existing}}
 
 	result := g.HandleClick(10, 5)
@@ -134,7 +134,7 @@ func TestHandleClick_NoOpWhenAlreadyConfirming(t *testing.T) {
 }
 
 func TestHandleClick_NoOpOnMiss(t *testing.T) {
-	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
+	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 1024}, Position: FrameVector{X: 10, Y: 5}, State: Alive}
 	g := &Game{targets: []*Target{tgt}}
 
 	target := g.HandleClick(0, 0)

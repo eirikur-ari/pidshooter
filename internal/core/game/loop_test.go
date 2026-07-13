@@ -65,7 +65,7 @@ func TestUpdate_StopsWhenAllTargetsDead(t *testing.T) {
 }
 
 func TestFrame_AliveTargetIncluded(t *testing.T) {
-	tgt := &Target{Info: process.Info{Pid: 1, Name: "myapp", Rss: 1024}, Position: Vector{X: 10, Y: 5}, State: Alive}
+	tgt := &Target{Info: process.Info{Pid: 1, Name: "myapp", Rss: 1024}, Position: FrameVector{X: 10, Y: 5}, State: Alive}
 	g := &Game{targets: []*Target{tgt}}
 
 	frame := g.Frame()

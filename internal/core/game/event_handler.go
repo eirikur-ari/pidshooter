@@ -8,7 +8,7 @@ func (g *Game) HandleClick(x, y int) *Target {
 		return nil
 	}
 	for _, t := range g.targets {
-		if t.Contains(x, y) {
+		if t.IsHitAt(x, y) {
 			return g.confirm.Set(t)
 		}
 	}

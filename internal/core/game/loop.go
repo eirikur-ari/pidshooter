@@ -12,10 +12,11 @@ func (g *Game) Update(w, h int) {
 		return
 	}
 
+	bounds := FrameBounds{W: w, H: h}
 	allDead := true
-	for _, e := range g.targets {
-		e.Update(w, h, g.velocity.Speed())
-		if e.State != Dead {
+	for _, t := range g.targets {
+		t.Update(bounds, g.velocity.Speed())
+		if t.State != Dead {
 			allDead = false
 		}
 	}
@@ -29,18 +30,18 @@ func (g *Game) Update(w, h int) {
 func (g *Game) Frame() FrameState {
 	targets := make([]TargetViewState, 0, len(g.targets))
 	alive := 0
-	for _, e := range g.targets {
-		if e.State == Dead {
+	for _, t := range g.targets {
+		if t.State == Dead {
 			continue
 		}
-		if e.State == Alive {
+		if t.State == Alive {
 			alive++
 		}
 		targets = append(targets, TargetViewState{
-			X:       int(math.Round(e.Position.X)),
-			Y:       int(math.Round(e.Position.Y)),
-			Label:   e.Label(),
-			Killing: e.State == Killing,
+			X:       int(math.Round(t.Position.X)),
+			Y:       int(math.Round(t.Position.Y)),
+			Tag:     t.Tag(),
+			Killing: t.State == Killing,
 		})
 	}
 
@@ -74,7 +75,7 @@ func (g *Game) CompleteKill(t *Target) {
 	if t.State != Alive {
 		return
 	}
-	t.StartKillAnim()
+	t.StartKillAnimation()
 	g.Session.RecordKill(t.Rss)
 }
 

@@ -8,11 +8,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-// Vector is a 2D vector used for both position and velocity.
-type Vector struct {
-	X, Y float64
-}
-
 // TargetState represents the current state of a process entity.
 type TargetState int
 
@@ -25,109 +20,70 @@ const (
 	Dead
 )
 
-// KillAnimFrames is the number of frames the kill animation lasts.
-const KillAnimFrames = 12
+// KillAnimationDuration is the number of game ticks the kill animation plays before the target disappears.
+const KillAnimationDuration = 12
 
 // Target represents a process displayed as a flying label in the terminal.
 type Target struct {
 	process.Info
-	Position      Vector
-	Velocity      Vector
-	State         TargetState
-	KillAnimFrame int
+	Position          FrameVector
+	Velocity          FrameVector
+	State             TargetState
+	KillAnimationTick int
 }
 
 // NewTarget creates a new entity at a random position with random velocity.
-func NewTarget(info process.Info, maxX, maxY int) *Target {
+func NewTarget(info process.Info, bounds FrameBounds) *Target {
 	return &Target{
 		Info:     info,
-		Position: newRandomPosition(info, maxX, maxY),
-		Velocity: newRandomVector(),
+		Position: newRandomPosition(info, bounds.W, bounds.H),
+		Velocity: newRandomVelocity(),
 		State:    Alive,
 	}
 }
 
-var killFrames = []string{"💥", "✦ KILLED ✦", "· · ·", "  ·  ", "     "}
-
-// Label returns the display string for this entity.
-func (e *Target) Label() string {
-	switch e.State {
+// Tag returns the display string for this target.
+func (t *Target) Tag() string {
+	switch t.State {
 	case Killing:
-		// Kill animation frames
-		frames := killFrames
-		idx := e.KillAnimFrame * len(frames) / KillAnimFrames
-		if idx >= len(frames) {
-			idx = len(frames) - 1
-		}
-		return frames[idx]
+		return killAnimationTagFor(t.KillAnimationTick)
 	case Dead:
 		return ""
 	default:
-		return fmt.Sprintf("[%d %s]", e.Pid, e.Name)
+		return fmt.Sprintf("[%d %s]", t.Pid, t.Name)
 	}
 }
 
 // Update advances the kill animation or moves the entity and bounces off walls.
-func (e *Target) Update(maxX, maxY int, speed float64) {
-	switch e.State {
+func (t *Target) Update(bounds FrameBounds, speed float64) {
+	switch t.State {
 	case Killing:
-		e.KillAnimFrame++
-		if e.KillAnimFrame >= KillAnimFrames {
-			e.State = Dead
-		}
+		t.doomsdayTick()
 	case Alive:
-		labelLen := float64(utf8.RuneCountInString(e.Label()))
-		e.Position.X += e.Velocity.X * speed
-		e.Position.Y += e.Velocity.Y * speed
-
-		// Bounce off horizontal walls
-		if e.Position.X < 0 {
-			e.Position.X = 0
-			e.Velocity.X = -e.Velocity.X
-		}
-		rightBound := float64(maxX) - labelLen
-		if rightBound < 0 {
-			rightBound = 0
-		}
-		if e.Position.X > rightBound {
-			e.Position.X = rightBound
-			e.Velocity.X = -e.Velocity.X
-		}
-
-		// Bounce off vertical walls (leave bottom row for status)
-		if e.Position.Y < 0 {
-			e.Position.Y = 0
-			e.Velocity.Y = -e.Velocity.Y
-		}
-		bottomBound := float64(maxY - 2)
-		if bottomBound < 0 {
-			bottomBound = 0
-		}
-		if e.Position.Y > bottomBound {
-			e.Position.Y = bottomBound
-			e.Velocity.Y = -e.Velocity.Y
-		}
+		t.move(bounds, speed)
+	case Dead:
+		// nothing to do
 	}
 }
 
-// Contains reports whether the given game-space coordinates (x=column, y=row)
-// fall within this target's label.
-func (e *Target) Contains(x, y int) bool {
-	if e.State != Alive {
+// IsHitAt reports whether the given game-space coordinates (x=column, y=row)
+// fall within this target's tag.
+func (t *Target) IsHitAt(x, y int) bool {
+	if t.State != Alive {
 		return false
 	}
-	labelLen := utf8.RuneCountInString(e.Label())
-	return y == int(e.Position.Y) && x >= int(e.Position.X) && x < int(e.Position.X)+labelLen
+	width := utf8.RuneCountInString(t.Tag())
+	return y == int(t.Position.Y) && x >= int(t.Position.X) && x < int(t.Position.X)+width
 }
 
-// StartKillAnim transitions the entity to the killing state.
-func (e *Target) StartKillAnim() {
-	e.State = Killing
-	e.KillAnimFrame = 0
+// StartKillAnimation transitions the entity to the killing state.
+func (t *Target) StartKillAnimation() {
+	t.State = Killing
+	t.KillAnimationTick = 0
 }
 
 // newRandomPosition returns a random spawn position that keeps the target within bounds.
-func newRandomPosition(info process.Info, maxX, maxY int) Vector {
+func newRandomPosition(info process.Info, maxX, maxY int) FrameVector {
 	labelLen := utf8.RuneCountInString(fmt.Sprintf("[%d %s]", info.Pid, info.Name))
 	x := maxX - labelLen - 1
 	if x < 1 {
@@ -137,12 +93,12 @@ func newRandomPosition(info process.Info, maxX, maxY int) Vector {
 	if y < 1 {
 		y = 1
 	}
-	return Vector{X: float64(rand.Intn(x) + 1), Y: float64(rand.Intn(y) + 1)}
+	return FrameVector{X: float64(rand.Intn(x) + 1), Y: float64(rand.Intn(y) + 1)}
 }
 
-// newRandomVector returns a Vector with randomized direction and magnitude
+// newRandomVelocity returns a FrameVector with randomized direction and magnitude
 // suitable for initial target velocity.
-func newRandomVector() Vector {
+func newRandomVelocity() FrameVector {
 	x := rand.Float64()*0.5 + 0.5
 	if rand.Intn(2) == 0 {
 		x = -x
@@ -151,5 +107,28 @@ func newRandomVector() Vector {
 	if rand.Intn(2) == 0 {
 		y = -y
 	}
-	return Vector{X: x, Y: y}
+	return FrameVector{X: x, Y: y}
+}
+
+func (t *Target) doomsdayTick() {
+	t.KillAnimationTick++
+	if t.KillAnimationTick >= KillAnimationDuration {
+		t.State = Dead
+	}
+}
+
+func killAnimationTagFor(tick int) string {
+	tags := []string{"💥", "✦ KILLED ✦", "· · ·", "  ·  ", "     "}
+	idx := tick * len(tags) / KillAnimationDuration
+	if idx >= len(tags) {
+		idx = len(tags) - 1
+	}
+	return tags[idx]
+}
+
+// move advances the target's position and bounces it off the frame walls.
+func (t *Target) move(bounds FrameBounds, speed float64) {
+	t.Velocity.Apply(&t.Position, speed)
+	width := float64(utf8.RuneCountInString(t.Tag()))
+	bounds.Bounce(&t.Position, &t.Velocity, width)
 }

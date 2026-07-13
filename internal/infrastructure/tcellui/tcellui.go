@@ -66,7 +66,7 @@ func (a *UI) Render(frame game.FrameState) {
 			style = killStyle
 		}
 		col := 0
-		for _, ch := range tv.Label {
+		for _, ch := range tv.Tag {
 			if tv.X+col < w && tv.Y < h-1 {
 				a.screen.SetContent(tv.X+col, tv.Y, ch, nil, style)
 			}

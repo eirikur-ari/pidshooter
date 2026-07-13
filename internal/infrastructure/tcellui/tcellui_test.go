@@ -134,7 +134,7 @@ func TestRender_MultiByteLabel_ColumnLayout(t *testing.T) {
 
 	ui.Render(game.FrameState{
 		Targets: []game.TargetViewState{
-			{X: 0, Y: 2, Label: "✦ KILLED ✦", Killing: true},
+			{X: 0, Y: 2, Tag: "✦ KILLED ✦", Killing: true},
 		},
 	})
 
