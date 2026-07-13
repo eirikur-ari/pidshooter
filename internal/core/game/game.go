@@ -24,7 +24,7 @@ type Game struct {
 	velocity  Velocity
 	processes []process.Info
 	targets   []*Target
-	Session
+	Stats
 }
 
 // New creates a new Game with the given configuration. Call Start before the first Update.

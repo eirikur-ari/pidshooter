@@ -82,7 +82,7 @@ func TestFrame_KillingTargetMarked(t *testing.T) {
 	assert.True(t, frame.Targets[0].Killing)
 }
 
-func TestFrame_HUDReflectsSession(t *testing.T) {
+func TestFrame_HUDReflectsStats(t *testing.T) {
 	g := &Game{targets: []*Target{}}
 	g.kills = 3
 	g.freedMem = 2048
