@@ -1,14 +1,14 @@
 package game
 
-// Frame is the data snapshot the application layer passes to the Renderer each tick.
-type Frame struct {
-	Targets   []TargetView
+// FrameState is the data snapshot the application layer passes to the Renderer each tick.
+type FrameState struct {
+	Targets   []TargetViewState
 	HUD       HUDState
 	StatusBar StatusState
 }
 
-// TargetView is the render representation of a single target.
-type TargetView struct {
+// TargetViewState is the render representation of a single target.
+type TargetViewState struct {
 	X, Y    int
 	Label   string
 	Killing bool

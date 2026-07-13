@@ -39,33 +39,10 @@ type Target struct {
 
 // NewTarget creates a new entity at a random position with random velocity.
 func NewTarget(info process.Info, maxX, maxY int) *Target {
-	labelLen := utf8.RuneCountInString(fmt.Sprintf("[%d %s]", info.Pid, info.Name))
-
-	// Ensure entity fits within bounds
-	spawnMaxX := maxX - labelLen - 1
-	if spawnMaxX < 1 {
-		spawnMaxX = 1
-	}
-	spawnMaxY := maxY - 2 // Leave room for status bar
-	if spawnMaxY < 1 {
-		spawnMaxY = 1
-	}
-
-	// Random velocity scaled by speed multiplier (default slower)
-	velX := rand.Float64()*0.5 + 0.5
-	if rand.Intn(2) == 0 {
-		velX = -velX
-	}
-	velY := rand.Float64()*0.25 + 0.25
-	if rand.Intn(2) == 0 {
-		velY = -velY
-	}
-
-	// Random position
 	return &Target{
 		Info:     info,
-		Position: Vector{X: float64(rand.Intn(spawnMaxX) + 1), Y: float64(rand.Intn(spawnMaxY) + 1)},
-		Velocity: Vector{X: velX, Y: velY},
+		Position: newRandomPosition(info, maxX, maxY),
+		Velocity: newRandomVector(),
 		State:    Alive,
 	}
 }
@@ -147,4 +124,32 @@ func (e *Target) Contains(x, y int) bool {
 func (e *Target) StartKillAnim() {
 	e.State = Killing
 	e.KillAnimFrame = 0
+}
+
+// newRandomPosition returns a random spawn position that keeps the target within bounds.
+func newRandomPosition(info process.Info, maxX, maxY int) Vector {
+	labelLen := utf8.RuneCountInString(fmt.Sprintf("[%d %s]", info.Pid, info.Name))
+	x := maxX - labelLen - 1
+	if x < 1 {
+		x = 1
+	}
+	y := maxY - 2 // Leave room for status bar
+	if y < 1 {
+		y = 1
+	}
+	return Vector{X: float64(rand.Intn(x) + 1), Y: float64(rand.Intn(y) + 1)}
+}
+
+// newRandomVector returns a Vector with randomized direction and magnitude
+// suitable for initial target velocity.
+func newRandomVector() Vector {
+	x := rand.Float64()*0.5 + 0.5
+	if rand.Intn(2) == 0 {
+		x = -x
+	}
+	y := rand.Float64()*0.25 + 0.25
+	if rand.Intn(2) == 0 {
+		y = -y
+	}
+	return Vector{X: x, Y: y}
 }

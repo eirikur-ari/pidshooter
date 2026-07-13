@@ -26,8 +26,8 @@ func (g *Game) Update(w, h int) {
 }
 
 // Frame returns a snapshot of current game state for the renderer.
-func (g *Game) Frame() Frame {
-	targets := make([]TargetView, 0, len(g.targets))
+func (g *Game) Frame() FrameState {
+	targets := make([]TargetViewState, 0, len(g.targets))
 	alive := 0
 	for _, e := range g.targets {
 		if e.State == Dead {
@@ -36,7 +36,7 @@ func (g *Game) Frame() Frame {
 		if e.State == Alive {
 			alive++
 		}
-		targets = append(targets, TargetView{
+		targets = append(targets, TargetViewState{
 			X:       int(math.Round(e.Position.X)),
 			Y:       int(math.Round(e.Position.Y)),
 			Label:   e.Label(),
@@ -51,7 +51,7 @@ func (g *Game) Frame() Frame {
 		timeLeft = int(g.timeRemaining().Seconds())
 	}
 
-	return Frame{
+	return FrameState{
 		Targets: targets,
 		HUD: HUDState{
 			FreedMem:  g.freedMem,

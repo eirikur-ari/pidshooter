@@ -52,8 +52,8 @@ func (a *UI) Size() (int, int) {
 	return a.screen.Size()
 }
 
-// Render translates a game.Frame into tcell draw calls.
-func (a *UI) Render(frame game.Frame) {
+// Render translates a game.FrameState into tcell draw calls.
+func (a *UI) Render(frame game.FrameState) {
 	a.screen.Clear()
 	w, h := a.screen.Size()
 

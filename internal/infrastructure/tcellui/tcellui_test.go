@@ -86,7 +86,7 @@ func TestDrawHUD_NarrowTerminalSuppressesCenter(t *testing.T) {
 	defer ui.Cleanup()
 
 	screen.SetSize(30, 25)
-	ui.Render(game.Frame{HUD: game.HUDState{}})
+	ui.Render(game.FrameState{HUD: game.HUDState{}})
 
 	cells, w, _ := screen.GetContents()
 	var row0 strings.Builder
@@ -109,7 +109,7 @@ func TestDrawHUD_WideTerminalDrawsAllThree(t *testing.T) {
 	require.NoError(t, ui.Init())
 	defer ui.Cleanup()
 
-	ui.Render(game.Frame{HUD: game.HUDState{}})
+	ui.Render(game.FrameState{HUD: game.HUDState{}})
 
 	cells, w, _ := screen.GetContents()
 	var row0 strings.Builder
@@ -132,8 +132,8 @@ func TestRender_MultiByteLabel_ColumnLayout(t *testing.T) {
 	require.NoError(t, ui.Init())
 	defer ui.Cleanup()
 
-	ui.Render(game.Frame{
-		Targets: []game.TargetView{
+	ui.Render(game.FrameState{
+		Targets: []game.TargetViewState{
 			{X: 0, Y: 2, Label: "✦ KILLED ✦", Killing: true},
 		},
 	})
@@ -205,7 +205,7 @@ func TestPoll_NonButton1_DropsEvent(t *testing.T) {
 
 func TestDrawStatusBar_Normal(t *testing.T) {
 	ui, screen := newUI(t)
-	ui.Render(game.Frame{
+	ui.Render(game.FrameState{
 		StatusBar: game.StatusState{Alive: 3, Speed: 2.0},
 	})
 	_, _, h := screen.GetContents()
@@ -217,7 +217,7 @@ func TestDrawStatusBar_Normal(t *testing.T) {
 
 func TestDrawStatusBar_Confirming(t *testing.T) {
 	ui, screen := newUI(t)
-	ui.Render(game.Frame{
+	ui.Render(game.FrameState{
 		StatusBar: game.StatusState{
 			Confirming: &game.ConfirmState{PID: 42, Name: "myapp"},
 		},
@@ -231,7 +231,7 @@ func TestDrawStatusBar_Confirming(t *testing.T) {
 
 func TestDrawStatusBar_WithTimeLimit(t *testing.T) {
 	ui, screen := newUI(t)
-	ui.Render(game.Frame{
+	ui.Render(game.FrameState{
 		StatusBar: game.StatusState{Alive: 1, Speed: 1.0, TimeLimit: 30, TimeLeft: 15},
 	})
 	_, _, h := screen.GetContents()
@@ -242,7 +242,7 @@ func TestDrawStatusBar_WithTimeLimit(t *testing.T) {
 
 func TestDrawStatusBar_NoTimeLimit(t *testing.T) {
 	ui, screen := newUI(t)
-	ui.Render(game.Frame{
+	ui.Render(game.FrameState{
 		StatusBar: game.StatusState{Alive: 1, Speed: 1.0, TimeLimit: 0},
 	})
 	_, _, h := screen.GetContents()

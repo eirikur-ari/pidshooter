@@ -10,7 +10,7 @@ type Renderer interface {
 	Init() error
 	Cleanup()
 	Size() (width, height int)
-	Render(frame game.Frame)
+	Render(frame game.FrameState)
 }
 
 // InputSource is the outbound port for user input events.
