@@ -117,7 +117,7 @@ func TestHandleClick_SetsConfirmingInConfirmMode(t *testing.T) {
 
 	target := g.HandleClick(10, 5)
 
-	assert.Nil(t, target, "expected no target in confirm mode (should set confirming instead)")
+	assert.Nil(t, target, "expected no target in confirm mode (should set pending instead)")
 	assert.Equal(t, tgt, g.confirm.target)
 	assert.Equal(t, Alive, tgt.State)
 }

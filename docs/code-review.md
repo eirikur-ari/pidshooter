@@ -135,6 +135,14 @@ return y == py && x >= px && x < px+width
 
 `s.store.Save(board)` error is now checked; on failure a `warning: score not saved: <err>` line is printed to stderr. `Play` still returns `nil` — a save failure is not fatal. `fake.Store` now has separate `LoadErr`/`SaveErr` fields so the two paths can be controlled independently. `TestGameService_SaveError_PrintsWarning` (integration) verifies the warning appears and `Play` returns `nil`.
 
+### 11. `PrintScores()` couples the domain to stdout — `core/score/score.go`
+
+`Board.PrintScores()` calls `fmt.Println` and `fmt.Printf` directly, making the core domain package responsible for terminal output. This violates the layering used everywhere else in the codebase (where output goes through the `Renderer` port or the application layer). The display logic belongs in `application/game.go`'s `Play()` after the game completes — the domain should only provide the data.
+
+### ~~12. `NewKiller()` returns a concrete type~~ ✓ Resolved
+
+`NewKiller()` now returns `outbound.ProcessKiller`, consistent with `NewFinder()` returning `outbound.ProcessFinder`.
+
 ### ~~20. `contract/` mixes inbound and outbound ports in flat files — `application/contract/`~~ ✓ Resolved
 
 `contract/inbound.go` and `contract/outbound.go` replaced by two sub-packages with topic-focused files:
@@ -184,12 +192,6 @@ Speeding up now requires holding Shift on the main keyboard. The usage string (`
 
 `HandleKey` now uses `ch == '+' || ch == '='` and `ch == '-' || ch == '_'`. Covered by `TestHandleKey_SpeedUpAlias` and `TestHandleKey_SpeedDownAlias`.
 
-### 35. Inbound port `Play()` performs no validation — `application/service/game.go:45`
-
-All input validation lives exclusively in the CLI adapter (`cli.go validate()`). `GameService.Play`, `game.New`, `NewVelocity`, and `NewTimer` accept any `GamePlayConfig` without checking it. Any second delivery adapter (a future TUI, a test, a daemon entrypoint) that calls `Play` with `Speed: 0`, a NaN speed, or a negative `TimeLimit` gets silent NaN positions or an infinite game with no error.
-
-The inbound port is the architectural boundary in a hexagonal layout — the defence should live there, not only in one delivery adapter. Fix: add the same range checks at the top of `GameService.Play` (or enforce them in `game.New`), returning an error when `!(cfg.Speed >= game.MinSpeed && cfg.Speed <= game.MaxSpeed) || cfg.TimeLimit < 0`.
-
 ### 31. Frame snapshot types live in the core domain instead of the output port — `core/game/frame.go`
 
 `FrameState`, `TargetViewState`, `HUDState`, `StatusState`, and `ConfirmState` are defined in `internal/core/game/frame.go`. They represent the rendering contract — what the game promises to hand to the renderer each tick — not internal domain state. Yet they live inside the core package, forcing the outbound port to import the domain just to name the type:
@@ -207,13 +209,53 @@ In a strict hexagonal layout the output port contract (the *what* the renderer r
 
 The trade-off: `game.Frame()` currently returns `game.FrameState`. After the move it would return `outbound.FrameState`, introducing a core → application-contract dependency. Whether that direction is acceptable depends on how strictly the project treats the contract packages. An alternative is a dedicated `core/gamestate` (or similar neutral) package that both `game` and `outbound` import, keeping the dependency arrows clean in both directions.
 
-### 11. `PrintScores()` couples the domain to stdout — `core/score/score.go`
+### 35. Inbound port `Play()` performs no validation — `application/service/game.go:45`
 
-`Board.PrintScores()` calls `fmt.Println` and `fmt.Printf` directly, making the core domain package responsible for terminal output. This violates the layering used everywhere else in the codebase (where output goes through the `Renderer` port or the application layer). The display logic belongs in `application/game.go`'s `Play()` after the game completes — the domain should only provide the data.
+All input validation lives exclusively in the CLI adapter (`cli.go validate()`). `GameService.Play`, `game.New`, `NewVelocity`, and `NewTimer` accept any `GamePlayConfig` without checking it. Any second delivery adapter (a future TUI, a test, a daemon entrypoint) that calls `Play` with `Speed: 0`, a NaN speed, or a negative `TimeLimit` gets silent NaN positions or an infinite game with no error.
 
-### ~~12. `NewKiller()` returns a concrete type~~ ✓ Resolved
+The inbound port is the architectural boundary in a hexagonal layout — the defence should live there, not only in one delivery adapter. Fix: add the same range checks at the top of `GameService.Play` (or enforce them in `game.New`), returning an error when `!(cfg.Speed >= game.MinSpeed && cfg.Speed <= game.MaxSpeed) || cfg.TimeLimit < 0`.
 
-`NewKiller()` now returns `outbound.ProcessKiller`, consistent with `NewFinder()` returning `outbound.ProcessFinder`.
+### 37. Keybinding policy split across core and application — `core/game/event_handler.go:22–36`
+
+`HandleKey` maps physical runes (`'q'`/`'Q'`, `'y'`/`'Y'`, `'+'`/`'='`, …) to domain actions. Input-translation policy belongs in the delivery/application layer, not the domain. The violation is compounded by an existing split: control keys (Escape, CtrlC, CtrlZ) are already translated in `application/service/game.go:157–161`, and the human-readable binding labels live in `infrastructure/tcellui/tcellui.go:128–136`. Renaming a single key binding requires touching three layers.
+
+Fix: add intent-level methods to `Game` — `Quit()`, `ConfirmKill() *Target`, `CancelConfirm()`, `SpeedUp()`, `SlowDown()` — as thin wrappers over the existing internal calls. Move the rune switch into `drainEvents` in `application/service/game.go` alongside the existing `KeyCode` switch, so all input translation lives in one place.
+
+### 38. Renderer chrome hardcoded in domain physics — `core/game/frame_bounds.go:43`, `core/game/target.go:117`
+
+Bounce physics and spawn logic subtract 2 from frame height to "reserve bottom row for status bar":
+
+```go
+// frame_bounds.go:43
+float64(b.Height - 2) // reserve bottom row for status bar
+
+// target.go:117
+y := maxY - 2 // Leave room for status bar
+```
+
+This hardcodes knowledge of `tcellui`'s specific screen layout into the domain. If the renderer adds a second chrome row or removes the status bar entirely, core physics must change. The magic `-2` is duplicated across two core files and must stay in sync with `tcellui.go:123,141`.
+
+Fix: the domain should bounce within whatever bounds it is given. Have the application layer subtract chrome height before passing dimensions: `w, h := s.renderer.Size()` → pass `h - chromeRows` to `g.Update`. The renderer is the one that knows how many rows its chrome occupies.
+
+### 39. Kill-animation glyphs owned by domain; duration expressed in ticks — `core/game/target.go:24–25, 145–152`
+
+The domain selects literal glyph strings (`"💥"`, `"✦ KILLED ✦"`, `"· · ·"`, `"  ·  "`, `"     "`) for each animation frame. Glyph selection is pure presentation and belongs in the renderer adapter. Additionally, `KillAnimationDuration = 12` is expressed in ticks, which only means "0.6 s" because the application layer's ticker happens to run at 20 fps (`service/game.go:18`). Changing `frameDuration` silently changes every animation's duration.
+
+Note: the live `[pid name]` tag is defensible in core because its rune width drives hit detection and bounce. A *dying* target is neither hittable nor bounced, so its display string has no domain role.
+
+Fix: keep `Killing`/`Dead` states and the tick counter in core, but expose progress as data — add an `AnimationPhase int` (or a 0..1 fraction) to `TargetViewState` and let `tcellui` own the glyph table. Make `KillAnimationDuration` a `game.Config` field so the application layer, which owns the tick rate, can supply a consistent value.
+
+### 40. High-score cross-aggregate coordination in the domain — `core/game/stats.go:7, 14–19`
+
+`Game` carries a `highScore` field injected from the persisted `score.Board` (seeded at `application/service/game.go:65`) and bumps it live on each kill in `RecordKill`. The high score belongs to the `core/score` aggregate; tracking "max(stored high, current kills)" is a presentation policy, not a rule of the shooting game. The game session plays identically with or without it.
+
+Fix: delete `highScore`, `SetHighScore`, and the `HighScore()` accessor from `Stats`; remove `SetHighScore` from `Frame()` assembly in `loop.go`. Have the application layer compute `max(board.HighScore(), g.Kills())` before calling `s.renderer.Render(...)` and inject the value into the frame there.
+
+### 41. System clock side effect in core domain — `core/game/timer.go:10, 17, 23–26`
+
+`Timer` reads `time.Now` directly — an environmental side effect that makes the "pure state machine" non-deterministic and untestable without the `now func() time.Time` hook (which is itself an admission that the dependency doesn't belong there). The application layer already owns time: it runs the ticker and captures `endTime` in `service/game.go:120,134`.
+
+Fix: (a) inject the clock as an explicit dependency — `NewTimer(limitSeconds int, now func() time.Time)` — threaded from the application layer; or (b) make the timer tick-driven — `Update` receives elapsed time or counts ticks × `frameDuration` — so core is fully deterministic and the clock never enters the domain.
 
 ---
 
@@ -230,24 +272,6 @@ The trade-off: `game.Frame()` currently returns `game.FrameState`. After the mov
 ### ~~15. `ps` resolved via `$PATH` — `osprocess/osprocess.go:52`~~ ✓ Resolved
 
 `NewFinder()` now calls `exec.LookPath("ps")` at construction time and stores the absolute path in `Finder.psPath`; `List()` uses `f.psPath` instead of the bare string `"ps"`. `NewFinder` returns `(outbound.ProcessFinder, error)` so callers fail fast if `ps` is absent. `main.go` and both test files updated accordingly.
-
-### ~~26. Seven inline implementation comments removed from `entity.go` not carried into `target.go` — CLAUDE.md violation~~ ✓ Resolved
-
-CLAUDE.md rule: *"Never remove comments, Javadoc, loggers, or annotations unless explicitly asked to."*
-
-The deleted `entity.go` contained these inline body comments explaining non-obvious choices:
-
-```go
-// Ensure entity fits within bounds
-spawnMaxY := maxY - 2 // Leave room for status bar
-// Random position
-// Random velocity scaled by speed multiplier (default slower)
-// Kill animation frames
-// Bounce off horizontal walls
-// Bounce off vertical walls (leave bottom row for status)
-```
-
-None appear in the replacement `internal/core/game/target.go`. The godoc lines were re-written under new names (acceptable), but the inline implementation notes explaining *why* were dropped.
 
 ### 16. Score table header does not match data — `core/score/score.go`
 
@@ -269,6 +293,24 @@ fmt.Println("  ║  # ║ Kills ║   Freed    ║ Speed ║    Date    ║")
 ### ~~19. `tcellui` package has no tests — `infrastructure/tcellui/`~~ ✓ Resolved
 
 Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via four `TestPoll_Translates*` cases (Escape, CtrlC, CtrlZ, plain rune → KeyNone); `poll` routing is covered by `TestPoll_MouseButton1_EmitsClickEvent`, `TestPoll_NonButton1_DropsEvent`, and `TestPoll_ResizeEvent_EmitsResizeEvent`; `drawStatusBar` is covered by four cases (normal, confirming, with time limit, without time limit). Shared `newUI`, `nextEvent`, and `rowContent` helpers keep boilerplate out of each test.
+
+### ~~26. Seven inline implementation comments removed from `entity.go` not carried into `target.go` — CLAUDE.md violation~~ ✓ Resolved
+
+CLAUDE.md rule: *"Never remove comments, Javadoc, loggers, or annotations unless explicitly asked to."*
+
+The deleted `entity.go` contained these inline body comments explaining non-obvious choices:
+
+```go
+// Ensure entity fits within bounds
+spawnMaxY := maxY - 2 // Leave room for status bar
+// Random position
+// Random velocity scaled by speed multiplier (default slower)
+// Kill animation frames
+// Bounce off horizontal walls
+// Bounce off vertical walls (leave bottom row for status)
+```
+
+None appear in the replacement `internal/core/game/target.go`. The godoc lines were re-written under new names (acceptable), but the inline implementation notes explaining *why* were dropped.
 
 ---
 
@@ -340,6 +382,13 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | 34 | `core/game/target.go:86` | Medium | `IsHitAt` truncates float position (`int()`) while `ViewState` rounds (`math.Round`) — clicks on visible target miss ~50% of the time |
 | 35 | `application/service/game.go:45` | Medium | `GameService.Play` performs no input validation — only the CLI adapter validates; any second delivery adapter bypasses all guards |
 | 36 | `infrastructure/scorefilestore/score_file_store.go:34` | Low | Score file contents trusted after unmarshal — unsorted, oversized, or negative-valued entries corrupt the high score and get re-saved |
+| 37 | `core/game/event_handler.go:22–36` | Design | Keybinding policy (rune→action map) in the domain; control-key translation already lives in the app layer — binding logic split across three layers |
+| 38 | `core/game/frame_bounds.go:43`, `core/game/target.go:117` | Design | Bounce physics and spawn logic hardcode `-2` for the tcellui status bar — renderer chrome knowledge baked into domain physics |
+| 39 | `core/game/target.go:24–25, 145–152` | Design | Kill-animation glyphs owned by domain (presentation); `KillAnimationDuration` in ticks silently couples to the app-layer ticker rate |
+| 40 | `core/game/stats.go:7, 14–19` | Design | High-score cross-aggregate coordination (`SetHighScore`/live bump) in the domain; "max(stored, current)" is a presentation policy belonging in the app layer |
+| 41 | `core/game/timer.go:10, 17, 23–26` | Design | `time.Now` side effect in core; `now` test hook is an admission; app layer already owns the clock via the ticker |
+| 42 | `core/game/state.go:3, 15–31` | Minor | `atomic.Int32` in core exists only for app-layer concurrency; dead `CompareAndSwap` has no production callers |
+| 43 | `core/game/frame.go` (whole), `core/game/loop.go:18–37` | Design | View-model types and `Frame()` presenter live in core; outbound port imports core to name its own type — dependency direction inverted |
 
 ---
 
@@ -373,22 +422,6 @@ Two files carry `//go:build integration` tags:
 ### Race detector
 
 Issue #1 (data race on `game.running`) has been resolved — `running` is now an `atomic.Bool` and all reads/writes go through `Store`/`Load`. Issue #7 (signal goroutine leak) has also been resolved — `runLoop()` uses a done channel so the signal goroutine exits via `select` when the game ends rather than blocking indefinitely on `<-sigCh`. Verified by `TestGameService_SignalGoroutineDoesNotAccumulate`.
-
-### Score cap assertion is loose — `score_test.go`
-
-`TestBoard_Add_CapsAtMax` adds entries `0..maxScores+4` and asserts:
-
-```go
-if lowestKills < 5 {
-    t.Errorf(...)
-}
-```
-
-The loop produces entries with kills `0–14`; the top `maxScores` retained entries are kills `5–14`, making the lowest retained exactly `5`. The assertion `lowestKills < 5` passes vacuously for any value ≥ 5 and would not catch an off-by-one error that retained kill-count 4 instead. The assertion should be `!= 5` (or derive the expected minimum from `maxScores` and the loop bounds) to tighten the invariant.
-
-### ~~`TestHandleKeyPress_ConfirmYes` does not verify the signal — `core/game/event_handler_test.go`~~ ✓ Resolved
-
-`TestHandleKeyPress_ConfirmYes_ReturnsKillRequest` verifies the returned `*KillRequest` carries the target. The kill-error path is now an application-layer concern tested by `TestGameService_*` integration tests. `TestHandleMouseClick_ReturnsKillRequest` verifies click-to-kill returns a `*KillRequest`.
 
 ### ~~27. `Frame()` iterates `g.targets` twice per tick — `core/game/loop.go`~~ ✓ Resolved
 
@@ -430,6 +463,34 @@ func (e *Target) Label() string {
 `Load` unmarshals `~/.config/pidshooter/highscores.json` and returns the result without validating field values, sort order, or entry count. `Board.HighScore()` assumes `b.Scores[0].Kills` is the maximum (sorted descending). A hand-edited or partially-written file that is unsorted, longer than `maxScores`, or contains negative `Kills`/`FreedMem` yields a wrong in-game high score, spurious "New high score!" trophies (negative stored value makes `kills >= b.highScore` trivially true), and an oversized or garbled score table — all of which get re-saved, making the corruption durable.
 
 Fix: normalize in `Store.Load` after unmarshal: drop entries with negative `Kills`/`FreedMem`, call `sortByRank()`, and truncate to `maxScores`.
+
+### 42. `sync/atomic` in core driven by application threading model — `core/game/state.go:3, 15–31`
+
+`Lifecycle` wraps an `atomic.Int32` solely so the application layer's signal-handling goroutine (`service/game.go:112–118`) can call `g.Stop()` concurrently with the game loop. A pure state machine needs a plain field. The atomicity is app-layer concurrency complexity leaked into the domain. `CompareAndSwap` (lines 29–31) has no production callers and is dead code regardless.
+
+Fix: if the application layer instead funnels the signal into the loop (e.g., select on `sigCh` inside the loop iteration so `g.Stop()` is always called from the loop goroutine), core can drop `sync/atomic` entirely and use a plain `int` or typed constant. At minimum, remove the dead `CompareAndSwap` method.
+
+### 43. `Frame()` view-model assembly and frame types in core — `core/game/frame.go` (whole file), `core/game/loop.go:18–37`
+
+`FrameState`, `HUDState`, `StatusState`, `ConfirmState`, and `TargetViewState` are named after UI structure and represent the rendering contract for the `Renderer` outbound port. `Frame()` and `targetViews()` assemble that render payload each tick — that is presenter work, not domain logic. The file's own doc comment acknowledges this: "data snapshot the application layer passes to the Renderer each tick". The port interface (`application/contract/outbound/ui.go`) must import `core/game` solely to name the type, inverting the expected dependency direction.
+
+This is a recorded design trade-off (core exposes `Frame()` snapshots; app relays them without re-mapping) and is best addressed as a follow-on after findings 39 and 40 shrink the HUD surface. At that point, moving frame assembly to an app-layer presenter — reading `g.Kills()`, `g.FreedMem()`, timer/velocity/confirmation accessors, and per-target position/state — becomes a small step, and the frame types can move to `application/contract/outbound` alongside `Renderer`.
+
+### Score cap assertion is loose — `score_test.go`
+
+`TestBoard_Add_CapsAtMax` adds entries `0..maxScores+4` and asserts:
+
+```go
+if lowestKills < 5 {
+    t.Errorf(...)
+}
+```
+
+The loop produces entries with kills `0–14`; the top `maxScores` retained entries are kills `5–14`, making the lowest retained exactly `5`. The assertion `lowestKills < 5` passes vacuously for any value ≥ 5 and would not catch an off-by-one error that retained kill-count 4 instead. The assertion should be `!= 5` (or derive the expected minimum from `maxScores` and the loop bounds) to tighten the invariant.
+
+### ~~`TestHandleKeyPress_ConfirmYes` does not verify the signal — `core/game/event_handler_test.go`~~ ✓ Resolved
+
+`TestHandleKeyPress_ConfirmYes_ReturnsKillRequest` verifies the returned `*KillRequest` carries the target. The kill-error path is now an application-layer concern tested by `TestGameService_*` integration tests. `TestHandleMouseClick_ReturnsKillRequest` verifies click-to-kill returns a `*KillRequest`.
 
 ### Undocumented confirm-cancel-with-q behaviour
 

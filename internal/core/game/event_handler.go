@@ -9,7 +9,7 @@ func (g *Game) HandleClick(x, y int) *Target {
 	}
 	for _, t := range g.targets {
 		if t.IsHitAt(x, y) {
-			return g.confirm.Set(t)
+			return g.confirm.Request(t)
 		}
 	}
 	return nil
@@ -24,9 +24,9 @@ func (g *Game) HandleKey(ch rune) *Target {
 	case ch == 'q' || ch == 'Q':
 		g.onQuit()
 	case ch == 'y' || ch == 'Y':
-		return g.confirm.Kill()
+		return g.confirm.Accept()
 	case ch == 'n' || ch == 'N':
-		g.confirm.Clear()
+		g.confirm.Cancel()
 	case ch == '+' || ch == '=':
 		g.velocity.Increase()
 	case ch == '-' || ch == '_':
@@ -38,7 +38,7 @@ func (g *Game) HandleKey(ch rune) *Target {
 // onQuit cancels a pending confirmation if one exists, otherwise stops the game.
 func (g *Game) onQuit() {
 	if g.confirm.Pending() {
-		g.confirm.Clear()
+		g.confirm.Cancel()
 	} else {
 		g.Stop()
 	}

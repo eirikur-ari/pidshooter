@@ -33,9 +33,9 @@ func New(processes []process.Info, cfg Config) *Game {
 		cfg:       cfg,
 		processes: processes,
 		targets:   make([]*Target, 0, len(processes)),
-		timer:     NewTimer(cfg.TimeLimit),
-		velocity:  NewVelocity(cfg.Speed),
-		confirm:   NewConfirmation(cfg.Confirm),
+		timer:    NewTimer(cfg.TimeLimit),
+		velocity: NewVelocity(cfg.Speed),
+		confirm:  NewConfirmation(cfg.Confirm),
 	}
 }
 
