@@ -1,15 +1,15 @@
 package game
 
 // Confirmation tracks a target pending user confirmation before a kill is issued.
-// When confirmMode is false, Set passes targets through immediately.
+// When confirm is false, Set passes targets through immediately.
 type Confirmation struct {
-	target      *Target
-	confirmMode bool
+	target  *Target
+	confirm bool
 }
 
 // NewConfirmation returns a Confirmation configured for the given mode.
-func NewConfirmation(confirmMode bool) Confirmation {
-	return Confirmation{confirmMode: confirmMode}
+func NewConfirmation(confirm bool) Confirmation {
+	return Confirmation{confirm: confirm}
 }
 
 // Pending reports whether a target is awaiting confirmation.
@@ -18,7 +18,7 @@ func (c *Confirmation) Pending() bool { return c.target != nil }
 // Set registers t as pending confirmation (confirm mode) or returns it
 // immediately for killing (passthrough mode).
 func (c *Confirmation) Set(t *Target) *Target {
-	if c.confirmMode {
+	if c.confirm {
 		c.target = t
 		return nil
 	}

@@ -1,6 +1,6 @@
 # pidshooter — Code Review Report
 
-*Updated 2026-07-09. Reflects current package layout: `core/` domain, `application/service` orchestration with `contract/inbound` and `contract/outbound` port packages, `entrypoint/cli` delivery adapter, `infrastructure/osprocess`/`tcellui`/`scorefilestore` driven adapters.*
+*Updated 2026-07-14. Reflects current package layout: `core/` domain, `application/service` orchestration with `contract/inbound` and `contract/outbound` port packages, `entrypoint/cli` delivery adapter, `infrastructure/osprocess`/`tcellui`/`scorefilestore` driven adapters.*
 
 ---
 
@@ -39,6 +39,65 @@ duration := time.Since(g.StartTime()).Seconds()   // includes Cleanup() time
 The old code computed elapsed time inside the loop before cleanup. The saved `Entry.Duration` now includes terminal teardown time (`tcell.Screen.Fini`). The fix is to snapshot the duration before `runLoop` returns, e.g. via a return value or by reading `g.StartTime()` inside `runLoop` just before the deferred cleanup fires.
 
 `runLoop` now returns `(time.Time, error)`, capturing `time.Now()` as the last statement before the deferred `Cleanup()` fires. `Play` computes `duration := endTime.Sub(g.StartTime()).Seconds()` from that snapshot.
+
+### 32. `--speed=NaN` bypasses range validation — `entrypoint/cli/cli.go:90`
+
+Cobra's `Float64Var` calls `strconv.ParseFloat`, which accepts the string `"NaN"`. The existing guard:
+
+```go
+if speed < game.MinSpeed || speed > game.MaxSpeed {
+```
+
+evaluates to `false` for NaN (all comparisons with NaN are false), so NaN passes validation. It then propagates into `Velocity` and `FrameVector.Apply`, making every target position NaN. `int(math.Round(NaN))` yields a garbage coordinate; `IsHitAt`'s equality check can never match; and `Velocity.Increase`/`Decrease` cannot recover (`NaN + 0.5 == NaN`, clamp comparisons stay false). The game renders nothing sensible and is unwinnable.
+
+Fix: invert the guard so NaN fails it:
+
+```go
+if !(speed >= game.MinSpeed && speed <= game.MaxSpeed) {
+```
+
+or add an explicit `math.IsNaN(speed)` check before the range test.
+
+### 33. `--time` with a large value overflows to "no time limit" — `entrypoint/cli/cli.go:94`, `core/game/timer.go:16`
+
+Only negative values are rejected (`timeLimit < 0`). `NewTimer` multiplies the value by `time.Second`:
+
+```go
+limit: time.Duration(limitSeconds) * time.Second,
+```
+
+`time.Duration` is int64 nanoseconds; any `limitSeconds > 9_223_372_036` (~292 years) overflows the multiplication to a negative result. `Timer.Expired()` treats `limit <= 0` as unlimited, so `--time=10000000000` silently becomes "no time limit" — the opposite of what the player requested, with no error.
+
+Fix: add an upper bound in `validate()`:
+
+```go
+const maxTimeLimit = 86400
+if timeLimit < 0 || timeLimit > maxTimeLimit {
+    return fmt.Errorf("time must be between 0 and %d seconds, got: %d", maxTimeLimit, timeLimit)
+}
+```
+
+### 34. Hit detection truncates while rendering rounds — `core/game/target.go:86`
+
+`IsHitAt` converts the float position with `int()` (truncation), but `ViewState` uses `math.Round`:
+
+```go
+// IsHitAt (line 86) — truncation
+return y == int(t.Position.Y) && x >= int(t.Position.X) && x < int(t.Position.X)+width
+
+// ViewState (lines 92-93) — rounding
+X: int(math.Round(t.Position.X)),
+Y: int(math.Round(t.Position.Y)),
+```
+
+When the fractional part of `Position.Y` is ≥ 0.5, the tag is drawn at row `n+1` but a click on row `n+1` does not register (`int()` truncates to `n`). Clicks on the visible target fail roughly half the time on the Y axis; the horizontal edge is similarly off by one column.
+
+Fix: use the same conversion in both places:
+
+```go
+py, px := int(math.Round(t.Position.Y)), int(math.Round(t.Position.X))
+return y == py && x >= px && x < px+width
+```
 
 ---
 
@@ -124,6 +183,12 @@ case ch == '-':
 Speeding up now requires holding Shift on the main keyboard. The usage string (`+/- speed`) does not hint at the change. Fix: restore `ch == '+' || ch == '='` and `ch == '-' || ch == '_'`.
 
 `HandleKey` now uses `ch == '+' || ch == '='` and `ch == '-' || ch == '_'`. Covered by `TestHandleKey_SpeedUpAlias` and `TestHandleKey_SpeedDownAlias`.
+
+### 35. Inbound port `Play()` performs no validation — `application/service/game.go:45`
+
+All input validation lives exclusively in the CLI adapter (`cli.go validate()`). `GameService.Play`, `game.New`, `NewVelocity`, and `NewTimer` accept any `GamePlayConfig` without checking it. Any second delivery adapter (a future TUI, a test, a daemon entrypoint) that calls `Play` with `Speed: 0`, a NaN speed, or a negative `TimeLimit` gets silent NaN positions or an infinite game with no error.
+
+The inbound port is the architectural boundary in a hexagonal layout — the defence should live there, not only in one delivery adapter. Fix: add the same range checks at the top of `GameService.Play` (or enforce them in `game.New`), returning an error when `!(cfg.Speed >= game.MinSpeed && cfg.Speed <= game.MaxSpeed) || cfg.TimeLimit < 0`.
 
 ### 31. Frame snapshot types live in the core domain instead of the output port — `core/game/frame.go`
 
@@ -270,6 +335,11 @@ Added tests using `tcell.NewSimulationScreen()`: `translateKey` is covered via f
 | 29 | `infrastructure/tcellui/tcellui.go:169` | ✓ Resolved | `ResizeEvent` emitted but never consumed — dead abstraction |
 | 30 | `entrypoint/cli/cli.go:76-108` | ✓ Resolved | `--help` hint inconsistently appended to some cli error messages but not others |
 | 31 | `core/game/frame.go` | Design | Frame snapshot types owned by core domain; arguably belong in `application/contract/outbound/` alongside `Renderer` |
+| 32 | `entrypoint/cli/cli.go:90` | High | `--speed=NaN` bypasses range guard — NaN propagates into all target positions, game unwinnable |
+| 33 | `entrypoint/cli/cli.go:94`, `core/game/timer.go:16` | Medium | `--time` with value > ~292 years overflows `time.Duration` to negative, silently becomes no time limit |
+| 34 | `core/game/target.go:86` | Medium | `IsHitAt` truncates float position (`int()`) while `ViewState` rounds (`math.Round`) — clicks on visible target miss ~50% of the time |
+| 35 | `application/service/game.go:45` | Medium | `GameService.Play` performs no input validation — only the CLI adapter validates; any second delivery adapter bypasses all guards |
+| 36 | `infrastructure/scorefilestore/score_file_store.go:34` | Low | Score file contents trusted after unmarshal — unsorted, oversized, or negative-valued entries corrupt the high score and get re-saved |
 
 ---
 
@@ -354,6 +424,12 @@ func (e *Target) Label() string {
 ### ~~30. `--help` hint inconsistently appended in cli.go error messages — `entrypoint/cli/cli.go`~~ ✓ Resolved
 
 `"\nRun 'pidshooter --help' for usage"` is appended to some error messages (invalid flag, bad parse) but omitted from others (speed out-of-range, time out-of-range, missing pattern). The hint should be applied uniformly — either added once in `Run()` after any parse error, or appended consistently at every error site.
+
+### 36. Score file contents trusted after `json.Unmarshal` — `infrastructure/scorefilestore/score_file_store.go:34`
+
+`Load` unmarshals `~/.config/pidshooter/highscores.json` and returns the result without validating field values, sort order, or entry count. `Board.HighScore()` assumes `b.Scores[0].Kills` is the maximum (sorted descending). A hand-edited or partially-written file that is unsorted, longer than `maxScores`, or contains negative `Kills`/`FreedMem` yields a wrong in-game high score, spurious "New high score!" trophies (negative stored value makes `kills >= b.highScore` trivially true), and an oversized or garbled score table — all of which get re-saved, making the corruption durable.
+
+Fix: normalize in `Store.Load` after unmarshal: drop entries with negative `Kills`/`FreedMem`, call `sortByRank()`, and truncate to `maxScores`.
 
 ### Undocumented confirm-cancel-with-q behaviour
 
