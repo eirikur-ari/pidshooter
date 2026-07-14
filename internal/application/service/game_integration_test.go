@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
-	"github.com/eirikur-ari/pidshooter/internal/core/event"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/capture"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
@@ -24,7 +24,7 @@ func newGameService(proc *fake.Process, store *fake.Store, events *fake.InputSou
 
 func TestIntegration_GameService_HappyPath(t *testing.T) {
 	events := fake.NewInputSource()
-	events.Ch <- event.KeyEvent{Ch: 'q'}
+	events.Ch <- outbound.KeyEvent{Ch: 'q'}
 
 	store := &fake.Store{}
 	svc := newGameService(
@@ -43,7 +43,7 @@ func TestIntegration_GameService_HappyPath(t *testing.T) {
 
 func TestIntegration_GameService_LoadError_PrintsWarningAndSkipsSave(t *testing.T) {
 	events := fake.NewInputSource()
-	events.Ch <- event.KeyEvent{Ch: 'q'}
+	events.Ch <- outbound.KeyEvent{Ch: 'q'}
 
 	store := &fake.Store{LoadErr: errors.New("json: invalid character")}
 	svc := newGameService(
@@ -64,7 +64,7 @@ func TestIntegration_GameService_LoadError_PrintsWarningAndSkipsSave(t *testing.
 
 func TestIntegration_GameService_SaveError_PrintsWarning(t *testing.T) {
 	events := fake.NewInputSource()
-	events.Ch <- event.KeyEvent{Ch: 'q'}
+	events.Ch <- outbound.KeyEvent{Ch: 'q'}
 
 	svc := newGameService(
 		&fake.Process{Processes: []process.Info{{Pid: 1, Name: "target", Rss: 1024}}},
@@ -86,7 +86,7 @@ func TestIntegration_GameService_QuitOnQ(t *testing.T) {
 	events := fake.NewInputSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		events.Ch <- event.KeyEvent{Ch: 'q'}
+		events.Ch <- outbound.KeyEvent{Ch: 'q'}
 	}()
 
 	svc := newGameService(
@@ -101,7 +101,7 @@ func TestIntegration_GameService_QuitOnEscape(t *testing.T) {
 	events := fake.NewInputSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		events.Ch <- event.KeyEvent{Key: event.KeyEscape}
+		events.Ch <- outbound.KeyEvent{Key: outbound.KeyEscape}
 	}()
 
 	svc := newGameService(
@@ -116,7 +116,7 @@ func TestIntegration_GameService_QuitOnCtrlC(t *testing.T) {
 	events := fake.NewInputSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		events.Ch <- event.KeyEvent{Key: event.KeyCtrlC}
+		events.Ch <- outbound.KeyEvent{Key: outbound.KeyCtrlC}
 	}()
 
 	svc := newGameService(
@@ -131,7 +131,7 @@ func TestIntegration_GameService_QuitOnCtrlZ(t *testing.T) {
 	events := fake.NewInputSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		events.Ch <- event.KeyEvent{Key: event.KeyCtrlZ}
+		events.Ch <- outbound.KeyEvent{Key: outbound.KeyCtrlZ}
 	}()
 
 	svc := newGameService(
@@ -161,7 +161,7 @@ func TestIntegration_GameService_SignalGoroutineDoesNotAccumulate(t *testing.T) 
 		events := fake.NewInputSource()
 		go func() {
 			time.Sleep(50 * time.Millisecond)
-			events.Ch <- event.KeyEvent{Ch: 'q'}
+			events.Ch <- outbound.KeyEvent{Ch: 'q'}
 		}()
 		svc := newGameService(
 			&fake.Process{Processes: []process.Info{{Pid: pid, Name: "target", Rss: 1024}}},

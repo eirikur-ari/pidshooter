@@ -202,11 +202,13 @@ All input validation lives exclusively in the CLI adapter (`cli.go validate()`).
 
 The inbound port is the architectural boundary in a hexagonal layout — the defence should live there, not only in one delivery adapter. Fix: add the same range checks at the top of `GameService.Play` (or enforce them in `game.New`), returning an error when `!(cfg.Speed >= game.MinSpeed && cfg.Speed <= game.MaxSpeed) || cfg.TimeLimit < 0`.
 
-### 37. Keybinding policy split across core and application — `core/game/event_handler.go:22–36`
+### ~~37. Keybinding policy split across core and application — `core/game/event_handler.go:22–36`~~ ✓ Resolved
 
 `HandleKey` maps physical runes (`'q'`/`'Q'`, `'y'`/`'Y'`, `'+'`/`'='`, …) to domain actions. Input-translation policy belongs in the delivery/application layer, not the domain. The violation is compounded by an existing split: control keys (Escape, CtrlC, CtrlZ) are already translated in `application/service/game.go:157–161`, and the human-readable binding labels live in `infrastructure/tcellui/tcellui.go:128–136`. Renaming a single key binding requires touching three layers.
 
 Fix: add intent-level methods to `Game` — `Quit()`, `ConfirmKill() *Target`, `CancelConfirm()`, `SpeedUp()`, `SlowDown()` — as thin wrappers over the existing internal calls. Move the rune switch into `drainEvents` in `application/service/game.go` alongside the existing `KeyCode` switch, so all input translation lives in one place.
+
+`core/game/event_handler.go` deleted entirely. A new `core/handler/input.go` (package `handler`) introduces the `InputHandler` interface — intent-level methods `OnQuit`, `OnYes`, `OnNo`, `OnSpeedUp`, `OnSpeedDown`, `OnClickAt` — and a `Handler` struct that implements it against `*game.Game`. All rune-to-intent translation moved to `application/event/input.go` (package `event`), where `Dispatcher.Dispatch` owns the full `InputEvent` switch. `NewDispatcher` accepts `handler.InputHandler` (not `*game.Game`), establishing a clean injection seam. To avoid exposing mutable internals across the new boundary, `Confirmer` and `Speeder` interfaces were introduced in `core/game/confirmation.go` and `core/game/velocity.go`; `game.Confirm()` and `game.Velocity()` now return those interfaces instead of raw pointers. Covered by `TestHandler_*` in `core/handler/input_test.go` and `TestDispatcher_*` in `application/event/input_test.go`.
 
 ### 38. Renderer chrome hardcoded in domain physics — `core/game/frame_bounds.go:43`, `core/game/target.go:117`
 
@@ -317,6 +319,7 @@ None appear in the replacement `internal/core/game/target.go`. The godoc lines w
 | `game_util.go` in wrong package | Moved to `internal/util/util.go` |
 | Testability required `tcell.SimulationScreen` | Game ports (`Renderer`, `EventSource`) are now plain interfaces; integration tests use hand-rolled stubs defined inline, no tcell dependency in tests |
 | No separation between domain and infrastructure | Full hexagonal layout: port interfaces in `application/contract/`; core domain in `core/`; adapters in `infrastructure/` and `entrypoint/` |
+| #37 — Keybinding policy split across core and application | `core/game/event_handler.go` deleted; `core/handler/input.go` added with `InputHandler` interface and `Handler` (intent-level methods); `application/event/input.go` added with `Dispatcher` owning all rune→intent translation; `Confirmer`/`Speeder` interfaces introduced to avoid exposing mutable internals across the boundary |
 | #8 — Kill score recorded even if SIGKILL fails | `drainEvents` in `game.go` guards `CompleteKill` behind a nil error check; target stays `Alive` on failure; no score credit |
 | #9 — High score display stale mid-game | `Session.RecordKill` now updates `highScore` in-place when `kills` exceeds it; covered by `TestSession_RecordKill_UpdatesHighScore` |
 | #10 — Score save error silently discarded | `game.go` now prints `warning: score not saved: <err>` to stderr on save failure; `fake.Store` split into `LoadErr`/`SaveErr`; covered by `TestGameService_SaveError_PrintsWarning` (integration) |
@@ -369,7 +372,7 @@ None appear in the replacement `internal/core/game/target.go`. The godoc lines w
 | 34 | `core/game/target.go:86` | Medium | `IsHitAt` truncates float position (`int()`) while `ViewState` rounds (`math.Round`) — clicks on visible target miss ~50% of the time |
 | 35 | `application/service/game.go:45` | Medium | `GameService.Play` performs no input validation — only the CLI adapter validates; any second delivery adapter bypasses all guards |
 | 36 | `infrastructure/scorefilestore/score_file_store.go:34` | Low | Score file contents trusted after unmarshal — unsorted, oversized, or negative-valued entries corrupt the high score and get re-saved |
-| 37 | `core/game/event_handler.go:22–36` | Design | Keybinding policy (rune→action map) in the domain; control-key translation already lives in the app layer — binding logic split across three layers |
+| 37 | `core/game/event_handler.go:22–36` | ✓ Resolved | Keybinding policy (rune→action map) in the domain; control-key translation already lives in the app layer — binding logic split across three layers |
 | 38 | `core/game/frame_bounds.go:43`, `core/game/target.go:117` | Design | Bounce physics and spawn logic hardcode `-2` for the tcellui status bar — renderer chrome knowledge baked into domain physics |
 | 39 | `core/game/target.go:24–25, 145–152` | Design | Kill-animation glyphs owned by domain (presentation); `KillAnimationDuration` in ticks silently couples to the app-layer ticker rate |
 | 40 | `core/game/stats.go:7, 14–19` | Design | High-score cross-aggregate coordination (`SetHighScore`/live bump) in the domain; "max(stored, current)" is a presentation policy belonging in the app layer |

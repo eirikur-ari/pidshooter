@@ -5,6 +5,12 @@ const (
 	MaxSpeed = 5.0 // maximum allowed speed multiplier
 )
 
+// Speeder is the interface through which external packages adjust velocity.
+type Speeder interface {
+	Increase()
+	Decrease()
+}
+
 // Velocity tracks the current movement speed with clamped increase/decrease steps.
 type Velocity struct {
 	speed float64

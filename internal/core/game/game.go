@@ -70,6 +70,9 @@ func (g *Game) Targets() []*Target { return g.targets }
 // Speed returns the current velocity speed.
 func (g *Game) Speed() float64 { return g.velocity.Speed() }
 
+// Velocity returns the game's velocity.
+func (g *Game) Velocity() Speeder { return &g.velocity }
+
 // TimeLimit returns the configured time limit in seconds (0 = unlimited).
 func (g *Game) TimeLimit() int { return g.timer.LimitSeconds() }
 
@@ -83,6 +86,9 @@ func (g *Game) ConfirmTarget() *Target {
 	}
 	return g.confirm.target
 }
+
+// Confirm returns the game's confirmation state.
+func (g *Game) Confirm() Confirmer { return &g.confirm }
 
 func (g *Game) initialize(w, h int) {
 	g.timer.Start()

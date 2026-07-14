@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/core/event"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
@@ -29,7 +28,7 @@ func newUI(t *testing.T) (*tcellui.UI, tcell.SimulationScreen) {
 
 // nextEvent reads one event from the UI with a timeout so tests fail fast
 // instead of blocking forever if the expected event is never produced.
-func nextEvent(t *testing.T, ui *tcellui.UI) event.InputEvent {
+func nextEvent(t *testing.T, ui *tcellui.UI) outbound.InputEvent {
 	t.Helper()
 	select {
 	case ev := <-ui.Events():
@@ -148,33 +147,33 @@ func TestRender_MultiByteLabel_ColumnLayout(t *testing.T) {
 func TestPoll_TranslatesEscape(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyEscape, 0, tcell.ModNone)
-	ke, ok := nextEvent(t, ui).(event.KeyEvent)
+	ke, ok := nextEvent(t, ui).(outbound.KeyEvent)
 	require.True(t, ok, "expected KeyEvent")
-	assert.Equal(t, event.KeyEscape, ke.Key)
+	assert.Equal(t, outbound.KeyEscape, ke.Key)
 }
 
 func TestPoll_TranslatesCtrlC(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyCtrlC, 0, tcell.ModNone)
-	ke, ok := nextEvent(t, ui).(event.KeyEvent)
+	ke, ok := nextEvent(t, ui).(outbound.KeyEvent)
 	require.True(t, ok, "expected KeyEvent")
-	assert.Equal(t, event.KeyCtrlC, ke.Key)
+	assert.Equal(t, outbound.KeyCtrlC, ke.Key)
 }
 
 func TestPoll_TranslatesCtrlZ(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyCtrlZ, 0, tcell.ModNone)
-	ke, ok := nextEvent(t, ui).(event.KeyEvent)
+	ke, ok := nextEvent(t, ui).(outbound.KeyEvent)
 	require.True(t, ok, "expected KeyEvent")
-	assert.Equal(t, event.KeyCtrlZ, ke.Key)
+	assert.Equal(t, outbound.KeyCtrlZ, ke.Key)
 }
 
 func TestPoll_TranslatesRune(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
-	ke, ok := nextEvent(t, ui).(event.KeyEvent)
+	ke, ok := nextEvent(t, ui).(outbound.KeyEvent)
 	require.True(t, ok, "expected KeyEvent")
-	assert.Equal(t, event.KeyNone, ke.Key, "expected KeyNone for plain rune")
+	assert.Equal(t, outbound.KeyNone, ke.Key, "expected KeyNone for plain rune")
 	assert.Equal(t, 'q', ke.Ch)
 }
 
@@ -183,7 +182,7 @@ func TestPoll_TranslatesRune(t *testing.T) {
 func TestPoll_MouseButton1_EmitsClickEvent(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectMouse(5, 10, tcell.Button1, tcell.ModNone)
-	ce, ok := nextEvent(t, ui).(event.ClickEvent)
+	ce, ok := nextEvent(t, ui).(outbound.ClickEvent)
 	require.True(t, ok, "expected ClickEvent")
 	assert.Equal(t, 5, ce.X)
 	assert.Equal(t, 10, ce.Y)
@@ -194,9 +193,9 @@ func TestPoll_NonButton1_DropsEvent(t *testing.T) {
 	screen.InjectMouse(5, 10, tcell.Button2, tcell.ModNone)
 	screen.InjectKey(tcell.KeyRune, 'z', tcell.ModNone)
 	ev := nextEvent(t, ui)
-	_, isClick := ev.(event.ClickEvent)
+	_, isClick := ev.(outbound.ClickEvent)
 	assert.False(t, isClick, "Button2 should not produce a ClickEvent")
-	ke, ok := ev.(event.KeyEvent)
+	ke, ok := ev.(outbound.KeyEvent)
 	require.True(t, ok, "expected KeyEvent after dropped Button2")
 	assert.Equal(t, 'z', ke.Ch)
 }

@@ -89,3 +89,14 @@ func TestGame_ConfirmTarget_ReturnsPendingTarget(t *testing.T) {
 	g := &Game{confirm: Confirmation{target: tgt, confirm: true}}
 	assert.Equal(t, tgt, g.ConfirmTarget())
 }
+
+func TestGame_Confirm_PendingFalseInitially(t *testing.T) {
+	g := New(nil, Config{})
+	assert.False(t, g.Confirm().Pending())
+}
+
+func TestGame_Velocity_MutationAffectsSpeed(t *testing.T) {
+	g := New(nil, Config{Speed: 2.0})
+	g.Velocity().Increase()
+	assert.Equal(t, 2.5, g.Speed())
+}

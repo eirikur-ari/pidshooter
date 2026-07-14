@@ -1,4 +1,4 @@
-// Package tcellui implements the spi.Renderer and spi.EventSource ports using tcell.
+// Package tcellui implements the outbound.Renderer and outbound.InputSource ports using tcell.
 package tcellui
 
 import (
@@ -7,15 +7,14 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/core/event"
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
-// UI implements both spi.Renderer and spi.EventSource using a tcell.Screen.
+// UI implements both outbound.Renderer and outbound.InputSource using a tcell.Screen.
 // The event poll goroutine is started inside Init() after the screen is ready.
 type UI struct {
 	screen tcell.Screen
-	ch     chan event.InputEvent
+	ch     chan outbound.InputEvent
 	done   chan struct{}
 }
 
@@ -24,7 +23,7 @@ type UI struct {
 func NewUI(screen tcell.Screen) *UI {
 	return &UI{
 		screen: screen,
-		ch:     make(chan event.InputEvent, 10),
+		ch:     make(chan outbound.InputEvent, 10),
 		done:   make(chan struct{}),
 	}
 }
@@ -144,7 +143,7 @@ func (a *UI) drawStatusBar(w, h int, status outbound.StatusState) {
 }
 
 // Events returns the channel of translated game input events.
-func (a *UI) Events() <-chan event.InputEvent {
+func (a *UI) Events() <-chan outbound.InputEvent {
 	return a.ch
 }
 
@@ -154,16 +153,16 @@ func (a *UI) poll() {
 		if ev == nil {
 			return
 		}
-		var inputEvent event.InputEvent
+		var inputEvent outbound.InputEvent
 		switch ev := ev.(type) {
 		case *tcell.EventMouse:
 			if ev.Buttons() != tcell.Button1 {
 				continue
 			}
 			x, y := ev.Position()
-			inputEvent = event.ClickEvent{X: x, Y: y}
+			inputEvent = outbound.ClickEvent{X: x, Y: y}
 		case *tcell.EventKey:
-			inputEvent = event.KeyEvent{Key: translateKey(ev.Key()), Ch: ev.Rune()}
+			inputEvent = outbound.KeyEvent{Key: translateKey(ev.Key()), Ch: ev.Rune()}
 		case *tcell.EventResize:
 			a.screen.Sync()
 			continue
@@ -178,15 +177,15 @@ func (a *UI) poll() {
 	}
 }
 
-func translateKey(k tcell.Key) event.KeyCode {
+func translateKey(k tcell.Key) outbound.KeyCode {
 	switch k {
 	case tcell.KeyEscape:
-		return event.KeyEscape
+		return outbound.KeyEscape
 	case tcell.KeyCtrlC:
-		return event.KeyCtrlC
+		return outbound.KeyCtrlC
 	case tcell.KeyCtrlZ:
-		return event.KeyCtrlZ
+		return outbound.KeyCtrlZ
 	default:
-		return event.KeyNone
+		return outbound.KeyNone
 	}
 }

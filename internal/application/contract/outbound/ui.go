@@ -1,7 +1,5 @@
 package outbound
 
-import "github.com/eirikur-ari/pidshooter/internal/core/event"
-
 // FrameState is the data snapshot passed to the Renderer each tick.
 type FrameState struct {
 	Targets   []TargetViewState
@@ -44,9 +42,4 @@ type Renderer interface {
 	Cleanup()
 	Size() (width, height int)
 	Render(state FrameState)
-}
-
-// InputSource is the outbound port for user input events.
-type InputSource interface {
-	Events() <-chan event.InputEvent
 }

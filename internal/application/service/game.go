@@ -10,8 +10,9 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/core/event"
+	"github.com/eirikur-ari/pidshooter/internal/application/event"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
+	"github.com/eirikur-ari/pidshooter/internal/core/handler"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
@@ -122,10 +123,11 @@ func (s *GameService) runLoop(g *game.Game) (time.Time, error) {
 	defer ticker.Stop()
 
 	s.kills = make(chan *game.Target, 10)
+	evt := event.NewDispatcher(handler.NewHandler(g))
 
 	for g.IsRunning() {
 		s.applyKills(g)
-		s.drainEvents(g, done)
+		s.drainEvents(evt, done)
 		w, h = s.renderer.Size()
 		g.Update(w, h)
 		s.renderer.Render(buildFrame(g))
@@ -189,32 +191,22 @@ func toConfirmViewState(t *game.Target) *outbound.ConfirmViewState {
 	return &outbound.ConfirmViewState{PID: t.Pid, Name: t.Name}
 }
 
-func (s *GameService) drainEvents(g *game.Game, done <-chan struct{}) {
+func (s *GameService) drainEvents(d *event.Dispatcher, done <-chan struct{}) {
 	for {
 		select {
 		case ev := <-s.events.Events():
-			var target *game.Target
-			switch ev := ev.(type) {
-			case event.ClickEvent:
-				target = g.HandleClick(ev.X, ev.Y)
-			case event.KeyEvent:
-				switch ev.Key {
-				case event.KeyEscape, event.KeyCtrlC, event.KeyCtrlZ:
-					g.Stop()
-				default:
-					target = g.HandleKey(ev.Ch)
-				}
+			target := d.Dispatch(ev)
+			if target == nil {
+				continue
 			}
-			if target != nil {
-				go func() {
-					if killed, err := s.process.Kill(target.Pid, target.Name); err == nil && killed {
-						select {
-						case s.kills <- target:
-						case <-done:
-						}
+			go func() {
+				if killed, err := s.process.Kill(target.Pid, target.Name); err == nil && killed {
+					select {
+					case s.kills <- target:
+					case <-done:
 					}
-				}()
-			}
+				}
+			}()
 		default:
 			return
 		}
