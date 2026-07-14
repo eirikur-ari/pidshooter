@@ -61,7 +61,7 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 		board = &score.Board{}
 	}
 
-	g := game.New(processes, game.Config{ConfirmMode: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
+	g := game.New(processes, game.Config{Confirm: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
 	g.SetHighScore(board.HighScore())
 
 	endTime, err := s.runLoop(g)

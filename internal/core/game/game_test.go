@@ -14,9 +14,9 @@ func TestNew(t *testing.T) {
 		{Pid: 2, Name: "b", Rss: 200},
 	}
 
-	g := New(processes, Config{ConfirmMode: true, Speed: 3.5, TimeLimit: 60})
+	g := New(processes, Config{Confirm: true, Speed: 3.5, TimeLimit: 60})
 
-	assert.True(t, g.cfg.ConfirmMode)
+	assert.True(t, g.cfg.Confirm)
 	assert.Equal(t, 3.5, g.velocity.Speed())
 	assert.Equal(t, 60, g.cfg.TimeLimit)
 	assert.Equal(t, Pending, g.State())

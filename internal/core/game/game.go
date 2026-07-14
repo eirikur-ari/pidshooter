@@ -9,9 +9,9 @@ import (
 
 // Config holds the gameplay parameters for a session.
 type Config struct {
-	ConfirmMode bool
-	Speed       float64
-	TimeLimit   int
+	Confirm   bool
+	Speed     float64
+	TimeLimit int
 }
 
 // Game manages targets and session state as a pure state machine.
@@ -35,7 +35,7 @@ func New(processes []process.Info, cfg Config) *Game {
 		targets:   make([]*Target, 0, len(processes)),
 		timer:     NewTimer(cfg.TimeLimit),
 		velocity:  NewVelocity(cfg.Speed),
-		confirm:   NewConfirmation(cfg.ConfirmMode),
+		confirm:   NewConfirmation(cfg.Confirm),
 	}
 }
 
