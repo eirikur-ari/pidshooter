@@ -44,16 +44,4 @@ func TestConfirmation_Cancel_ClearsPending(t *testing.T) {
 	assert.False(t, c.Pending())
 }
 
-func TestConfirmation_ViewState_NilWhenNoPending(t *testing.T) {
-	c := NewConfirmation(true)
-	assert.Nil(t, c.ViewState())
-}
 
-func TestConfirmation_ViewState_ReturnsPIDAndName(t *testing.T) {
-	tgt := &Target{Info: process.Info{Pid: 42, Name: "suspect"}}
-	c := Confirmation{target: tgt}
-	cs := c.ViewState()
-	assert.NotNil(t, cs)
-	assert.Equal(t, 42, cs.PID)
-	assert.Equal(t, "suspect", cs.Name)
-}

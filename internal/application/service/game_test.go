@@ -13,6 +13,90 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
+// --- toConfirmViewState ---
+
+func TestToConfirmViewState_NilInput(t *testing.T) {
+	assert.Nil(t, toConfirmViewState(nil))
+}
+
+func TestToConfirmViewState_MapsFields(t *testing.T) {
+	tgt := game.NewTarget(process.Info{Pid: 42, Name: "suspect"}, game.FrameBounds{Width: 80, Height: 24})
+	vs := toConfirmViewState(tgt)
+	require.NotNil(t, vs)
+	assert.Equal(t, 42, vs.PID)
+	assert.Equal(t, "suspect", vs.Name)
+}
+
+// --- buildFrame ---
+
+func TestBuildFrame_AliveTargetIncluded(t *testing.T) {
+	g := game.New([]process.Info{{Pid: 1, Name: "a", Rss: 0}}, game.Config{Speed: 1.0})
+	g.Start(80, 24)
+
+	f := buildFrame(g)
+
+	require.Len(t, f.Targets, 1)
+	assert.False(t, f.Targets[0].Killing)
+}
+
+func TestBuildFrame_KillingTargetMarked(t *testing.T) {
+	g := game.New([]process.Info{{Pid: 1, Name: "a", Rss: 0}}, game.Config{Speed: 1.0})
+	g.Start(80, 24)
+	g.Kill(g.Targets()[0])
+
+	f := buildFrame(g)
+
+	require.Len(t, f.Targets, 1)
+	assert.True(t, f.Targets[0].Killing)
+}
+
+func TestBuildFrame_DeadTargetExcluded(t *testing.T) {
+	g := game.New([]process.Info{{Pid: 1, Name: "a", Rss: 0}}, game.Config{Speed: 1.0})
+	g.Start(80, 24)
+	g.Kill(g.Targets()[0])
+	for i := 0; i < game.KillAnimationDuration; i++ {
+		g.Update(80, 24)
+	}
+
+	f := buildFrame(g)
+
+	assert.Empty(t, f.Targets)
+}
+
+func TestBuildFrame_HUDReflectsStats(t *testing.T) {
+	g := game.New([]process.Info{{Pid: 1, Name: "a", Rss: 4096}}, game.Config{Speed: 1.0})
+	g.Start(80, 24)
+	g.Kill(g.Targets()[0])
+
+	f := buildFrame(g)
+
+	assert.Equal(t, 1, f.HUD.Kills)
+	assert.Equal(t, int64(4096), f.HUD.FreedMem)
+}
+
+func TestBuildFrame_StatusBarAliveCount(t *testing.T) {
+	processes := []process.Info{
+		{Pid: 1, Name: "a", Rss: 0},
+		{Pid: 2, Name: "b", Rss: 0},
+	}
+	g := game.New(processes, game.Config{Speed: 1.0})
+	g.Start(80, 24)
+	g.Kill(g.Targets()[0])
+
+	f := buildFrame(g)
+
+	assert.Equal(t, 1, f.StatusBar.Alive)
+}
+
+func TestBuildFrame_NoConfirmPending(t *testing.T) {
+	g := game.New(nil, game.Config{Speed: 1.0})
+	g.Start(80, 24)
+
+	f := buildFrame(g)
+
+	assert.Nil(t, f.StatusBar.Confirming)
+}
+
 func TestGameService_FinderError(t *testing.T) {
 	svc := NewGameService(
 		&fake.Process{FindErr: errors.New("ps failed")},

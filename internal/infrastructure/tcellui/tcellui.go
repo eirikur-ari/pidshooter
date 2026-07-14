@@ -6,8 +6,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/event"
-	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
@@ -52,15 +52,15 @@ func (a *UI) Size() (int, int) {
 	return a.screen.Size()
 }
 
-// Render translates a game.FrameState into tcell draw calls.
-func (a *UI) Render(frame game.FrameState) {
+// Render translates an outbound.FrameState into tcell draw calls.
+func (a *UI) Render(state outbound.FrameState) {
 	a.screen.Clear()
 	w, h := a.screen.Size()
 
 	aliveStyle := tcell.StyleDefault.Foreground(tcell.ColorGreen).Bold(true)
 	killStyle := tcell.StyleDefault.Foreground(tcell.ColorRed).Bold(true)
 
-	for _, tv := range frame.Targets {
+	for _, tv := range state.Targets {
 		style := aliveStyle
 		if tv.Killing {
 			style = killStyle
@@ -74,12 +74,12 @@ func (a *UI) Render(frame game.FrameState) {
 		}
 	}
 
-	a.drawHUD(w, frame.HUD)
-	a.drawStatusBar(w, h, frame.StatusBar)
+	a.drawHUD(w, state.HUD)
+	a.drawStatusBar(w, h, state.StatusBar)
 	a.screen.Show()
 }
 
-func (a *UI) drawHUD(w int, hud game.HUDState) {
+func (a *UI) drawHUD(w int, hud outbound.HUDState) {
 	memStr := fmt.Sprintf(" FREED: %s ", util.FormatBytes(hud.FreedMem))
 	memStyle := tcell.StyleDefault.Foreground(tcell.ColorAqua).Bold(true)
 	for i, ch := range memStr {
@@ -114,7 +114,7 @@ func (a *UI) drawHUD(w int, hud game.HUDState) {
 	}
 }
 
-func (a *UI) drawStatusBar(w, h int, status game.StatusState) {
+func (a *UI) drawStatusBar(w, h int, status outbound.StatusState) {
 	statusStyle := tcell.StyleDefault.
 		Foreground(tcell.ColorBlack).
 		Background(tcell.ColorWhite)

@@ -214,30 +214,6 @@ func TestTarget_IsDead(t *testing.T) {
 	assert.False(t, (&Target{State: Killing}).IsDead())
 }
 
-func TestTarget_ViewState_Alive(t *testing.T) {
-	e := &Target{
-		Info:     process.Info{Pid: 42, Name: "bash", Rss: 0},
-		Position: FrameVector{X: 10.7, Y: 5.3},
-		State:    Alive,
-	}
-	vs := e.ViewState()
-	assert.Equal(t, 11, vs.X)
-	assert.Equal(t, 5, vs.Y)
-	assert.Equal(t, "[42 bash]", vs.Tag)
-	assert.False(t, vs.Killing)
-}
-
-func TestTarget_ViewState_Killing(t *testing.T) {
-	e := &Target{
-		Info:     process.Info{Pid: 42, Name: "bash", Rss: 0},
-		Position: FrameVector{X: 10, Y: 5},
-		State:    Killing,
-	}
-	vs := e.ViewState()
-	assert.True(t, vs.Killing)
-	assert.NotEmpty(t, vs.Tag)
-}
-
 func TestTarget_Kill(t *testing.T) {
 	e := &Target{Info: process.Info{Pid: 1, Name: "xxx", Rss: 0}, State: Alive, KillAnimationTick: 5}
 	assert.True(t, e.Kill())

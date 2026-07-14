@@ -24,18 +24,25 @@ func TestStats_RecordKill_UpdatesHighScore(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		s.RecordKill(0)
-		assert.Equal(t, 5, s.highScore, "after %d kills: expected highScore=5 (not beaten yet)", i+1)
+		assert.Equal(t, 5, s.HighScore(), "after %d kills: expected highScore=5 (not beaten yet)", i+1)
 	}
 
 	s.RecordKill(0)
-	assert.Equal(t, 6, s.highScore, "expected highScore=6 after beating old record")
+	assert.Equal(t, 6, s.HighScore(), "expected highScore=6 after beating old record")
 
 	s.RecordKill(0)
-	assert.Equal(t, 7, s.highScore, "expected highScore=7 after second beat")
+	assert.Equal(t, 7, s.HighScore(), "expected highScore=7 after second beat")
 }
 
 func TestStats_SetHighScore(t *testing.T) {
 	s := Stats{}
 	s.SetHighScore(100)
-	assert.Equal(t, 100, s.highScore)
+	assert.Equal(t, 100, s.HighScore())
+}
+
+func TestStats_HighScore(t *testing.T) {
+	s := Stats{}
+	assert.Equal(t, 0, s.HighScore())
+	s.SetHighScore(42)
+	assert.Equal(t, 42, s.HighScore())
 }

@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"math"
 	"os"
 	"os/signal"
 	"syscall"
@@ -127,7 +128,7 @@ func (s *GameService) runLoop(g *game.Game) (time.Time, error) {
 		s.drainEvents(g, done)
 		w, h = s.renderer.Size()
 		g.Update(w, h)
-		s.renderer.Render(g.Frame())
+		s.renderer.Render(buildFrame(g))
 		<-ticker.C
 	}
 	// Capture end time before deferred Cleanup() runs.
@@ -143,6 +144,49 @@ func (s *GameService) applyKills(g *game.Game) {
 			return
 		}
 	}
+}
+
+func buildFrame(g *game.Game) outbound.FrameState {
+	all := g.Targets()
+	views := make([]outbound.TargetViewState, 0, len(all))
+	alive := 0
+	for _, t := range all {
+		if t.IsDead() {
+			continue
+		}
+		if t.IsAlive() {
+			alive++
+		}
+		views = append(views, outbound.TargetViewState{
+			X:       int(math.Round(t.Position.X)),
+			Y:       int(math.Round(t.Position.Y)),
+			Tag:     t.Tag(),
+			Killing: t.IsKilling(),
+		})
+	}
+
+	return outbound.FrameState{
+		Targets: views,
+		HUD: outbound.HUDState{
+			FreedMem:  g.FreedMem(),
+			Kills:     g.Kills(),
+			HighScore: g.HighScore(),
+		},
+		StatusBar: outbound.StatusState{
+			Alive:      alive,
+			Speed:      g.Speed(),
+			TimeLimit:  g.TimeLimit(),
+			TimeLeft:   g.TimeLeft(),
+			Confirming: toConfirmViewState(g.ConfirmTarget()),
+		},
+	}
+}
+
+func toConfirmViewState(t *game.Target) *outbound.ConfirmViewState {
+	if t == nil {
+		return nil
+	}
+	return &outbound.ConfirmViewState{PID: t.Pid, Name: t.Name}
 }
 
 func (s *GameService) drainEvents(g *game.Game, done <-chan struct{}) {

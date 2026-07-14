@@ -57,3 +57,35 @@ func TestStart_PanicsWhenStopped(t *testing.T) {
 
 	assert.Panics(t, func() { g.Start(80, 24) })
 }
+
+func TestGame_Speed(t *testing.T) {
+	g := New(nil, Config{Speed: 2.5})
+	assert.Equal(t, 2.5, g.Speed())
+}
+
+func TestGame_TimeLimit(t *testing.T) {
+	g := New(nil, Config{TimeLimit: 30})
+	assert.Equal(t, 30, g.TimeLimit())
+}
+
+func TestGame_Targets_EmptyBeforeStart(t *testing.T) {
+	g := New([]process.Info{{Pid: 1, Name: "a"}}, Config{})
+	assert.Empty(t, g.Targets())
+}
+
+func TestGame_Targets_PopulatedAfterStart(t *testing.T) {
+	g := New([]process.Info{{Pid: 1, Name: "a"}}, Config{})
+	g.Start(80, 24)
+	assert.Len(t, g.Targets(), 1)
+}
+
+func TestGame_ConfirmTarget_NilWhenNoPending(t *testing.T) {
+	g := New(nil, Config{})
+	assert.Nil(t, g.ConfirmTarget())
+}
+
+func TestGame_ConfirmTarget_ReturnsPendingTarget(t *testing.T) {
+	tgt := &Target{Info: process.Info{Pid: 42, Name: "suspect"}}
+	g := &Game{confirm: Confirmation{target: tgt, confirm: true}}
+	assert.Equal(t, tgt, g.ConfirmTarget())
+}

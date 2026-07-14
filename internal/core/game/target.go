@@ -2,7 +2,6 @@ package game
 
 import (
 	"fmt"
-	"math"
 	"math/rand"
 	"unicode/utf8"
 
@@ -84,16 +83,6 @@ func (t *Target) IsHitAt(x, y int) bool {
 	}
 	width := utf8.RuneCountInString(t.Tag())
 	return y == int(t.Position.Y) && x >= int(t.Position.X) && x < int(t.Position.X)+width
-}
-
-// ViewState returns the render representation of this target.
-func (t *Target) ViewState() TargetViewState {
-	return TargetViewState{
-		X:       int(math.Round(t.Position.X)),
-		Y:       int(math.Round(t.Position.Y)),
-		Tag:     t.Tag(),
-		Killing: t.IsKilling(),
-	}
 }
 
 // Kill transitions the target to the dying state and returns true.

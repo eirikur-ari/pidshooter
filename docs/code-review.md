@@ -192,22 +192,9 @@ Speeding up now requires holding Shift on the main keyboard. The usage string (`
 
 `HandleKey` now uses `ch == '+' || ch == '='` and `ch == '-' || ch == '_'`. Covered by `TestHandleKey_SpeedUpAlias` and `TestHandleKey_SpeedDownAlias`.
 
-### 31. Frame snapshot types live in the core domain instead of the output port — `core/game/frame.go`
+### ~~31. Frame snapshot types live in the core domain instead of the output port — `core/game/frame.go`~~ ✓ Resolved
 
-`FrameState`, `TargetViewState`, `HUDState`, `StatusState`, and `ConfirmState` are defined in `internal/core/game/frame.go`. They represent the rendering contract — what the game promises to hand to the renderer each tick — not internal domain state. Yet they live inside the core package, forcing the outbound port to import the domain just to name the type:
-
-```go
-// application/contract/outbound/ui.go
-import "github.com/eirikur-ari/pidshooter/internal/core/game"
-
-type Renderer interface {
-    Render(frame game.FrameState)   // outbound port references a core type
-}
-```
-
-In a strict hexagonal layout the output port contract (the *what* the renderer receives) should be owned by the application boundary, not the domain core. Moving the five types to `application/contract/outbound/` — alongside the `Renderer` interface they serve — would make the outbound package the single source of truth for the rendering contract and remove the `game` import from `ui.go`.
-
-The trade-off: `game.Frame()` currently returns `game.FrameState`. After the move it would return `outbound.FrameState`, introducing a core → application-contract dependency. Whether that direction is acceptable depends on how strictly the project treats the contract packages. An alternative is a dedicated `core/gamestate` (or similar neutral) package that both `game` and `outbound` import, keeping the dependency arrows clean in both directions.
+`FrameState`, `TargetViewState`, `HUDState`, `StatusState`, and `ConfirmState` were defined in `internal/core/game/frame.go` — the rendering contract inside the domain. Resolved together with #43: the file was moved to `application/contract/outbound/ui.go` (alongside the `Renderer` interface it serves), the package declaration changed from `frame` to `outbound`, and `outbound/ui.go` now owns all frame types. The `core/game` import is gone from the outbound package. `ConfirmState` was renamed `ConfirmViewState` to distinguish the view model from the domain type `ConfirmTarget` (see #43).
 
 ### 35. Inbound port `Play()` performs no validation — `application/service/game.go:45`
 
@@ -376,7 +363,7 @@ None appear in the replacement `internal/core/game/target.go`. The godoc lines w
 | 28 | `core/game/target.go:74` | ✓ Resolved | Kill-animation `frames` slice allocated on every `Label()` call; should be package-level var |
 | 29 | `infrastructure/tcellui/tcellui.go:169` | ✓ Resolved | `ResizeEvent` emitted but never consumed — dead abstraction |
 | 30 | `entrypoint/cli/cli.go:76-108` | ✓ Resolved | `--help` hint inconsistently appended to some cli error messages but not others |
-| 31 | `core/game/frame.go` | Design | Frame snapshot types owned by core domain; arguably belong in `application/contract/outbound/` alongside `Renderer` |
+| 31 | `core/game/frame.go` | ✓ Resolved | Frame snapshot types moved to `application/contract/outbound/ui.go`; `core/game` import removed from outbound port |
 | 32 | `entrypoint/cli/cli.go:90` | High | `--speed=NaN` bypasses range guard — NaN propagates into all target positions, game unwinnable |
 | 33 | `entrypoint/cli/cli.go:94`, `core/game/timer.go:16` | Medium | `--time` with value > ~292 years overflows `time.Duration` to negative, silently becomes no time limit |
 | 34 | `core/game/target.go:86` | Medium | `IsHitAt` truncates float position (`int()`) while `ViewState` rounds (`math.Round`) — clicks on visible target miss ~50% of the time |
@@ -388,7 +375,7 @@ None appear in the replacement `internal/core/game/target.go`. The godoc lines w
 | 40 | `core/game/stats.go:7, 14–19` | Design | High-score cross-aggregate coordination (`SetHighScore`/live bump) in the domain; "max(stored, current)" is a presentation policy belonging in the app layer |
 | 41 | `core/game/timer.go:10, 17, 23–26` | Design | `time.Now` side effect in core; `now` test hook is an admission; app layer already owns the clock via the ticker |
 | 42 | `core/game/state.go:3, 15–31` | Minor | `atomic.Int32` in core exists only for app-layer concurrency; dead `CompareAndSwap` has no production callers |
-| 43 | `core/game/frame.go` (whole), `core/game/loop.go:18–37` | Design | View-model types and `Frame()` presenter live in core; outbound port imports core to name its own type — dependency direction inverted |
+| 43 | `core/game/frame.go` (whole), `core/game/loop.go:18–37` | ✓ Resolved | `Frame()` removed from core; frame assembly moved to `buildFrame()` in service; core exposes slim accessors only |
 
 ---
 
@@ -470,11 +457,9 @@ Fix: normalize in `Store.Load` after unmarshal: drop entries with negative `Kill
 
 Fix: if the application layer instead funnels the signal into the loop (e.g., select on `sigCh` inside the loop iteration so `g.Stop()` is always called from the loop goroutine), core can drop `sync/atomic` entirely and use a plain `int` or typed constant. At minimum, remove the dead `CompareAndSwap` method.
 
-### 43. `Frame()` view-model assembly and frame types in core — `core/game/frame.go` (whole file), `core/game/loop.go:18–37`
+### ~~43. `Frame()` view-model assembly and frame types in core — `core/game/frame.go` (whole file), `core/game/loop.go:18–37`~~ ✓ Resolved
 
-`FrameState`, `HUDState`, `StatusState`, `ConfirmState`, and `TargetViewState` are named after UI structure and represent the rendering contract for the `Renderer` outbound port. `Frame()` and `targetViews()` assemble that render payload each tick — that is presenter work, not domain logic. The file's own doc comment acknowledges this: "data snapshot the application layer passes to the Renderer each tick". The port interface (`application/contract/outbound/ui.go`) must import `core/game` solely to name the type, inverting the expected dependency direction.
-
-This is a recorded design trade-off (core exposes `Frame()` snapshots; app relays them without re-mapping) and is best addressed as a follow-on after findings 39 and 40 shrink the HUD surface. At that point, moving frame assembly to an app-layer presenter — reading `g.Kills()`, `g.FreedMem()`, timer/velocity/confirmation accessors, and per-target position/state — becomes a small step, and the frame types can move to `application/contract/outbound` alongside `Renderer`.
+Resolved together with #31. `Frame()` and `targetViews()` removed from `core/game/loop.go`. Frame assembly moved to `buildFrame(*game.Game) outbound.FrameState` in `application/service/game.go` — a pure mapper that reads game state through slim public accessors (`Targets()`, `Speed()`, `TimeLimit()`, `TimeLeft()`, `ConfirmTarget()`, `Kills()`, `FreedMem()`, `HighScore()`). A private `toConfirmViewState(*game.Target) *outbound.ConfirmViewState` handles the confirmation mapping step. Core remains a renderer-agnostic state machine with no outbound imports. `Confirmation` retains domain identity via `ConfirmTarget` struct (PID, Name) accessible through `Game.ConfirmTarget() *Target`; the outbound view model `ConfirmViewState` lives in `outbound/ui.go`.
 
 ### Score cap assertion is loose — `score_test.go`
 

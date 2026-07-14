@@ -1,6 +1,5 @@
 package game
 
-
 // Update advances the game state by one tick. w and h are the current terminal dimensions.
 func (g *Game) Update(w, h int) {
 	if g.timer.Expired() {
@@ -12,27 +11,6 @@ func (g *Game) Update(w, h int) {
 
 	if g.allTargetsDead() {
 		g.Stop()
-	}
-}
-
-// Frame returns a snapshot of current game state for the renderer.
-func (g *Game) Frame() FrameState {
-	targets, alive := g.targetViews()
-
-	return FrameState{
-		Targets: targets,
-		HUD: HUDState{
-			FreedMem:  g.freedMem,
-			Kills:     g.kills,
-			HighScore: g.highScore,
-		},
-		StatusBar: StatusState{
-			Alive:      alive,
-			Speed:      g.velocity.Speed(),
-			TimeLimit:  g.timer.LimitSeconds(),
-			TimeLeft:   g.timer.SecondsLeft(),
-			Confirming: g.confirm.ViewState(),
-		},
 	}
 }
 
@@ -50,20 +28,6 @@ func (g *Game) moveOrDie(w, h int) {
 	for _, t := range g.targets {
 		t.Update(bounds, speed)
 	}
-}
-
-func (g *Game) targetViews() (views []TargetViewState, alive int) {
-	views = make([]TargetViewState, 0, len(g.targets))
-	for _, t := range g.targets {
-		if t.IsDead() {
-			continue
-		}
-		if t.IsAlive() {
-			alive++
-		}
-		views = append(views, t.ViewState())
-	}
-	return views, alive
 }
 
 func (g *Game) allTargetsDead() bool {

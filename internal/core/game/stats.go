@@ -9,6 +9,7 @@ type Stats struct {
 
 func (s *Stats) Kills() int         { return s.kills }
 func (s *Stats) FreedMem() int64    { return s.freedMem }
+func (s *Stats) HighScore() int     { return s.highScore }
 func (s *Stats) SetHighScore(n int) { s.highScore = n }
 
 func (s *Stats) RecordKill(rss int64) {
