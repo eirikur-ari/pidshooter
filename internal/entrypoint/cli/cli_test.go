@@ -78,7 +78,7 @@ func TestRun_SpeedFlag(t *testing.T) {
 		wantErr bool
 	}{
 		{"valid speed", "--speed=3.5", 3.5, false},
-		{"min speed", "--speed=0.1", 0.1, false},
+		{"min speed", "--speed=0.5", 0.5, false},
 		{"max speed", "--speed=5.0", 5.0, false},
 		{"too low", "--speed=0.0", 0, true},
 		{"too high", "--speed=6.0", 0, true},

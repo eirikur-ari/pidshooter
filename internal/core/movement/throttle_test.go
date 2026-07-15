@@ -32,7 +32,7 @@ func TestThrottle_IncreaseCapsAtMax(t *testing.T) {
 }
 
 func TestThrottle_DecreaseFloorsAtMin(t *testing.T) {
-	v := NewThrottle(0.3)
+	v := NewThrottle(0.8)
 	v.Decrease()
 	assert.Equal(t, MinSpeed, v.Speed())
 	v.Decrease()
