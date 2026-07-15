@@ -133,5 +133,5 @@ func killAnimationTagFor(tick int) string {
 }
 
 func (t *Target) move(bounds movement.Bounds, speed float64) {
-	t.Motion.Move(bounds, speed, float64(utf8.RuneCountInString(t.Tag())))
+	t.Motion.Move(bounds, speed, float64(utf8.RuneCountInString(tagFor(t.Info))))
 }
