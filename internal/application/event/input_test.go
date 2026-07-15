@@ -7,6 +7,7 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
+	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
@@ -29,7 +30,7 @@ func TestDispatcher_Click_CallsOnClickAt(t *testing.T) {
 }
 
 func TestDispatcher_Click_ReturnsTarget(t *testing.T) {
-	tgt := game.NewTarget(process.Info{Pid: 1, Name: "a"}, game.FrameBounds{Width: 80, Height: 24})
+	tgt := game.NewTarget(process.Info{Pid: 1, Name: "a"}, movement.NewBounds(80, 24))
 	fh := &fake.InputHandler{ClickResult: tgt}
 	d := newDispatcher(fh)
 
@@ -75,7 +76,7 @@ func TestDispatcher_QUppercase_CallsOnQuit(t *testing.T) {
 // --- Rune: confirm yes ---
 
 func TestDispatcher_Y_CallsOnYes(t *testing.T) {
-	tgt := game.NewTarget(process.Info{Pid: 1, Name: "a"}, game.FrameBounds{Width: 80, Height: 24})
+	tgt := game.NewTarget(process.Info{Pid: 1, Name: "a"}, movement.NewBounds(80, 24))
 	fh := &fake.InputHandler{YesResult: tgt}
 	d := newDispatcher(fh)
 

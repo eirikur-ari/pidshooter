@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
-	"github.com/eirikur-ari/pidshooter/internal/core/game"
+	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
@@ -87,8 +87,8 @@ func validate(patterns []string, speed float64, timeLimit int) error {
 		}
 	}
 
-	if speed < game.MinSpeed || speed > game.MaxSpeed {
-		return fmt.Errorf("speed must be between %g and %g, got: %g", game.MinSpeed, game.MaxSpeed, speed)
+	if speed < movement.MinSpeed || speed > movement.MaxSpeed {
+		return fmt.Errorf("speed must be between %g and %g, got: %g", movement.MinSpeed, movement.MaxSpeed, speed)
 	}
 
 	if timeLimit < 0 {

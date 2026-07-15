@@ -1,5 +1,7 @@
 package game
 
+import "github.com/eirikur-ari/pidshooter/internal/core/movement"
+
 // Update advances the game state by one tick. w and h are the current terminal dimensions.
 func (g *Game) Update(w, h int) {
 	if g.timer.Expired() {
@@ -23,8 +25,8 @@ func (g *Game) Kill(t *Target) {
 }
 
 func (g *Game) moveOrDie(w, h int) {
-	bounds := FrameBounds{Width: w, Height: h}
-	speed := g.velocity.Speed()
+	bounds := movement.NewBounds(w, h)
+	speed := g.throttle.Speed()
 	for _, t := range g.targets {
 		t.Update(bounds, speed)
 	}

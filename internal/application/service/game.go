@@ -2,7 +2,6 @@ package service
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"os/signal"
 	"syscall"
@@ -149,22 +148,10 @@ func (s *GameService) applyKills(g *game.Game) {
 }
 
 func buildFrame(g *game.Game) outbound.FrameState {
-	all := g.Targets()
-	views := make([]outbound.TargetViewState, 0, len(all))
-	alive := 0
-	for _, t := range all {
-		if t.IsDead() {
-			continue
-		}
-		if t.IsAlive() {
-			alive++
-		}
-		views = append(views, outbound.TargetViewState{
-			X:       int(math.Round(t.Position.X)),
-			Y:       int(math.Round(t.Position.Y)),
-			Tag:     t.Tag(),
-			Killing: t.IsKilling(),
-		})
+	snap := g.Snapshot()
+	views := make([]outbound.TargetViewState, len(snap.Targets))
+	for i, s := range snap.Targets {
+		views[i] = outbound.TargetViewState{X: s.X, Y: s.Y, Tag: s.Tag, Killing: s.Killing}
 	}
 
 	return outbound.FrameState{
@@ -175,7 +162,7 @@ func buildFrame(g *game.Game) outbound.FrameState {
 			HighScore: g.HighScore(),
 		},
 		StatusBar: outbound.StatusState{
-			Alive:      alive,
+			Alive:      snap.Alive,
 			Speed:      g.Speed(),
 			TimeLimit:  g.TimeLimit(),
 			TimeLeft:   g.TimeLeft(),

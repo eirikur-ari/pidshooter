@@ -4,6 +4,7 @@ package game
 import (
 	"time"
 
+	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
@@ -21,10 +22,16 @@ type Game struct {
 	state     state
 	timer     Timer
 	confirm   Confirmation
-	velocity  Velocity
+	throttle  movement.Throttle
 	processes []process.Info
 	targets   []*Target
 	Stats
+}
+
+// Snapshot is a point-in-time read model of all visible targets and alive count.
+type Snapshot struct {
+	Targets []TargetSnapshot
+	Alive   int
 }
 
 // New creates a new Game with the given configuration. Call Start before the first Update.
@@ -34,7 +41,7 @@ func New(processes []process.Info, cfg Config) *Game {
 		processes: processes,
 		targets:   make([]*Target, 0, len(processes)),
 		timer:    NewTimer(cfg.TimeLimit),
-		velocity: NewVelocity(cfg.Speed),
+		throttle: movement.NewThrottle(cfg.Speed),
 		confirm:  NewConfirmation(cfg.Confirm),
 	}
 }
@@ -67,11 +74,11 @@ func (g *Game) StartTime() time.Time { return g.timer.StartTime() }
 // Targets returns the live target slice for frame assembly. Callers must not modify it.
 func (g *Game) Targets() []*Target { return g.targets }
 
-// Speed returns the current velocity speed.
-func (g *Game) Speed() float64 { return g.velocity.Speed() }
+// Speed returns the current throttle speed.
+func (g *Game) Speed() float64 { return g.throttle.Speed() }
 
-// Velocity returns the game's velocity.
-func (g *Game) Velocity() Speeder { return &g.velocity }
+// Throttle returns the game's throttle.
+func (g *Game) Throttle() movement.Throttler { return &g.throttle }
 
 // TimeLimit returns the configured time limit in seconds (0 = unlimited).
 func (g *Game) TimeLimit() int { return g.timer.LimitSeconds() }
@@ -90,10 +97,27 @@ func (g *Game) ConfirmTarget() *Target {
 // Confirm returns the game's confirmation state.
 func (g *Game) Confirm() Confirmer { return &g.confirm }
 
+// Snapshot returns a point-in-time read model of all visible targets and the alive count.
+// Dead targets are excluded.
+func (g *Game) Snapshot() Snapshot {
+	snaps := make([]TargetSnapshot, 0, len(g.targets))
+	alive := 0
+	for _, t := range g.targets {
+		if t.IsDead() {
+			continue
+		}
+		if t.IsAlive() {
+			alive++
+		}
+		snaps = append(snaps, t.Snapshot())
+	}
+	return Snapshot{Targets: snaps, Alive: alive}
+}
+
 func (g *Game) initialize(w, h int) {
 	g.timer.Start()
 	for _, p := range g.processes {
-		g.targets = append(g.targets, NewTarget(p, FrameBounds{Width: w, Height: h}))
+		g.targets = append(g.targets, NewTarget(p, movement.NewBounds(w, h)))
 	}
 	g.state.Store(Running)
 }

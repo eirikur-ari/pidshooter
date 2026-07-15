@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
@@ -17,7 +18,7 @@ func TestNew(t *testing.T) {
 	g := New(processes, Config{Confirm: true, Speed: 3.5, TimeLimit: 60})
 
 	assert.True(t, g.cfg.Confirm)
-	assert.Equal(t, 3.5, g.velocity.Speed())
+	assert.Equal(t, 3.5, g.throttle.Speed())
 	assert.Equal(t, 60, g.cfg.TimeLimit)
 	assert.Equal(t, Pending, g.State())
 	assert.Equal(t, 0, g.kills)
@@ -95,8 +96,37 @@ func TestGame_Confirm_PendingFalseInitially(t *testing.T) {
 	assert.False(t, g.Confirm().Pending())
 }
 
-func TestGame_Velocity_MutationAffectsSpeed(t *testing.T) {
+func TestGame_Throttle_MutationAffectsSpeed(t *testing.T) {
 	g := New(nil, Config{Speed: 2.0})
-	g.Velocity().Increase()
+	g.Throttle().Increase()
 	assert.Equal(t, 2.5, g.Speed())
+}
+
+func TestGame_Snapshot_ExcludesDeadTargets(t *testing.T) {
+	g := New([]process.Info{{Pid: 1, Name: "a", Rss: 0}}, Config{Speed: 1.0})
+	g.Start(80, 24)
+	g.Kill(g.targets[0])
+	for i := 0; i < KillAnimationDuration; i++ {
+		g.Update(80, 24)
+	}
+
+	snap := g.Snapshot()
+
+	assert.Empty(t, snap.Targets)
+	assert.Equal(t, 0, snap.Alive)
+}
+
+func TestGame_Snapshot_CountsAlive(t *testing.T) {
+	processes := []process.Info{
+		{Pid: 1, Name: "a", Rss: 0},
+		{Pid: 2, Name: "b", Rss: 0},
+	}
+	g := New(processes, Config{Speed: 1.0})
+	g.Start(80, 24)
+	g.Kill(g.targets[0])
+
+	snap := g.Snapshot()
+
+	require.Len(t, snap.Targets, 2) // killing + alive both visible
+	assert.Equal(t, 1, snap.Alive)
 }

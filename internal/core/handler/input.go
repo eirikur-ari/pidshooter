@@ -42,14 +42,14 @@ func (h *Handler) OnNo() {
 	h.g.Confirm().Cancel()
 }
 
-// OnSpeedUp increases the game velocity.
+// OnSpeedUp increases the game throttle.
 func (h *Handler) OnSpeedUp() {
-	h.g.Velocity().Increase()
+	h.g.Throttle().Increase()
 }
 
-// OnSpeedDown decreases the game velocity.
+// OnSpeedDown decreases the game throttle.
 func (h *Handler) OnSpeedDown() {
-	h.g.Velocity().Decrease()
+	h.g.Throttle().Decrease()
 }
 
 // OnClickAt processes a click at the given coordinates and returns the target to kill if one is hit.
