@@ -5,12 +5,6 @@ const (
 	MaxSpeed = 5.0 // maximum allowed speed multiplier
 )
 
-// Throttler is the interface through which external packages adjust the throttle.
-type Throttler interface {
-	Increase()
-	Decrease()
-}
-
 // Throttle tracks the current movement speed with clamped increase/decrease steps.
 type Throttle struct {
 	speed float64

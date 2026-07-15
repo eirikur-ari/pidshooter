@@ -28,6 +28,12 @@ type Game struct {
 	Stats
 }
 
+// Throttler is the interface through which external packages adjust the game throttle.
+type Throttler interface {
+	Increase()
+	Decrease()
+}
+
 // Snapshot is a point-in-time read model of all visible targets and alive count.
 type Snapshot struct {
 	Targets []TargetSnapshot
@@ -78,7 +84,7 @@ func (g *Game) Targets() []*Target { return g.targets }
 func (g *Game) Speed() float64 { return g.throttle.Speed() }
 
 // Throttle returns the game's throttle.
-func (g *Game) Throttle() movement.Throttler { return &g.throttle }
+func (g *Game) Throttle() Throttler { return &g.throttle }
 
 // TimeLimit returns the configured time limit in seconds (0 = unlimited).
 func (g *Game) TimeLimit() int { return g.timer.LimitSeconds() }
