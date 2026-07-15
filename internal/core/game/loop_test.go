@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
@@ -41,7 +42,7 @@ func TestUpdate_StopsWhenTimeLimitExpired(t *testing.T) {
 
 func TestUpdate_StopsWhenAllTargetsDead(t *testing.T) {
 	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 0}, State: Dead}
-	g := &Game{targets: []*Target{tgt}}
+	g := &Game{targets: []*Target{tgt}, throttle: movement.NewThrottle(movement.MinSpeed)}
 	g.Start(0, 0)
 
 	g.Update(80, 24)
