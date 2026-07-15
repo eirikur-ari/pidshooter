@@ -22,12 +22,6 @@ func NewMotion(bounds Bounds, tagWidth int) Motion {
 	}
 }
 
-// NewMotionAt returns a Motion with explicit position and velocity vectors.
-// Intended for test construction outside the package.
-func NewMotionAt(pos, vel Vector) Motion {
-	return Motion{Position: pos, Velocity: vel}
-}
-
 // Move advances Position by Velocity scaled by speed, then bounces off the frame walls.
 // tagWidth is the current rune width of the entity's display tag.
 func (m *Motion) Move(bounds Bounds, speed, tagWidth float64) {

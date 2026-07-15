@@ -64,7 +64,7 @@ func TestTarget_Update_KillingState(t *testing.T) {
 func TestTarget_Update_DeadNoOp(t *testing.T) {
 	e := &Target{
 		Info:   process.Info{Pid: 1, Name: "xxx", Rss: 0},
-		Motion: movement.NewMotionAt(movement.Vector{X: 10, Y: 10}, movement.Vector{X: 1.0, Y: 1.0}),
+		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 10}, Velocity: movement.Vector{X: 1.0, Y: 1.0}},
 		State:  Dead,
 	}
 	e.Update(movement.NewBounds(80, 24), 1.0)
@@ -75,7 +75,7 @@ func TestTarget_Update_DeadNoOp(t *testing.T) {
 func TestTarget_Update_BounceLeft(t *testing.T) {
 	e := &Target{
 		Info:   process.Info{Pid: 1, Name: "x"},
-		Motion: movement.NewMotionAt(movement.Vector{X: 0, Y: 5}, movement.Vector{X: -1.0, Y: 0}),
+		Motion: movement.Motion{Position: movement.Vector{X: 0, Y: 5}, Velocity: movement.Vector{X: -1.0, Y: 0}},
 		State:  Alive,
 	}
 	e.Update(movement.NewBounds(80, 24), 1.0)
@@ -87,7 +87,7 @@ func TestTarget_Update_BounceRight(t *testing.T) {
 	// tag "[1 x]" = 5 chars → rightBound = 80-5 = 75
 	e := &Target{
 		Info:   process.Info{Pid: 1, Name: "x"},
-		Motion: movement.NewMotionAt(movement.Vector{X: 75, Y: 5}, movement.Vector{X: 2.0, Y: 0}),
+		Motion: movement.Motion{Position: movement.Vector{X: 75, Y: 5}, Velocity: movement.Vector{X: 2.0, Y: 0}},
 		State:  Alive,
 	}
 	e.Update(movement.NewBounds(80, 24), 1.0)
@@ -99,7 +99,7 @@ func TestTarget_Update_BounceRight(t *testing.T) {
 func TestTarget_Update_BounceTop(t *testing.T) {
 	e := &Target{
 		Info:   process.Info{Pid: 1, Name: "x"},
-		Motion: movement.NewMotionAt(movement.Vector{X: 5, Y: 0}, movement.Vector{X: 0, Y: -1.0}),
+		Motion: movement.Motion{Position: movement.Vector{X: 5, Y: 0}, Velocity: movement.Vector{X: 0, Y: -1.0}},
 		State:  Alive,
 	}
 	e.Update(movement.NewBounds(80, 24), 1.0)
@@ -110,7 +110,7 @@ func TestTarget_Update_BounceTop(t *testing.T) {
 func TestTarget_Update_BounceBottom(t *testing.T) {
 	e := &Target{
 		Info:   process.Info{Pid: 1, Name: "x"},
-		Motion: movement.NewMotionAt(movement.Vector{X: 5, Y: 23}, movement.Vector{X: 0, Y: 2.0}),
+		Motion: movement.Motion{Position: movement.Vector{X: 5, Y: 23}, Velocity: movement.Vector{X: 0, Y: 2.0}},
 		State:  Alive,
 	}
 	e.Update(movement.NewBounds(80, 24), 1.0)
@@ -123,7 +123,7 @@ func TestTarget_Update_SpeedMultiplier(t *testing.T) {
 	// tag "[1 x]" = 5 chars; at (40,10) with speed=3 there is no wall bounce.
 	e := &Target{
 		Info:   process.Info{Pid: 1, Name: "x"},
-		Motion: movement.NewMotionAt(movement.Vector{X: 40, Y: 10}, movement.Vector{X: 1.0, Y: 0.5}),
+		Motion: movement.Motion{Position: movement.Vector{X: 40, Y: 10}, Velocity: movement.Vector{X: 1.0, Y: 0.5}},
 		State:  Alive,
 	}
 	e.Update(movement.NewBounds(80, 24), 3.0)
@@ -140,7 +140,7 @@ func TestTarget_Update_MultiByteRightWall(t *testing.T) {
 	//   bug:  new Position.X > 70 → bounce, Velocity.X flips negative.
 	e := &Target{
 		Info:   process.Info{Pid: 42, Name: "café", Rss: 0},
-		Motion: movement.NewMotionAt(movement.Vector{X: 70.5, Y: 5}, movement.Vector{X: 0.5, Y: 0}),
+		Motion: movement.Motion{Position: movement.Vector{X: 70.5, Y: 5}, Velocity: movement.Vector{X: 0.5, Y: 0}},
 		State:  Alive,
 	}
 	e.Update(movement.NewBounds(80, 24), 1.0)
@@ -152,7 +152,7 @@ func TestTarget_Update_MultiByteRightWall(t *testing.T) {
 func TestTarget_Contains(t *testing.T) {
 	e := &Target{
 		Info:   process.Info{Pid: 42, Name: "bash", Rss: 0},
-		Motion: movement.NewMotionAt(movement.Vector{X: 10, Y: 5}, movement.Vector{X: 0, Y: 0}),
+		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
 		State:  Alive,
 	}
 	tag := e.Tag()
@@ -170,7 +170,7 @@ func TestTarget_Contains_MultiByteProcessName(t *testing.T) {
 	// With the byte-count bug, IsHitAt over-counts by 1 and accepts column 19 as a hit.
 	e := &Target{
 		Info:   process.Info{Pid: 42, Name: "café", Rss: 0},
-		Motion: movement.NewMotionAt(movement.Vector{X: 10, Y: 5}, movement.Vector{X: 0, Y: 0}),
+		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
 		State:  Alive,
 	}
 	tag := e.Tag()
@@ -184,7 +184,7 @@ func TestTarget_Contains_MultiByteProcessName(t *testing.T) {
 func TestTarget_Contains_NotAlive(t *testing.T) {
 	e := &Target{
 		Info:   process.Info{Pid: 42, Name: "bash", Rss: 0},
-		Motion: movement.NewMotionAt(movement.Vector{X: 10, Y: 5}, movement.Vector{X: 0, Y: 0}),
+		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
 		State:  Killing,
 	}
 	assert.False(t, e.IsHitAt(10, 5), "non-alive entity should not be hit")
@@ -224,7 +224,7 @@ func TestTarget_Kill_NoOpWhenNotAlive(t *testing.T) {
 func TestTarget_Snapshot_AliveTarget(t *testing.T) {
 	e := &Target{
 		Info:   process.Info{Pid: 1, Name: "x"},
-		Motion: movement.NewMotionAt(movement.Vector{X: 10.6, Y: 5.4}, movement.Vector{X: 0, Y: 0}),
+		Motion: movement.Motion{Position: movement.Vector{X: 10.6, Y: 5.4}, Velocity: movement.Vector{X: 0, Y: 0}},
 		State:  Alive,
 	}
 
@@ -239,7 +239,7 @@ func TestTarget_Snapshot_AliveTarget(t *testing.T) {
 func TestTarget_Snapshot_KillingTarget(t *testing.T) {
 	e := &Target{
 		Info:              process.Info{Pid: 1, Name: "x"},
-		Motion:            movement.NewMotionAt(movement.Vector{X: 3.0, Y: 7.0}, movement.Vector{X: 0, Y: 0}),
+		Motion:            movement.Motion{Position: movement.Vector{X: 3.0, Y: 7.0}, Velocity: movement.Vector{X: 0, Y: 0}},
 		State:             Killing,
 		KillAnimationTick: 0,
 	}
