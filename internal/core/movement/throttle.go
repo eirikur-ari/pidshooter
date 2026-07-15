@@ -22,20 +22,20 @@ func NewThrottle(speed float64) Throttle {
 }
 
 // Speed returns the current speed.
-func (v *Throttle) Speed() float64 { return v.speed }
+func (t *Throttle) Speed() float64 { return t.speed }
 
 // Increase adds one step, capped at the maximum.
-func (v *Throttle) Increase() {
-	v.speed += 0.5
-	if v.speed > MaxSpeed {
-		v.speed = MaxSpeed
+func (t *Throttle) Increase() {
+	t.speed += 0.5
+	if t.speed > MaxSpeed {
+		t.speed = MaxSpeed
 	}
 }
 
 // Decrease subtracts one step, floored at the minimum.
-func (v *Throttle) Decrease() {
-	v.speed -= 0.5
-	if v.speed < MinSpeed {
-		v.speed = MinSpeed
+func (t *Throttle) Decrease() {
+	t.speed -= 0.5
+	if t.speed < MinSpeed {
+		t.speed = MinSpeed
 	}
 }
