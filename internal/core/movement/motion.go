@@ -14,10 +14,10 @@ type Motion struct {
 }
 
 // NewMotion returns a Motion with a random position within bounds and a random velocity.
-// labelWidth is the rune width of the entity's display label, used to constrain spawn position.
-func NewMotion(bounds Bounds, labelWidth int) Motion {
+// tagWidth is the rune width of the entity's display tag, used to constrain spawn position.
+func NewMotion(bounds Bounds, tagWidth int) Motion {
 	return Motion{
-		Position: newRandomPosition(bounds, labelWidth),
+		Position: newRandomPosition(bounds, tagWidth),
 		Velocity: newRandomVelocity(),
 	}
 }
@@ -36,8 +36,8 @@ func (m *Motion) Move(bounds Bounds, speed, tagWidth float64) {
 	bounds.Bounce(&m.Position, &m.Velocity, tagWidth)
 }
 
-func newRandomPosition(bounds Bounds, labelWidth int) Vector {
-	x := bounds.width - labelWidth - 1
+func newRandomPosition(bounds Bounds, tagWidth int) Vector {
+	x := bounds.width - tagWidth - 1
 	if x < 1 {
 		x = 1
 	}

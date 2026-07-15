@@ -41,10 +41,10 @@ type TargetSnapshot struct {
 
 // NewTarget creates a new entity at a random position with random velocity.
 func NewTarget(info process.Info, bounds movement.Bounds) *Target {
-	labelWidth := utf8.RuneCountInString(fmt.Sprintf("[%d %s]", info.Pid, info.Name))
+	tagWidth := utf8.RuneCountInString(fmt.Sprintf("[%d %s]", info.Pid, info.Name))
 	return &Target{
 		Info:   info,
-		Motion: movement.NewMotion(bounds, labelWidth),
+		Motion: movement.NewMotion(bounds, tagWidth),
 		State:  Alive,
 	}
 }
