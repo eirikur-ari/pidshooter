@@ -12,6 +12,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/event"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/handler"
+	"github.com/eirikur-ari/pidshooter/internal/core/process"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
@@ -44,26 +45,18 @@ func NewGameService(
 
 // Play runs a complete game session: discovery → game loop → score persistence → display.
 func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
-	processes, err := s.process.Find(cfg.Patterns)
+	processes, err := s.findProcesses(cfg.Patterns)
 	if err != nil {
-		return fmt.Errorf("process search failed: %w", err)
+		return err
 	}
 
 	if len(processes) == 0 {
-		fmt.Printf("No processes found matching %v\n", cfg.Patterns)
 		return nil
 	}
 
-	fmt.Printf("Found %d process(es) matching %v. Starting game...\n", len(processes), cfg.Patterns)
+	board, success := s.loadScoreBoard()
 
-	board, loadErr := s.store.Load()
-	if loadErr != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not load scores: %v\n", loadErr)
-		board = &score.Board{}
-	}
-
-	g := game.New(processes, game.Config{Confirm: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
-	g.SetHighScore(board.HighScore())
+	g := s.newGame(cfg, processes, board)
 
 	endTime, err := s.runLoop(g)
 	if err != nil {
@@ -74,6 +67,39 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 	freedMem := g.FreedMem()
 	duration := endTime.Sub(g.StartTime()).Seconds()
 
+	s.recordScore(cfg, board, kills, freedMem, duration, success)
+
+	s.printResults(kills, freedMem, duration, board)
+
+	return nil
+}
+
+func (s *GameService) findProcesses(patterns []string) ([]process.Info, error) {
+	processes, err := s.process.Find(patterns)
+
+	if err != nil {
+		return nil, fmt.Errorf("process search failed: %w", err)
+	}
+
+	if len(processes) == 0 {
+		fmt.Printf("No processes found matching %v\n", patterns)
+		return nil, nil
+	}
+
+	fmt.Printf("Found %d process(es) matching %v. Starting game...\n", len(processes), patterns)
+	return processes, nil
+}
+
+func (s *GameService) loadScoreBoard() (*score.Board, bool) {
+	board, err := s.store.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not load scores: %v\n", err)
+		return &score.Board{}, false
+	}
+	return board, true
+}
+
+func (s *GameService) recordScore(cfg inbound.GamePlayConfig, board *score.Board, kills int, freedMem int64, duration float64, persist bool) {
 	board.Add(score.Entry{
 		Kills:    kills,
 		FreedMem: freedMem,
@@ -82,18 +108,25 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 		Duration: duration,
 		Date:     time.Now(),
 	})
-	if loadErr == nil {
+
+	if persist {
 		if err := s.store.Save(board); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: score not saved: %v\n", err)
 		}
 	}
+}
 
+func (s *GameService) printResults(kills int, freedMem int64, duration float64, board *score.Board) {
 	fmt.Printf("\n  Game Over! Kills: %d | Freed: %s | Time: %.1fs\n",
 		kills, util.FormatBytes(freedMem), duration)
 	board.PrintHighScore(kills)
 	board.PrintScores()
+}
 
-	return nil
+func (s *GameService) newGame(cfg inbound.GamePlayConfig, processes []process.Info, board *score.Board) *game.Game {
+	g := game.New(processes, game.Config{Confirm: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
+	g.SetHighScore(board.HighScore())
+	return g
 }
 
 func (s *GameService) runLoop(g *game.Game) (time.Time, error) {
