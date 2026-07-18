@@ -13,7 +13,6 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/core/process"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/capture"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
@@ -28,7 +27,7 @@ func TestIntegration_GameService_HappyPath(t *testing.T) {
 
 	store := &fake.Store{}
 	svc := newGameService(
-		&fake.Process{Processes: []process.Info{{Pid: 1, Name: "target", Rss: 1024}}},
+		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 1, Name: "target", Rss: 1024}}},
 		store,
 		events,
 	)
@@ -47,7 +46,7 @@ func TestIntegration_GameService_LoadError_PrintsWarningAndSkipsSave(t *testing.
 
 	store := &fake.Store{LoadErr: errors.New("json: invalid character")}
 	svc := newGameService(
-		&fake.Process{Processes: []process.Info{{Pid: 1, Name: "target", Rss: 1024}}},
+		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 1, Name: "target", Rss: 1024}}},
 		store,
 		events,
 	)
@@ -67,7 +66,7 @@ func TestIntegration_GameService_SaveError_PrintsWarning(t *testing.T) {
 	events.Ch <- outbound.KeyEvent{Ch: 'q'}
 
 	svc := newGameService(
-		&fake.Process{Processes: []process.Info{{Pid: 1, Name: "target", Rss: 1024}}},
+		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 1, Name: "target", Rss: 1024}}},
 		&fake.Store{SaveErr: errors.New("disk full")},
 		events,
 	)
@@ -90,7 +89,7 @@ func TestIntegration_GameService_QuitOnQ(t *testing.T) {
 	}()
 
 	svc := newGameService(
-		&fake.Process{Processes: []process.Info{{Pid: 100, Name: "target", Rss: 1024}}},
+		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 100, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
 	)
@@ -105,7 +104,7 @@ func TestIntegration_GameService_QuitOnEscape(t *testing.T) {
 	}()
 
 	svc := newGameService(
-		&fake.Process{Processes: []process.Info{{Pid: 101, Name: "target", Rss: 1024}}},
+		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 101, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
 	)
@@ -120,7 +119,7 @@ func TestIntegration_GameService_QuitOnCtrlC(t *testing.T) {
 	}()
 
 	svc := newGameService(
-		&fake.Process{Processes: []process.Info{{Pid: 104, Name: "target", Rss: 1024}}},
+		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 104, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
 	)
@@ -135,7 +134,7 @@ func TestIntegration_GameService_QuitOnCtrlZ(t *testing.T) {
 	}()
 
 	svc := newGameService(
-		&fake.Process{Processes: []process.Info{{Pid: 105, Name: "target", Rss: 1024}}},
+		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 105, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
 	)
@@ -144,7 +143,7 @@ func TestIntegration_GameService_QuitOnCtrlZ(t *testing.T) {
 
 func TestIntegration_GameService_TimeLimitExpires(t *testing.T) {
 	svc := newGameService(
-		&fake.Process{Processes: []process.Info{{Pid: 102, Name: "target", Rss: 1024}}},
+		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 102, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		fake.NewInputSource(),
 	)
@@ -164,7 +163,7 @@ func TestIntegration_GameService_SignalGoroutineDoesNotAccumulate(t *testing.T) 
 			events.Ch <- outbound.KeyEvent{Ch: 'q'}
 		}()
 		svc := newGameService(
-			&fake.Process{Processes: []process.Info{{Pid: pid, Name: "target", Rss: 1024}}},
+			&fake.Process{Processes: []outbound.ProcessInfo{{Pid: pid, Name: "target", Rss: 1024}}},
 			&fake.Store{},
 			events,
 		)

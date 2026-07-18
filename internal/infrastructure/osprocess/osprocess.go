@@ -28,7 +28,7 @@ func NewProcess() (outbound.Process, error) {
 	return &Process{psPath: path}, nil
 }
 
-func (p *Process) Find(patterns []string) ([]process.Info, error) {
+func (p *Process) Find(patterns []string) ([]outbound.ProcessInfo, error) {
 	if err := validate(patterns); err != nil {
 		return nil, err
 	}
@@ -39,7 +39,7 @@ func (p *Process) Find(patterns []string) ([]process.Info, error) {
 	return filter(processes, patterns), nil
 }
 
-func (p *Process) List() ([]process.Info, error) {
+func (p *Process) List() ([]outbound.ProcessInfo, error) {
 	flags := "-eo"
 	if runtime.GOOS == "darwin" {
 		flags = "-ceo"
@@ -51,7 +51,7 @@ func (p *Process) List() ([]process.Info, error) {
 		return nil, fmt.Errorf("ps command failed: %w", err)
 	}
 
-	var processes []process.Info
+	var processes []outbound.ProcessInfo
 	lines := strings.Split(string(output), "\n")
 
 	for _, line := range lines[1:] { // skip header
@@ -77,7 +77,7 @@ func (p *Process) List() ([]process.Info, error) {
 
 		name := strings.Join(fields[2:], " ")
 
-		processes = append(processes, process.Info{
+		processes = append(processes, outbound.ProcessInfo{
 			Pid:  pid,
 			Name: name,
 			Rss:  rssKB * 1024,
@@ -137,8 +137,8 @@ func validate(patterns []string) error {
 	return nil
 }
 
-func filter(processes []process.Info, patterns []string) []process.Info {
-	var result []process.Info
+func filter(processes []outbound.ProcessInfo, patterns []string) []outbound.ProcessInfo {
+	var result []outbound.ProcessInfo
 	myPID := os.Getpid()
 	for _, p := range processes {
 		if p.Pid == myPID || p.Pid <= 1 {

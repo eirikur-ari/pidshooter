@@ -1,11 +1,15 @@
 package outbound
 
-import "github.com/eirikur-ari/pidshooter/internal/core/process"
+type ProcessInfo struct {
+	Pid  int
+	Name string
+	Rss  int64
+}
 
 // Process is the outbound port for process discovery and termination on the host.
 // Kill must verify the process still has the given name before sending the signal.
 type Process interface {
-	List() ([]process.Info, error)
-	Find(patterns []string) ([]process.Info, error)
+	List() ([]ProcessInfo, error)
+	Find(patterns []string) ([]ProcessInfo, error)
 	Kill(pid int, name string) (bool, error)
 }

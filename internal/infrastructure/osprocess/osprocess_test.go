@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
@@ -65,7 +66,7 @@ func TestFind_EmptyTerm(t *testing.T) {
 }
 
 func TestFilter_MatchesByName(t *testing.T) {
-	processes := []process.Info{
+	processes := []outbound.ProcessInfo{
 		{Pid: 100, Name: "myapp", Rss: 1024},
 		{Pid: 200, Name: "worker", Rss: 2048},
 	}
@@ -75,7 +76,7 @@ func TestFilter_MatchesByName(t *testing.T) {
 }
 
 func TestFilter_SubstringMatch(t *testing.T) {
-	processes := []process.Info{
+	processes := []outbound.ProcessInfo{
 		{Pid: 100, Name: "myapp-worker", Rss: 1024},
 	}
 	result := filter(processes, []string{"app"})
@@ -83,7 +84,7 @@ func TestFilter_SubstringMatch(t *testing.T) {
 }
 
 func TestFilter_CaseInsensitive(t *testing.T) {
-	processes := []process.Info{
+	processes := []outbound.ProcessInfo{
 		{Pid: 100, Name: "MyApp", Rss: 1024},
 	}
 	result := filter(processes, []string{"myapp"})
@@ -91,7 +92,7 @@ func TestFilter_CaseInsensitive(t *testing.T) {
 }
 
 func TestFilter_MultipleTerms(t *testing.T) {
-	processes := []process.Info{
+	processes := []outbound.ProcessInfo{
 		{Pid: 100, Name: "myapp", Rss: 1024},
 		{Pid: 200, Name: "worker", Rss: 2048},
 		{Pid: 300, Name: "other", Rss: 512},
@@ -101,7 +102,7 @@ func TestFilter_MultipleTerms(t *testing.T) {
 }
 
 func TestFilter_NoMatch(t *testing.T) {
-	processes := []process.Info{
+	processes := []outbound.ProcessInfo{
 		{Pid: 100, Name: "myapp", Rss: 1024},
 	}
 	result := filter(processes, []string{"worker"})
@@ -109,7 +110,7 @@ func TestFilter_NoMatch(t *testing.T) {
 }
 
 func TestFilter_ExcludesPID1(t *testing.T) {
-	processes := []process.Info{
+	processes := []outbound.ProcessInfo{
 		{Pid: 1, Name: "init", Rss: 512},
 		{Pid: 100, Name: "myapp", Rss: 1024},
 	}
@@ -121,7 +122,7 @@ func TestFilter_ExcludesPID1(t *testing.T) {
 
 func TestFilter_ExcludesOwnPID(t *testing.T) {
 	ownPID := os.Getpid()
-	processes := []process.Info{
+	processes := []outbound.ProcessInfo{
 		{Pid: ownPID, Name: "testprocess", Rss: 1024},
 		{Pid: 100, Name: "testprocess", Rss: 2048},
 	}
@@ -134,7 +135,7 @@ func TestFilter_ExcludesOwnPID(t *testing.T) {
 }
 
 func TestFilter_ExcludesPID0(t *testing.T) {
-	processes := []process.Info{
+	processes := []outbound.ProcessInfo{
 		{Pid: 0, Name: "swapper", Rss: 0},
 		{Pid: 100, Name: "myapp", Rss: 1024},
 	}

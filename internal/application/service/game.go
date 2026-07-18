@@ -87,7 +87,7 @@ func (s *GameService) findProcesses(patterns []string) ([]process.Info, error) {
 	}
 
 	fmt.Printf("Found %d process(es) matching %v. Starting game...\n", len(processes), patterns)
-	return processes, nil
+	return toProcessInfos(processes), nil
 }
 
 func (s *GameService) loadScoreBoard() (*score.Board, bool) {
