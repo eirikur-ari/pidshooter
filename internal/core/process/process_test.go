@@ -37,78 +37,85 @@ func TestErrNoPatterns_IsSentinel(t *testing.T) {
 	require.ErrorIs(t, ErrNoPatterns, ErrNoPatterns, "ErrNoPatterns must satisfy errors.Is against itself")
 }
 
+func TestInfo_IsProtected(t *testing.T) {
+	assert.True(t, NewInfo(0, "swapper", 0).IsProtected())
+	assert.True(t, NewInfo(1, "init", 0).IsProtected())
+	assert.False(t, NewInfo(2, "init", 0).IsProtected())
+	assert.False(t, NewInfo(100, "myapp", 0).IsProtected())
+}
+
 func TestFind_MatchesByName(t *testing.T) {
 	infos := []Info{
-		{Pid: 100, Name: "myapp", Rss: 1024},
-		{Pid: 200, Name: "worker", Rss: 2048},
+		NewInfo(100, "myapp", 1024),
+		NewInfo(200, "worker", 2048),
 	}
 	result := Find(infos, []string{"myapp"}, 0)
 	require.Len(t, result, 1)
-	assert.Equal(t, 100, result[0].Pid)
+	assert.Equal(t, 100, result[0].Pid())
 }
 
 func TestFind_SubstringMatch(t *testing.T) {
-	infos := []Info{{Pid: 100, Name: "myapp-worker", Rss: 1024}}
+	infos := []Info{NewInfo(100, "myapp-worker", 1024)}
 	result := Find(infos, []string{"app"}, 0)
 	assert.Len(t, result, 1)
 }
 
 func TestFind_CaseInsensitive(t *testing.T) {
-	infos := []Info{{Pid: 100, Name: "MyApp", Rss: 1024}}
+	infos := []Info{NewInfo(100, "MyApp", 1024)}
 	result := Find(infos, []string{"myapp"}, 0)
 	assert.Len(t, result, 1)
 }
 
 func TestFind_MultipleTerms(t *testing.T) {
 	infos := []Info{
-		{Pid: 100, Name: "myapp", Rss: 1024},
-		{Pid: 200, Name: "worker", Rss: 2048},
-		{Pid: 300, Name: "other", Rss: 512},
+		NewInfo(100, "myapp", 1024),
+		NewInfo(200, "worker", 2048),
+		NewInfo(300, "other", 512),
 	}
 	result := Find(infos, []string{"myapp", "worker"}, 0)
 	assert.Len(t, result, 2)
 }
 
 func TestFind_NoMatch(t *testing.T) {
-	infos := []Info{{Pid: 100, Name: "myapp", Rss: 1024}}
+	infos := []Info{NewInfo(100, "myapp", 1024)}
 	result := Find(infos, []string{"worker"}, 0)
 	assert.Empty(t, result)
 }
 
 func TestFind_ExcludesPID1(t *testing.T) {
 	infos := []Info{
-		{Pid: 1, Name: "init", Rss: 512},
-		{Pid: 100, Name: "myapp", Rss: 1024},
+		NewInfo(1, "init", 512),
+		NewInfo(100, "myapp", 1024),
 	}
 	result := Find(infos, []string{"init", "myapp"}, 0)
 	for _, p := range result {
-		assert.NotEqual(t, 1, p.Pid, "should not include PID 1")
+		assert.NotEqual(t, 1, p.Pid(), "should not include PID 1")
 	}
 }
 
 func TestFind_ExcludesOwnPID(t *testing.T) {
 	const ownPID = 999
 	infos := []Info{
-		{Pid: ownPID, Name: "testprocess", Rss: 1024},
-		{Pid: 100, Name: "testprocess", Rss: 2048},
+		NewInfo(ownPID, "testprocess", 1024),
+		NewInfo(100, "testprocess", 2048),
 	}
 	result := Find(infos, []string{"testprocess"}, ownPID)
 	for _, p := range result {
-		assert.NotEqual(t, ownPID, p.Pid, "should not include own PID")
+		assert.NotEqual(t, ownPID, p.Pid(), "should not include own PID")
 	}
 	require.Len(t, result, 1)
-	assert.Equal(t, 100, result[0].Pid)
+	assert.Equal(t, 100, result[0].Pid())
 }
 
 func TestFind_ExcludesPID0(t *testing.T) {
 	infos := []Info{
-		{Pid: 0, Name: "swapper", Rss: 0},
-		{Pid: 100, Name: "myapp", Rss: 1024},
+		NewInfo(0, "swapper", 0),
+		NewInfo(100, "myapp", 1024),
 	}
 	result := Find(infos, []string{"swapper", "myapp"}, -1)
 	for _, p := range result {
-		assert.Greater(t, p.Pid, 1, "filter should exclude PID %d", p.Pid)
+		assert.Greater(t, p.Pid(), 1, "filter should exclude PID %d", p.Pid())
 	}
 	require.Len(t, result, 1)
-	assert.Equal(t, 100, result[0].Pid)
+	assert.Equal(t, 100, result[0].Pid())
 }

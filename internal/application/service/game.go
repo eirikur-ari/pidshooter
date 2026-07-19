@@ -213,7 +213,7 @@ func toConfirmViewState(t *game.Target) *outbound.ConfirmViewState {
 	if t == nil {
 		return nil
 	}
-	return &outbound.ConfirmViewState{PID: t.Pid, Name: t.Name}
+	return &outbound.ConfirmViewState{PID: t.Pid(), Name: t.Name()}
 }
 
 func (s *GameService) drainEvents(d *event.Dispatcher, done <-chan struct{}) {
@@ -242,17 +242,17 @@ func (s *GameService) drainEvents(d *event.Dispatcher, done <-chan struct{}) {
 // have been recycled by the OS to a different process in the time between
 // discovery and the player confirming the kill.
 func (s *GameService) kill(target *game.Target) (bool, error) {
-	pid := target.Pid
-	if process.IsProtected(pid) {
+	pid := target.Pid()
+	if target.Info.IsProtected() {
 		return false, fmt.Errorf("refusing to kill PID %d", pid)
 	}
 	name, err := s.process.LookupName(pid)
 	if err != nil {
 		return false, fmt.Errorf("could not verify PID %d: %w", pid, err)
 	}
-	if err := validateProcessName(target.Name, name); err != nil {
+	if err := validateProcessName(target.Name(), name); err != nil {
 		return false, nil
 	}
 
-	return s.process.Kill(target.Pid)
+	return s.process.Kill(pid)
 }

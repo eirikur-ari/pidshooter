@@ -21,7 +21,7 @@ func TestToConfirmViewState_NilInput(t *testing.T) {
 }
 
 func TestToConfirmViewState_MapsFields(t *testing.T) {
-	tgt := game.NewTarget(process.Info{Pid: 42, Name: "suspect"}, movement.NewBounds(80, 24))
+	tgt := game.NewTarget(process.NewInfo(42, "suspect", 0), movement.NewBounds(80, 24))
 	vs := toConfirmViewState(tgt)
 	require.NotNil(t, vs)
 	assert.Equal(t, 42, vs.PID)
@@ -31,7 +31,7 @@ func TestToConfirmViewState_MapsFields(t *testing.T) {
 // --- buildFrame ---
 
 func TestBuildFrame_AliveTargetIncluded(t *testing.T) {
-	g := game.New([]process.Info{{Pid: 1, Name: "a", Rss: 0}}, game.Config{Speed: 1.0})
+	g := game.New([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
 	g.Start(80, 24)
 
 	f := buildFrame(g)
@@ -41,7 +41,7 @@ func TestBuildFrame_AliveTargetIncluded(t *testing.T) {
 }
 
 func TestBuildFrame_KillingTargetMarked(t *testing.T) {
-	g := game.New([]process.Info{{Pid: 1, Name: "a", Rss: 0}}, game.Config{Speed: 1.0})
+	g := game.New([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
 	g.Start(80, 24)
 	g.Kill(g.Targets()[0])
 
@@ -52,7 +52,7 @@ func TestBuildFrame_KillingTargetMarked(t *testing.T) {
 }
 
 func TestBuildFrame_DeadTargetExcluded(t *testing.T) {
-	g := game.New([]process.Info{{Pid: 1, Name: "a", Rss: 0}}, game.Config{Speed: 1.0})
+	g := game.New([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
 	g.Start(80, 24)
 	g.Kill(g.Targets()[0])
 	for i := 0; i < game.KillAnimationDuration; i++ {
@@ -65,7 +65,7 @@ func TestBuildFrame_DeadTargetExcluded(t *testing.T) {
 }
 
 func TestBuildFrame_HUDReflectsStats(t *testing.T) {
-	g := game.New([]process.Info{{Pid: 1, Name: "a", Rss: 4096}}, game.Config{Speed: 1.0})
+	g := game.New([]process.Info{process.NewInfo(1, "a", 4096)}, game.Config{Speed: 1.0})
 	g.Start(80, 24)
 	g.Kill(g.Targets()[0])
 
@@ -77,8 +77,8 @@ func TestBuildFrame_HUDReflectsStats(t *testing.T) {
 
 func TestBuildFrame_StatusBarAliveCount(t *testing.T) {
 	processes := []process.Info{
-		{Pid: 1, Name: "a", Rss: 0},
-		{Pid: 2, Name: "b", Rss: 0},
+		process.NewInfo(1, "a", 0),
+		process.NewInfo(2, "b", 0),
 	}
 	g := game.New(processes, game.Config{Speed: 1.0})
 	g.Start(80, 24)
@@ -110,7 +110,7 @@ func TestGameService_FinderError(t *testing.T) {
 }
 
 func TestGameService_ApplyKills_CompletesPendingKill(t *testing.T) {
-	info := process.Info{Pid: 100, Name: "target", Rss: 4096}
+	info := process.NewInfo(100, "target", 4096)
 	svc := NewGameService(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	svc.kills = make(chan *game.Target, 1)
 
@@ -141,7 +141,7 @@ func TestGameService_ApplyKills_EmptyChannelNoOps(t *testing.T) {
 func TestGameService_Kill_ProtectedPID_ReturnsError(t *testing.T) {
 	fp := &fake.Process{}
 	svc := NewGameService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
-	target := game.NewTarget(process.Info{Pid: 1, Name: "init"}, movement.NewBounds(80, 24))
+	target := game.NewTarget(process.NewInfo(1, "init", 0), movement.NewBounds(80, 24))
 
 	killed, err := svc.kill(target)
 
@@ -153,7 +153,7 @@ func TestGameService_Kill_ProtectedPID_ReturnsError(t *testing.T) {
 func TestGameService_Kill_LookupError_ReturnsError(t *testing.T) {
 	fp := &fake.Process{LookupNameErr: errors.New("ps lookup failed")}
 	svc := NewGameService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
-	target := game.NewTarget(process.Info{Pid: 100, Name: "target"}, movement.NewBounds(80, 24))
+	target := game.NewTarget(process.NewInfo(100, "target", 0), movement.NewBounds(80, 24))
 
 	killed, err := svc.kill(target)
 
@@ -165,7 +165,7 @@ func TestGameService_Kill_LookupError_ReturnsError(t *testing.T) {
 func TestGameService_Kill_NameMismatch_SkipsKillWithoutError(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "somethingElse"}
 	svc := NewGameService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
-	target := game.NewTarget(process.Info{Pid: 100, Name: "target"}, movement.NewBounds(80, 24))
+	target := game.NewTarget(process.NewInfo(100, "target", 0), movement.NewBounds(80, 24))
 
 	killed, err := svc.kill(target)
 
@@ -177,7 +177,7 @@ func TestGameService_Kill_NameMismatch_SkipsKillWithoutError(t *testing.T) {
 func TestGameService_Kill_NameMatch_InvokesKill(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "target"}
 	svc := NewGameService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
-	target := game.NewTarget(process.Info{Pid: 100, Name: "target"}, movement.NewBounds(80, 24))
+	target := game.NewTarget(process.NewInfo(100, "target", 0), movement.NewBounds(80, 24))
 
 	killed, err := svc.kill(target)
 

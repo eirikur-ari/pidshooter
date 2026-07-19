@@ -53,13 +53,13 @@ func TestIntegration_Find_ExcludesOwnAndInitPID(t *testing.T) {
 
 	infos := make([]process.Info, len(raw))
 	for i, p := range raw {
-		infos[i] = process.Info{Pid: p.Pid, Name: p.Name, Rss: p.Rss}
+		infos[i] = process.NewInfo(p.Pid, p.Name, p.Rss)
 	}
 
 	ownPID := f.OwnPid()
 	result := process.Find(infos, []string{"proc"}, ownPID)
 	for _, p := range result {
-		assert.NotEqual(t, ownPID, p.Pid, "own PID should be excluded")
-		assert.NotEqual(t, 1, p.Pid, "PID 1 should be excluded")
+		assert.NotEqual(t, ownPID, p.Pid(), "own PID should be excluded")
+		assert.NotEqual(t, 1, p.Pid(), "PID 1 should be excluded")
 	}
 }

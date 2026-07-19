@@ -11,8 +11,8 @@ import (
 
 func TestNew(t *testing.T) {
 	processes := []process.Info{
-		{Pid: 1, Name: "a", Rss: 100},
-		{Pid: 2, Name: "b", Rss: 200},
+		process.NewInfo(1, "a", 100),
+		process.NewInfo(2, "b", 200),
 	}
 
 	g := New(processes, Config{Confirm: true, Speed: 3.5, TimeLimit: 60})
@@ -26,7 +26,7 @@ func TestNew(t *testing.T) {
 }
 
 func TestStart_TransitionsToRunning(t *testing.T) {
-	processes := []process.Info{{Pid: 1, Name: "a", Rss: 100}}
+	processes := []process.Info{process.NewInfo(1, "a", 100)}
 	g := New(processes, Config{})
 
 	g.Start(80, 24)
@@ -70,12 +70,12 @@ func TestGame_TimeLimit(t *testing.T) {
 }
 
 func TestGame_Targets_EmptyBeforeStart(t *testing.T) {
-	g := New([]process.Info{{Pid: 1, Name: "a"}}, Config{})
+	g := New([]process.Info{process.NewInfo(1, "a", 0)}, Config{})
 	assert.Empty(t, g.Targets())
 }
 
 func TestGame_Targets_PopulatedAfterStart(t *testing.T) {
-	g := New([]process.Info{{Pid: 1, Name: "a"}}, Config{})
+	g := New([]process.Info{process.NewInfo(1, "a", 0)}, Config{})
 	g.Start(80, 24)
 	assert.Len(t, g.Targets(), 1)
 }
@@ -86,7 +86,7 @@ func TestGame_ConfirmTarget_NilWhenNoPending(t *testing.T) {
 }
 
 func TestGame_ConfirmTarget_ReturnsPendingTarget(t *testing.T) {
-	tgt := &Target{Info: process.Info{Pid: 42, Name: "suspect"}}
+	tgt := &Target{Info: process.NewInfo(42, "suspect", 0)}
 	g := &Game{confirm: Confirmation{target: tgt, confirm: true}}
 	assert.Equal(t, tgt, g.ConfirmTarget())
 }
@@ -103,7 +103,7 @@ func TestGame_Throttle_MutationAffectsSpeed(t *testing.T) {
 }
 
 func TestGame_Snapshot_ExcludesDeadTargets(t *testing.T) {
-	g := New([]process.Info{{Pid: 1, Name: "a", Rss: 0}}, Config{Speed: 1.0})
+	g := New([]process.Info{process.NewInfo(1, "a", 0)}, Config{Speed: 1.0})
 	g.Start(80, 24)
 	g.Kill(g.targets[0])
 	for i := 0; i < KillAnimationDuration; i++ {
@@ -118,8 +118,8 @@ func TestGame_Snapshot_ExcludesDeadTargets(t *testing.T) {
 
 func TestGame_Snapshot_CountsAlive(t *testing.T) {
 	processes := []process.Info{
-		{Pid: 1, Name: "a", Rss: 0},
-		{Pid: 2, Name: "b", Rss: 0},
+		process.NewInfo(1, "a", 0),
+		process.NewInfo(2, "b", 0),
 	}
 	g := New(processes, Config{Speed: 1.0})
 	g.Start(80, 24)

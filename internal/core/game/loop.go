@@ -20,7 +20,7 @@ func (g *Game) Update(w, h int) {
 // It transitions the target to the kill animation and records the session stats.
 func (g *Game) Kill(t *Target) {
 	if t.Kill() {
-		g.RecordKill(t.Rss)
+		g.RecordKill(t.Rss())
 	}
 }
 

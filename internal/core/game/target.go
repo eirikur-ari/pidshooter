@@ -120,7 +120,7 @@ func (t *Target) doomsdayTick() {
 }
 
 func tagFor(info process.Info) string {
-	return fmt.Sprintf("[%d %s]", info.Pid, info.Name)
+	return fmt.Sprintf("[%d %s]", info.Pid(), info.Name())
 }
 
 func killAnimationTagFor(tick int) string {

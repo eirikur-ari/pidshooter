@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/eirikur-ari/pidshooter/internal/core/handler"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
+	"github.com/eirikur-ari/pidshooter/internal/core/handler"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
@@ -28,7 +28,7 @@ func TestHandler_OnQuit_StopsGame(t *testing.T) {
 }
 
 func TestHandler_OnQuit_CancelsConfirmWhenPending(t *testing.T) {
-	processes := []process.Info{{Pid: 1, Name: "a", Rss: 0}}
+	processes := []process.Info{process.NewInfo(1, "a", 0)}
 	g := game.New(processes, game.Config{Confirm: true, Speed: 1.0})
 	g.Start(80, 24)
 	h := newHandler(g)
@@ -45,7 +45,7 @@ func TestHandler_OnQuit_CancelsConfirmWhenPending(t *testing.T) {
 // --- OnYes ---
 
 func TestHandler_OnYes_ReturnsConfirmedTarget(t *testing.T) {
-	processes := []process.Info{{Pid: 1, Name: "a", Rss: 0}}
+	processes := []process.Info{process.NewInfo(1, "a", 0)}
 	g := game.New(processes, game.Config{Confirm: true, Speed: 1.0})
 	g.Start(80, 24)
 	h := newHandler(g)
@@ -62,7 +62,7 @@ func TestHandler_OnYes_ReturnsConfirmedTarget(t *testing.T) {
 // --- OnNo ---
 
 func TestHandler_OnNo_CancelsPending(t *testing.T) {
-	processes := []process.Info{{Pid: 1, Name: "a", Rss: 0}}
+	processes := []process.Info{process.NewInfo(1, "a", 0)}
 	g := game.New(processes, game.Config{Confirm: true, Speed: 1.0})
 	g.Start(80, 24)
 	h := newHandler(g)
@@ -99,7 +99,7 @@ func TestHandler_OnSpeedDown_DecreasesSpeed(t *testing.T) {
 // --- OnClickAt ---
 
 func TestHandler_OnClickAt_ReturnsTarget(t *testing.T) {
-	processes := []process.Info{{Pid: 1, Name: "a", Rss: 0}}
+	processes := []process.Info{process.NewInfo(1, "a", 0)}
 	g := game.New(processes, game.Config{Speed: 1.0})
 	g.Start(80, 24)
 	tgt := g.Targets()[0]
@@ -120,8 +120,8 @@ func TestHandler_OnClickAt_MissReturnsNil(t *testing.T) {
 
 func TestHandler_OnClickAt_NoOpWhenAlreadyConfirming(t *testing.T) {
 	processes := []process.Info{
-		{Pid: 1, Name: "a", Rss: 0},
-		{Pid: 2, Name: "b", Rss: 0},
+		process.NewInfo(1, "a", 0),
+		process.NewInfo(2, "b", 0),
 	}
 	g := game.New(processes, game.Config{Confirm: true, Speed: 1.0})
 	g.Start(80, 24)

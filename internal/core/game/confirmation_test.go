@@ -15,7 +15,7 @@ func TestConfirmation_Pending_FalseWhenEmpty(t *testing.T) {
 
 func TestConfirmation_Request_ConfirmMode_HoldsTarget(t *testing.T) {
 	c := NewConfirmation(true)
-	tgt := &Target{Info: process.Info{Pid: 1, Name: "x"}}
+	tgt := &Target{Info: process.NewInfo(1, "x", 0)}
 	result := c.Request(tgt)
 	assert.Nil(t, result)
 	assert.True(t, c.Pending())
@@ -23,14 +23,14 @@ func TestConfirmation_Request_ConfirmMode_HoldsTarget(t *testing.T) {
 
 func TestConfirmation_Request_PassthroughMode_ReturnsTarget(t *testing.T) {
 	c := NewConfirmation(false)
-	tgt := &Target{Info: process.Info{Pid: 1, Name: "x"}}
+	tgt := &Target{Info: process.NewInfo(1, "x", 0)}
 	result := c.Request(tgt)
 	assert.Equal(t, tgt, result)
 	assert.False(t, c.Pending())
 }
 
 func TestConfirmation_Accept_ReturnsAndClearsTarget(t *testing.T) {
-	tgt := &Target{Info: process.Info{Pid: 1, Name: "x"}}
+	tgt := &Target{Info: process.NewInfo(1, "x", 0)}
 	c := Confirmation{target: tgt}
 	result := c.Accept()
 	assert.Equal(t, tgt, result)
@@ -38,10 +38,8 @@ func TestConfirmation_Accept_ReturnsAndClearsTarget(t *testing.T) {
 }
 
 func TestConfirmation_Cancel_ClearsPending(t *testing.T) {
-	tgt := &Target{Info: process.Info{Pid: 1, Name: "x"}}
+	tgt := &Target{Info: process.NewInfo(1, "x", 0)}
 	c := Confirmation{target: tgt}
 	c.Cancel()
 	assert.False(t, c.Pending())
 }
-
-

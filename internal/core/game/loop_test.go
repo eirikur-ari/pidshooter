@@ -11,7 +11,7 @@ import (
 )
 
 func TestKill_TransitionsToKilling(t *testing.T) {
-	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 2048}, State: Alive}
+	tgt := &Target{Info: process.NewInfo(1, "target", 2048), State: Alive}
 	g := &Game{}
 
 	g.Kill(tgt)
@@ -22,7 +22,7 @@ func TestKill_TransitionsToKilling(t *testing.T) {
 }
 
 func TestKill_NoOpWhenNotAlive(t *testing.T) {
-	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 2048}, State: Dead}
+	tgt := &Target{Info: process.NewInfo(1, "target", 2048), State: Dead}
 	g := &Game{}
 
 	g.Kill(tgt)
@@ -41,7 +41,7 @@ func TestUpdate_StopsWhenTimeLimitExpired(t *testing.T) {
 }
 
 func TestUpdate_StopsWhenAllTargetsDead(t *testing.T) {
-	tgt := &Target{Info: process.Info{Pid: 1, Name: "target", Rss: 0}, State: Dead}
+	tgt := &Target{Info: process.NewInfo(1, "target", 0), State: Dead}
 	g := &Game{targets: []*Target{tgt}, throttle: movement.NewThrottle(movement.MinSpeed)}
 	g.Start(0, 0)
 
@@ -49,4 +49,3 @@ func TestUpdate_StopsWhenAllTargetsDead(t *testing.T) {
 
 	assert.False(t, g.IsRunning())
 }
-
