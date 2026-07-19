@@ -4,6 +4,7 @@ package process
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // ErrNoPatterns is returned when no search patterns are provided.
@@ -35,4 +36,26 @@ func Validate(pattern string) error {
 		return fmt.Errorf("search pattern %q exceeds maximum length of %d characters", pattern, MaxPatternLength)
 	}
 	return nil
+}
+
+func Find(processes []Info, patterns []string, ownPid int) []Info {
+	var result []Info
+	for _, p := range processes {
+		if p.Pid == ownPid || IsProtected(p.Pid) {
+			continue
+		}
+		for _, pattern := range patterns {
+			if strings.Contains(strings.ToLower(p.Name), strings.ToLower(pattern)) {
+				result = append(result, p)
+				break
+			}
+		}
+	}
+	return result
+}
+
+// IsProtected reports whether pid refers to a process that must never be
+// targeted — PID 1 (init) or PID 0, both of which are unsafe to kill.
+func IsProtected(pid int) bool {
+	return pid <= 1
 }

@@ -6,10 +6,22 @@ type ProcessInfo struct {
 	Rss  int64
 }
 
-// Process is the outbound port for process discovery and termination on the host.
-// Kill must verify the process still has the given name before sending the signal.
-type Process interface {
+// Lister discovers processes currently running on the host.
+type Lister interface {
 	List() ([]ProcessInfo, error)
-	Find(patterns []string) ([]ProcessInfo, error)
+	OwnPid() int
+}
+
+// Killer looks up a process's current name and terminates it by PID.
+// Kill performs no safety or name verification itself — callers must confirm
+// via LookupName that pid still refers to the intended process before calling Kill.
+type Killer interface {
+	LookupName(pid int) (string, error)
 	Kill(pid int, name string) (bool, error)
+}
+
+// Process is the outbound port for process discovery and termination on the host.
+type Process interface {
+	Lister
+	Killer
 }

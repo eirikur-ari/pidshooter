@@ -6,15 +6,19 @@ import (
 
 // Process is a test double for outbound.Process.
 type Process struct {
-	Processes   []outbound.ProcessInfo
-	FindErr     error
-	KilledPIDs  []int
-	KilledNames []string
-	KillErr     error
+	Processes       []outbound.ProcessInfo
+	ListErr         error
+	OwnPidValue     int
+	LookupNameValue string
+	LookupNameErr   error
+	KilledPIDs      []int
+	KilledNames     []string
+	KillErr         error
 }
 
-func (f *Process) List() ([]outbound.ProcessInfo, error)           { return f.Processes, f.FindErr }
-func (f *Process) Find(_ []string) ([]outbound.ProcessInfo, error) { return f.Processes, f.FindErr }
+func (f *Process) List() ([]outbound.ProcessInfo, error) { return f.Processes, f.ListErr }
+func (f *Process) OwnPid() int                           { return f.OwnPidValue }
+func (f *Process) LookupName(_ int) (string, error)      { return f.LookupNameValue, f.LookupNameErr }
 
 func (f *Process) Kill(pid int, name string) (bool, error) {
 	f.KilledPIDs = append(f.KilledPIDs, pid)

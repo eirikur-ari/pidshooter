@@ -11,7 +11,6 @@ import (
 	"syscall"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
 // Process implements outbound.Process using the ps command.
@@ -28,18 +27,47 @@ func NewProcess() (outbound.Process, error) {
 	return &Process{psPath: path}, nil
 }
 
-func (p *Process) Find(patterns []string) ([]outbound.ProcessInfo, error) {
-	if err := validate(patterns); err != nil {
-		return nil, err
-	}
-	processes, err := p.List()
+func (p *Process) List() ([]outbound.ProcessInfo, error) {
+	processes, err := p.list()
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect processes: %w", err)
 	}
-	return filter(processes, patterns), nil
+	return processes, nil
 }
 
-func (p *Process) List() ([]outbound.ProcessInfo, error) {
+func (p *Process) OwnPid() int {
+	return os.Getpid()
+}
+
+// LookupName returns the current comm name of pid from the OS, using the same
+// ps flags as List so truncation and format are consistent.
+func (p *Process) LookupName(pid int) (string, error) {
+	args := []string{"-p", strconv.Itoa(pid), "-o", "comm="}
+	if runtime.GOOS == "darwin" {
+		args = []string{"-c", "-p", strconv.Itoa(pid), "-o", "comm="}
+	}
+	out, err := exec.Command(p.psPath, args...).Output()
+	if err != nil {
+		return "", fmt.Errorf("ps lookup failed for PID %d: %w", pid, err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// Kill sends SIGKILL to the process identified by pid. It performs no
+// safety or name verification — callers must confirm via LookupName that
+// pid still refers to the intended, non-protected process before calling Kill.
+func (p *Process) Kill(pid int, name string) (bool, error) {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return false, err
+	}
+	if err := proc.Signal(syscall.SIGKILL); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (p *Process) list() ([]outbound.ProcessInfo, error) {
 	flags := "-eo"
 	if runtime.GOOS == "darwin" {
 		flags = "-ceo"
@@ -85,78 +113,4 @@ func (p *Process) List() ([]outbound.ProcessInfo, error) {
 	}
 
 	return processes, nil
-}
-
-// Kill sends SIGKILL to the process identified by pid. It first verifies the
-// process still has the expected name. Returns true if the signal was sent,
-// false (with nil error) if the name no longer matches.
-func (p *Process) Kill(pid int, name string) (bool, error) {
-	if pid <= 1 {
-		return false, fmt.Errorf("refusing to kill PID %d", pid)
-	}
-	current, err := p.currentName(pid)
-	if err != nil {
-		return false, fmt.Errorf("could not verify PID %d: %w", pid, err)
-	}
-	if err := validateProcessName(name, current); err != nil {
-		return false, nil
-	}
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return false, err
-	}
-	if err := proc.Signal(syscall.SIGKILL); err != nil {
-		return false, err
-	}
-	return true, nil
-}
-
-// currentName returns the current comm name of pid from the OS, using the same
-// ps flags as discovery so truncation and format are consistent.
-func (p *Process) currentName(pid int) (string, error) {
-	args := []string{"-p", strconv.Itoa(pid), "-o", "comm="}
-	if runtime.GOOS == "darwin" {
-		args = []string{"-c", "-p", strconv.Itoa(pid), "-o", "comm="}
-	}
-	out, err := exec.Command(p.psPath, args...).Output()
-	if err != nil {
-		return "", fmt.Errorf("ps lookup failed for PID %d: %w", pid, err)
-	}
-	return strings.TrimSpace(string(out)), nil
-}
-
-func validate(patterns []string) error {
-	if len(patterns) == 0 {
-		return process.ErrNoPatterns
-	}
-	for _, pattern := range patterns {
-		if err := process.Validate(pattern); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func filter(processes []outbound.ProcessInfo, patterns []string) []outbound.ProcessInfo {
-	var result []outbound.ProcessInfo
-	myPID := os.Getpid()
-	for _, p := range processes {
-		if p.Pid == myPID || p.Pid <= 1 {
-			continue
-		}
-		for _, pattern := range patterns {
-			if strings.Contains(strings.ToLower(p.Name), strings.ToLower(pattern)) {
-				result = append(result, p)
-				break
-			}
-		}
-	}
-	return result
-}
-
-func validateProcessName(expected, actual string) error {
-	if actual != expected {
-		return fmt.Errorf("PID name mismatch: expected %q, got %q", expected, actual)
-	}
-	return nil
 }

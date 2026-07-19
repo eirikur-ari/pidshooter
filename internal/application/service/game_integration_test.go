@@ -27,7 +27,7 @@ func TestIntegration_GameService_HappyPath(t *testing.T) {
 
 	store := &fake.Store{}
 	svc := newGameService(
-		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 1, Name: "target", Rss: 1024}}},
+		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 200, Name: "target", Rss: 1024}}},
 		store,
 		events,
 	)
@@ -46,7 +46,7 @@ func TestIntegration_GameService_LoadError_PrintsWarningAndSkipsSave(t *testing.
 
 	store := &fake.Store{LoadErr: errors.New("json: invalid character")}
 	svc := newGameService(
-		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 1, Name: "target", Rss: 1024}}},
+		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 201, Name: "target", Rss: 1024}}},
 		store,
 		events,
 	)
@@ -66,7 +66,7 @@ func TestIntegration_GameService_SaveError_PrintsWarning(t *testing.T) {
 	events.Ch <- outbound.KeyEvent{Ch: 'q'}
 
 	svc := newGameService(
-		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 1, Name: "target", Rss: 1024}}},
+		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 202, Name: "target", Rss: 1024}}},
 		&fake.Store{SaveErr: errors.New("disk full")},
 		events,
 	)

@@ -100,7 +100,7 @@ func TestBuildFrame_NoConfirmPending(t *testing.T) {
 
 func TestGameService_FinderError(t *testing.T) {
 	svc := NewGameService(
-		&fake.Process{FindErr: errors.New("ps failed")},
+		&fake.Process{ListErr: errors.New("ps failed")},
 		&fake.Store{},
 		&fake.Renderer{},
 		fake.NewInputSource(),

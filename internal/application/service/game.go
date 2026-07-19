@@ -75,8 +75,10 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 }
 
 func (s *GameService) findProcesses(patterns []string) ([]process.Info, error) {
-	processes, err := s.process.Find(patterns)
-
+	if err := validateSearchPatterns(patterns); err != nil {
+		return nil, err
+	}
+	processes, err := s.process.List()
 	if err != nil {
 		return nil, fmt.Errorf("process search failed: %w", err)
 	}
@@ -87,7 +89,8 @@ func (s *GameService) findProcesses(patterns []string) ([]process.Info, error) {
 	}
 
 	fmt.Printf("Found %d process(es) matching %v. Starting game...\n", len(processes), patterns)
-	return toProcessInfos(processes), nil
+
+	return process.Find(toProcessInfos(processes), patterns, s.process.OwnPid()), nil
 }
 
 func (s *GameService) loadScoreBoard() (*score.Board, bool) {
@@ -220,7 +223,7 @@ func (s *GameService) drainEvents(d *event.Dispatcher, done <-chan struct{}) {
 				continue
 			}
 			go func() {
-				if killed, err := s.process.Kill(target.Pid, target.Name); err == nil && killed {
+				if killed, err := s.kill(target); err == nil && killed {
 					select {
 					case s.kills <- target:
 					case <-done:
@@ -231,4 +234,23 @@ func (s *GameService) drainEvents(d *event.Dispatcher, done <-chan struct{}) {
 			return
 		}
 	}
+}
+
+// kill re-verifies target immediately before signaling it, since the PID may
+// have been recycled by the OS to a different process in the time between
+// discovery and the player confirming the kill.
+func (s *GameService) kill(target *game.Target) (bool, error) {
+	pid := target.Pid
+	if process.IsProtected(pid) {
+		return false, fmt.Errorf("refusing to kill PID %d", pid)
+	}
+	name, err := s.process.LookupName(pid)
+	if err != nil {
+		return false, fmt.Errorf("could not verify PID %d: %w", pid, err)
+	}
+	if err := validateProcessName(target.Name, name); err != nil {
+		return false, nil
+	}
+
+	return s.process.Kill(target.Pid, target.Name)
 }
