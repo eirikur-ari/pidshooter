@@ -136,6 +136,56 @@ func TestGameService_ApplyKills_EmptyChannelNoOps(t *testing.T) {
 	assert.Equal(t, 0, g.Kills())
 }
 
+// --- kill ---
+
+func TestGameService_Kill_ProtectedPID_ReturnsError(t *testing.T) {
+	fp := &fake.Process{}
+	svc := NewGameService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
+	target := game.NewTarget(process.Info{Pid: 1, Name: "init"}, movement.NewBounds(80, 24))
+
+	killed, err := svc.kill(target)
+
+	assert.False(t, killed)
+	require.Error(t, err)
+	assert.Empty(t, fp.KilledPIDs)
+}
+
+func TestGameService_Kill_LookupError_ReturnsError(t *testing.T) {
+	fp := &fake.Process{LookupNameErr: errors.New("ps lookup failed")}
+	svc := NewGameService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
+	target := game.NewTarget(process.Info{Pid: 100, Name: "target"}, movement.NewBounds(80, 24))
+
+	killed, err := svc.kill(target)
+
+	assert.False(t, killed)
+	require.Error(t, err)
+	assert.Empty(t, fp.KilledPIDs)
+}
+
+func TestGameService_Kill_NameMismatch_SkipsKillWithoutError(t *testing.T) {
+	fp := &fake.Process{LookupNameValue: "somethingElse"}
+	svc := NewGameService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
+	target := game.NewTarget(process.Info{Pid: 100, Name: "target"}, movement.NewBounds(80, 24))
+
+	killed, err := svc.kill(target)
+
+	assert.False(t, killed)
+	assert.NoError(t, err)
+	assert.Empty(t, fp.KilledPIDs)
+}
+
+func TestGameService_Kill_NameMatch_InvokesKill(t *testing.T) {
+	fp := &fake.Process{LookupNameValue: "target"}
+	svc := NewGameService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
+	target := game.NewTarget(process.Info{Pid: 100, Name: "target"}, movement.NewBounds(80, 24))
+
+	killed, err := svc.kill(target)
+
+	assert.True(t, killed)
+	assert.NoError(t, err)
+	assert.Equal(t, []int{100}, fp.KilledPIDs)
+}
+
 func TestGameService_NoProcesses(t *testing.T) {
 	svc := NewGameService(
 		&fake.Process{},

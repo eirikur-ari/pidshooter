@@ -17,7 +17,7 @@ type Lister interface {
 // via LookupName that pid still refers to the intended process before calling Kill.
 type Killer interface {
 	LookupName(pid int) (string, error)
-	Kill(pid int, name string) (bool, error)
+	Kill(pid int) (bool, error)
 }
 
 // Process is the outbound port for process discovery and termination on the host.

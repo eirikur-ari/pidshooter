@@ -56,7 +56,7 @@ func (p *Process) LookupName(pid int) (string, error) {
 // Kill sends SIGKILL to the process identified by pid. It performs no
 // safety or name verification — callers must confirm via LookupName that
 // pid still refers to the intended, non-protected process before calling Kill.
-func (p *Process) Kill(pid int, name string) (bool, error) {
+func (p *Process) Kill(pid int) (bool, error) {
 	proc, err := os.FindProcess(pid)
 	if err != nil {
 		return false, err

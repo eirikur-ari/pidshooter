@@ -83,14 +83,16 @@ func (s *GameService) findProcesses(patterns []string) ([]process.Info, error) {
 		return nil, fmt.Errorf("process search failed: %w", err)
 	}
 
-	if len(processes) == 0 {
+	matches := process.Find(toProcessInfos(processes), patterns, s.process.OwnPid())
+
+	if len(matches) == 0 {
 		fmt.Printf("No processes found matching %v\n", patterns)
 		return nil, nil
 	}
 
-	fmt.Printf("Found %d process(es) matching %v. Starting game...\n", len(processes), patterns)
+	fmt.Printf("Found %d process(es) matching %v. Starting game...\n", len(matches), patterns)
 
-	return process.Find(toProcessInfos(processes), patterns, s.process.OwnPid()), nil
+	return matches, nil
 }
 
 func (s *GameService) loadScoreBoard() (*score.Board, bool) {
@@ -252,5 +254,5 @@ func (s *GameService) kill(target *game.Target) (bool, error) {
 		return false, nil
 	}
 
-	return s.process.Kill(target.Pid, target.Name)
+	return s.process.Kill(target.Pid)
 }

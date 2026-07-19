@@ -12,7 +12,6 @@ type Process struct {
 	LookupNameValue string
 	LookupNameErr   error
 	KilledPIDs      []int
-	KilledNames     []string
 	KillErr         error
 }
 
@@ -20,8 +19,7 @@ func (f *Process) List() ([]outbound.ProcessInfo, error) { return f.Processes, f
 func (f *Process) OwnPid() int                           { return f.OwnPidValue }
 func (f *Process) LookupName(_ int) (string, error)      { return f.LookupNameValue, f.LookupNameErr }
 
-func (f *Process) Kill(pid int, name string) (bool, error) {
+func (f *Process) Kill(pid int) (bool, error) {
 	f.KilledPIDs = append(f.KilledPIDs, pid)
-	f.KilledNames = append(f.KilledNames, name)
 	return f.KillErr == nil, f.KillErr
 }

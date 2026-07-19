@@ -41,6 +41,6 @@ func TestLookupName_ReturnsOwnName(t *testing.T) {
 // process group, init, or the test binary itself, so this only checks the
 // one safe, deterministic case: a PID that doesn't exist.
 func TestKiller_NonexistentPID(t *testing.T) {
-	_, err := newTestProcess(t).Kill(999999, "")
+	_, err := newTestProcess(t).Kill(999999)
 	assert.Error(t, err)
 }
