@@ -11,17 +11,17 @@ import (
 
 // Entry represents a single high score record.
 type Entry struct {
-	Kills    int       `json:"kills"`
-	FreedMem int64     `json:"freed_mem"`
-	Speed    float64   `json:"speed"`
-	Time     int       `json:"time_limit"`
-	Duration float64   `json:"duration_secs"`
-	Date     time.Time `json:"date"`
+	Kills    int
+	FreedMem int64
+	Speed    float64
+	Time     int
+	Duration float64
+	Date     time.Time
 }
 
 // Board holds all high scores and their ranking logic.
 type Board struct {
-	Scores    []Entry `json:"scores"`
+	Scores    []Entry
 	highScore int
 }
 

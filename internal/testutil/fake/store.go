@@ -1,23 +1,20 @@
 package fake
 
-import "github.com/eirikur-ari/pidshooter/internal/core/score"
+import "github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 
-// Store is a test double for spi.Store.
+// Store is a test double for outbound.ScoreStore.
 type Store struct {
-	Board   *score.Board
+	Board   outbound.ScoreBoard
 	LoadErr error
 	SaveErr error
-	Saved   *score.Board // captured by the most recent Save call
+	Saved   *outbound.ScoreBoard // captured by the most recent Save call, nil if Save was never called
 }
 
-func (f *Store) Load() (*score.Board, error) {
-	if f.Board == nil {
-		return &score.Board{}, f.LoadErr
-	}
+func (f *Store) Load() (outbound.ScoreBoard, error) {
 	return f.Board, f.LoadErr
 }
 
-func (f *Store) Save(b *score.Board) error {
-	f.Saved = b
+func (f *Store) Save(b outbound.ScoreBoard) error {
+	f.Saved = &b
 	return f.SaveErr
 }

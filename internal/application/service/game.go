@@ -96,12 +96,12 @@ func (s *GameService) findProcesses(patterns []string) ([]process.Info, error) {
 }
 
 func (s *GameService) loadScoreBoard() (*score.Board, bool) {
-	board, err := s.store.Load()
+	sb, err := s.store.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: could not load scores: %v\n", err)
 		return &score.Board{}, false
 	}
-	return board, true
+	return toBoard(sb), true
 }
 
 func (s *GameService) recordScore(cfg inbound.GamePlayConfig, board *score.Board, kills int, freedMem int64, duration float64, persist bool) {
@@ -115,7 +115,7 @@ func (s *GameService) recordScore(cfg inbound.GamePlayConfig, board *score.Board
 	})
 
 	if persist {
-		if err := s.store.Save(board); err != nil {
+		if err := s.store.Save(toScoreBoard(board)); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: score not saved: %v\n", err)
 		}
 	}
