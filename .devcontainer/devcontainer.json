@@ -1,0 +1,23 @@
+{
+  "name": "Claude Code Sandbox",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+
+  "containerEnv": {
+    "CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "DISABLE_AUTOUPDATER": "1",
+    "DO_NOT_TRACK": "1"
+  },
+
+  "postCreateCommand": "go mod download",
+
+  "remoteUser": "sandbox",
+
+  "mounts": [
+    "source=claude-code-config-${devcontainerId},target=/home/sandbox/.claude,type=volume",
+    "source=go-mod-cache,target=/home/sandbox/go/pkg/mod,type=volume",
+    "source=go-build-cache,target=/home/sandbox/.cache/go-build,type=volume"
+  ]
+}
