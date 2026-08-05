@@ -42,6 +42,7 @@ RUN printf '#!/usr/bin/env zsh\neval "$(starship init zsh)"\n' > /home/${USERNAM
 
 ENV CLAUDE_CONFIG_DIR=/home/${USERNAME}/.claude
 ENV GOPATH=/home/${USERNAME}/go
+ENV GOROOT=/usr/local/go
 ENV CGO_ENABLED=0
 ENV SHELL=/bin/zsh
 ENV EDITOR=vim
