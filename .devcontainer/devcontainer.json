@@ -1,23 +1,26 @@
 {
   "name": "Claude Code Sandbox",
   "build": {
-    "dockerfile": "Dockerfile"
+    "dockerfile": "Dockerfile",
+    "args": {
+      "TZ": "${localEnv:TZ:UTC}",
+      "CLAUDE_CODE_VERSION": "2.1.212"
+    }
   },
-
-  "containerEnv": {
-    "CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}",
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-    "DISABLE_AUTOUPDATER": "1",
-    "DO_NOT_TRACK": "1"
-  },
-
-  "postCreateCommand": "go mod download",
-
+  "runArgs": [
+    "--cap-add=NET_ADMIN",
+    "--cap-add=NET_RAW"
+  ],
   "remoteUser": "sandbox",
-
   "mounts": [
     "source=claude-code-config-${devcontainerId},target=/home/sandbox/.claude,type=volume",
     "source=go-mod-cache,target=/home/sandbox/go/pkg/mod,type=volume",
     "source=go-build-cache,target=/home/sandbox/.cache/go-build,type=volume"
-  ]
+  ],
+  "containerEnv": {
+    "CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}"
+  },
+  "postCreateCommand": "go mod download",
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
+  "waitFor": "postStartCommand"
 }
