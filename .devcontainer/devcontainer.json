@@ -13,9 +13,10 @@
   ],
   "remoteUser": "sandbox",
   "mounts": [
-    "source=claude-code-config-${devcontainerId},target=/home/sandbox/.claude,type=volume",
-    "source=go-mod-cache,target=/home/sandbox/go/pkg/mod,type=volume",
-    "source=go-build-cache,target=/home/sandbox/.cache/go-build,type=volume"
+    "source=go-sandbox-cache,target=/home/sandbox/.cache,type=volume",
+    "source=go-sandbox-config,target=/home/sandbox/.config,type=volume",
+    "source=claude-code-sandbox-config-${devcontainerId},target=/home/sandbox/.claude,type=volume",
+    "source=go-sandbox-mod-cache,target=/home/sandbox/go/pkg/mod,type=volume"
   ],
   "containerEnv": {
     "CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}"
