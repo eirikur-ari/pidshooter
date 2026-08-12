@@ -3,6 +3,7 @@
 package osprocess_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -38,7 +39,7 @@ func TestIntegration_List_ShortProcessNames(t *testing.T) {
 	processes, err := f.List()
 	require.NoError(t, err)
 	for _, p := range processes {
-		assert.NotContains(t, p.Name, "/", "PID %d has a full path in name: %q", p.Pid, p.Name)
+		assert.False(t, strings.HasPrefix(p.Name, "/"), "PID %d has a full path in name: %q", p.Pid, p.Name)
 	}
 }
 
