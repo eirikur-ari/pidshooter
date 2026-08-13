@@ -72,7 +72,6 @@ func (p *Process) list() ([]outbound.ProcessInfo, error) {
 	if runtime.GOOS == "darwin" {
 		flags = "-ceo"
 	}
-	//TODO: we might want to cover nushell requirements, as well review if we need to adjust ps command according to OS
 	cmd := exec.Command(p.psPath, flags, "pid,rss,comm")
 	output, err := cmd.Output()
 	if err != nil {
