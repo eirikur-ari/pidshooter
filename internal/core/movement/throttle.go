@@ -6,28 +6,21 @@ const (
 	SpeedStep = 0.5 // increment/decrement per throttle adjustment
 )
 
-// Throttler is the interface through which external packages adjust the movement throttle.
-type Throttler interface {
-	Speed() float64
-	Increase()
-	Decrease()
-}
-
-// throttle tracks the current movement speed with clamped increase/decrease steps.
-type throttle struct {
+// Throttle tracks the current movement speed with clamped increase/decrease steps.
+type Throttle struct {
 	speed float64
 }
 
-// NewThrottle returns a Throttler initialised to the given speed.
-func NewThrottle(speed float64) Throttler {
-	return &throttle{speed: speed}
+// NewThrottle returns a Throttle initialised to the given speed.
+func NewThrottle(speed float64) Throttle {
+	return Throttle{speed: speed}
 }
 
 // Speed returns the current speed.
-func (t *throttle) Speed() float64 { return t.speed }
+func (t *Throttle) Speed() float64 { return t.speed }
 
 // Increase adds one step, capped at the maximum.
-func (t *throttle) Increase() {
+func (t *Throttle) Increase() {
 	t.speed += SpeedStep
 	if t.speed > MaxSpeed {
 		t.speed = MaxSpeed
@@ -35,7 +28,7 @@ func (t *throttle) Increase() {
 }
 
 // Decrease subtracts one step, floored at the minimum.
-func (t *throttle) Decrease() {
+func (t *Throttle) Decrease() {
 	t.speed -= SpeedStep
 	if t.speed < MinSpeed {
 		t.speed = MinSpeed

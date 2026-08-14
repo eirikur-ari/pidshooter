@@ -35,7 +35,7 @@ What is left to refactor
 ### movement
 - [x] bounds
 - [x] motion
-- [ ] throttle
+- [x] throttle
 
 ### process
 - [ ] process
