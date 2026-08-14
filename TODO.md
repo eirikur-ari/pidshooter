@@ -33,8 +33,8 @@ What is left to refactor
 - [ ] input
 
 ### movement
-- [ ] bounds
-- [ ] motion
+- [x] bounds
+- [x] motion
 - [ ] throttle
 
 ### process
