@@ -31,11 +31,11 @@ func (m *Motion) Move(bounds Bounds, speed, tagWidth float64) {
 }
 
 func newRandomPosition(bounds Bounds, tagWidth int) Vector {
-	x := bounds.Width() - tagWidth - 1
+	x := bounds.width - tagWidth - 1
 	if x < 1 {
 		x = 1
 	}
-	y := bounds.Height() - 2 // Leave room for status bar
+	y := bounds.height - 2 // Leave room for status bar
 	if y < 1 {
 		y = 1
 	}
