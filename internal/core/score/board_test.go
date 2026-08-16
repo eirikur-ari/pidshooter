@@ -63,45 +63,60 @@ func TestBoardHighScoreWithEntries(t *testing.T) {
 	assert.Equal(t, 10, b.HighScore())
 }
 
-// --- Board.PrintHighScore ---
+// --- Board.PrintScores ---
 
-func TestBoardPrintHighScorePrintsWhenBeatsRecord(t *testing.T) {
+func TestBoardPrintScoresPrintsTrophyWhenBeatsRecord(t *testing.T) {
 	b := &Board{}
 	b.Add(Entry{Kills: 3, Date: time.Now()})
 	b.Add(Entry{Kills: 7, Date: time.Now()}) // b.highScore = 3
 
-	out := capture.Output(func() { b.PrintHighScore(7) })
+	out := capture.Output(func() { b.PrintScores(7) })
 	assert.Contains(t, out, "New high score")
 }
 
-func TestBoardPrintHighScoreSilentWhenDoesNotBeatRecord(t *testing.T) {
+func TestBoardPrintScoresNoTrophyWhenDoesNotBeatRecord(t *testing.T) {
 	b := &Board{}
 	b.Add(Entry{Kills: 7, Date: time.Now()})
 	b.Add(Entry{Kills: 3, Date: time.Now()}) // b.highScore = 7
 
-	out := capture.Output(func() { b.PrintHighScore(3) })
-	assert.Empty(t, out)
+	out := capture.Output(func() { b.PrintScores(3) })
+	assert.NotContains(t, out, "New high score")
 }
 
-func TestBoardPrintHighScoreSilentWhenZeroKills(t *testing.T) {
+func TestBoardPrintScoresNoTrophyWhenZeroKills(t *testing.T) {
 	b := &Board{}
-	out := capture.Output(func() { b.PrintHighScore(0) })
-	assert.Empty(t, out)
+	out := capture.Output(func() { b.PrintScores(0) })
+	assert.NotContains(t, out, "New high score")
 }
 
-func TestBoardPrintHighScorePrintsWhenTiesRecord(t *testing.T) {
+func TestBoardPrintScoresPrintsTrophyWhenTiesRecord(t *testing.T) {
 	b := &Board{}
 	b.Add(Entry{Kills: 5, Date: time.Now()}) // b.highScore = 0 before append
 	b.Add(Entry{Kills: 3, Date: time.Now()}) // b.highScore = 5 before append
 
-	out := capture.Output(func() { b.PrintHighScore(5) })
+	out := capture.Output(func() { b.PrintScores(5) })
 	assert.Contains(t, out, "New high score", "expected trophy message when tying the high score")
 }
 
-func TestBoardPrintHighScorePrintsForFirstEntry(t *testing.T) {
+func TestBoardPrintScoresPrintsTrophyForFirstEntry(t *testing.T) {
 	b := &Board{}
 	b.Add(Entry{Kills: 5, Date: time.Now()}) // b.highScore = 0
 
-	out := capture.Output(func() { b.PrintHighScore(5) })
+	out := capture.Output(func() { b.PrintScores(5) })
 	assert.Contains(t, out, "New high score", "expected trophy message for first entry")
+}
+
+func TestBoardPrintScoresPrintsNoScoresMessageWhenEmpty(t *testing.T) {
+	b := &Board{}
+	out := capture.Output(func() { b.PrintScores(0) })
+	assert.Contains(t, out, "No high scores yet!")
+}
+
+func TestBoardPrintScoresPrintsTable(t *testing.T) {
+	b := &Board{}
+	b.Add(Entry{Kills: 5, FreedMem: 100, Speed: 1.5, Date: time.Now()})
+
+	out := capture.Output(func() { b.PrintScores(0) })
+	assert.Contains(t, out, "Kills")
+	assert.Contains(t, out, "Freed")
 }

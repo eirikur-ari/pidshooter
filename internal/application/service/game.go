@@ -124,8 +124,7 @@ func (s *GameService) recordScore(cfg inbound.GamePlayConfig, board *score.Board
 func (s *GameService) printResults(kills int, freedMem int64, duration float64, board *score.Board) {
 	fmt.Printf("\n  Game Over! Kills: %d | Freed: %s | Time: %.1fs\n",
 		kills, util.FormatBytes(freedMem), duration)
-	board.PrintHighScore(kills)
-	board.PrintScores()
+	board.PrintScores(kills)
 }
 
 func (s *GameService) newGame(cfg inbound.GamePlayConfig, processes []process.Info, board *score.Board) *game.Game {

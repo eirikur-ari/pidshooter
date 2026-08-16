@@ -33,16 +33,13 @@ func (b *Board) HighScore() int {
 	return b.Scores[0].Kills
 }
 
-// PrintHighScore prints a trophy message if kills beats the high score
-// recorded at the time of the last Add call.
-func (b *Board) PrintHighScore(kills int) {
+// PrintScores prints a trophy message if kills beats the high score recorded
+// at the time of the last Add call, then displays the high score table.
+func (b *Board) PrintScores(kills int) {
 	if kills > 0 && kills >= b.highScore {
 		fmt.Println("  🏆 New high score!")
 	}
-}
 
-// PrintScores displays the high score table to stdout.
-func (b *Board) PrintScores() {
 	if len(b.Scores) == 0 {
 		fmt.Println("\n  No high scores yet!")
 		return
