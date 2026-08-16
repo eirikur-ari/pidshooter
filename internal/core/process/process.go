@@ -20,29 +20,19 @@ const MinPatternLength = 3
 const MaxPatternLength = 256
 
 // Info is a snapshot of a single running process captured at discovery time.
-type Info interface {
-	Pid() int
-	Name() string
-	Rss() int64
-	// IsProtected reports whether this process must never be targeted —
-	// any PID <= 1 (init, PID 0, or a negative PID), all of which are unsafe to kill.
-	IsProtected() bool
+type Info struct {
+	Pid  int
+	Name string
+	Rss  int64
 }
 
-type info struct {
-	pid  int
-	name string
-	rss  int64
-}
-
-func (i info) Pid() int          { return i.pid }
-func (i info) Name() string      { return i.name }
-func (i info) Rss() int64        { return i.rss }
-func (i info) IsProtected() bool { return i.pid <= 1 }
+// IsProtected reports whether this process must never be targeted —
+// any PID <= 1 (init, PID 0, or a negative PID), all of which are unsafe to kill.
+func (i Info) IsProtected() bool { return i.Pid <= 1 }
 
 // NewInfo constructs an Info snapshot.
 func NewInfo(pid int, name string, rss int64) Info {
-	return info{pid: pid, name: name, rss: rss}
+	return Info{Pid: pid, Name: name, Rss: rss}
 }
 
 // Find returns the subset of processes whose name matches any pattern
@@ -50,11 +40,11 @@ func NewInfo(pid int, name string, rss int64) Info {
 func Find(processes []Info, patterns []string, ownPid int) []Info {
 	var result []Info
 	for _, pr := range processes {
-		if pr.Pid() == ownPid || pr.IsProtected() {
+		if pr.Pid == ownPid || pr.IsProtected() {
 			continue
 		}
 		for _, pattern := range patterns {
-			if strings.Contains(strings.ToLower(pr.Name()), strings.ToLower(pattern)) {
+			if strings.Contains(strings.ToLower(pr.Name), strings.ToLower(pattern)) {
 				result = append(result, pr)
 				break
 			}
