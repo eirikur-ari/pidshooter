@@ -5,12 +5,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/handler"
-	"github.com/eirikur-ari/pidshooter/internal/core/process"
+	"github.com/eirikur-ari/pidshooter/internal/testutil/fixture"
 )
 
 func newDispatcher(g *game.Game) *Dispatcher {
@@ -20,9 +19,7 @@ func newDispatcher(g *game.Game) *Dispatcher {
 // --- ClickEvent ---
 
 func TestDispatcher_Click_ReturnsHitTarget(t *testing.T) {
-	processes := []process.Info{process.NewInfo(1, "a", 0)}
-	g := game.New(processes, game.Config{Speed: 1.0})
-	g.Start(80, 24)
+	g := fixture.Game(fixture.Processes(1), game.Config{Speed: 1.0})
 	d := newDispatcher(g)
 	tgt := g.Targets()[0]
 
@@ -32,8 +29,7 @@ func TestDispatcher_Click_ReturnsHitTarget(t *testing.T) {
 }
 
 func TestDispatcher_Click_MissReturnsNil(t *testing.T) {
-	g := game.New(nil, game.Config{Speed: 1.0})
-	g.Start(80, 24)
+	g := fixture.Game(nil, game.Config{Speed: 1.0})
 	d := newDispatcher(g)
 
 	result := d.Dispatch(outbound.ClickEvent{X: 0, Y: 0})
@@ -44,8 +40,7 @@ func TestDispatcher_Click_MissReturnsNil(t *testing.T) {
 // --- KeyCode ---
 
 func TestDispatcher_Escape_StopsGame(t *testing.T) {
-	g := game.New(nil, game.Config{})
-	g.Start(80, 24)
+	g := fixture.Game(nil, game.Config{})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Key: outbound.KeyEscape})
 
@@ -53,8 +48,7 @@ func TestDispatcher_Escape_StopsGame(t *testing.T) {
 }
 
 func TestDispatcher_CtrlC_StopsGame(t *testing.T) {
-	g := game.New(nil, game.Config{})
-	g.Start(80, 24)
+	g := fixture.Game(nil, game.Config{})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Key: outbound.KeyCtrlC})
 
@@ -62,8 +56,7 @@ func TestDispatcher_CtrlC_StopsGame(t *testing.T) {
 }
 
 func TestDispatcher_CtrlZ_StopsGame(t *testing.T) {
-	g := game.New(nil, game.Config{})
-	g.Start(80, 24)
+	g := fixture.Game(nil, game.Config{})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Key: outbound.KeyCtrlZ})
 
@@ -73,8 +66,7 @@ func TestDispatcher_CtrlZ_StopsGame(t *testing.T) {
 // --- Rune: quit ---
 
 func TestDispatcher_Q_StopsGame(t *testing.T) {
-	g := game.New(nil, game.Config{})
-	g.Start(80, 24)
+	g := fixture.Game(nil, game.Config{})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Ch: 'q'})
 
@@ -82,8 +74,7 @@ func TestDispatcher_Q_StopsGame(t *testing.T) {
 }
 
 func TestDispatcher_QUppercase_StopsGame(t *testing.T) {
-	g := game.New(nil, game.Config{})
-	g.Start(80, 24)
+	g := fixture.Game(nil, game.Config{})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Ch: 'Q'})
 
@@ -93,13 +84,9 @@ func TestDispatcher_QUppercase_StopsGame(t *testing.T) {
 // --- Rune: confirm yes ---
 
 func TestDispatcher_Y_ReturnsConfirmedTarget(t *testing.T) {
-	processes := []process.Info{process.NewInfo(1, "a", 0)}
-	g := game.New(processes, game.Config{Confirm: true, Speed: 1.0})
-	g.Start(80, 24)
+	g := fixture.PendingConfirmGame(1)
 	d := newDispatcher(g)
 	tgt := g.Targets()[0]
-	d.Dispatch(outbound.ClickEvent{X: int(math.Round(tgt.Position.X)), Y: int(math.Round(tgt.Position.Y))})
-	require.NotNil(t, g.ConfirmTarget(), "setup: expected confirm pending")
 
 	result := d.Dispatch(outbound.KeyEvent{Ch: 'y'})
 
@@ -108,13 +95,9 @@ func TestDispatcher_Y_ReturnsConfirmedTarget(t *testing.T) {
 }
 
 func TestDispatcher_YUppercase_AcceptsConfirmation(t *testing.T) {
-	processes := []process.Info{process.NewInfo(1, "a", 0)}
-	g := game.New(processes, game.Config{Confirm: true, Speed: 1.0})
-	g.Start(80, 24)
+	g := fixture.PendingConfirmGame(1)
 	d := newDispatcher(g)
 	tgt := g.Targets()[0]
-	d.Dispatch(outbound.ClickEvent{X: int(math.Round(tgt.Position.X)), Y: int(math.Round(tgt.Position.Y))})
-	require.NotNil(t, g.ConfirmTarget(), "setup: expected confirm pending")
 
 	result := d.Dispatch(outbound.KeyEvent{Ch: 'Y'})
 
@@ -125,13 +108,8 @@ func TestDispatcher_YUppercase_AcceptsConfirmation(t *testing.T) {
 // --- Rune: confirm no ---
 
 func TestDispatcher_N_CancelsConfirmation(t *testing.T) {
-	processes := []process.Info{process.NewInfo(1, "a", 0)}
-	g := game.New(processes, game.Config{Confirm: true, Speed: 1.0})
-	g.Start(80, 24)
+	g := fixture.PendingConfirmGame(1)
 	d := newDispatcher(g)
-	tgt := g.Targets()[0]
-	d.Dispatch(outbound.ClickEvent{X: int(math.Round(tgt.Position.X)), Y: int(math.Round(tgt.Position.Y))})
-	require.NotNil(t, g.ConfirmTarget(), "setup: expected confirm pending")
 
 	d.Dispatch(outbound.KeyEvent{Ch: 'n'})
 
@@ -139,13 +117,8 @@ func TestDispatcher_N_CancelsConfirmation(t *testing.T) {
 }
 
 func TestDispatcher_NUppercase_CancelsConfirmation(t *testing.T) {
-	processes := []process.Info{process.NewInfo(1, "a", 0)}
-	g := game.New(processes, game.Config{Confirm: true, Speed: 1.0})
-	g.Start(80, 24)
+	g := fixture.PendingConfirmGame(1)
 	d := newDispatcher(g)
-	tgt := g.Targets()[0]
-	d.Dispatch(outbound.ClickEvent{X: int(math.Round(tgt.Position.X)), Y: int(math.Round(tgt.Position.Y))})
-	require.NotNil(t, g.ConfirmTarget(), "setup: expected confirm pending")
 
 	d.Dispatch(outbound.KeyEvent{Ch: 'N'})
 
@@ -155,8 +128,7 @@ func TestDispatcher_NUppercase_CancelsConfirmation(t *testing.T) {
 // --- Rune: speed ---
 
 func TestDispatcher_Plus_IncreasesSpeed(t *testing.T) {
-	g := game.New(nil, game.Config{Speed: 2.0})
-	g.Start(80, 24)
+	g := fixture.Game(nil, game.Config{Speed: 2.0})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Ch: '+'})
 
@@ -164,8 +136,7 @@ func TestDispatcher_Plus_IncreasesSpeed(t *testing.T) {
 }
 
 func TestDispatcher_Equals_IncreasesSpeed(t *testing.T) {
-	g := game.New(nil, game.Config{Speed: 2.0})
-	g.Start(80, 24)
+	g := fixture.Game(nil, game.Config{Speed: 2.0})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Ch: '='})
 
@@ -173,8 +144,7 @@ func TestDispatcher_Equals_IncreasesSpeed(t *testing.T) {
 }
 
 func TestDispatcher_Minus_DecreasesSpeed(t *testing.T) {
-	g := game.New(nil, game.Config{Speed: 2.0})
-	g.Start(80, 24)
+	g := fixture.Game(nil, game.Config{Speed: 2.0})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Ch: '-'})
 
@@ -182,8 +152,7 @@ func TestDispatcher_Minus_DecreasesSpeed(t *testing.T) {
 }
 
 func TestDispatcher_Underscore_DecreasesSpeed(t *testing.T) {
-	g := game.New(nil, game.Config{Speed: 2.0})
-	g.Start(80, 24)
+	g := fixture.Game(nil, game.Config{Speed: 2.0})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Ch: '_'})
 
@@ -193,8 +162,7 @@ func TestDispatcher_Underscore_DecreasesSpeed(t *testing.T) {
 // --- Unknown ---
 
 func TestDispatcher_UnknownRune_NoOp(t *testing.T) {
-	g := game.New(nil, game.Config{Speed: 2.0})
-	g.Start(80, 24)
+	g := fixture.Game(nil, game.Config{Speed: 2.0})
 	d := newDispatcher(g)
 
 	result := d.Dispatch(outbound.KeyEvent{Ch: 'z'})

@@ -9,7 +9,7 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/handler"
-	"github.com/eirikur-ari/pidshooter/internal/core/process"
+	"github.com/eirikur-ari/pidshooter/internal/testutil/fixture"
 )
 
 func newHandler(g *game.Game) *handler.Handler {
@@ -19,8 +19,7 @@ func newHandler(g *game.Game) *handler.Handler {
 // --- OnQuit ---
 
 func TestHandler_OnQuit_StopsGame(t *testing.T) {
-	g := game.New(nil, game.Config{})
-	g.Start(80, 24)
+	g := fixture.Game(nil, game.Config{})
 
 	newHandler(g).OnQuit()
 
@@ -28,13 +27,8 @@ func TestHandler_OnQuit_StopsGame(t *testing.T) {
 }
 
 func TestHandler_OnQuit_CancelsConfirmWhenPending(t *testing.T) {
-	processes := []process.Info{process.NewInfo(1, "a", 0)}
-	g := game.New(processes, game.Config{Confirm: true, Speed: 1.0})
-	g.Start(80, 24)
+	g := fixture.PendingConfirmGame(1)
 	h := newHandler(g)
-	tgt := g.Targets()[0]
-	h.OnClickAt(int(math.Round(tgt.Position.X)), int(math.Round(tgt.Position.Y)))
-	require.NotNil(t, g.ConfirmTarget(), "setup: expected confirm pending")
 
 	h.OnQuit()
 
@@ -45,13 +39,8 @@ func TestHandler_OnQuit_CancelsConfirmWhenPending(t *testing.T) {
 // --- OnYes ---
 
 func TestHandler_OnYes_ReturnsConfirmedTarget(t *testing.T) {
-	processes := []process.Info{process.NewInfo(1, "a", 0)}
-	g := game.New(processes, game.Config{Confirm: true, Speed: 1.0})
-	g.Start(80, 24)
+	g := fixture.PendingConfirmGame(1)
 	h := newHandler(g)
-	tgt := g.Targets()[0]
-	h.OnClickAt(int(math.Round(tgt.Position.X)), int(math.Round(tgt.Position.Y)))
-	require.NotNil(t, g.ConfirmTarget(), "setup: expected confirm pending")
 
 	result := h.OnYes()
 
@@ -62,13 +51,8 @@ func TestHandler_OnYes_ReturnsConfirmedTarget(t *testing.T) {
 // --- OnNo ---
 
 func TestHandler_OnNo_CancelsPending(t *testing.T) {
-	processes := []process.Info{process.NewInfo(1, "a", 0)}
-	g := game.New(processes, game.Config{Confirm: true, Speed: 1.0})
-	g.Start(80, 24)
+	g := fixture.PendingConfirmGame(1)
 	h := newHandler(g)
-	tgt := g.Targets()[0]
-	h.OnClickAt(int(math.Round(tgt.Position.X)), int(math.Round(tgt.Position.Y)))
-	require.NotNil(t, g.ConfirmTarget(), "setup: expected confirm pending")
 
 	h.OnNo()
 
@@ -79,8 +63,7 @@ func TestHandler_OnNo_CancelsPending(t *testing.T) {
 // --- OnSpeedUp / OnSpeedDown ---
 
 func TestHandler_OnSpeedUp_IncreasesSpeed(t *testing.T) {
-	g := game.New(nil, game.Config{Speed: 2.0})
-	g.Start(80, 24)
+	g := fixture.Game(nil, game.Config{Speed: 2.0})
 
 	newHandler(g).OnSpeedUp()
 
@@ -88,8 +71,7 @@ func TestHandler_OnSpeedUp_IncreasesSpeed(t *testing.T) {
 }
 
 func TestHandler_OnSpeedDown_DecreasesSpeed(t *testing.T) {
-	g := game.New(nil, game.Config{Speed: 2.0})
-	g.Start(80, 24)
+	g := fixture.Game(nil, game.Config{Speed: 2.0})
 
 	newHandler(g).OnSpeedDown()
 
@@ -99,9 +81,7 @@ func TestHandler_OnSpeedDown_DecreasesSpeed(t *testing.T) {
 // --- OnClickAt ---
 
 func TestHandler_OnClickAt_ReturnsTarget(t *testing.T) {
-	processes := []process.Info{process.NewInfo(1, "a", 0)}
-	g := game.New(processes, game.Config{Speed: 1.0})
-	g.Start(80, 24)
+	g := fixture.Game(fixture.Processes(1), game.Config{Speed: 1.0})
 	tgt := g.Targets()[0]
 
 	result := newHandler(g).OnClickAt(int(math.Round(tgt.Position.X)), int(math.Round(tgt.Position.Y)))
@@ -110,8 +90,7 @@ func TestHandler_OnClickAt_ReturnsTarget(t *testing.T) {
 }
 
 func TestHandler_OnClickAt_MissReturnsNil(t *testing.T) {
-	g := game.New(nil, game.Config{Speed: 1.0})
-	g.Start(80, 24)
+	g := fixture.Game(nil, game.Config{Speed: 1.0})
 
 	result := newHandler(g).OnClickAt(0, 0)
 
@@ -119,16 +98,8 @@ func TestHandler_OnClickAt_MissReturnsNil(t *testing.T) {
 }
 
 func TestHandler_OnClickAt_NoOpWhenAlreadyConfirming(t *testing.T) {
-	processes := []process.Info{
-		process.NewInfo(1, "a", 0),
-		process.NewInfo(2, "b", 0),
-	}
-	g := game.New(processes, game.Config{Confirm: true, Speed: 1.0})
-	g.Start(80, 24)
+	g := fixture.PendingConfirmGame(2)
 	h := newHandler(g)
-	first := g.Targets()[0]
-	h.OnClickAt(int(math.Round(first.Position.X)), int(math.Round(first.Position.Y)))
-	require.NotNil(t, g.ConfirmTarget(), "setup: expected confirm pending")
 	pending := g.ConfirmTarget()
 
 	second := g.Targets()[1]
