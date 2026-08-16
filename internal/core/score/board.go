@@ -1,23 +1,11 @@
-// Package score manages high-score ranking logic.
 package score
 
 import (
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
-
-// Entry represents a single high score record.
-type Entry struct {
-	Kills    int
-	FreedMem int64
-	Speed    float64
-	Time     int
-	Duration float64
-	Date     time.Time
-}
 
 // Board holds all high scores and their ranking logic.
 type Board struct {
@@ -79,11 +67,4 @@ func (b *Board) sortByRank() {
 	sort.Slice(b.Scores, func(i, j int) bool {
 		return b.Scores[i].beats(b.Scores[j])
 	})
-}
-
-func (e Entry) beats(other Entry) bool {
-	if e.Kills != other.Kills {
-		return e.Kills > other.Kills
-	}
-	return e.FreedMem > other.FreedMem
 }
