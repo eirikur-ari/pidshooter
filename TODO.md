@@ -13,12 +13,12 @@ What is left to refactor
 - [ ] ui
 
 ### event
-- [ ] input
+- [x] input
 
 ### service
 - [ ] converter
 - [ ] game
-- [ ] validation
+- [x] validation
 
 ## core
 ### game
@@ -30,7 +30,7 @@ What is left to refactor
 - [ ] timer
 
 ### handler
-- [ ] input
+- [x] input
 
 ### movement
 - [x] bounds
@@ -38,7 +38,7 @@ What is left to refactor
 - [x] throttle
 
 ### process
-- [ ] process
+- [x] process
 
 ### score
 - [ ] score
