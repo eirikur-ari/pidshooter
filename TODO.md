@@ -41,7 +41,9 @@ What is left to refactor
 - [x] process
 
 ### score
-- [ ] score
+- [ ] board
+- [ ] entry
+- [ ] tracker
 
 ## infrastructure
 ### osprocess
@@ -58,11 +60,14 @@ What is left to refactor
 - [ ] capture
 
 ### fake
-- [ ] input_handler
 - [ ] inputsource
 - [ ] process
 - [ ] renderer
 - [ ] store
+
+### fixture
+- [ ] game.go
+- [ ] process.go
 
 ## util
 - [ ] util
