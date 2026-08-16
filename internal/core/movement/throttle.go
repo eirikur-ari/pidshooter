@@ -12,8 +12,8 @@ type Throttle struct {
 }
 
 // NewThrottle returns a Throttle initialised to the given speed.
-func NewThrottle(speed float64) Throttle {
-	return Throttle{speed: speed}
+func NewThrottle(speed float64) *Throttle {
+	return &Throttle{speed: speed}
 }
 
 // Speed returns the current speed.

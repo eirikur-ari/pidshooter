@@ -22,7 +22,7 @@ type Game struct {
 	state     state
 	timer     Timer
 	confirm   Confirmation
-	throttle  movement.Throttle
+	throttle  *movement.Throttle
 	processes []process.Info
 	targets   []*Target
 	Stats
@@ -40,9 +40,9 @@ func New(processes []process.Info, cfg Config) *Game {
 		cfg:       cfg,
 		processes: processes,
 		targets:   make([]*Target, 0, len(processes)),
-		timer:     NewTimer(cfg.TimeLimit),
-		throttle:  movement.NewThrottle(cfg.Speed),
-		confirm:   NewConfirmation(cfg.Confirm),
+		timer:    NewTimer(cfg.TimeLimit),
+		throttle: movement.NewThrottle(cfg.Speed),
+		confirm:  NewConfirmation(cfg.Confirm),
 	}
 }
 
@@ -78,7 +78,7 @@ func (g *Game) Targets() []*Target { return g.targets }
 func (g *Game) Speed() float64 { return g.throttle.Speed() }
 
 // Throttle returns the game's throttle.
-func (g *Game) Throttle() *movement.Throttle { return &g.throttle }
+func (g *Game) Throttle() *movement.Throttle { return g.throttle }
 
 // TimeLimit returns the configured time limit in seconds (0 = unlimited).
 func (g *Game) TimeLimit() int { return g.timer.LimitSeconds() }
