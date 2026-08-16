@@ -7,15 +7,7 @@ import (
 )
 
 func validateSearchPatterns(patterns []string) error {
-	if len(patterns) == 0 {
-		return process.ErrNoPatterns
-	}
-	for _, p := range patterns {
-		if err := process.Validate(p); err != nil {
-			return err
-		}
-	}
-	return nil
+	return process.Validate(patterns)
 }
 
 func validateProcessName(expected, actual string) error {

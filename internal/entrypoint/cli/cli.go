@@ -81,10 +81,8 @@ func (c *CLI) play(cmd *cobra.Command, args []string) error {
 }
 
 func validate(patterns []string, speed float64, timeLimit int) error {
-	for _, p := range patterns {
-		if err := process.Validate(p); err != nil {
-			return err
-		}
+	if err := process.Validate(patterns); err != nil {
+		return err
 	}
 
 	if speed < movement.MinSpeed || speed > movement.MaxSpeed {

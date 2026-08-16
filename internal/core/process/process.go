@@ -53,14 +53,31 @@ func Find(processes []Info, patterns []string, ownPid int) []Info {
 	return result
 }
 
-// Validate returns an error if pattern violates the length constraints.
-// Length is measured in bytes; process names are expected to be ASCII.
-func Validate(pattern string) error {
-	if len(pattern) < MinPatternLength {
-		return fmt.Errorf("search pattern %q must be at least %d characters", pattern, MinPatternLength)
+// Validate returns an error if patterns is empty or any pattern violates the length constraints.
+func Validate(patterns []string) error {
+	if err := validatePatterns(patterns); err != nil {
+		return err
 	}
-	if len(pattern) > MaxPatternLength {
-		return fmt.Errorf("search pattern %q exceeds maximum length of %d characters", pattern, MaxPatternLength)
+	return validatePatternLength(patterns)
+}
+
+func validatePatterns(patterns []string) error {
+	if len(patterns) == 0 {
+		return ErrNoPatterns
+	}
+	return nil
+}
+
+// validatePatternLength checks each pattern against the length constraints.
+// Length is measured in bytes; process names are expected to be ASCII.
+func validatePatternLength(patterns []string) error {
+	for _, p := range patterns {
+		if len(p) < MinPatternLength {
+			return fmt.Errorf("search pattern %q must be at least %d characters", p, MinPatternLength)
+		}
+		if len(p) > MaxPatternLength {
+			return fmt.Errorf("search pattern %q exceeds maximum length of %d characters", p, MaxPatternLength)
+		}
 	}
 	return nil
 }
