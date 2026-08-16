@@ -14,7 +14,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/handler"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
-	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
 const frameDuration = time.Second / 20
@@ -22,7 +21,7 @@ const frameDuration = time.Second / 20
 // GameService implements inbound.GamePlay by orchestrating core domain objects and outbound ports.
 type GameService struct {
 	process  outbound.Process
-	store    outbound.ScoreStore
+	scores   *ScoreService
 	renderer outbound.Renderer
 	events   outbound.InputSource
 	kills    chan *game.Target
@@ -37,7 +36,7 @@ func NewGameService(
 ) *GameService {
 	return &GameService{
 		process:  process,
-		store:    store,
+		scores:   NewScoreService(store),
 		renderer: renderer,
 		events:   events,
 	}
@@ -54,10 +53,9 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 		return nil
 	}
 
-	board, success := s.loadScoreBoard()
+	board, tracker, success := s.scores.loadScoreBoard()
 
 	g := s.newGame(cfg, processes)
-	tracker := &score.Tracker{HighScore: board.HighScore()}
 
 	endTime, err := s.runLoop(g, tracker)
 	if err != nil {
@@ -66,9 +64,9 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 
 	duration := endTime.Sub(g.StartTime()).Seconds()
 
-	s.recordScore(cfg, board, tracker.Kills, tracker.FreedMem, duration, success)
+	s.scores.recordScore(board, tracker, cfg.Speed, cfg.TimeLimit, duration, success)
 
-	s.printResults(tracker.Kills, tracker.FreedMem, duration, board)
+	printResults(tracker, duration, board)
 
 	return nil
 }
@@ -92,38 +90,6 @@ func (s *GameService) findProcesses(patterns []string) ([]process.Info, error) {
 	fmt.Printf("Found %d process(es) matching %v. Starting game...\n", len(matches), patterns)
 
 	return matches, nil
-}
-
-func (s *GameService) loadScoreBoard() (*score.Board, bool) {
-	sb, err := s.store.Load()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not load scores: %v\n", err)
-		return &score.Board{}, false
-	}
-	return toBoard(sb), true
-}
-
-func (s *GameService) recordScore(cfg inbound.GamePlayConfig, board *score.Board, kills int, freedMem int64, duration float64, persist bool) {
-	board.Add(score.Entry{
-		Kills:    kills,
-		FreedMem: freedMem,
-		Speed:    cfg.Speed,
-		Time:     cfg.TimeLimit,
-		Duration: duration,
-		Date:     time.Now(),
-	})
-
-	if persist {
-		if err := s.store.Save(toScoreBoard(board)); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: score not saved: %v\n", err)
-		}
-	}
-}
-
-func (s *GameService) printResults(kills int, freedMem int64, duration float64, board *score.Board) {
-	fmt.Printf("\n  Game Over! Kills: %d | Freed: %s | Time: %.1fs\n",
-		kills, util.FormatBytes(freedMem), duration)
-	board.PrintScores(kills)
 }
 
 func (s *GameService) newGame(cfg inbound.GamePlayConfig, processes []process.Info) *game.Game {

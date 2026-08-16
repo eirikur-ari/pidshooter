@@ -15,6 +15,13 @@ type Board struct {
 
 const maxScores = 10
 
+// NewBoard builds a Board from persisted entries and mints a Tracker seeded
+// with the board's current high score, ready for a new live session.
+func NewBoard(entries []Entry) (*Board, *Tracker) {
+	b := &Board{Scores: entries}
+	return b, &Tracker{HighScore: b.HighScore()}
+}
+
 // Add inserts a new score entry and keeps only the top N.
 func (b *Board) Add(entry Entry) {
 	b.highScore = b.HighScore()
@@ -33,10 +40,11 @@ func (b *Board) HighScore() int {
 	return b.Scores[0].Kills
 }
 
-// PrintScores prints a trophy message if kills beats the high score recorded
-// at the time of the last Add call, then displays the high score table.
-func (b *Board) PrintScores(kills int) {
-	if kills > 0 && kills >= b.highScore {
+// PrintScores prints a trophy message if the tracker's kills beat the high
+// score recorded at the time of the last Add call, then displays the high
+// score table.
+func (b *Board) PrintScores(tracker *Tracker) {
+	if tracker.Kills > 0 && tracker.Kills >= b.highScore {
 		fmt.Println("  🏆 New high score!")
 	}
 

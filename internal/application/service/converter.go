@@ -18,10 +18,10 @@ func toProcessInfos(ps []outbound.ProcessInfo) []process.Info {
 	return out
 }
 
-func toBoard(sb outbound.ScoreBoard) *score.Board {
-	board := &score.Board{Scores: make([]score.Entry, len(sb.Scores))}
+func toBoard(sb outbound.ScoreBoard) (*score.Board, *score.Tracker) {
+	entries := make([]score.Entry, len(sb.Scores))
 	for i, e := range sb.Scores {
-		board.Scores[i] = score.Entry{
+		entries[i] = score.Entry{
 			Kills:    e.Kills,
 			FreedMem: e.FreedMem,
 			Speed:    e.Speed,
@@ -30,7 +30,7 @@ func toBoard(sb outbound.ScoreBoard) *score.Board {
 			Date:     e.Date,
 		}
 	}
-	return board
+	return score.NewBoard(entries)
 }
 
 func toScoreBoard(b *score.Board) outbound.ScoreBoard {

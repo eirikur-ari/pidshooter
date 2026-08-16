@@ -52,16 +52,18 @@ func TestToBoardMapsFields(t *testing.T) {
 		{Kills: 5, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
 	}}
 
-	b := toBoard(sb)
+	b, tracker := toBoard(sb)
 
 	require.Len(t, b.Scores, 1)
 	assert.Equal(t, score.Entry{Kills: 5, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}, b.Scores[0])
+	assert.Equal(t, 5, tracker.HighScore)
 }
 
 func TestToBoardEmptyInput(t *testing.T) {
-	b := toBoard(outbound.ScoreBoard{})
+	b, tracker := toBoard(outbound.ScoreBoard{})
 
 	assert.Empty(t, b.Scores)
+	assert.Equal(t, 0, tracker.HighScore)
 }
 
 // --- toScoreBoard ---
