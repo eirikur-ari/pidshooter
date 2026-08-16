@@ -2,24 +2,14 @@ package handler
 
 import "github.com/eirikur-ari/pidshooter/internal/core/game"
 
-// InputHandler is the domain gateway for player intent-level input actions.
+// Handler is the domain gateway for player intent-level input actions.
 // The application layer maps raw input events to these calls.
-type InputHandler interface {
-	OnQuit()
-	OnYes() *game.Target
-	OnNo()
-	OnSpeedUp()
-	OnSpeedDown()
-	OnClickAt(x, y int) *game.Target
-}
-
-// Handler implements InputHandler for a running Game.
 type Handler struct {
 	g *game.Game
 }
 
-// NewHandler returns an InputHandler backed by the given game.
-func NewHandler(g *game.Game) InputHandler {
+// NewHandler returns a Handler backed by the given game.
+func NewHandler(g *game.Game) *Handler {
 	return &Handler{g: g}
 }
 

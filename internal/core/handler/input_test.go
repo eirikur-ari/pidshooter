@@ -12,7 +12,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-func newHandler(g *game.Game) handler.InputHandler {
+func newHandler(g *game.Game) *handler.Handler {
 	return handler.NewHandler(g)
 }
 

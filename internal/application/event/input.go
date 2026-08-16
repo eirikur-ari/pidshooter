@@ -8,11 +8,11 @@ import (
 
 // Dispatcher translates raw input events into intent-level domain calls.
 type Dispatcher struct {
-	h handler.InputHandler
+	h *handler.Handler
 }
 
-// NewDispatcher returns a Dispatcher that dispatches to the given InputHandler.
-func NewDispatcher(h handler.InputHandler) *Dispatcher {
+// NewDispatcher returns a Dispatcher that dispatches to the given Handler.
+func NewDispatcher(h *handler.Handler) *Dispatcher {
 	return &Dispatcher{h: h}
 }
 
