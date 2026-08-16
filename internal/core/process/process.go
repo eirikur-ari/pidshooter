@@ -26,14 +26,14 @@ type Info struct {
 	Rss  int64
 }
 
-// IsProtected reports whether this process must never be targeted —
-// any PID <= 1 (init, PID 0, or a negative PID), all of which are unsafe to kill.
-func (i Info) IsProtected() bool { return i.Pid <= 1 }
-
 // NewInfo constructs an Info snapshot.
 func NewInfo(pid int, name string, rss int64) Info {
 	return Info{Pid: pid, Name: name, Rss: rss}
 }
+
+// IsProtected reports whether this process must never be targeted —
+// any PID <= 1 (init, PID 0, or a negative PID), all of which are unsafe to kill.
+func (i Info) IsProtected() bool { return i.Pid <= 1 }
 
 // Find returns the subset of processes whose name matches any pattern
 // (case-insensitive substring match), excluding ownPid and protected PIDs.
