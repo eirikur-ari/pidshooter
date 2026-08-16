@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestStats_RecordKill(t *testing.T) {
+func TestStatsRecordKill(t *testing.T) {
 	s := Stats{}
 
 	s.RecordKill(1024)
@@ -18,7 +18,7 @@ func TestStats_RecordKill(t *testing.T) {
 	assert.Equal(t, int64(3072), s.FreedMem())
 }
 
-func TestStats_RecordKill_UpdatesHighScore(t *testing.T) {
+func TestStatsRecordKillUpdatesHighScore(t *testing.T) {
 	s := Stats{}
 	s.SetHighScore(5)
 
@@ -34,13 +34,13 @@ func TestStats_RecordKill_UpdatesHighScore(t *testing.T) {
 	assert.Equal(t, 7, s.HighScore(), "expected highScore=7 after second beat")
 }
 
-func TestStats_SetHighScore(t *testing.T) {
+func TestStatsSetHighScore(t *testing.T) {
 	s := Stats{}
 	s.SetHighScore(100)
 	assert.Equal(t, 100, s.HighScore())
 }
 
-func TestStats_HighScore(t *testing.T) {
+func TestStatsHighScore(t *testing.T) {
 	s := Stats{}
 	assert.Equal(t, 0, s.HighScore())
 	s.SetHighScore(42)

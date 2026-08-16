@@ -12,7 +12,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-func TestNewTarget_WithinBounds(t *testing.T) {
+func TestNewTargetWithinBounds(t *testing.T) {
 	maxX, maxY := 80, 24
 	e := NewTarget(process.NewInfo(1234, "test", 1024), movement.NewBounds(maxX, maxY))
 
@@ -31,27 +31,27 @@ func TestNewTarget_WithinBounds(t *testing.T) {
 	assert.LessOrEqual(t, int(e.Position.Y), spawnMaxY)
 }
 
-func TestNewTarget_SmallTerminal(t *testing.T) {
+func TestNewTargetSmallTerminal(t *testing.T) {
 	e := NewTarget(process.NewInfo(1, "xxx", 0), movement.NewBounds(5, 5))
 	require.NotNil(t, e)
 }
 
-func TestTarget_Tag_Alive(t *testing.T) {
+func TestTargetTagAlive(t *testing.T) {
 	e := &Target{Info: process.NewInfo(42, "bash", 0), State: Alive}
 	assert.Equal(t, "[42 bash]", e.Tag())
 }
 
-func TestTarget_Tag_Dead(t *testing.T) {
+func TestTargetTagDead(t *testing.T) {
 	e := &Target{Info: process.NewInfo(42, "bash", 0), State: Dead}
 	assert.Equal(t, "", e.Tag())
 }
 
-func TestTarget_Tag_Killing(t *testing.T) {
+func TestTargetTagKilling(t *testing.T) {
 	e := &Target{Info: process.NewInfo(42, "bash", 0), State: Killing, KillAnimationTick: 0}
 	assert.NotEmpty(t, e.Tag())
 }
 
-func TestTarget_Update_KillingState(t *testing.T) {
+func TestTargetUpdateKillingState(t *testing.T) {
 	e := &Target{
 		Info:              process.NewInfo(1, "xxx", 0),
 		State:             Killing,
@@ -61,7 +61,7 @@ func TestTarget_Update_KillingState(t *testing.T) {
 	assert.Equal(t, Dead, e.State)
 }
 
-func TestTarget_Update_DeadNoOp(t *testing.T) {
+func TestTargetUpdateDeadNoOp(t *testing.T) {
 	e := &Target{
 		Info:   process.NewInfo(1, "xxx", 0),
 		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 10}, Velocity: movement.Vector{X: 1.0, Y: 1.0}},
@@ -72,7 +72,7 @@ func TestTarget_Update_DeadNoOp(t *testing.T) {
 	assert.Equal(t, 10.0, e.Position.Y, "dead entity should not move")
 }
 
-func TestTarget_Update_BounceLeft(t *testing.T) {
+func TestTargetUpdateBounceLeft(t *testing.T) {
 	e := &Target{
 		Info:   process.NewInfo(1, "x", 0),
 		Motion: movement.Motion{Position: movement.Vector{X: 0, Y: 5}, Velocity: movement.Vector{X: -1.0, Y: 0}},
@@ -83,7 +83,7 @@ func TestTarget_Update_BounceLeft(t *testing.T) {
 	assert.Greater(t, e.Velocity.X, 0.0, "Velocity.X should be positive after left bounce")
 }
 
-func TestTarget_Update_BounceRight(t *testing.T) {
+func TestTargetUpdateBounceRight(t *testing.T) {
 	// tag "[1 x]" = 5 chars → rightBound = 80-5 = 75
 	e := &Target{
 		Info:   process.NewInfo(1, "x", 0),
@@ -96,7 +96,7 @@ func TestTarget_Update_BounceRight(t *testing.T) {
 	assert.Less(t, e.Velocity.X, 0.0, "Velocity.X should be negative after right bounce")
 }
 
-func TestTarget_Update_BounceTop(t *testing.T) {
+func TestTargetUpdateBounceTop(t *testing.T) {
 	e := &Target{
 		Info:   process.NewInfo(1, "x", 0),
 		Motion: movement.Motion{Position: movement.Vector{X: 5, Y: 0}, Velocity: movement.Vector{X: 0, Y: -1.0}},
@@ -107,7 +107,7 @@ func TestTarget_Update_BounceTop(t *testing.T) {
 	assert.Greater(t, e.Velocity.Y, 0.0, "Velocity.Y should be positive after top bounce")
 }
 
-func TestTarget_Update_BounceBottom(t *testing.T) {
+func TestTargetUpdateBounceBottom(t *testing.T) {
 	e := &Target{
 		Info:   process.NewInfo(1, "x", 0),
 		Motion: movement.Motion{Position: movement.Vector{X: 5, Y: 23}, Velocity: movement.Vector{X: 0, Y: 2.0}},
@@ -119,7 +119,7 @@ func TestTarget_Update_BounceBottom(t *testing.T) {
 	assert.Less(t, e.Velocity.Y, 0.0, "Velocity.Y should be negative after bottom bounce")
 }
 
-func TestTarget_Update_SpeedMultiplier(t *testing.T) {
+func TestTargetUpdateSpeedMultiplier(t *testing.T) {
 	// tag "[1 x]" = 5 chars; at (40,10) with speed=3 there is no wall bounce.
 	e := &Target{
 		Info:   process.NewInfo(1, "x", 0),
@@ -131,7 +131,7 @@ func TestTarget_Update_SpeedMultiplier(t *testing.T) {
 	assert.Equal(t, 11.5, e.Position.Y)
 }
 
-func TestTarget_Update_MultiByteRightWall(t *testing.T) {
+func TestTargetUpdateMultiByteRightWall(t *testing.T) {
 	// "[42 café]" is 9 runes but 10 UTF-8 bytes.
 	// With the byte-count bug, rightBound = maxX - 10 = 70.
 	// With the fix, rightBound = maxX - 9 = 71.
@@ -149,7 +149,7 @@ func TestTarget_Update_MultiByteRightWall(t *testing.T) {
 		e.Position.X, e.Velocity.X)
 }
 
-func TestTarget_Contains(t *testing.T) {
+func TestTargetContains(t *testing.T) {
 	e := &Target{
 		Info:   process.NewInfo(42, "bash", 0),
 		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
@@ -165,7 +165,7 @@ func TestTarget_Contains(t *testing.T) {
 	assert.False(t, e.IsHitAt(10, 4))
 }
 
-func TestTarget_Contains_MultiByteProcessName(t *testing.T) {
+func TestTargetContainsMultiByteProcessName(t *testing.T) {
 	// "café" is 5 UTF-8 bytes but 4 runes → tag "[42 café]" is 10 bytes, 9 runes.
 	// With the byte-count bug, IsHitAt over-counts by 1 and accepts column 19 as a hit.
 	e := &Target{
@@ -181,7 +181,7 @@ func TestTarget_Contains_MultiByteProcessName(t *testing.T) {
 		pastEnd, tag, runeCount)
 }
 
-func TestTarget_Contains_NotAlive(t *testing.T) {
+func TestTargetContainsNotAlive(t *testing.T) {
 	e := &Target{
 		Info:   process.NewInfo(42, "bash", 0),
 		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
@@ -190,38 +190,38 @@ func TestTarget_Contains_NotAlive(t *testing.T) {
 	assert.False(t, e.IsHitAt(10, 5), "non-alive entity should not be hit")
 }
 
-func TestTarget_IsAlive(t *testing.T) {
+func TestTargetIsAlive(t *testing.T) {
 	assert.True(t, (&Target{State: Alive}).IsAlive())
 	assert.False(t, (&Target{State: Killing}).IsAlive())
 	assert.False(t, (&Target{State: Dead}).IsAlive())
 }
 
-func TestTarget_IsKilling(t *testing.T) {
+func TestTargetIsKilling(t *testing.T) {
 	assert.True(t, (&Target{State: Killing}).IsKilling())
 	assert.False(t, (&Target{State: Alive}).IsKilling())
 	assert.False(t, (&Target{State: Dead}).IsKilling())
 }
 
-func TestTarget_IsDead(t *testing.T) {
+func TestTargetIsDead(t *testing.T) {
 	assert.True(t, (&Target{State: Dead}).IsDead())
 	assert.False(t, (&Target{State: Alive}).IsDead())
 	assert.False(t, (&Target{State: Killing}).IsDead())
 }
 
-func TestTarget_Kill(t *testing.T) {
+func TestTargetKill(t *testing.T) {
 	e := &Target{Info: process.NewInfo(1, "xxx", 0), State: Alive, KillAnimationTick: 5}
 	assert.True(t, e.Kill())
 	assert.Equal(t, Killing, e.State)
 	assert.Equal(t, 0, e.KillAnimationTick)
 }
 
-func TestTarget_Kill_NoOpWhenNotAlive(t *testing.T) {
+func TestTargetKillNoOpWhenNotAlive(t *testing.T) {
 	e := &Target{Info: process.NewInfo(1, "xxx", 0), State: Dead}
 	assert.False(t, e.Kill())
 	assert.Equal(t, Dead, e.State)
 }
 
-func TestTarget_Snapshot_AliveTarget(t *testing.T) {
+func TestTargetSnapshotAliveTarget(t *testing.T) {
 	e := &Target{
 		Info:   process.NewInfo(1, "x", 0),
 		Motion: movement.Motion{Position: movement.Vector{X: 10.6, Y: 5.4}, Velocity: movement.Vector{X: 0, Y: 0}},
@@ -236,7 +236,7 @@ func TestTarget_Snapshot_AliveTarget(t *testing.T) {
 	assert.False(t, s.Killing)
 }
 
-func TestTarget_Snapshot_KillingTarget(t *testing.T) {
+func TestTargetSnapshotKillingTarget(t *testing.T) {
 	e := &Target{
 		Info:              process.NewInfo(1, "x", 0),
 		Motion:            movement.Motion{Position: movement.Vector{X: 3.0, Y: 7.0}, Velocity: movement.Vector{X: 0, Y: 0}},

@@ -8,12 +8,12 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-func TestConfirmation_Pending_FalseWhenEmpty(t *testing.T) {
+func TestConfirmationPendingFalseWhenEmpty(t *testing.T) {
 	c := NewConfirmation(true)
 	assert.False(t, c.Pending())
 }
 
-func TestConfirmation_Request_ConfirmMode_HoldsTarget(t *testing.T) {
+func TestConfirmationRequestConfirmModeHoldsTarget(t *testing.T) {
 	c := NewConfirmation(true)
 	tgt := &Target{Info: process.NewInfo(1, "x", 0)}
 	result := c.Request(tgt)
@@ -21,7 +21,7 @@ func TestConfirmation_Request_ConfirmMode_HoldsTarget(t *testing.T) {
 	assert.True(t, c.Pending())
 }
 
-func TestConfirmation_Request_PassthroughMode_ReturnsTarget(t *testing.T) {
+func TestConfirmationRequestPassthroughModeReturnsTarget(t *testing.T) {
 	c := NewConfirmation(false)
 	tgt := &Target{Info: process.NewInfo(1, "x", 0)}
 	result := c.Request(tgt)
@@ -29,7 +29,7 @@ func TestConfirmation_Request_PassthroughMode_ReturnsTarget(t *testing.T) {
 	assert.False(t, c.Pending())
 }
 
-func TestConfirmation_Accept_ReturnsAndClearsTarget(t *testing.T) {
+func TestConfirmationAcceptReturnsAndClearsTarget(t *testing.T) {
 	tgt := &Target{Info: process.NewInfo(1, "x", 0)}
 	c := Confirmation{target: tgt}
 	result := c.Accept()
@@ -37,7 +37,7 @@ func TestConfirmation_Accept_ReturnsAndClearsTarget(t *testing.T) {
 	assert.False(t, c.Pending())
 }
 
-func TestConfirmation_Cancel_ClearsPending(t *testing.T) {
+func TestConfirmationCancelClearsPending(t *testing.T) {
 	tgt := &Target{Info: process.NewInfo(1, "x", 0)}
 	c := Confirmation{target: tgt}
 	c.Cancel()

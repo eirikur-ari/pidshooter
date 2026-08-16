@@ -16,11 +16,11 @@ import (
 
 // --- toConfirmViewState ---
 
-func TestToConfirmViewState_NilInput(t *testing.T) {
+func TestToConfirmViewStateNilInput(t *testing.T) {
 	assert.Nil(t, toConfirmViewState(nil))
 }
 
-func TestToConfirmViewState_MapsFields(t *testing.T) {
+func TestToConfirmViewStateMapsFields(t *testing.T) {
 	tgt := game.NewTarget(process.NewInfo(42, "suspect", 0), movement.NewBounds(80, 24))
 	vs := toConfirmViewState(tgt)
 	require.NotNil(t, vs)
@@ -30,7 +30,7 @@ func TestToConfirmViewState_MapsFields(t *testing.T) {
 
 // --- buildFrame ---
 
-func TestBuildFrame_AliveTargetIncluded(t *testing.T) {
+func TestBuildFrameAliveTargetIncluded(t *testing.T) {
 	g := game.New([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
 	g.Start(80, 24)
 
@@ -40,7 +40,7 @@ func TestBuildFrame_AliveTargetIncluded(t *testing.T) {
 	assert.False(t, f.Targets[0].Killing)
 }
 
-func TestBuildFrame_KillingTargetMarked(t *testing.T) {
+func TestBuildFrameKillingTargetMarked(t *testing.T) {
 	g := game.New([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
 	g.Start(80, 24)
 	g.Kill(g.Targets()[0])
@@ -51,7 +51,7 @@ func TestBuildFrame_KillingTargetMarked(t *testing.T) {
 	assert.True(t, f.Targets[0].Killing)
 }
 
-func TestBuildFrame_DeadTargetExcluded(t *testing.T) {
+func TestBuildFrameDeadTargetExcluded(t *testing.T) {
 	g := game.New([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
 	g.Start(80, 24)
 	g.Kill(g.Targets()[0])
@@ -64,7 +64,7 @@ func TestBuildFrame_DeadTargetExcluded(t *testing.T) {
 	assert.Empty(t, f.Targets)
 }
 
-func TestBuildFrame_HUDReflectsStats(t *testing.T) {
+func TestBuildFrameHUDReflectsStats(t *testing.T) {
 	g := game.New([]process.Info{process.NewInfo(1, "a", 4096)}, game.Config{Speed: 1.0})
 	g.Start(80, 24)
 	g.Kill(g.Targets()[0])
@@ -75,7 +75,7 @@ func TestBuildFrame_HUDReflectsStats(t *testing.T) {
 	assert.Equal(t, int64(4096), f.HUD.FreedMem)
 }
 
-func TestBuildFrame_StatusBarAliveCount(t *testing.T) {
+func TestBuildFrameStatusBarAliveCount(t *testing.T) {
 	processes := []process.Info{
 		process.NewInfo(1, "a", 0),
 		process.NewInfo(2, "b", 0),
@@ -89,7 +89,7 @@ func TestBuildFrame_StatusBarAliveCount(t *testing.T) {
 	assert.Equal(t, 1, f.StatusBar.Alive)
 }
 
-func TestBuildFrame_NoConfirmPending(t *testing.T) {
+func TestBuildFrameNoConfirmPending(t *testing.T) {
 	g := game.New(nil, game.Config{Speed: 1.0})
 	g.Start(80, 24)
 
@@ -98,7 +98,7 @@ func TestBuildFrame_NoConfirmPending(t *testing.T) {
 	assert.Nil(t, f.StatusBar.Confirming)
 }
 
-func TestGameService_FinderError(t *testing.T) {
+func TestGameServiceFinderError(t *testing.T) {
 	svc := NewGameService(
 		&fake.Process{ListErr: errors.New("ps failed")},
 		&fake.Store{},
@@ -109,7 +109,7 @@ func TestGameService_FinderError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestGameService_ApplyKills_CompletesPendingKill(t *testing.T) {
+func TestGameServiceApplyKillsCompletesPendingKill(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096)
 	svc := NewGameService(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	svc.kills = make(chan *game.Target, 1)
@@ -125,7 +125,7 @@ func TestGameService_ApplyKills_CompletesPendingKill(t *testing.T) {
 	assert.Equal(t, 1, g.Kills())
 }
 
-func TestGameService_ApplyKills_EmptyChannelNoOps(t *testing.T) {
+func TestGameServiceApplyKillsEmptyChannelNoOps(t *testing.T) {
 	svc := NewGameService(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	svc.kills = make(chan *game.Target, 1)
 
@@ -138,7 +138,7 @@ func TestGameService_ApplyKills_EmptyChannelNoOps(t *testing.T) {
 
 // --- kill ---
 
-func TestGameService_Kill_ProtectedPID_ReturnsError(t *testing.T) {
+func TestGameServiceKillProtectedPIDReturnsError(t *testing.T) {
 	fp := &fake.Process{}
 	svc := NewGameService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	target := game.NewTarget(process.NewInfo(1, "init", 0), movement.NewBounds(80, 24))
@@ -150,7 +150,7 @@ func TestGameService_Kill_ProtectedPID_ReturnsError(t *testing.T) {
 	assert.Empty(t, fp.KilledPIDs)
 }
 
-func TestGameService_Kill_LookupError_ReturnsError(t *testing.T) {
+func TestGameServiceKillLookupErrorReturnsError(t *testing.T) {
 	fp := &fake.Process{LookupNameErr: errors.New("ps lookup failed")}
 	svc := NewGameService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	target := game.NewTarget(process.NewInfo(100, "target", 0), movement.NewBounds(80, 24))
@@ -162,7 +162,7 @@ func TestGameService_Kill_LookupError_ReturnsError(t *testing.T) {
 	assert.Empty(t, fp.KilledPIDs)
 }
 
-func TestGameService_Kill_NameMismatch_SkipsKillWithoutError(t *testing.T) {
+func TestGameServiceKillNameMismatchSkipsKillWithoutError(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "somethingElse"}
 	svc := NewGameService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	target := game.NewTarget(process.NewInfo(100, "target", 0), movement.NewBounds(80, 24))
@@ -174,7 +174,7 @@ func TestGameService_Kill_NameMismatch_SkipsKillWithoutError(t *testing.T) {
 	assert.Empty(t, fp.KilledPIDs)
 }
 
-func TestGameService_Kill_NameMatch_InvokesKill(t *testing.T) {
+func TestGameServiceKillNameMatchInvokesKill(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "target"}
 	svc := NewGameService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	target := game.NewTarget(process.NewInfo(100, "target", 0), movement.NewBounds(80, 24))
@@ -186,7 +186,7 @@ func TestGameService_Kill_NameMatch_InvokesKill(t *testing.T) {
 	assert.Equal(t, []int{100}, fp.KilledPIDs)
 }
 
-func TestGameService_NoProcesses(t *testing.T) {
+func TestGameServiceNoProcesses(t *testing.T) {
 	svc := NewGameService(
 		&fake.Process{},
 		&fake.Store{},

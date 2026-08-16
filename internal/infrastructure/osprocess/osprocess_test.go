@@ -16,18 +16,18 @@ func newTestProcess(t *testing.T) *Process {
 	return &Process{psPath: path}
 }
 
-func TestList_ReturnsResults(t *testing.T) {
+func TestListReturnsResults(t *testing.T) {
 	processes, err := newTestProcess(t).List()
 	require.NoError(t, err)
 	assert.NotEmpty(t, processes)
 }
 
-func TestOwnPid_MatchesOSGetpid(t *testing.T) {
+func TestOwnPidMatchesOSGetpid(t *testing.T) {
 	p := newTestProcess(t)
 	assert.Equal(t, os.Getpid(), p.OwnPid())
 }
 
-func TestLookupName_ReturnsOwnName(t *testing.T) {
+func TestLookupNameReturnsOwnName(t *testing.T) {
 	p := newTestProcess(t)
 	name, err := p.LookupName(os.Getpid())
 	require.NoError(t, err)
@@ -40,7 +40,7 @@ func TestLookupName_ReturnsOwnName(t *testing.T) {
 // Kill against pid 0/1/-1/self here would send a real SIGKILL to the
 // process group, init, or the test binary itself, so this only checks the
 // one safe, deterministic case: a PID that doesn't exist.
-func TestKiller_NonexistentPID(t *testing.T) {
+func TestKillerNonexistentPID(t *testing.T) {
 	_, err := newTestProcess(t).Kill(999999)
 	assert.Error(t, err)
 }

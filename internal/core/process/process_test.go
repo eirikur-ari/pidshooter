@@ -8,48 +8,48 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestValidate_NoPatterns(t *testing.T) {
+func TestValidateNoPatterns(t *testing.T) {
 	require.ErrorIs(t, Validate(nil), ErrNoPatterns)
 	require.ErrorIs(t, Validate([]string{}), ErrNoPatterns)
 }
 
-func TestValidate_TooShort(t *testing.T) {
+func TestValidateTooShort(t *testing.T) {
 	for _, p := range []string{"", "a", "ab"} {
 		assert.Error(t, Validate([]string{p}), "expected error for pattern %q shorter than MinPatternLength", p)
 	}
 }
 
-func TestValidate_ExactMinLength(t *testing.T) {
+func TestValidateExactMinLength(t *testing.T) {
 	p := strings.Repeat("a", MinPatternLength)
 	assert.NoError(t, Validate([]string{p}), "expected no error for min-length pattern")
 }
 
-func TestValidate_Valid(t *testing.T) {
+func TestValidateValid(t *testing.T) {
 	assert.NoError(t, Validate([]string{"firefox"}))
 }
 
-func TestValidate_ExactMaxLength(t *testing.T) {
+func TestValidateExactMaxLength(t *testing.T) {
 	p := strings.Repeat("a", MaxPatternLength)
 	assert.NoError(t, Validate([]string{p}), "expected no error for max-length pattern")
 }
 
-func TestValidate_TooLong(t *testing.T) {
+func TestValidateTooLong(t *testing.T) {
 	p := strings.Repeat("a", MaxPatternLength+1)
 	assert.Error(t, Validate([]string{p}), "expected error for pattern exceeding MaxPatternLength")
 }
 
-func TestErrNoPatterns_IsSentinel(t *testing.T) {
+func TestErrNoPatternsIsSentinel(t *testing.T) {
 	require.ErrorIs(t, ErrNoPatterns, ErrNoPatterns, "ErrNoPatterns must satisfy errors.Is against itself")
 }
 
-func TestInfo_IsProtected(t *testing.T) {
+func TestInfoIsProtected(t *testing.T) {
 	assert.True(t, NewInfo(0, "swapper", 0).IsProtected())
 	assert.True(t, NewInfo(1, "init", 0).IsProtected())
 	assert.False(t, NewInfo(2, "init", 0).IsProtected())
 	assert.False(t, NewInfo(100, "myapp", 0).IsProtected())
 }
 
-func TestFind_MatchesByName(t *testing.T) {
+func TestFindMatchesByName(t *testing.T) {
 	infos := []Info{
 		NewInfo(100, "myapp", 1024),
 		NewInfo(200, "worker", 2048),
@@ -59,19 +59,19 @@ func TestFind_MatchesByName(t *testing.T) {
 	assert.Equal(t, 100, result[0].Pid)
 }
 
-func TestFind_SubstringMatch(t *testing.T) {
+func TestFindSubstringMatch(t *testing.T) {
 	infos := []Info{NewInfo(100, "myapp-worker", 1024)}
 	result := Find(infos, []string{"app"}, 0)
 	assert.Len(t, result, 1)
 }
 
-func TestFind_CaseInsensitive(t *testing.T) {
+func TestFindCaseInsensitive(t *testing.T) {
 	infos := []Info{NewInfo(100, "MyApp", 1024)}
 	result := Find(infos, []string{"myapp"}, 0)
 	assert.Len(t, result, 1)
 }
 
-func TestFind_MultipleTerms(t *testing.T) {
+func TestFindMultipleTerms(t *testing.T) {
 	infos := []Info{
 		NewInfo(100, "myapp", 1024),
 		NewInfo(200, "worker", 2048),
@@ -81,13 +81,13 @@ func TestFind_MultipleTerms(t *testing.T) {
 	assert.Len(t, result, 2)
 }
 
-func TestFind_NoMatch(t *testing.T) {
+func TestFindNoMatch(t *testing.T) {
 	infos := []Info{NewInfo(100, "myapp", 1024)}
 	result := Find(infos, []string{"worker"}, 0)
 	assert.Empty(t, result)
 }
 
-func TestFind_ExcludesPID1(t *testing.T) {
+func TestFindExcludesPID1(t *testing.T) {
 	infos := []Info{
 		NewInfo(1, "init", 512),
 		NewInfo(100, "myapp", 1024),
@@ -98,7 +98,7 @@ func TestFind_ExcludesPID1(t *testing.T) {
 	}
 }
 
-func TestFind_ExcludesOwnPID(t *testing.T) {
+func TestFindExcludesOwnPID(t *testing.T) {
 	const ownPID = 999
 	infos := []Info{
 		NewInfo(ownPID, "testprocess", 1024),
@@ -112,7 +112,7 @@ func TestFind_ExcludesOwnPID(t *testing.T) {
 	assert.Equal(t, 100, result[0].Pid)
 }
 
-func TestFind_ExcludesPID0(t *testing.T) {
+func TestFindExcludesPID0(t *testing.T) {
 	infos := []Info{
 		NewInfo(0, "swapper", 0),
 		NewInfo(100, "myapp", 1024),

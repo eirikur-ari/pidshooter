@@ -12,14 +12,14 @@ import (
 
 // --- Entry.beats ---
 
-func TestEntry_Beats_ByKills(t *testing.T) {
+func TestEntryBeatsByKills(t *testing.T) {
 	high := Entry{Kills: 10, FreedMem: 100}
 	low := Entry{Kills: 5, FreedMem: 9000}
 	assert.True(t, high.beats(low), "expected higher kills to win regardless of freed mem")
 	assert.False(t, low.beats(high), "expected lower kills to lose")
 }
 
-func TestEntry_Beats_TiebreakByFreedMem(t *testing.T) {
+func TestEntryBeatsTiebreakByFreedMem(t *testing.T) {
 	more := Entry{Kills: 5, FreedMem: 2000}
 	less := Entry{Kills: 5, FreedMem: 1000}
 	assert.True(t, more.beats(less), "expected higher freed mem to win on kills tie")
@@ -28,7 +28,7 @@ func TestEntry_Beats_TiebreakByFreedMem(t *testing.T) {
 
 // --- Board.Add ---
 
-func TestBoard_Add_SortsDescending(t *testing.T) {
+func TestBoardAddSortsDescending(t *testing.T) {
 	b := &Board{}
 
 	b.Add(Entry{Kills: 3, FreedMem: 100, Date: time.Now()})
@@ -41,7 +41,7 @@ func TestBoard_Add_SortsDescending(t *testing.T) {
 	assert.Equal(t, 3, b.Scores[2].Kills)
 }
 
-func TestBoard_Add_TiebreakByMemory(t *testing.T) {
+func TestBoardAddTiebreakByMemory(t *testing.T) {
 	b := &Board{}
 
 	b.Add(Entry{Kills: 5, FreedMem: 100, Date: time.Now()})
@@ -50,7 +50,7 @@ func TestBoard_Add_TiebreakByMemory(t *testing.T) {
 	assert.Equal(t, int64(500), b.Scores[0].FreedMem, "expected higher memory first")
 }
 
-func TestBoard_Add_CapsAtMax(t *testing.T) {
+func TestBoardAddCapsAtMax(t *testing.T) {
 	b := &Board{}
 
 	for i := 0; i < maxScores+5; i++ {
@@ -65,12 +65,12 @@ func TestBoard_Add_CapsAtMax(t *testing.T) {
 
 // --- Board.HighScore ---
 
-func TestBoard_HighScore_Empty(t *testing.T) {
+func TestBoardHighScoreEmpty(t *testing.T) {
 	b := &Board{}
 	assert.Equal(t, 0, b.HighScore())
 }
 
-func TestBoard_HighScore_WithEntries(t *testing.T) {
+func TestBoardHighScoreWithEntries(t *testing.T) {
 	b := &Board{}
 	b.Add(Entry{Kills: 3, Date: time.Now()})
 	b.Add(Entry{Kills: 10, Date: time.Now()})
@@ -81,7 +81,7 @@ func TestBoard_HighScore_WithEntries(t *testing.T) {
 
 // --- Board.PrintHighScore ---
 
-func TestBoard_PrintHighScore_PrintsWhenBeatsRecord(t *testing.T) {
+func TestBoardPrintHighScorePrintsWhenBeatsRecord(t *testing.T) {
 	b := &Board{}
 	b.Add(Entry{Kills: 3, Date: time.Now()})
 	b.Add(Entry{Kills: 7, Date: time.Now()}) // b.highScore = 3
@@ -90,7 +90,7 @@ func TestBoard_PrintHighScore_PrintsWhenBeatsRecord(t *testing.T) {
 	assert.Contains(t, out, "New high score")
 }
 
-func TestBoard_PrintHighScore_SilentWhenDoesNotBeatRecord(t *testing.T) {
+func TestBoardPrintHighScoreSilentWhenDoesNotBeatRecord(t *testing.T) {
 	b := &Board{}
 	b.Add(Entry{Kills: 7, Date: time.Now()})
 	b.Add(Entry{Kills: 3, Date: time.Now()}) // b.highScore = 7
@@ -99,13 +99,13 @@ func TestBoard_PrintHighScore_SilentWhenDoesNotBeatRecord(t *testing.T) {
 	assert.Empty(t, out)
 }
 
-func TestBoard_PrintHighScore_SilentWhenZeroKills(t *testing.T) {
+func TestBoardPrintHighScoreSilentWhenZeroKills(t *testing.T) {
 	b := &Board{}
 	out := capture.Output(func() { b.PrintHighScore(0) })
 	assert.Empty(t, out)
 }
 
-func TestBoard_PrintHighScore_PrintsWhenTiesRecord(t *testing.T) {
+func TestBoardPrintHighScorePrintsWhenTiesRecord(t *testing.T) {
 	b := &Board{}
 	b.Add(Entry{Kills: 5, Date: time.Now()}) // b.highScore = 0 before append
 	b.Add(Entry{Kills: 3, Date: time.Now()}) // b.highScore = 5 before append
@@ -114,7 +114,7 @@ func TestBoard_PrintHighScore_PrintsWhenTiesRecord(t *testing.T) {
 	assert.Contains(t, out, "New high score", "expected trophy message when tying the high score")
 }
 
-func TestBoard_PrintHighScore_PrintsForFirstEntry(t *testing.T) {
+func TestBoardPrintHighScorePrintsForFirstEntry(t *testing.T) {
 	b := &Board{}
 	b.Add(Entry{Kills: 5, Date: time.Now()}) // b.highScore = 0
 

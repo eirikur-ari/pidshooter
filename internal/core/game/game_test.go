@@ -25,7 +25,7 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, int64(0), g.freedMem)
 }
 
-func TestStart_TransitionsToRunning(t *testing.T) {
+func TestStartTransitionsToRunning(t *testing.T) {
 	processes := []process.Info{process.NewInfo(1, "a", 100)}
 	g := New(processes, Config{})
 
@@ -35,7 +35,7 @@ func TestStart_TransitionsToRunning(t *testing.T) {
 	assert.Len(t, g.targets, 1)
 }
 
-func TestStop_TransitionsToStopped(t *testing.T) {
+func TestStopTransitionsToStopped(t *testing.T) {
 	g := New(nil, Config{})
 	g.Start(0, 0)
 
@@ -44,14 +44,14 @@ func TestStop_TransitionsToStopped(t *testing.T) {
 	assert.Equal(t, Stopped, g.State())
 }
 
-func TestStart_PanicsWhenRunning(t *testing.T) {
+func TestStartPanicsWhenRunning(t *testing.T) {
 	g := New(nil, Config{})
 	g.Start(0, 0)
 
 	assert.Panics(t, func() { g.Start(80, 24) })
 }
 
-func TestStart_PanicsWhenStopped(t *testing.T) {
+func TestStartPanicsWhenStopped(t *testing.T) {
 	g := New(nil, Config{})
 	g.Start(0, 0)
 	g.Stop()
@@ -59,50 +59,50 @@ func TestStart_PanicsWhenStopped(t *testing.T) {
 	assert.Panics(t, func() { g.Start(80, 24) })
 }
 
-func TestGame_Speed(t *testing.T) {
+func TestGameSpeed(t *testing.T) {
 	g := New(nil, Config{Speed: 2.5})
 	assert.Equal(t, 2.5, g.Speed())
 }
 
-func TestGame_TimeLimit(t *testing.T) {
+func TestGameTimeLimit(t *testing.T) {
 	g := New(nil, Config{TimeLimit: 30})
 	assert.Equal(t, 30, g.TimeLimit())
 }
 
-func TestGame_Targets_EmptyBeforeStart(t *testing.T) {
+func TestGameTargetsEmptyBeforeStart(t *testing.T) {
 	g := New([]process.Info{process.NewInfo(1, "a", 0)}, Config{})
 	assert.Empty(t, g.Targets())
 }
 
-func TestGame_Targets_PopulatedAfterStart(t *testing.T) {
+func TestGameTargetsPopulatedAfterStart(t *testing.T) {
 	g := New([]process.Info{process.NewInfo(1, "a", 0)}, Config{})
 	g.Start(80, 24)
 	assert.Len(t, g.Targets(), 1)
 }
 
-func TestGame_ConfirmTarget_NilWhenNoPending(t *testing.T) {
+func TestGameConfirmTargetNilWhenNoPending(t *testing.T) {
 	g := New(nil, Config{})
 	assert.Nil(t, g.ConfirmTarget())
 }
 
-func TestGame_ConfirmTarget_ReturnsPendingTarget(t *testing.T) {
+func TestGameConfirmTargetReturnsPendingTarget(t *testing.T) {
 	tgt := &Target{Info: process.NewInfo(42, "suspect", 0)}
 	g := &Game{confirm: Confirmation{target: tgt, confirm: true}}
 	assert.Equal(t, tgt, g.ConfirmTarget())
 }
 
-func TestGame_Confirm_PendingFalseInitially(t *testing.T) {
+func TestGameConfirmPendingFalseInitially(t *testing.T) {
 	g := New(nil, Config{})
 	assert.False(t, g.Confirm().Pending())
 }
 
-func TestGame_Throttle_MutationAffectsSpeed(t *testing.T) {
+func TestGameThrottleMutationAffectsSpeed(t *testing.T) {
 	g := New(nil, Config{Speed: 2.0})
 	g.Throttle().Increase()
 	assert.Equal(t, 2.5, g.Speed())
 }
 
-func TestGame_Snapshot_ExcludesDeadTargets(t *testing.T) {
+func TestGameSnapshotExcludesDeadTargets(t *testing.T) {
 	g := New([]process.Info{process.NewInfo(1, "a", 0)}, Config{Speed: 1.0})
 	g.Start(80, 24)
 	g.Kill(g.targets[0])
@@ -116,7 +116,7 @@ func TestGame_Snapshot_ExcludesDeadTargets(t *testing.T) {
 	assert.Equal(t, 0, snap.Alive)
 }
 
-func TestGame_Snapshot_CountsAlive(t *testing.T) {
+func TestGameSnapshotCountsAlive(t *testing.T) {
 	processes := []process.Info{
 		process.NewInfo(1, "a", 0),
 		process.NewInfo(2, "b", 0),

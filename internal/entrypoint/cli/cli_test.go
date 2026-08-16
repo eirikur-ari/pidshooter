@@ -33,11 +33,11 @@ func newSilentCLI(svc inbound.GamePlay) *CLI {
 	return c
 }
 
-func TestRun_NoArgs_PrintsUsageAndReturnsNil(t *testing.T) {
+func TestRunNoArgsPrintsUsageAndReturnsNil(t *testing.T) {
 	assert.NoError(t, newSilentCLI(&stubService{}).Run([]string{}))
 }
 
-func TestRun_HelpFlag_PrintsUsageAndReturnsNil(t *testing.T) {
+func TestRunHelpFlagPrintsUsageAndReturnsNil(t *testing.T) {
 	for _, flag := range []string{"--help", "-h"} {
 		t.Run(flag, func(t *testing.T) {
 			assert.NoError(t, newSilentCLI(&stubService{}).Run([]string{flag}))
@@ -45,7 +45,7 @@ func TestRun_HelpFlag_PrintsUsageAndReturnsNil(t *testing.T) {
 	}
 }
 
-func TestRun_BasicPattern(t *testing.T) {
+func TestRunBasicPattern(t *testing.T) {
 	svc := &captureService{}
 	require.NoError(t, newSilentCLI(svc).Run([]string{"firefox"}))
 	require.Len(t, svc.cfg.Patterns, 1)
@@ -55,7 +55,7 @@ func TestRun_BasicPattern(t *testing.T) {
 	assert.Equal(t, 30, svc.cfg.TimeLimit)
 }
 
-func TestRun_MultiplePatterns(t *testing.T) {
+func TestRunMultiplePatterns(t *testing.T) {
 	svc := &captureService{}
 	require.NoError(t, newSilentCLI(svc).Run([]string{"chrome", "firefox", "node"}))
 	require.Len(t, svc.cfg.Patterns, 3)
@@ -64,13 +64,13 @@ func TestRun_MultiplePatterns(t *testing.T) {
 	}
 }
 
-func TestRun_ConfirmFlag(t *testing.T) {
+func TestRunConfirmFlag(t *testing.T) {
 	svc := &captureService{}
 	require.NoError(t, newSilentCLI(svc).Run([]string{"sleep", "--confirm"}))
 	assert.True(t, svc.cfg.ConfirmMode)
 }
 
-func TestRun_SpeedFlag(t *testing.T) {
+func TestRunSpeedFlag(t *testing.T) {
 	tests := []struct {
 		name    string
 		arg     string
@@ -99,7 +99,7 @@ func TestRun_SpeedFlag(t *testing.T) {
 	}
 }
 
-func TestRun_TimeFlag(t *testing.T) {
+func TestRunTimeFlag(t *testing.T) {
 	tests := []struct {
 		name    string
 		arg     string
@@ -126,28 +126,28 @@ func TestRun_TimeFlag(t *testing.T) {
 	}
 }
 
-func TestRun_UnknownFlag(t *testing.T) {
+func TestRunUnknownFlag(t *testing.T) {
 	assert.Error(t, newSilentCLI(&stubService{}).Run([]string{"proc", "--unknown"}))
 }
 
-func TestRun_NoPatterns(t *testing.T) {
+func TestRunNoPatterns(t *testing.T) {
 	err := newSilentCLI(&stubService{}).Run([]string{"--confirm"})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, process.ErrNoPatterns)
 }
 
-func TestRun_PatternTooShort(t *testing.T) {
+func TestRunPatternTooShort(t *testing.T) {
 	for _, p := range []string{"a", "ab"} {
 		assert.Error(t, newSilentCLI(&stubService{}).Run([]string{p}), "expected error for pattern %q shorter than MinPatternLength", p)
 	}
 }
 
-func TestRun_PatternExactMinLength(t *testing.T) {
+func TestRunPatternExactMinLength(t *testing.T) {
 	min := strings.Repeat("a", process.MinPatternLength)
 	assert.NoError(t, newSilentCLI(&captureService{}).Run([]string{min}))
 }
 
-func TestRun_PatternTooLong(t *testing.T) {
+func TestRunPatternTooLong(t *testing.T) {
 	longPattern := strings.Repeat("a", process.MaxPatternLength+1)
 	assert.Error(t, newSilentCLI(&stubService{}).Run([]string{longPattern}))
 }

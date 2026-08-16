@@ -13,7 +13,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
 )
 
-func TestIntegration_List_ReturnsResults(t *testing.T) {
+func TestIntegrationListReturnsResults(t *testing.T) {
 	f, err := osprocess.NewProcess()
 	require.NoError(t, err)
 	processes, err := f.List()
@@ -21,7 +21,7 @@ func TestIntegration_List_ReturnsResults(t *testing.T) {
 	assert.NotEmpty(t, processes)
 }
 
-func TestIntegration_List_ValidFields(t *testing.T) {
+func TestIntegrationListValidFields(t *testing.T) {
 	f, err := osprocess.NewProcess()
 	require.NoError(t, err)
 	processes, err := f.List()
@@ -33,7 +33,7 @@ func TestIntegration_List_ValidFields(t *testing.T) {
 	}
 }
 
-func TestIntegration_List_ShortProcessNames(t *testing.T) {
+func TestIntegrationListShortProcessNames(t *testing.T) {
 	f, err := osprocess.NewProcess()
 	require.NoError(t, err)
 	processes, err := f.List()
@@ -46,7 +46,7 @@ func TestIntegration_List_ShortProcessNames(t *testing.T) {
 // PID exclusion (self and PID<=1) is domain policy applied by process.Find,
 // not something the adapter does anymore. This exercises the real List/OwnPid
 // adapter output through the real domain filter end-to-end.
-func TestIntegration_Find_ExcludesOwnAndInitPID(t *testing.T) {
+func TestIntegrationFindExcludesOwnAndInitPID(t *testing.T) {
 	f, err := osprocess.NewProcess()
 	require.NoError(t, err)
 	raw, err := f.List()

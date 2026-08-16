@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestBounds_Bounce_Left(t *testing.T) {
+func TestBoundsBounceLeft(t *testing.T) {
 	b := NewBounds(80, 24)
 	pos := Vector{X: -1.0, Y: 5.0}
 	vel := Vector{X: -1.0, Y: 0}
@@ -17,7 +17,7 @@ func TestBounds_Bounce_Left(t *testing.T) {
 	assert.Greater(t, vel.X, 0.0)
 }
 
-func TestBounds_Bounce_Right(t *testing.T) {
+func TestBoundsBounceRight(t *testing.T) {
 	b := NewBounds(80, 24)
 	pos := Vector{X: 76.0, Y: 5.0}
 	vel := Vector{X: 1.0, Y: 0}
@@ -28,7 +28,7 @@ func TestBounds_Bounce_Right(t *testing.T) {
 	assert.Less(t, vel.X, 0.0)
 }
 
-func TestBounds_Bounce_Top(t *testing.T) {
+func TestBoundsBounceTop(t *testing.T) {
 	b := NewBounds(80, 24)
 	pos := Vector{X: 5.0, Y: -1.0}
 	vel := Vector{X: 0, Y: -1.0}
@@ -39,7 +39,7 @@ func TestBounds_Bounce_Top(t *testing.T) {
 	assert.Greater(t, vel.Y, 0.0)
 }
 
-func TestBounds_Bounce_Bottom(t *testing.T) {
+func TestBoundsBounceBottom(t *testing.T) {
 	b := NewBounds(80, 24)
 	pos := Vector{X: 5.0, Y: 23.0}
 	vel := Vector{X: 0, Y: 1.0}

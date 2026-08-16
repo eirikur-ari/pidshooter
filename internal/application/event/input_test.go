@@ -18,7 +18,7 @@ func newDispatcher(g *game.Game) *Dispatcher {
 
 // --- ClickEvent ---
 
-func TestDispatcher_Click_ReturnsHitTarget(t *testing.T) {
+func TestDispatcherClickReturnsHitTarget(t *testing.T) {
 	g := fixture.Game(fixture.Processes(1), game.Config{Speed: 1.0})
 	d := newDispatcher(g)
 	tgt := g.Targets()[0]
@@ -28,7 +28,7 @@ func TestDispatcher_Click_ReturnsHitTarget(t *testing.T) {
 	assert.Equal(t, tgt, result)
 }
 
-func TestDispatcher_Click_MissReturnsNil(t *testing.T) {
+func TestDispatcherClickMissReturnsNil(t *testing.T) {
 	g := fixture.Game(nil, game.Config{Speed: 1.0})
 	d := newDispatcher(g)
 
@@ -39,7 +39,7 @@ func TestDispatcher_Click_MissReturnsNil(t *testing.T) {
 
 // --- KeyCode ---
 
-func TestDispatcher_Escape_StopsGame(t *testing.T) {
+func TestDispatcherEscapeStopsGame(t *testing.T) {
 	g := fixture.Game(nil, game.Config{})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Key: outbound.KeyEscape})
@@ -47,7 +47,7 @@ func TestDispatcher_Escape_StopsGame(t *testing.T) {
 	assert.False(t, g.IsRunning())
 }
 
-func TestDispatcher_CtrlC_StopsGame(t *testing.T) {
+func TestDispatcherCtrlCStopsGame(t *testing.T) {
 	g := fixture.Game(nil, game.Config{})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Key: outbound.KeyCtrlC})
@@ -55,7 +55,7 @@ func TestDispatcher_CtrlC_StopsGame(t *testing.T) {
 	assert.False(t, g.IsRunning())
 }
 
-func TestDispatcher_CtrlZ_StopsGame(t *testing.T) {
+func TestDispatcherCtrlZStopsGame(t *testing.T) {
 	g := fixture.Game(nil, game.Config{})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Key: outbound.KeyCtrlZ})
@@ -65,7 +65,7 @@ func TestDispatcher_CtrlZ_StopsGame(t *testing.T) {
 
 // --- Rune: quit ---
 
-func TestDispatcher_Q_StopsGame(t *testing.T) {
+func TestDispatcherQStopsGame(t *testing.T) {
 	g := fixture.Game(nil, game.Config{})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Ch: 'q'})
@@ -73,7 +73,7 @@ func TestDispatcher_Q_StopsGame(t *testing.T) {
 	assert.False(t, g.IsRunning())
 }
 
-func TestDispatcher_QUppercase_StopsGame(t *testing.T) {
+func TestDispatcherQUppercaseStopsGame(t *testing.T) {
 	g := fixture.Game(nil, game.Config{})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Ch: 'Q'})
@@ -83,7 +83,7 @@ func TestDispatcher_QUppercase_StopsGame(t *testing.T) {
 
 // --- Rune: confirm yes ---
 
-func TestDispatcher_Y_ReturnsConfirmedTarget(t *testing.T) {
+func TestDispatcherYReturnsConfirmedTarget(t *testing.T) {
 	g := fixture.PendingConfirmGame(1)
 	d := newDispatcher(g)
 	tgt := g.Targets()[0]
@@ -94,7 +94,7 @@ func TestDispatcher_Y_ReturnsConfirmedTarget(t *testing.T) {
 	assert.Nil(t, g.ConfirmTarget())
 }
 
-func TestDispatcher_YUppercase_AcceptsConfirmation(t *testing.T) {
+func TestDispatcherYUppercaseAcceptsConfirmation(t *testing.T) {
 	g := fixture.PendingConfirmGame(1)
 	d := newDispatcher(g)
 	tgt := g.Targets()[0]
@@ -107,7 +107,7 @@ func TestDispatcher_YUppercase_AcceptsConfirmation(t *testing.T) {
 
 // --- Rune: confirm no ---
 
-func TestDispatcher_N_CancelsConfirmation(t *testing.T) {
+func TestDispatcherNCancelsConfirmation(t *testing.T) {
 	g := fixture.PendingConfirmGame(1)
 	d := newDispatcher(g)
 
@@ -116,7 +116,7 @@ func TestDispatcher_N_CancelsConfirmation(t *testing.T) {
 	assert.Nil(t, g.ConfirmTarget())
 }
 
-func TestDispatcher_NUppercase_CancelsConfirmation(t *testing.T) {
+func TestDispatcherNUppercaseCancelsConfirmation(t *testing.T) {
 	g := fixture.PendingConfirmGame(1)
 	d := newDispatcher(g)
 
@@ -127,7 +127,7 @@ func TestDispatcher_NUppercase_CancelsConfirmation(t *testing.T) {
 
 // --- Rune: speed ---
 
-func TestDispatcher_Plus_IncreasesSpeed(t *testing.T) {
+func TestDispatcherPlusIncreasesSpeed(t *testing.T) {
 	g := fixture.Game(nil, game.Config{Speed: 2.0})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Ch: '+'})
@@ -135,7 +135,7 @@ func TestDispatcher_Plus_IncreasesSpeed(t *testing.T) {
 	assert.Equal(t, 2.5, g.Speed())
 }
 
-func TestDispatcher_Equals_IncreasesSpeed(t *testing.T) {
+func TestDispatcherEqualsIncreasesSpeed(t *testing.T) {
 	g := fixture.Game(nil, game.Config{Speed: 2.0})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Ch: '='})
@@ -143,7 +143,7 @@ func TestDispatcher_Equals_IncreasesSpeed(t *testing.T) {
 	assert.Equal(t, 2.5, g.Speed())
 }
 
-func TestDispatcher_Minus_DecreasesSpeed(t *testing.T) {
+func TestDispatcherMinusDecreasesSpeed(t *testing.T) {
 	g := fixture.Game(nil, game.Config{Speed: 2.0})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Ch: '-'})
@@ -151,7 +151,7 @@ func TestDispatcher_Minus_DecreasesSpeed(t *testing.T) {
 	assert.Equal(t, 1.5, g.Speed())
 }
 
-func TestDispatcher_Underscore_DecreasesSpeed(t *testing.T) {
+func TestDispatcherUnderscoreDecreasesSpeed(t *testing.T) {
 	g := fixture.Game(nil, game.Config{Speed: 2.0})
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Ch: '_'})
@@ -161,7 +161,7 @@ func TestDispatcher_Underscore_DecreasesSpeed(t *testing.T) {
 
 // --- Unknown ---
 
-func TestDispatcher_UnknownRune_NoOp(t *testing.T) {
+func TestDispatcherUnknownRuneNoOp(t *testing.T) {
 	g := fixture.Game(nil, game.Config{Speed: 2.0})
 	d := newDispatcher(g)
 

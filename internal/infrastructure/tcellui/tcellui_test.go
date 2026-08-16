@@ -78,7 +78,7 @@ func TestPollGoroutineExitsAfterCleanup(t *testing.T) {
 }
 
 // TestDrawHUD_NarrowTerminalSuppressesCenter is a regression test for issue #14.
-func TestDrawHUD_NarrowTerminalSuppressesCenter(t *testing.T) {
+func TestDrawHUDNarrowTerminalSuppressesCenter(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
 	ui := tcellui.NewUI(screen)
 	require.NoError(t, ui.Init())
@@ -102,7 +102,7 @@ func TestDrawHUD_NarrowTerminalSuppressesCenter(t *testing.T) {
 }
 
 // TestDrawHUD_WideTerminalDrawsAllThree verifies all three HUD elements are visible on wide terminals.
-func TestDrawHUD_WideTerminalDrawsAllThree(t *testing.T) {
+func TestDrawHUDWideTerminalDrawsAllThree(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
 	ui := tcellui.NewUI(screen)
 	require.NoError(t, ui.Init())
@@ -125,7 +125,7 @@ func TestDrawHUD_WideTerminalDrawsAllThree(t *testing.T) {
 }
 
 // TestRender_MultiByteLabel_ColumnLayout is a regression test for issue #13.
-func TestRender_MultiByteLabel_ColumnLayout(t *testing.T) {
+func TestRenderMultiByteLabelColumnLayout(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
 	ui := tcellui.NewUI(screen)
 	require.NoError(t, ui.Init())
@@ -144,7 +144,7 @@ func TestRender_MultiByteLabel_ColumnLayout(t *testing.T) {
 
 // --- translateKey (exercised via poll) ---
 
-func TestPoll_TranslatesEscape(t *testing.T) {
+func TestPollTranslatesEscape(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyEscape, 0, tcell.ModNone)
 	ke, ok := nextEvent(t, ui).(outbound.KeyEvent)
@@ -152,7 +152,7 @@ func TestPoll_TranslatesEscape(t *testing.T) {
 	assert.Equal(t, outbound.KeyEscape, ke.Key)
 }
 
-func TestPoll_TranslatesCtrlC(t *testing.T) {
+func TestPollTranslatesCtrlC(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyCtrlC, 0, tcell.ModNone)
 	ke, ok := nextEvent(t, ui).(outbound.KeyEvent)
@@ -160,7 +160,7 @@ func TestPoll_TranslatesCtrlC(t *testing.T) {
 	assert.Equal(t, outbound.KeyCtrlC, ke.Key)
 }
 
-func TestPoll_TranslatesCtrlZ(t *testing.T) {
+func TestPollTranslatesCtrlZ(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyCtrlZ, 0, tcell.ModNone)
 	ke, ok := nextEvent(t, ui).(outbound.KeyEvent)
@@ -168,7 +168,7 @@ func TestPoll_TranslatesCtrlZ(t *testing.T) {
 	assert.Equal(t, outbound.KeyCtrlZ, ke.Key)
 }
 
-func TestPoll_TranslatesRune(t *testing.T) {
+func TestPollTranslatesRune(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
 	ke, ok := nextEvent(t, ui).(outbound.KeyEvent)
@@ -179,7 +179,7 @@ func TestPoll_TranslatesRune(t *testing.T) {
 
 // --- poll: event-type routing ---
 
-func TestPoll_MouseButton1_EmitsClickEvent(t *testing.T) {
+func TestPollMouseButton1EmitsClickEvent(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectMouse(5, 10, tcell.Button1, tcell.ModNone)
 	ce, ok := nextEvent(t, ui).(outbound.ClickEvent)
@@ -188,7 +188,7 @@ func TestPoll_MouseButton1_EmitsClickEvent(t *testing.T) {
 	assert.Equal(t, 10, ce.Y)
 }
 
-func TestPoll_NonButton1_DropsEvent(t *testing.T) {
+func TestPollNonButton1DropsEvent(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectMouse(5, 10, tcell.Button2, tcell.ModNone)
 	screen.InjectKey(tcell.KeyRune, 'z', tcell.ModNone)
@@ -202,7 +202,7 @@ func TestPoll_NonButton1_DropsEvent(t *testing.T) {
 
 // --- drawStatusBar ---
 
-func TestDrawStatusBar_Normal(t *testing.T) {
+func TestDrawStatusBarNormal(t *testing.T) {
 	ui, screen := newUI(t)
 	ui.Render(outbound.FrameState{
 		StatusBar: outbound.StatusState{Alive: 3, Speed: 2.0},
@@ -214,7 +214,7 @@ func TestDrawStatusBar_Normal(t *testing.T) {
 	}
 }
 
-func TestDrawStatusBar_Confirming(t *testing.T) {
+func TestDrawStatusBarConfirming(t *testing.T) {
 	ui, screen := newUI(t)
 	ui.Render(outbound.FrameState{
 		StatusBar: outbound.StatusState{
@@ -228,7 +228,7 @@ func TestDrawStatusBar_Confirming(t *testing.T) {
 	}
 }
 
-func TestDrawStatusBar_WithTimeLimit(t *testing.T) {
+func TestDrawStatusBarWithTimeLimit(t *testing.T) {
 	ui, screen := newUI(t)
 	ui.Render(outbound.FrameState{
 		StatusBar: outbound.StatusState{Alive: 1, Speed: 1.0, TimeLimit: 30, TimeLeft: 15},
@@ -239,7 +239,7 @@ func TestDrawStatusBar_WithTimeLimit(t *testing.T) {
 	assert.Contains(t, got, "15s")
 }
 
-func TestDrawStatusBar_NoTimeLimit(t *testing.T) {
+func TestDrawStatusBarNoTimeLimit(t *testing.T) {
 	ui, screen := newUI(t)
 	ui.Render(outbound.FrameState{
 		StatusBar: outbound.StatusState{Alive: 1, Speed: 1.0, TimeLimit: 0},

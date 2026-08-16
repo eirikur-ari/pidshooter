@@ -17,28 +17,28 @@ func newTempStore(t *testing.T) *Store {
 	return &Store{path: filepath.Join(t.TempDir(), "scores.json")}
 }
 
-func TestLoad_FileNotExist_ReturnsEmptyBoard(t *testing.T) {
+func TestLoadFileNotExistReturnsEmptyBoard(t *testing.T) {
 	s := newTempStore(t)
 	board, err := s.Load()
 	require.NoError(t, err)
 	assert.Empty(t, board.Scores)
 }
 
-func TestLoad_InvalidJSON_ReturnsError(t *testing.T) {
+func TestLoadInvalidJSONReturnsError(t *testing.T) {
 	s := newTempStore(t)
 	require.NoError(t, os.WriteFile(s.path, []byte("not valid json{{{"), 0644))
 	_, err := s.Load()
 	assert.Error(t, err)
 }
 
-func TestSave_CreatesFile(t *testing.T) {
+func TestSaveCreatesFile(t *testing.T) {
 	s := newTempStore(t)
 	require.NoError(t, s.Save(outbound.ScoreBoard{}))
 	_, err := os.Stat(s.path)
 	assert.NoError(t, err, "expected file to be created after Save")
 }
 
-func TestSave_FilePermissions(t *testing.T) {
+func TestSaveFilePermissions(t *testing.T) {
 	s := newTempStore(t)
 	require.NoError(t, s.Save(outbound.ScoreBoard{}))
 	info, err := os.Stat(s.path)
@@ -46,7 +46,7 @@ func TestSave_FilePermissions(t *testing.T) {
 	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
 }
 
-func TestSave_Load_RoundTrip(t *testing.T) {
+func TestSaveLoadRoundTrip(t *testing.T) {
 	s := newTempStore(t)
 	sb := outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
 		{Kills: 7, FreedMem: 4096, Speed: 2.5, Time: 60, Duration: 45.0, Date: time.Now()},
@@ -59,7 +59,7 @@ func TestSave_Load_RoundTrip(t *testing.T) {
 	assert.Equal(t, 7, loaded.Scores[0].Kills)
 }
 
-func TestSave_Load_MultipleEntries(t *testing.T) {
+func TestSaveLoadMultipleEntries(t *testing.T) {
 	s := newTempStore(t)
 	sb := outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
 		{Kills: 3, FreedMem: 1024, Speed: 2.0, Date: time.Now()},
@@ -74,7 +74,7 @@ func TestSave_Load_MultipleEntries(t *testing.T) {
 	assert.Equal(t, 9, loaded.Scores[1].Kills)
 }
 
-func TestSave_OverwritesPreviousFile(t *testing.T) {
+func TestSaveOverwritesPreviousFile(t *testing.T) {
 	s := newTempStore(t)
 
 	first := outbound.ScoreBoard{Scores: []outbound.ScoreEntry{{Kills: 2, Date: time.Now()}}}

@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMotion_Move_AdvancesPosition(t *testing.T) {
+func TestMotionMoveAdvancesPosition(t *testing.T) {
 	m := Motion{
 		Position: Vector{X: 10, Y: 5},
 		Velocity: Vector{X: 1.0, Y: 0.5},
@@ -18,7 +18,7 @@ func TestMotion_Move_AdvancesPosition(t *testing.T) {
 	assert.Equal(t, 6.0, m.Position.Y)
 }
 
-func TestMotion_Move_BouncesAtLeftWall(t *testing.T) {
+func TestMotionMoveBouncesAtLeftWall(t *testing.T) {
 	m := Motion{
 		Position: Vector{X: 0, Y: 5},
 		Velocity: Vector{X: -1.0, Y: 0},
@@ -30,7 +30,7 @@ func TestMotion_Move_BouncesAtLeftWall(t *testing.T) {
 	assert.Greater(t, m.Velocity.X, 0.0)
 }
 
-func TestMotion_Move_BouncesAtRightWall(t *testing.T) {
+func TestMotionMoveBouncesAtRightWall(t *testing.T) {
 	m := Motion{
 		Position: Vector{X: 75, Y: 5},
 		Velocity: Vector{X: 2.0, Y: 0},
@@ -42,7 +42,7 @@ func TestMotion_Move_BouncesAtRightWall(t *testing.T) {
 	assert.Less(t, m.Velocity.X, 0.0)
 }
 
-func TestMotion_Move_SpeedScalesVelocity(t *testing.T) {
+func TestMotionMoveSpeedScalesVelocity(t *testing.T) {
 	m := Motion{
 		Position: Vector{X: 10, Y: 5},
 		Velocity: Vector{X: 1.0, Y: 1.0},

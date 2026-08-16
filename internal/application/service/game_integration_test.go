@@ -21,7 +21,7 @@ func newGameService(proc *fake.Process, store *fake.Store, events *fake.InputSou
 	return NewGameService(proc, store, &fake.Renderer{}, events)
 }
 
-func TestIntegration_GameService_HappyPath(t *testing.T) {
+func TestIntegrationGameServiceHappyPath(t *testing.T) {
 	events := fake.NewInputSource()
 	events.Ch <- outbound.KeyEvent{Ch: 'q'}
 
@@ -40,7 +40,7 @@ func TestIntegration_GameService_HappyPath(t *testing.T) {
 	assert.Greater(t, entry.Duration, 0.0)
 }
 
-func TestIntegration_GameService_LoadError_PrintsWarningAndSkipsSave(t *testing.T) {
+func TestIntegrationGameServiceLoadErrorPrintsWarningAndSkipsSave(t *testing.T) {
 	events := fake.NewInputSource()
 	events.Ch <- outbound.KeyEvent{Ch: 'q'}
 
@@ -61,7 +61,7 @@ func TestIntegration_GameService_LoadError_PrintsWarningAndSkipsSave(t *testing.
 	assert.Nil(t, store.Saved)
 }
 
-func TestIntegration_GameService_SaveError_PrintsWarning(t *testing.T) {
+func TestIntegrationGameServiceSaveErrorPrintsWarning(t *testing.T) {
 	events := fake.NewInputSource()
 	events.Ch <- outbound.KeyEvent{Ch: 'q'}
 
@@ -81,7 +81,7 @@ func TestIntegration_GameService_SaveError_PrintsWarning(t *testing.T) {
 	assert.Contains(t, stderr, "disk full")
 }
 
-func TestIntegration_GameService_QuitOnQ(t *testing.T) {
+func TestIntegrationGameServiceQuitOnQ(t *testing.T) {
 	events := fake.NewInputSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -96,7 +96,7 @@ func TestIntegration_GameService_QuitOnQ(t *testing.T) {
 	assert.NoError(t, svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}))
 }
 
-func TestIntegration_GameService_QuitOnEscape(t *testing.T) {
+func TestIntegrationGameServiceQuitOnEscape(t *testing.T) {
 	events := fake.NewInputSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -111,7 +111,7 @@ func TestIntegration_GameService_QuitOnEscape(t *testing.T) {
 	assert.NoError(t, svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}))
 }
 
-func TestIntegration_GameService_QuitOnCtrlC(t *testing.T) {
+func TestIntegrationGameServiceQuitOnCtrlC(t *testing.T) {
 	events := fake.NewInputSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -126,7 +126,7 @@ func TestIntegration_GameService_QuitOnCtrlC(t *testing.T) {
 	assert.NoError(t, svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}))
 }
 
-func TestIntegration_GameService_QuitOnCtrlZ(t *testing.T) {
+func TestIntegrationGameServiceQuitOnCtrlZ(t *testing.T) {
 	events := fake.NewInputSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -141,7 +141,7 @@ func TestIntegration_GameService_QuitOnCtrlZ(t *testing.T) {
 	assert.NoError(t, svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}))
 }
 
-func TestIntegration_GameService_TimeLimitExpires(t *testing.T) {
+func TestIntegrationGameServiceTimeLimitExpires(t *testing.T) {
 	svc := newGameService(
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 102, Name: "target", Rss: 1024}}},
 		&fake.Store{},
@@ -155,7 +155,7 @@ func TestIntegration_GameService_TimeLimitExpires(t *testing.T) {
 
 // TestIntegration_GameService_SignalGoroutineDoesNotAccumulate verifies the signal goroutine
 // started inside runLoop exits when Play returns, preventing goroutine leaks.
-func TestIntegration_GameService_SignalGoroutineDoesNotAccumulate(t *testing.T) {
+func TestIntegrationGameServiceSignalGoroutineDoesNotAccumulate(t *testing.T) {
 	runGame := func(pid int) {
 		events := fake.NewInputSource()
 		go func() {

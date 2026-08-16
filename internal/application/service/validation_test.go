@@ -10,37 +10,37 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-func TestValidateSearchPatterns_EmptySlice(t *testing.T) {
+func TestValidateSearchPatternsEmptySlice(t *testing.T) {
 	err := validateSearchPatterns([]string{})
 	require.Error(t, err)
 	assert.ErrorIs(t, err, process.ErrNoPatterns)
 }
 
-func TestValidateSearchPatterns_EmptyTerm(t *testing.T) {
+func TestValidateSearchPatternsEmptyTerm(t *testing.T) {
 	assert.Error(t, validateSearchPatterns([]string{""}))
 }
 
-func TestValidateSearchPatterns_TooShort(t *testing.T) {
+func TestValidateSearchPatternsTooShort(t *testing.T) {
 	for _, p := range []string{"a", "ab"} {
 		assert.Error(t, validateSearchPatterns([]string{p}), "expected error for pattern %q shorter than MinPatternLength", p)
 	}
 }
 
-func TestValidateSearchPatterns_ExactMinLength(t *testing.T) {
+func TestValidateSearchPatternsExactMinLength(t *testing.T) {
 	min := strings.Repeat("a", process.MinPatternLength)
 	assert.NoError(t, validateSearchPatterns([]string{min}))
 }
 
-func TestValidateSearchPatterns_TooLong(t *testing.T) {
+func TestValidateSearchPatternsTooLong(t *testing.T) {
 	long := strings.Repeat("a", process.MaxPatternLength+1)
 	assert.Error(t, validateSearchPatterns([]string{long}))
 }
 
-func TestValidateSearchPatterns_Valid(t *testing.T) {
+func TestValidateSearchPatternsValid(t *testing.T) {
 	assert.NoError(t, validateSearchPatterns([]string{"myapp", "worker"}))
 }
 
-func TestValidateSearchPatterns_ExactMaxLength(t *testing.T) {
+func TestValidateSearchPatternsExactMaxLength(t *testing.T) {
 	exact := strings.Repeat("a", process.MaxPatternLength)
 	assert.NoError(t, validateSearchPatterns([]string{exact}))
 }
