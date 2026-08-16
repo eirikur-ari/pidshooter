@@ -21,8 +21,6 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, 3.5, g.throttle.Speed())
 	assert.Equal(t, 60, g.cfg.TimeLimit)
 	assert.Equal(t, Pending, g.State())
-	assert.Equal(t, 0, g.kills)
-	assert.Equal(t, int64(0), g.freedMem)
 }
 
 func TestStartTransitionsToRunning(t *testing.T) {
@@ -105,7 +103,7 @@ func TestGameThrottleMutationAffectsSpeed(t *testing.T) {
 func TestGameSnapshotExcludesDeadTargets(t *testing.T) {
 	g := New([]process.Info{process.NewInfo(1, "a", 0)}, Config{Speed: 1.0})
 	g.Start(80, 24)
-	g.Kill(g.targets[0])
+	g.targets[0].Kill()
 	for i := 0; i < KillAnimationDuration; i++ {
 		g.Update(80, 24)
 	}
@@ -123,7 +121,7 @@ func TestGameSnapshotCountsAlive(t *testing.T) {
 	}
 	g := New(processes, Config{Speed: 1.0})
 	g.Start(80, 24)
-	g.Kill(g.targets[0])
+	g.targets[0].Kill()
 
 	snap := g.Snapshot()
 

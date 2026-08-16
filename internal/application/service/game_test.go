@@ -11,6 +11,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
+	"github.com/eirikur-ari/pidshooter/internal/core/score"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
@@ -34,7 +35,7 @@ func TestBuildFrameAliveTargetIncluded(t *testing.T) {
 	g := game.New([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
 	g.Start(80, 24)
 
-	f := buildFrame(g)
+	f := buildFrame(g, &score.Tracker{})
 
 	require.Len(t, f.Targets, 1)
 	assert.False(t, f.Targets[0].Killing)
@@ -43,9 +44,9 @@ func TestBuildFrameAliveTargetIncluded(t *testing.T) {
 func TestBuildFrameKillingTargetMarked(t *testing.T) {
 	g := game.New([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
 	g.Start(80, 24)
-	g.Kill(g.Targets()[0])
+	g.Targets()[0].Kill()
 
-	f := buildFrame(g)
+	f := buildFrame(g, &score.Tracker{})
 
 	require.Len(t, f.Targets, 1)
 	assert.True(t, f.Targets[0].Killing)
@@ -54,12 +55,12 @@ func TestBuildFrameKillingTargetMarked(t *testing.T) {
 func TestBuildFrameDeadTargetExcluded(t *testing.T) {
 	g := game.New([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
 	g.Start(80, 24)
-	g.Kill(g.Targets()[0])
+	g.Targets()[0].Kill()
 	for i := 0; i < game.KillAnimationDuration; i++ {
 		g.Update(80, 24)
 	}
 
-	f := buildFrame(g)
+	f := buildFrame(g, &score.Tracker{})
 
 	assert.Empty(t, f.Targets)
 }
@@ -67,9 +68,10 @@ func TestBuildFrameDeadTargetExcluded(t *testing.T) {
 func TestBuildFrameHUDReflectsStats(t *testing.T) {
 	g := game.New([]process.Info{process.NewInfo(1, "a", 4096)}, game.Config{Speed: 1.0})
 	g.Start(80, 24)
-	g.Kill(g.Targets()[0])
+	tracker := &score.Tracker{}
+	tracker.RecordKill(g.Targets()[0].Rss)
 
-	f := buildFrame(g)
+	f := buildFrame(g, tracker)
 
 	assert.Equal(t, 1, f.HUD.Kills)
 	assert.Equal(t, int64(4096), f.HUD.FreedMem)
@@ -82,9 +84,9 @@ func TestBuildFrameStatusBarAliveCount(t *testing.T) {
 	}
 	g := game.New(processes, game.Config{Speed: 1.0})
 	g.Start(80, 24)
-	g.Kill(g.Targets()[0])
+	g.Targets()[0].Kill()
 
-	f := buildFrame(g)
+	f := buildFrame(g, &score.Tracker{})
 
 	assert.Equal(t, 1, f.StatusBar.Alive)
 }
@@ -93,7 +95,7 @@ func TestBuildFrameNoConfirmPending(t *testing.T) {
 	g := game.New(nil, game.Config{Speed: 1.0})
 	g.Start(80, 24)
 
-	f := buildFrame(g)
+	f := buildFrame(g, &score.Tracker{})
 
 	assert.Nil(t, f.StatusBar.Confirming)
 }
@@ -114,26 +116,24 @@ func TestGameServiceApplyKillsCompletesPendingKill(t *testing.T) {
 	svc := NewGameService(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	svc.kills = make(chan *game.Target, 1)
 
-	g := game.New([]process.Info{info}, game.Config{Speed: 2.0})
-
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
 	svc.kills <- target
 
-	svc.applyKills(g)
+	tracker := &score.Tracker{}
+	svc.applyKills(tracker)
 
 	assert.Equal(t, game.Killing, target.State)
-	assert.Equal(t, 1, g.Kills())
+	assert.Equal(t, 1, tracker.Kills)
 }
 
 func TestGameServiceApplyKillsEmptyChannelNoOps(t *testing.T) {
 	svc := NewGameService(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	svc.kills = make(chan *game.Target, 1)
 
-	g := game.New([]process.Info{}, game.Config{Speed: 2.0})
+	tracker := &score.Tracker{}
+	svc.applyKills(tracker) // must not block
 
-	svc.applyKills(g) // must not block
-
-	assert.Equal(t, 0, g.Kills())
+	assert.Equal(t, 0, tracker.Kills)
 }
 
 // --- kill ---

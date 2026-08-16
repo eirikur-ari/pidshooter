@@ -10,26 +10,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-func TestKillTransitionsToKilling(t *testing.T) {
-	tgt := &Target{Info: process.NewInfo(1, "target", 2048), State: Alive}
-	g := &Game{}
-
-	g.Kill(tgt)
-
-	assert.Equal(t, Killing, tgt.State)
-	assert.Equal(t, 1, g.kills)
-	assert.Equal(t, int64(2048), g.freedMem)
-}
-
-func TestKillNoOpWhenNotAlive(t *testing.T) {
-	tgt := &Target{Info: process.NewInfo(1, "target", 2048), State: Dead}
-	g := &Game{}
-
-	g.Kill(tgt)
-
-	assert.Equal(t, 0, g.kills)
-}
-
 func TestUpdateStopsWhenTimeLimitExpired(t *testing.T) {
 	g := New(nil, Config{TimeLimit: 1})
 	g.Start(0, 0)

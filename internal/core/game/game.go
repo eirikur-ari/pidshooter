@@ -25,7 +25,6 @@ type Game struct {
 	throttle  *movement.Throttle
 	processes []process.Info
 	targets   []*Target
-	Stats
 }
 
 // Snapshot is a point-in-time read model of all visible targets and alive count.
@@ -40,9 +39,9 @@ func New(processes []process.Info, cfg Config) *Game {
 		cfg:       cfg,
 		processes: processes,
 		targets:   make([]*Target, 0, len(processes)),
-		timer:    NewTimer(cfg.TimeLimit),
-		throttle: movement.NewThrottle(cfg.Speed),
-		confirm:  NewConfirmation(cfg.Confirm),
+		timer:     NewTimer(cfg.TimeLimit),
+		throttle:  movement.NewThrottle(cfg.Speed),
+		confirm:   NewConfirmation(cfg.Confirm),
 	}
 }
 

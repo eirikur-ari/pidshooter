@@ -56,20 +56,19 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 
 	board, success := s.loadScoreBoard()
 
-	g := s.newGame(cfg, processes, board)
+	g := s.newGame(cfg, processes)
+	tracker := &score.Tracker{HighScore: board.HighScore()}
 
-	endTime, err := s.runLoop(g)
+	endTime, err := s.runLoop(g, tracker)
 	if err != nil {
 		return err
 	}
 
-	kills := g.Kills()
-	freedMem := g.FreedMem()
 	duration := endTime.Sub(g.StartTime()).Seconds()
 
-	s.recordScore(cfg, board, kills, freedMem, duration, success)
+	s.recordScore(cfg, board, tracker.Kills, tracker.FreedMem, duration, success)
 
-	s.printResults(kills, freedMem, duration, board)
+	s.printResults(tracker.Kills, tracker.FreedMem, duration, board)
 
 	return nil
 }
@@ -127,13 +126,11 @@ func (s *GameService) printResults(kills int, freedMem int64, duration float64, 
 	board.PrintScores(kills)
 }
 
-func (s *GameService) newGame(cfg inbound.GamePlayConfig, processes []process.Info, board *score.Board) *game.Game {
-	g := game.New(processes, game.Config{Confirm: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
-	g.SetHighScore(board.HighScore())
-	return g
+func (s *GameService) newGame(cfg inbound.GamePlayConfig, processes []process.Info) *game.Game {
+	return game.New(processes, game.Config{Confirm: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
 }
 
-func (s *GameService) runLoop(g *game.Game) (time.Time, error) {
+func (s *GameService) runLoop(g *game.Game, tracker *score.Tracker) (time.Time, error) {
 	if err := s.renderer.Init(); err != nil {
 		return time.Time{}, fmt.Errorf("renderer initialization failed: %w", err)
 	}
@@ -162,29 +159,31 @@ func (s *GameService) runLoop(g *game.Game) (time.Time, error) {
 	evt := event.NewDispatcher(handler.NewHandler(g))
 
 	for g.IsRunning() {
-		s.applyKills(g)
+		s.applyKills(tracker)
 		s.drainEvents(evt, done)
 		w, h = s.renderer.Size()
 		g.Update(w, h)
-		s.renderer.Render(buildFrame(g))
+		s.renderer.Render(buildFrame(g, tracker))
 		<-ticker.C
 	}
 	// Capture end time before deferred Cleanup() runs.
 	return time.Now(), nil
 }
 
-func (s *GameService) applyKills(g *game.Game) {
+func (s *GameService) applyKills(tracker *score.Tracker) {
 	for {
 		select {
 		case t := <-s.kills:
-			g.Kill(t)
+			if t.Kill() {
+				tracker.RecordKill(t.Rss)
+			}
 		default:
 			return
 		}
 	}
 }
 
-func buildFrame(g *game.Game) outbound.FrameState {
+func buildFrame(g *game.Game, tracker *score.Tracker) outbound.FrameState {
 	snap := g.Snapshot()
 	views := make([]outbound.TargetViewState, len(snap.Targets))
 	for i, s := range snap.Targets {
@@ -194,9 +193,9 @@ func buildFrame(g *game.Game) outbound.FrameState {
 	return outbound.FrameState{
 		Targets: views,
 		HUD: outbound.HUDState{
-			FreedMem:  g.FreedMem(),
-			Kills:     g.Kills(),
-			HighScore: g.HighScore(),
+			FreedMem:  tracker.FreedMem,
+			Kills:     tracker.Kills,
+			HighScore: tracker.HighScore,
 		},
 		StatusBar: outbound.StatusState{
 			Alive:      snap.Alive,

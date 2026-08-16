@@ -16,14 +16,6 @@ func (g *Game) Update(w, h int) {
 	}
 }
 
-// Kill is called by the application layer after a successful OS kill.
-// It transitions the target to the kill animation and records the session stats.
-func (g *Game) Kill(t *Target) {
-	if t.Kill() {
-		g.RecordKill(t.Rss)
-	}
-}
-
 func (g *Game) moveOrDie(w, h int) {
 	bounds := movement.NewBounds(w, h)
 	speed := g.throttle.Speed()
