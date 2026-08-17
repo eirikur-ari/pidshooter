@@ -31,7 +31,8 @@ func (s *ScoreService) loadScoreBoard() (*score.Board, *score.Tracker, bool) {
 	return board, tracker, true
 }
 
-func (s *ScoreService) recordScore(board *score.Board, tracker *score.Tracker, speed float64, timeLimit int, duration float64, persist bool) {
+func (s *ScoreService) recordScore(board *score.Board, speed float64, timeLimit int, duration float64, persist bool) {
+	tracker := board.Tracker()
 	board.Add(score.Entry{
 		Kills:    tracker.Kills,
 		FreedMem: tracker.FreedMem,
@@ -48,8 +49,9 @@ func (s *ScoreService) recordScore(board *score.Board, tracker *score.Tracker, s
 	}
 }
 
-func printResults(tracker *score.Tracker, duration float64, board *score.Board) {
+func printResults(duration float64, board *score.Board) {
+	tracker := board.Tracker()
 	fmt.Printf("\n  Game Over! Kills: %d | Freed: %s | Time: %.1fs\n",
 		tracker.Kills, util.FormatBytes(tracker.FreedMem), duration)
-	board.PrintHighScores(tracker)
+	board.PrintHighScores()
 }

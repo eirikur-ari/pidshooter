@@ -64,9 +64,9 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 
 	duration := endTime.Sub(g.StartTime()).Seconds()
 
-	s.scores.recordScore(board, tracker, cfg.Speed, cfg.TimeLimit, duration, success)
+	s.scores.recordScore(board, cfg.Speed, cfg.TimeLimit, duration, success)
 
-	printResults(tracker, duration, board)
+	printResults(duration, board)
 
 	return nil
 }

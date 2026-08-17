@@ -49,10 +49,11 @@ func TestLoadScoreBoardErrorFallsBackToEmptyBoard(t *testing.T) {
 
 func TestRecordScoreAddsEntryFromTracker(t *testing.T) {
 	svc := NewScoreService(&fake.Store{})
-	board := &score.Board{}
-	tracker := &score.Tracker{Kills: 4, FreedMem: 2048}
+	board, tracker := score.NewBoard(nil)
+	tracker.Kills = 4
+	tracker.FreedMem = 2048
 
-	svc.recordScore(board, tracker, 2.5, 30, 12.5, true)
+	svc.recordScore(board, 2.5, 30, 12.5, true)
 
 	require.Len(t, board.Scores, 1)
 	entry := board.Scores[0]
@@ -66,9 +67,10 @@ func TestRecordScoreAddsEntryFromTracker(t *testing.T) {
 func TestRecordScoreSavesWhenPersistTrue(t *testing.T) {
 	fakeStore := &fake.Store{}
 	svc := NewScoreService(fakeStore)
-	board := &score.Board{}
+	board, tracker := score.NewBoard(nil)
+	tracker.Kills = 1
 
-	svc.recordScore(board, &score.Tracker{Kills: 1}, 0, 0, 1.0, true)
+	svc.recordScore(board, 0, 0, 1.0, true)
 
 	require.NotNil(t, fakeStore.Saved)
 	assert.Len(t, fakeStore.Saved.Scores, 1)
@@ -77,9 +79,10 @@ func TestRecordScoreSavesWhenPersistTrue(t *testing.T) {
 func TestRecordScoreSkipsSaveWhenPersistFalse(t *testing.T) {
 	fakeStore := &fake.Store{}
 	svc := NewScoreService(fakeStore)
-	board := &score.Board{}
+	board, tracker := score.NewBoard(nil)
+	tracker.Kills = 1
 
-	svc.recordScore(board, &score.Tracker{Kills: 1}, 0, 0, 1.0, false)
+	svc.recordScore(board, 0, 0, 1.0, false)
 
 	assert.Nil(t, fakeStore.Saved)
 }
@@ -87,10 +90,11 @@ func TestRecordScoreSkipsSaveWhenPersistFalse(t *testing.T) {
 func TestRecordScoreSaveErrorPrintsWarning(t *testing.T) {
 	fakeStore := &fake.Store{SaveErr: errors.New("disk full")}
 	svc := NewScoreService(fakeStore)
-	board := &score.Board{}
+	board, tracker := score.NewBoard(nil)
+	tracker.Kills = 1
 
 	stderr := capture.Stderr(func() {
-		svc.recordScore(board, &score.Tracker{Kills: 1}, 0, 0, 1.0, true)
+		svc.recordScore(board, 0, 0, 1.0, true)
 	})
 
 	assert.Contains(t, stderr, "score not saved")
@@ -100,10 +104,12 @@ func TestRecordScoreSaveErrorPrintsWarning(t *testing.T) {
 // --- printResults ---
 
 func TestPrintResultsPrintsGameOverSummary(t *testing.T) {
-	board := &score.Board{}
+	board, tracker := score.NewBoard(nil)
+	tracker.Kills = 3
+	tracker.FreedMem = 4096
 
 	out := capture.Output(func() {
-		printResults(&score.Tracker{Kills: 3, FreedMem: 4096}, 7.5, board)
+		printResults(7.5, board)
 	})
 
 	assert.Contains(t, out, "Game Over!")
@@ -111,10 +117,10 @@ func TestPrintResultsPrintsGameOverSummary(t *testing.T) {
 }
 
 func TestPrintResultsDelegatesToBoardPrintScores(t *testing.T) {
-	board := &score.Board{}
+	board, _ := score.NewBoard(nil)
 
 	out := capture.Output(func() {
-		printResults(&score.Tracker{}, 0, board)
+		printResults(0, board)
 	})
 
 	assert.Contains(t, out, "No high scores yet!")
