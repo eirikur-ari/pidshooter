@@ -61,18 +61,18 @@ func (b *Board) PrintHighScores() {
 	}
 
 	//TODO: Replace Speed with Time
-	fmt.Println("\n  ╔════╦═══════╦════════════╦═══════╦════════════╗")
-	fmt.Println("  ║  # ║ Kills ║   Freed    ║ Speed ║    Date    ║")
-	fmt.Println("  ╠════╬═══════╬════════════╬═══════╬════════════╣")
+	fmt.Println("\n  ╔════╦═══════╦═══════╦════════╦════════════╦════════════╗")
+	fmt.Println("  ║  # ║ Kills ║ Speed ║  Time  ║   Freed    ║    Date    ║")
+	fmt.Println("  ╠════╬═══════╬═══════╬════════╬════════════╬════════════╣")
 
 	for i, s := range b.Scores {
 		mem := util.FormatBytes(s.FreedMem)
 		date := s.Date.Format("2006-01-02")
-		fmt.Printf("  ║ %2d ║  %3d  ║ %8s   ║ %4.1fx ║ %s ║\n",
-			i+1, s.Kills, mem, s.Speed, date)
+		fmt.Printf("  ║ %2d ║  %3d  ║ %4.1fx ║ %5.1fs ║ %8s   ║ %s ║\n",
+			i+1, s.Kills, s.Speed, s.Duration, mem, date)
 	}
 
-	fmt.Println("  ╚════╩═══════╩════════════╩═══════╩════════════╝")
+	fmt.Println("  ╚════╩═══════╩═══════╩════════╩════════════╩════════════╝")
 }
 
 func (b *Board) sortByRank() {

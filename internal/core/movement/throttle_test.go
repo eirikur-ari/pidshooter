@@ -38,3 +38,23 @@ func TestThrottleDecreaseFloorsAtMin(t *testing.T) {
 	v.Decrease()
 	assert.Equal(t, MinSpeed, v.Speed(), "expected speed to remain %f", MinSpeed)
 }
+
+func TestThrottleLowestSpeedStartsAtInitialSpeed(t *testing.T) {
+	v := NewThrottle(2.0)
+	assert.Equal(t, 2.0, v.LowestSpeed())
+}
+
+func TestThrottleLowestSpeedTracksDecreases(t *testing.T) {
+	v := NewThrottle(2.0)
+	v.Decrease()
+	v.Increase()
+	v.Increase()
+	assert.Equal(t, 1.5, v.LowestSpeed(), "expected lowest speed to remain the smallest value ever reached")
+}
+
+func TestThrottleLowestSpeedUnaffectedByIncreaseOnly(t *testing.T) {
+	v := NewThrottle(2.0)
+	v.Increase()
+	v.Increase()
+	assert.Equal(t, 2.0, v.LowestSpeed())
+}

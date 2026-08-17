@@ -142,3 +142,12 @@ func TestBoardPrintScoresPrintsTable(t *testing.T) {
 	assert.Contains(t, out, "Kills")
 	assert.Contains(t, out, "Freed")
 }
+
+func TestBoardPrintScoresPrintsDuration(t *testing.T) {
+	b := &Board{tracker: &Tracker{}}
+	b.Add(Entry{Kills: 5, FreedMem: 100, Speed: 1.5, Duration: 12.3, Date: time.Now()})
+
+	out := capture.Output(func() { b.PrintHighScores() })
+	assert.Contains(t, out, "Time")
+	assert.Contains(t, out, "12.3s")
+}

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -24,8 +25,19 @@ type GameService struct {
 	scores   *ScoreService
 	renderer outbound.Renderer
 	events   outbound.InputSource
-	kills    chan *game.Target
+	kills    chan killSignal
 }
+
+// killSignal reports the outcome of a verified kill attempt: either a real
+// kill, or a reap when the target's process had already exited.
+type killSignal struct {
+	target     *game.Target
+	shouldReap bool
+}
+
+// errAlreadyKilled indicates a target's backing OS process was already gone
+// by the time its kill could be verified.
+var errAlreadyKilled = errors.New("target process already killed")
 
 // NewGameService constructs a GameService with all required outbound ports injected.
 func NewGameService(
@@ -64,7 +76,7 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 
 	duration := endTime.Sub(g.StartTime()).Seconds()
 
-	s.scores.recordScore(board, cfg.Speed, cfg.TimeLimit, duration, success)
+	s.scores.recordScore(board, g.Throttle().LowestSpeed(), cfg.TimeLimit, duration, success)
 
 	printResults(duration, board)
 
@@ -121,7 +133,7 @@ func (s *GameService) runLoop(g *game.Game, tracker *score.Tracker) (time.Time, 
 	ticker := time.NewTicker(frameDuration)
 	defer ticker.Stop()
 
-	s.kills = make(chan *game.Target, 10)
+	s.kills = make(chan killSignal, 10)
 	evt := event.NewDispatcher(handler.NewHandler(g))
 
 	for g.IsRunning() {
@@ -139,9 +151,13 @@ func (s *GameService) runLoop(g *game.Game, tracker *score.Tracker) (time.Time, 
 func (s *GameService) applyKills(tracker *score.Tracker) {
 	for {
 		select {
-		case t := <-s.kills:
-			if t.Kill() {
-				tracker.RecordKill(t.Rss)
+		case sig := <-s.kills:
+			if sig.shouldReap {
+				sig.target.Reap()
+				continue
+			}
+			if sig.target.Kill() {
+				tracker.RecordKill(sig.target.Rss)
 			}
 		default:
 			return
@@ -189,9 +205,16 @@ func (s *GameService) drainEvents(d *event.Dispatcher, done <-chan struct{}) {
 				continue
 			}
 			go func() {
-				if killed, err := s.kill(target); err == nil && killed {
+				killed, err := s.kill(target)
+				switch {
+				case err == nil && killed:
 					select {
-					case s.kills <- target:
+					case s.kills <- killSignal{target: target}:
+					case <-done:
+					}
+				case errors.Is(err, errAlreadyKilled):
+					select {
+					case s.kills <- killSignal{target: target, shouldReap: true}:
 					case <-done:
 					}
 				}
@@ -203,8 +226,10 @@ func (s *GameService) drainEvents(d *event.Dispatcher, done <-chan struct{}) {
 }
 
 // kill re-verifies target immediately before signaling it, since the PID may
-// have been recycled by the OS to a different process in the time between
-// discovery and the player confirming the kill.
+// have been recycled by the OS to a different process — or exited entirely —
+// in the time between discovery and the player confirming the kill. Either
+// case is reported as errAlreadyKilled so the caller can reap the target
+// instead of leaving it stuck as Alive forever.
 func (s *GameService) kill(target *game.Target) (bool, error) {
 	pid := target.Pid
 	if target.Info.IsProtected() {
@@ -212,10 +237,10 @@ func (s *GameService) kill(target *game.Target) (bool, error) {
 	}
 	name, err := s.process.LookupName(pid)
 	if err != nil {
-		return false, fmt.Errorf("could not verify PID %d: %w", pid, err)
+		return false, fmt.Errorf("could not verify PID %d: %w: %w", pid, errAlreadyKilled, err)
 	}
 	if err := validateProcessName(target.Name, name); err != nil {
-		return false, nil
+		return false, fmt.Errorf("%w: %w", errAlreadyKilled, err)
 	}
 
 	return s.process.Kill(pid)

@@ -102,6 +102,17 @@ func (t *Target) Kill() bool {
 	return true
 }
 
+// Reap transitions the target straight to Dead, skipping the kill animation,
+// for a target whose backing process already exited outside the game.
+// Returns false without changing state if the target is not alive.
+func (t *Target) Reap() bool {
+	if !t.IsAlive() {
+		return false
+	}
+	t.State = Dead
+	return true
+}
+
 // Snapshot returns the current renderable state of this target.
 func (t *Target) Snapshot() TargetSnapshot {
 	return TargetSnapshot{

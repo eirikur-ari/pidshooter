@@ -221,6 +221,18 @@ func TestTargetKillNoOpWhenNotAlive(t *testing.T) {
 	assert.Equal(t, Dead, e.State)
 }
 
+func TestTargetReap(t *testing.T) {
+	e := &Target{Info: process.NewInfo(1, "xxx", 0), State: Alive}
+	assert.True(t, e.Reap())
+	assert.Equal(t, Dead, e.State)
+}
+
+func TestTargetReapNoOpWhenNotAlive(t *testing.T) {
+	e := &Target{Info: process.NewInfo(1, "xxx", 0), State: Killing}
+	assert.False(t, e.Reap())
+	assert.Equal(t, Killing, e.State)
+}
+
 func TestTargetSnapshotAliveTarget(t *testing.T) {
 	e := &Target{
 		Info:   process.NewInfo(1, "x", 0),

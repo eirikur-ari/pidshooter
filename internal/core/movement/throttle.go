@@ -8,29 +8,34 @@ const (
 
 // Throttle tracks the current movement speed with clamped increase/decrease steps.
 type Throttle struct {
-	speed float64
+	speed Speed
 }
 
 // NewThrottle returns a Throttle initialised to the given speed.
 func NewThrottle(speed float64) *Throttle {
-	return &Throttle{speed: speed}
+	return &Throttle{speed: NewSpeed(speed)}
 }
 
 // Speed returns the current speed.
-func (t *Throttle) Speed() float64 { return t.speed }
+func (t *Throttle) Speed() float64 { return t.speed.Current() }
+
+// LowestSpeed returns the lowest speed reached so far, including the starting speed.
+func (t *Throttle) LowestSpeed() float64 { return t.speed.Lowest() }
 
 // Increase adds one step, capped at the maximum.
 func (t *Throttle) Increase() {
-	t.speed += SpeedStep
-	if t.speed > MaxSpeed {
-		t.speed = MaxSpeed
+	v := t.speed.Current() + SpeedStep
+	if v > MaxSpeed {
+		v = MaxSpeed
 	}
+	t.speed.Set(v)
 }
 
 // Decrease subtracts one step, floored at the minimum.
 func (t *Throttle) Decrease() {
-	t.speed -= SpeedStep
-	if t.speed < MinSpeed {
-		t.speed = MinSpeed
+	v := t.speed.Current() - SpeedStep
+	if v < MinSpeed {
+		v = MinSpeed
 	}
+	t.speed.Set(v)
 }
