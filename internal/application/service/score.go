@@ -51,5 +51,5 @@ func (s *ScoreService) recordScore(board *score.Board, tracker *score.Tracker, s
 func printResults(tracker *score.Tracker, duration float64, board *score.Board) {
 	fmt.Printf("\n  Game Over! Kills: %d | Freed: %s | Time: %.1fs\n",
 		tracker.Kills, util.FormatBytes(tracker.FreedMem), duration)
-	board.PrintScores(tracker)
+	board.PrintHighScores(tracker)
 }

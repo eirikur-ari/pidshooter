@@ -40,10 +40,10 @@ func (b *Board) HighScore() int {
 	return b.Scores[0].Kills
 }
 
-// PrintScores prints a trophy message if the tracker's kills beat the high
+// PrintHighScores prints a trophy message if the tracker's kills beat the high
 // score recorded at the time of the last Add call, then displays the high
 // score table.
-func (b *Board) PrintScores(tracker *Tracker) {
+func (b *Board) PrintHighScores(tracker *Tracker) {
 	if tracker.Kills > 0 && tracker.Kills >= b.highScore {
 		fmt.Println("  🏆 New high score!")
 	}
