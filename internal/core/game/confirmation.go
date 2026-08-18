@@ -1,13 +1,5 @@
 package game
 
-// Confirmer is the interface through which external packages interact with confirmation state.
-type Confirmer interface {
-	Pending() bool
-	Request(t *Target) *Target
-	Accept() *Target
-	Cancel()
-}
-
 // Confirmation tracks a target pending user confirmation before a kill is issued.
 // When confirm is false, Request passes targets through immediately.
 type Confirmation struct {

@@ -94,7 +94,7 @@ func (g *Game) ConfirmTarget() *Target {
 }
 
 // Confirm returns the game's confirmation state.
-func (g *Game) Confirm() Confirmer { return &g.confirm }
+func (g *Game) Confirm() *Confirmation { return &g.confirm }
 
 // Snapshot returns a point-in-time read model of all visible targets and the alive count.
 // Dead targets are excluded.
