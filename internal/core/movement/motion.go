@@ -27,7 +27,7 @@ func NewMotion(bounds Bounds, tagWidth int) Motion {
 func (m *Motion) Move(bounds Bounds, speed, tagWidth float64) {
 	m.Position.X += m.Velocity.X * speed
 	m.Position.Y += m.Velocity.Y * speed
-	bounds.Bounce(&m.Position, &m.Velocity, tagWidth)
+	bounds.bounce(&m.Position, &m.Velocity, tagWidth)
 }
 
 func newRandomPosition(bounds Bounds, tagWidth int) Vector {

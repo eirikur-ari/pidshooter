@@ -20,7 +20,7 @@ type Config struct {
 type Game struct {
 	cfg       Config
 	state     state
-	timer     Timer
+	timer     timer
 	confirm   Confirmation
 	throttle  *movement.Throttle
 	processes []process.Info
@@ -39,7 +39,8 @@ func New(processes []process.Info, cfg Config) *Game {
 		cfg:       cfg,
 		processes: processes,
 		targets:   make([]*Target, 0, len(processes)),
-		timer:     NewTimer(cfg.TimeLimit),
+		state:     newState(),
+		timer:     newTimer(cfg.TimeLimit),
 		throttle:  movement.NewThrottle(cfg.Speed),
 		confirm:   NewConfirmation(cfg.Confirm),
 	}

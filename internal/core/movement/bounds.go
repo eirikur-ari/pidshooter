@@ -10,9 +10,9 @@ func NewBounds(width, height int) Bounds {
 	return Bounds{width: width, height: height}
 }
 
-// Bounce adjusts position and velocity so the target stays within the frame,
+// bounce adjusts position and velocity so the target stays within the frame,
 // reversing the relevant velocity component on each wall hit.
-func (b Bounds) Bounce(pos, vel *Vector, tagWidth float64) {
+func (b Bounds) bounce(pos, vel *Vector, tagWidth float64) {
 	b.bounceLeft(pos, vel)
 	b.bounceRight(pos, vel, tagWidth)
 	b.bounceTop(pos, vel)

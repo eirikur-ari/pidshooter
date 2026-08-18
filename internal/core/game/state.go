@@ -16,6 +16,9 @@ type state struct {
 	value atomic.Int32
 }
 
+// newState returns a state initialized to Pending.
+func newState() state { return state{} }
+
 // Store sets the current lifecycle.
 func (s *state) Store(l Lifecycle) {
 	s.value.Store(int32(l))

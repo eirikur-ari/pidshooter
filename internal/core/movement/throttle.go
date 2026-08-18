@@ -1,19 +1,19 @@
 package movement
 
 const (
-	MinSpeed  = 0.5 // minimum allowed speed multiplier (one full SpeedStep)
+	MinSpeed  = 0.5 // minimum allowed speed multiplier (one full speedStep)
 	MaxSpeed  = 5.0 // maximum allowed speed multiplier
-	SpeedStep = 0.5 // increment/decrement per throttle adjustment
+	speedStep = 0.5 // increment/decrement per throttle adjustment
 )
 
 // Throttle tracks the current movement speed with clamped increase/decrease steps.
 type Throttle struct {
-	speed Speed
+	speed speed
 }
 
 // NewThrottle returns a Throttle initialised to the given speed.
 func NewThrottle(speed float64) *Throttle {
-	return &Throttle{speed: NewSpeed(speed)}
+	return &Throttle{speed: newSpeed(speed)}
 }
 
 // Speed returns the current speed.
@@ -24,7 +24,7 @@ func (t *Throttle) LowestSpeed() float64 { return t.speed.Lowest() }
 
 // Increase adds one step, capped at the maximum.
 func (t *Throttle) Increase() {
-	v := t.speed.Current() + SpeedStep
+	v := t.speed.Current() + speedStep
 	if v > MaxSpeed {
 		v = MaxSpeed
 	}
@@ -33,7 +33,7 @@ func (t *Throttle) Increase() {
 
 // Decrease subtracts one step, floored at the minimum.
 func (t *Throttle) Decrease() {
-	v := t.speed.Current() - SpeedStep
+	v := t.speed.Current() - speedStep
 	if v < MinSpeed {
 		v = MinSpeed
 	}
