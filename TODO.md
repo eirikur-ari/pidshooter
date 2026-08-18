@@ -23,7 +23,7 @@ What is left to refactor
 ## core
 ### game
 - [x] confirmation
-- [ ] game
+- [x] game
 - [ ] loop
 - [x] lifecycle
 - [x] target

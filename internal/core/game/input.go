@@ -13,8 +13,8 @@ func NewInput(g *Game) *Input {
 
 // OnQuit cancels a pending kill confirmation if one is active, otherwise stops the game.
 func (h *Input) OnQuit() {
-	if h.g.Confirm().Pending() {
-		h.g.Confirm().Cancel()
+	if h.g.confirm.Pending() {
+		h.g.confirm.Cancel()
 	} else {
 		h.g.Stop()
 	}
@@ -22,12 +22,12 @@ func (h *Input) OnQuit() {
 
 // OnYes accepts a pending kill confirmation and returns the target to kill.
 func (h *Input) OnYes() *Target {
-	return h.g.Confirm().Accept()
+	return h.g.confirm.Accept()
 }
 
 // OnNo cancels a pending kill confirmation.
 func (h *Input) OnNo() {
-	h.g.Confirm().Cancel()
+	h.g.confirm.Cancel()
 }
 
 // OnSpeedUp increases the game throttle.
@@ -43,12 +43,12 @@ func (h *Input) OnSpeedDown() {
 // OnClickAt processes a click at the given coordinates and returns the target to kill if one is hit.
 // In confirm mode, the first hit sets the pending confirmation rather than returning the target.
 func (h *Input) OnClickAt(x, y int) *Target {
-	if h.g.Confirm().Pending() {
+	if h.g.confirm.Pending() {
 		return nil
 	}
 	for _, t := range h.g.Targets() {
 		if t.isHitAt(x, y) {
-			return h.g.Confirm().Request(t)
+			return h.g.confirm.Request(t)
 		}
 	}
 	return nil

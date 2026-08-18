@@ -21,7 +21,7 @@ type Game struct {
 	cfg       Config
 	state     atomicLifecycle
 	timer     timer
-	confirm   Confirmation
+	confirm   confirmation
 	throttle  *movement.Throttle
 	processes []process.Info
 	targets   []*Target
@@ -42,7 +42,7 @@ func New(processes []process.Info, cfg Config) *Game {
 		state:     newAtomicLifecycle(),
 		timer:     newTimer(cfg.TimeLimit),
 		throttle:  movement.NewThrottle(cfg.Speed),
-		confirm:   NewConfirmation(cfg.Confirm),
+		confirm:   newConfirmation(cfg.Confirm),
 	}
 }
 
@@ -80,16 +80,17 @@ func (g *Game) TimeLimit() int { return g.timer.LimitSeconds() }
 // TimeLeft returns the remaining time in seconds.
 func (g *Game) TimeLeft() int { return g.timer.SecondsLeft() }
 
-// ConfirmTarget returns the pending kill target, or nil if none is pending.
-func (g *Game) ConfirmTarget() *Target {
+// PendingConfirm returns the pending kill target, or nil if none is pending.
+func (g *Game) PendingConfirm() *Target {
 	if !g.confirm.Pending() {
 		return nil
 	}
 	return g.confirm.target
 }
 
-// Confirm returns the game's confirmation state.
-func (g *Game) Confirm() *Confirmation { return &g.confirm }
+// RequestConfirm registers target as pending confirmation (confirm mode) or returns
+// it immediately for killing (passthrough mode).
+func (g *Game) RequestConfirm(t *Target) *Target { return g.confirm.Request(t) }
 
 // Frame returns a point-in-time read model of all visible targets and the alive count.
 // Dead targets are excluded.

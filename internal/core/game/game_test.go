@@ -73,20 +73,20 @@ func TestGameTargetsPopulatedAfterStart(t *testing.T) {
 	assert.Len(t, g.Targets(), 1)
 }
 
-func TestGameConfirmTargetNilWhenNoPending(t *testing.T) {
+func TestGamePendingConfirmNilWhenNoPending(t *testing.T) {
 	g := New(nil, Config{})
-	assert.Nil(t, g.ConfirmTarget())
+	assert.Nil(t, g.PendingConfirm())
 }
 
-func TestGameConfirmTargetReturnsPendingTarget(t *testing.T) {
+func TestGamePendingConfirmReturnsPendingTarget(t *testing.T) {
 	tgt := &Target{Info: process.NewInfo(42, "suspect", 0)}
-	g := &Game{confirm: Confirmation{target: tgt, confirm: true}}
-	assert.Equal(t, tgt, g.ConfirmTarget())
+	g := &Game{confirm: confirmation{target: tgt, confirm: true}}
+	assert.Equal(t, tgt, g.PendingConfirm())
 }
 
 func TestGameConfirmPendingFalseInitially(t *testing.T) {
 	g := New(nil, Config{})
-	assert.False(t, g.Confirm().Pending())
+	assert.False(t, g.confirm.Pending())
 }
 
 func TestGameThrottleMutationAffectsSpeed(t *testing.T) {

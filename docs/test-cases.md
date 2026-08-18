@@ -78,7 +78,7 @@ Total: 27 test files across 11 packages — 230 test functions (including 20 sub
 
 | Test | Description |
 |------|-------------|
-| `TestConfirmationPendingFalseWhenEmpty` | A freshly constructed `Confirmation` has no pending target |
+| `TestConfirmationPendingFalseWhenEmpty` | A freshly constructed `confirmation` has no pending target |
 | `TestConfirmationRequestConfirmModeHoldsTarget` | In confirm mode, `Request` holds the target and returns `nil` |
 | `TestConfirmationRequestPassthroughModeReturnsTarget` | Outside confirm mode, `Request` returns the target immediately without holding it |
 | `TestConfirmationAcceptReturnsAndClearsTarget` | `Accept` returns the held target and clears pending state |
@@ -118,9 +118,9 @@ Total: 27 test files across 11 packages — 230 test functions (including 20 sub
 | `TestGameTimeLimit` | `TimeLimit` reflects the configured value |
 | `TestGameTargetsEmptyBeforeStart` | `Targets` is empty before `Start` is called |
 | `TestGameTargetsPopulatedAfterStart` | `Targets` has one entry per process after `Start` |
-| `TestGameConfirmTargetNilWhenNoPending` | `ConfirmTarget` returns `nil` when no confirmation is pending |
-| `TestGameConfirmTargetReturnsPendingTarget` | `ConfirmTarget` returns the target held by the internal `Confirmation` |
-| `TestGameConfirmPendingFalseInitially` | `Confirm().Pending()` is false on a new game |
+| `TestGamePendingConfirmNilWhenNoPending` | `PendingConfirm` returns `nil` when no confirmation is pending |
+| `TestGamePendingConfirmReturnsPendingTarget` | `PendingConfirm` returns the target held by the internal `confirmation` |
+| `TestGameConfirmPendingFalseInitially` | `confirm.Pending()` is false on a new game |
 | `TestGameThrottleMutationAffectsSpeed` | Mutating the throttle returned by `Throttle()` changes `Speed()` |
 | `TestGameFrameExcludesDeadTargets` | `Frame` omits targets once their kill animation completes and they go `Dead` |
 | `TestGameFrameCountsAlive` | `Frame.Alive` counts only `Alive`-state targets, while a `Killing` target remains visible but uncounted |

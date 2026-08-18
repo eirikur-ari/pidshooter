@@ -32,7 +32,7 @@ func TestInputOnQuitCancelsConfirmWhenPending(t *testing.T) {
 	in.OnQuit()
 
 	assert.True(t, g.IsRunning(), "OnQuit should cancel confirm, not stop, when confirm is pending")
-	assert.Nil(t, g.ConfirmTarget())
+	assert.Nil(t, g.PendingConfirm())
 }
 
 // --- OnYes ---
@@ -44,7 +44,7 @@ func TestInputOnYesReturnsConfirmedTarget(t *testing.T) {
 	result := in.OnYes()
 
 	require.NotNil(t, result)
-	assert.Nil(t, g.ConfirmTarget())
+	assert.Nil(t, g.PendingConfirm())
 }
 
 // --- OnNo ---
@@ -55,7 +55,7 @@ func TestInputOnNoCancelsPending(t *testing.T) {
 
 	in.OnNo()
 
-	assert.Nil(t, g.ConfirmTarget())
+	assert.Nil(t, g.PendingConfirm())
 	assert.True(t, g.IsRunning())
 }
 
@@ -99,11 +99,11 @@ func TestInputOnClickAtMissReturnsNil(t *testing.T) {
 func TestInputOnClickAtNoOpWhenAlreadyConfirming(t *testing.T) {
 	g := fixture.PendingConfirmGame(2)
 	in := newInput(g)
-	pending := g.ConfirmTarget()
+	pending := g.PendingConfirm()
 
 	second := g.Targets()[1]
 	result := in.OnClickAt(int(math.Round(second.Position.X)), int(math.Round(second.Position.Y)))
 
 	assert.Nil(t, result, "expected no result when already confirming")
-	assert.Equal(t, pending, g.ConfirmTarget(), "expected pending confirmation unchanged")
+	assert.Equal(t, pending, g.PendingConfirm(), "expected pending confirmation unchanged")
 }

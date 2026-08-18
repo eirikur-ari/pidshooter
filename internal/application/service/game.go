@@ -183,7 +183,7 @@ func buildFrame(g *game.Game, tracker *score.Tracker) outbound.FrameState {
 			Speed:      g.Throttle().Speed(),
 			TimeLimit:  g.TimeLimit(),
 			TimeLeft:   g.TimeLeft(),
-			Confirming: toConfirmViewState(g.ConfirmTarget()),
+			Confirming: toConfirmViewState(g.PendingConfirm()),
 		},
 	}
 }

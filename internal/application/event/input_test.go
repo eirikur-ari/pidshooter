@@ -90,7 +90,7 @@ func TestDispatcherYReturnsConfirmedTarget(t *testing.T) {
 	result := d.Dispatch(outbound.KeyEvent{Ch: 'y'})
 
 	assert.Equal(t, tgt, result)
-	assert.Nil(t, g.ConfirmTarget())
+	assert.Nil(t, g.PendingConfirm())
 }
 
 func TestDispatcherYUppercaseAcceptsConfirmation(t *testing.T) {
@@ -101,7 +101,7 @@ func TestDispatcherYUppercaseAcceptsConfirmation(t *testing.T) {
 	result := d.Dispatch(outbound.KeyEvent{Ch: 'Y'})
 
 	assert.Equal(t, tgt, result)
-	assert.Nil(t, g.ConfirmTarget())
+	assert.Nil(t, g.PendingConfirm())
 }
 
 // --- Rune: confirm no ---
@@ -112,7 +112,7 @@ func TestDispatcherNCancelsConfirmation(t *testing.T) {
 
 	d.Dispatch(outbound.KeyEvent{Ch: 'n'})
 
-	assert.Nil(t, g.ConfirmTarget())
+	assert.Nil(t, g.PendingConfirm())
 }
 
 func TestDispatcherNUppercaseCancelsConfirmation(t *testing.T) {
@@ -121,7 +121,7 @@ func TestDispatcherNUppercaseCancelsConfirmation(t *testing.T) {
 
 	d.Dispatch(outbound.KeyEvent{Ch: 'N'})
 
-	assert.Nil(t, g.ConfirmTarget())
+	assert.Nil(t, g.PendingConfirm())
 }
 
 // --- Rune: speed ---

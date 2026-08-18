@@ -21,6 +21,6 @@ func ConfirmGame(n int) *game.Game {
 // confirmation already requested on its first target.
 func PendingConfirmGame(n int) *game.Game {
 	g := ConfirmGame(n)
-	g.Confirm().Request(g.Targets()[0])
+	g.RequestConfirm(g.Targets()[0])
 	return g
 }
