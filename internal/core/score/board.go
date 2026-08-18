@@ -7,14 +7,14 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
+const maxScores = 10
+
 // Board holds all high scores and their ranking logic.
 type Board struct {
 	Scores    []Entry
 	highScore int
 	tracker   *Tracker
 }
-
-const maxScores = 10
 
 // NewBoard builds a Board from persisted entries and mints a Tracker seeded
 // with the board's current high score, ready for a new live session.
@@ -60,7 +60,6 @@ func (b *Board) PrintHighScores() {
 		return
 	}
 
-	//TODO: Replace Speed with Time
 	fmt.Println("\n  ╔════╦═══════╦═══════╦════════╦════════════╦════════════╗")
 	fmt.Println("  ║  # ║ Kills ║ Speed ║  Time  ║   Freed    ║    Date    ║")
 	fmt.Println("  ╠════╬═══════╬═══════╬════════╬════════════╬════════════╣")

@@ -41,9 +41,9 @@ What is left to refactor
 - [x] process
 
 ### score
-- [ ] board
-- [ ] entry
-- [ ] tracker
+- [x] board
+- [x] entry
+- [x] tracker
 
 ## infrastructure
 ### osprocess

@@ -21,7 +21,7 @@ func TestTrackerRecordKill(t *testing.T) {
 func TestTrackerRecordKillUpdatesHighScore(t *testing.T) {
 	tr := &Tracker{HighScore: 5}
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		tr.RecordKill(0)
 		assert.Equal(t, 5, tr.HighScore, "after %d kills: expected highScore=5 (not beaten yet)", i+1)
 	}

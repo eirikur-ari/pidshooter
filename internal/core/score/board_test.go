@@ -37,7 +37,7 @@ func TestBoardAddTiebreakByMemory(t *testing.T) {
 func TestBoardAddCapsAtMax(t *testing.T) {
 	b := &Board{}
 
-	for i := 0; i < maxScores+5; i++ {
+	for i := range maxScores + 5 {
 		b.Add(Entry{Kills: i, FreedMem: int64(i * 100), Date: time.Now()})
 	}
 
