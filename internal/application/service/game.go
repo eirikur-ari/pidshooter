@@ -12,7 +12,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/event"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
-	"github.com/eirikur-ari/pidshooter/internal/core/handler"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
 )
@@ -134,7 +133,7 @@ func (s *GameService) runLoop(g *game.Game, tracker *score.Tracker) (time.Time, 
 	defer ticker.Stop()
 
 	s.kills = make(chan killSignal, 10)
-	evt := event.NewDispatcher(handler.NewHandler(g))
+	evt := event.NewDispatcher(game.NewInput(g))
 
 	for g.IsRunning() {
 		s.applyKills(tracker)

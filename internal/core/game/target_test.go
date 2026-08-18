@@ -158,16 +158,16 @@ func TestTargetContains(t *testing.T) {
 	tag := e.Tag()
 	width := len(tag)
 
-	assert.True(t, e.IsHitAt(10, 5))
-	assert.True(t, e.IsHitAt(10+width-1, 5))
-	assert.False(t, e.IsHitAt(9, 5))
-	assert.False(t, e.IsHitAt(10+width, 5))
-	assert.False(t, e.IsHitAt(10, 4))
+	assert.True(t, e.isHitAt(10, 5))
+	assert.True(t, e.isHitAt(10+width-1, 5))
+	assert.False(t, e.isHitAt(9, 5))
+	assert.False(t, e.isHitAt(10+width, 5))
+	assert.False(t, e.isHitAt(10, 4))
 }
 
 func TestTargetContainsMultiByteProcessName(t *testing.T) {
 	// "café" is 5 UTF-8 bytes but 4 runes → tag "[42 café]" is 10 bytes, 9 runes.
-	// With the byte-count bug, IsHitAt over-counts by 1 and accepts column 19 as a hit.
+	// With the byte-count bug, isHitAt over-counts by 1 and accepts column 19 as a hit.
 	e := &Target{
 		Info:   process.NewInfo(42, "café", 0),
 		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
@@ -176,8 +176,8 @@ func TestTargetContainsMultiByteProcessName(t *testing.T) {
 	tag := e.Tag()
 	runeCount := utf8.RuneCountInString(tag)
 	pastEnd := 10 + runeCount
-	assert.False(t, e.IsHitAt(pastEnd, 5),
-		"IsHitAt(%d, 5) should be false for tag %q (rune count %d) — byte-count bug?",
+	assert.False(t, e.isHitAt(pastEnd, 5),
+		"isHitAt(%d, 5) should be false for tag %q (rune count %d) — byte-count bug?",
 		pastEnd, tag, runeCount)
 }
 
@@ -187,7 +187,7 @@ func TestTargetContainsNotAlive(t *testing.T) {
 		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
 		State:  Killing,
 	}
-	assert.False(t, e.IsHitAt(10, 5), "non-alive entity should not be hit")
+	assert.False(t, e.isHitAt(10, 5), "non-alive entity should not be hit")
 }
 
 func TestTargetIsAlive(t *testing.T) {

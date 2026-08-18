@@ -104,7 +104,7 @@ func TestGameSnapshotExcludesDeadTargets(t *testing.T) {
 	g := New([]process.Info{process.NewInfo(1, "a", 0)}, Config{Speed: 1.0})
 	g.Start(80, 24)
 	g.targets[0].Kill()
-	for i := 0; i < KillAnimationDuration; i++ {
+	for range KillAnimationDuration {
 		g.Update(80, 24)
 	}
 

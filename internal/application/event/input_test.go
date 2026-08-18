@@ -8,12 +8,11 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
-	"github.com/eirikur-ari/pidshooter/internal/core/handler"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fixture"
 )
 
 func newDispatcher(g *game.Game) *Dispatcher {
-	return NewDispatcher(handler.NewHandler(g))
+	return NewDispatcher(game.NewInput(g))
 }
 
 // --- ClickEvent ---

@@ -3,16 +3,15 @@ package event
 import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
-	"github.com/eirikur-ari/pidshooter/internal/core/handler"
 )
 
 // Dispatcher translates raw input events into intent-level domain calls.
 type Dispatcher struct {
-	h *handler.Handler
+	h *game.Input
 }
 
-// NewDispatcher returns a Dispatcher that dispatches to the given Handler.
-func NewDispatcher(h *handler.Handler) *Dispatcher {
+// NewDispatcher returns a Dispatcher that dispatches to the given Input.
+func NewDispatcher(h *game.Input) *Dispatcher {
 	return &Dispatcher{h: h}
 }
 

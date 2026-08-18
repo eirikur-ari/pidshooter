@@ -72,16 +72,6 @@ func (t *Target) Update(bounds movement.Bounds, speed float64) {
 	}
 }
 
-// IsHitAt reports whether the given game-space coordinates (x=column, y=row)
-// fall within this target's tag.
-func (t *Target) IsHitAt(x, y int) bool {
-	if t.State != Alive {
-		return false
-	}
-	width := utf8.RuneCountInString(t.Tag())
-	return y == int(t.Position.Y) && x >= int(t.Position.X) && x < int(t.Position.X)+width
-}
-
 // Kill transitions the target to the dying state and returns true.
 // Returns false without changing state if the target is not alive.
 func (t *Target) Kill() bool {
@@ -122,6 +112,16 @@ func (t *Target) isKilling() bool { return t.State == Killing }
 
 // isDead reports whether the target has finished its kill animation and been removed.
 func (t *Target) isDead() bool { return t.State == Dead }
+
+// isHitAt reports whether the given game-space coordinates (x=column, y=row)
+// fall within this target's tag.
+func (t *Target) isHitAt(x, y int) bool {
+	if t.State != Alive {
+		return false
+	}
+	width := utf8.RuneCountInString(t.Tag())
+	return y == int(t.Position.Y) && x >= int(t.Position.X) && x < int(t.Position.X)+width
+}
 
 func (t *Target) doomsdayTick() {
 	t.KillAnimationTick++

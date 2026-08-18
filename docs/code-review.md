@@ -48,7 +48,7 @@ Cobra's `Float64Var` calls `strconv.ParseFloat`, which accepts the string `"NaN"
 if speed < game.MinSpeed || speed > game.MaxSpeed {
 ```
 
-evaluates to `false` for NaN (all comparisons with NaN are false), so NaN passes validation. It then propagates into `Velocity` and `FrameVector.Apply`, making every target position NaN. `int(math.Round(NaN))` yields a garbage coordinate; `IsHitAt`'s equality check can never match; and `Velocity.Increase`/`Decrease` cannot recover (`NaN + 0.5 == NaN`, clamp comparisons stay false). The game renders nothing sensible and is unwinnable.
+evaluates to `false` for NaN (all comparisons with NaN are false), so NaN passes validation. It then propagates into `Velocity` and `FrameVector.Apply`, making every target position NaN. `int(math.Round(NaN))` yields a garbage coordinate; `isHitAt`'s equality check can never match; and `Velocity.Increase`/`Decrease` cannot recover (`NaN + 0.5 == NaN`, clamp comparisons stay false). The game renders nothing sensible and is unwinnable.
 
 Fix: invert the guard so NaN fails it:
 
@@ -79,10 +79,10 @@ if timeLimit < 0 || timeLimit > maxTimeLimit {
 
 ### 34. Hit detection truncates while rendering rounds — `core/game/target.go:86`
 
-`IsHitAt` converts the float position with `int()` (truncation), but `ViewState` uses `math.Round`:
+`isHitAt` converts the float position with `int()` (truncation), but `ViewState` uses `math.Round`:
 
 ```go
-// IsHitAt (line 86) — truncation
+// isHitAt (line 86) — truncation
 return y == int(t.Position.Y) && x >= int(t.Position.X) && x < int(t.Position.X)+width
 
 // ViewState (lines 92-93) — rounding
@@ -369,7 +369,7 @@ None appear in the replacement `internal/core/game/target.go`. The godoc lines w
 | 31 | `core/game/frame.go` | ✓ Resolved | Frame snapshot types moved to `application/contract/outbound/ui.go`; `core/game` import removed from outbound port |
 | 32 | `entrypoint/cli/cli.go:90` | High | `--speed=NaN` bypasses range guard — NaN propagates into all target positions, game unwinnable |
 | 33 | `entrypoint/cli/cli.go:94`, `core/game/timer.go:16` | Medium | `--time` with value > ~292 years overflows `time.Duration` to negative, silently becomes no time limit |
-| 34 | `core/game/target.go:86` | Medium | `IsHitAt` truncates float position (`int()`) while `ViewState` rounds (`math.Round`) — clicks on visible target miss ~50% of the time |
+| 34 | `core/game/target.go:86` | Medium | `isHitAt` truncates float position (`int()`) while `ViewState` rounds (`math.Round`) — clicks on visible target miss ~50% of the time |
 | 35 | `application/service/game.go:45` | Medium | `GameService.Play` performs no input validation — only the CLI adapter validates; any second delivery adapter bypasses all guards |
 | 36 | `infrastructure/scorefilestore/score_file_store.go:34` | Low | Score file contents trusted after unmarshal — unsorted, oversized, or negative-valued entries corrupt the high score and get re-saved |
 | 37 | `core/game/event_handler.go:22–36` | ✓ Resolved | Keybinding policy (rune→action map) in the domain; control-key translation already lives in the app layer — binding logic split across three layers |
