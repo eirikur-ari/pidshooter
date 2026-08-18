@@ -180,7 +180,7 @@ func buildFrame(g *game.Game, tracker *score.Tracker) outbound.FrameState {
 		},
 		StatusBar: outbound.StatusState{
 			Alive:      frame.Alive,
-			Speed:      g.Speed(),
+			Speed:      g.Throttle().Speed(),
 			TimeLimit:  g.TimeLimit(),
 			TimeLeft:   g.TimeLeft(),
 			Confirming: toConfirmViewState(g.ConfirmTarget()),

@@ -131,7 +131,7 @@ func TestDispatcherPlusIncreasesSpeed(t *testing.T) {
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Ch: '+'})
 
-	assert.Equal(t, 2.5, g.Speed())
+	assert.Equal(t, 2.5, g.Throttle().Speed())
 }
 
 func TestDispatcherEqualsIncreasesSpeed(t *testing.T) {
@@ -139,7 +139,7 @@ func TestDispatcherEqualsIncreasesSpeed(t *testing.T) {
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Ch: '='})
 
-	assert.Equal(t, 2.5, g.Speed())
+	assert.Equal(t, 2.5, g.Throttle().Speed())
 }
 
 func TestDispatcherMinusDecreasesSpeed(t *testing.T) {
@@ -147,7 +147,7 @@ func TestDispatcherMinusDecreasesSpeed(t *testing.T) {
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Ch: '-'})
 
-	assert.Equal(t, 1.5, g.Speed())
+	assert.Equal(t, 1.5, g.Throttle().Speed())
 }
 
 func TestDispatcherUnderscoreDecreasesSpeed(t *testing.T) {
@@ -155,7 +155,7 @@ func TestDispatcherUnderscoreDecreasesSpeed(t *testing.T) {
 
 	newDispatcher(g).Dispatch(outbound.KeyEvent{Ch: '_'})
 
-	assert.Equal(t, 1.5, g.Speed())
+	assert.Equal(t, 1.5, g.Throttle().Speed())
 }
 
 // --- Unknown ---
@@ -168,5 +168,5 @@ func TestDispatcherUnknownRuneNoOp(t *testing.T) {
 
 	assert.Nil(t, result)
 	assert.True(t, g.IsRunning())
-	assert.Equal(t, 2.0, g.Speed())
+	assert.Equal(t, 2.0, g.Throttle().Speed())
 }

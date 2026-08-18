@@ -71,9 +71,6 @@ func (g *Game) StartTime() time.Time { return g.timer.StartTime() }
 // Targets returns the live target slice for frame assembly. Callers must not modify it.
 func (g *Game) Targets() []*Target { return g.targets }
 
-// Speed returns the current throttle speed.
-func (g *Game) Speed() float64 { return g.throttle.Speed() }
-
 // Throttle returns the game's throttle.
 func (g *Game) Throttle() *movement.Throttle { return g.throttle }
 

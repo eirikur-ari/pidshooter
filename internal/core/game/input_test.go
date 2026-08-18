@@ -66,7 +66,7 @@ func TestInputOnSpeedUpIncreasesSpeed(t *testing.T) {
 
 	newInput(g).OnSpeedUp()
 
-	assert.Equal(t, 2.5, g.Speed())
+	assert.Equal(t, 2.5, g.Throttle().Speed())
 }
 
 func TestInputOnSpeedDownDecreasesSpeed(t *testing.T) {
@@ -74,7 +74,7 @@ func TestInputOnSpeedDownDecreasesSpeed(t *testing.T) {
 
 	newInput(g).OnSpeedDown()
 
-	assert.Equal(t, 1.5, g.Speed())
+	assert.Equal(t, 1.5, g.Throttle().Speed())
 }
 
 // --- OnClickAt ---

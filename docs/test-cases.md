@@ -1,6 +1,6 @@
 # Test Cases
 
-Total: 27 test files across 11 packages — 231 test functions (including 20 subtests).
+Total: 27 test files across 11 packages — 230 test functions (including 20 subtests).
 
 ---
 
@@ -106,7 +106,7 @@ Total: 27 test files across 11 packages — 231 test functions (including 20 sub
 | `TestUpdateStopsWhenTimeLimitExpired` | `Update` stops the game once elapsed time exceeds the configured time limit |
 | `TestUpdateStopsWhenAllTargetsDead` | `Update` stops the game once every target is in the `Dead` state |
 
-### `internal/core/game/game_test.go` (15 tests)
+### `internal/core/game/game_test.go` (14 tests)
 
 | Test | Description |
 |------|-------------|
@@ -115,7 +115,6 @@ Total: 27 test files across 11 packages — 231 test functions (including 20 sub
 | `TestStopTransitionsToStopped` | `Stop` transitions the internal lifecycle to `stopped` |
 | `TestStartPanicsWhenRunning` | Calling `Start` twice (already running) panics |
 | `TestStartPanicsWhenStopped` | Calling `Start` after `Stop` (already stopped) panics |
-| `TestGameSpeed` | `Speed` reflects the configured initial throttle speed |
 | `TestGameTimeLimit` | `TimeLimit` reflects the configured value |
 | `TestGameTargetsEmptyBeforeStart` | `Targets` is empty before `Start` is called |
 | `TestGameTargetsPopulatedAfterStart` | `Targets` has one entry per process after `Start` |

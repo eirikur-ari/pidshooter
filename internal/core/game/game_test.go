@@ -57,11 +57,6 @@ func TestStartPanicsWhenStopped(t *testing.T) {
 	assert.Panics(t, func() { g.Start(80, 24) })
 }
 
-func TestGameSpeed(t *testing.T) {
-	g := New(nil, Config{Speed: 2.5})
-	assert.Equal(t, 2.5, g.Speed())
-}
-
 func TestGameTimeLimit(t *testing.T) {
 	g := New(nil, Config{TimeLimit: 30})
 	assert.Equal(t, 30, g.TimeLimit())
@@ -97,7 +92,7 @@ func TestGameConfirmPendingFalseInitially(t *testing.T) {
 func TestGameThrottleMutationAffectsSpeed(t *testing.T) {
 	g := New(nil, Config{Speed: 2.0})
 	g.Throttle().Increase()
-	assert.Equal(t, 2.5, g.Speed())
+	assert.Equal(t, 2.5, g.Throttle().Speed())
 }
 
 func TestGameFrameExcludesDeadTargets(t *testing.T) {
