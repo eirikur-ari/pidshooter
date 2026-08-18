@@ -46,27 +46,24 @@ func New(processes []process.Info, cfg Config) *Game {
 	}
 }
 
-// Start transitions the game from Pending to Running. Panics if called on a
+// Start transitions the game from pending to running. Panics if called on a
 // game that is already running or stopped.
 func (g *Game) Start(w, h int) {
 	switch g.state.Load() {
-	case Pending:
+	case pending:
 		g.initialize(w, h)
-	case Running:
+	case running:
 		panic("game: Start called on a running game")
-	case Stopped:
+	case stopped:
 		panic("game: Start called on a stopped game")
 	}
 }
 
-// State returns the current lifecycle of the game.
-func (g *Game) State() Lifecycle { return g.state.Load() }
-
 // IsRunning reports whether the game loop should continue.
-func (g *Game) IsRunning() bool { return g.state.Load() == Running }
+func (g *Game) IsRunning() bool { return g.state.Load() == running }
 
-// Stop transitions the game to Stopped, signaling the loop to exit.
-func (g *Game) Stop() { g.state.Store(Stopped) }
+// Stop transitions the game to stopped, signaling the loop to exit.
+func (g *Game) Stop() { g.state.Store(stopped) }
 
 // StartTime returns when the game session was started.
 func (g *Game) StartTime() time.Time { return g.timer.StartTime() }
@@ -103,10 +100,10 @@ func (g *Game) Snapshot() Snapshot {
 	snaps := make([]TargetSnapshot, 0, len(g.targets))
 	alive := 0
 	for _, t := range g.targets {
-		if t.IsDead() {
+		if t.isDead() {
 			continue
 		}
-		if t.IsAlive() {
+		if t.isAlive() {
 			alive++
 		}
 		snaps = append(snaps, t.Snapshot())
@@ -119,5 +116,8 @@ func (g *Game) initialize(w, h int) {
 	for _, p := range g.processes {
 		g.targets = append(g.targets, NewTarget(p, movement.NewBounds(w, h)))
 	}
-	g.state.Store(Running)
+	g.state.Store(running)
 }
+
+// currentState returns the current lifecycle of the game.
+func (g *Game) currentState() lifecycle { return g.state.Load() }

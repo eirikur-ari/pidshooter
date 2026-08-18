@@ -20,7 +20,7 @@ func TestNew(t *testing.T) {
 	assert.True(t, g.cfg.Confirm)
 	assert.Equal(t, 3.5, g.throttle.Speed())
 	assert.Equal(t, 60, g.cfg.TimeLimit)
-	assert.Equal(t, Pending, g.State())
+	assert.Equal(t, pending, g.currentState())
 }
 
 func TestStartTransitionsToRunning(t *testing.T) {
@@ -39,7 +39,7 @@ func TestStopTransitionsToStopped(t *testing.T) {
 
 	g.Stop()
 
-	assert.Equal(t, Stopped, g.State())
+	assert.Equal(t, stopped, g.currentState())
 }
 
 func TestStartPanicsWhenRunning(t *testing.T) {

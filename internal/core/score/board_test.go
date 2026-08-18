@@ -47,11 +47,11 @@ func TestBoardAddCapsAtMax(t *testing.T) {
 	assert.Equal(t, expectedLowest, b.Scores[len(b.Scores)-1].Kills)
 }
 
-// --- Board.HighScore ---
+// --- Board.killScore ---
 
 func TestBoardHighScoreEmpty(t *testing.T) {
 	b := &Board{}
-	assert.Equal(t, 0, b.HighScore())
+	assert.Equal(t, 0, b.killScore())
 }
 
 func TestBoardHighScoreWithEntries(t *testing.T) {
@@ -60,7 +60,7 @@ func TestBoardHighScoreWithEntries(t *testing.T) {
 	b.Add(Entry{Kills: 10, Date: time.Now()})
 	b.Add(Entry{Kills: 7, Date: time.Now()})
 
-	assert.Equal(t, 10, b.HighScore())
+	assert.Equal(t, 10, b.killScore())
 }
 
 // --- NewBoard ---
@@ -86,7 +86,7 @@ func TestNewBoardEmptyEntriesSeedsZeroHighScore(t *testing.T) {
 func TestBoardPrintScoresPrintsTrophyWhenBeatsRecord(t *testing.T) {
 	b := &Board{}
 	b.Add(Entry{Kills: 3, Date: time.Now()})
-	b.Add(Entry{Kills: 7, Date: time.Now()}) // b.highScore = 3
+	b.Add(Entry{Kills: 7, Date: time.Now()}) // b.killScore = 3
 	b.tracker = &Tracker{Kills: 7}
 
 	out := capture.Output(func() { b.PrintHighScores() })
@@ -96,7 +96,7 @@ func TestBoardPrintScoresPrintsTrophyWhenBeatsRecord(t *testing.T) {
 func TestBoardPrintScoresNoTrophyWhenDoesNotBeatRecord(t *testing.T) {
 	b := &Board{}
 	b.Add(Entry{Kills: 7, Date: time.Now()})
-	b.Add(Entry{Kills: 3, Date: time.Now()}) // b.highScore = 7
+	b.Add(Entry{Kills: 3, Date: time.Now()}) // b.killScore = 7
 	b.tracker = &Tracker{Kills: 3}
 
 	out := capture.Output(func() { b.PrintHighScores() })
@@ -111,8 +111,8 @@ func TestBoardPrintScoresNoTrophyWhenZeroKills(t *testing.T) {
 
 func TestBoardPrintScoresPrintsTrophyWhenTiesRecord(t *testing.T) {
 	b := &Board{}
-	b.Add(Entry{Kills: 5, Date: time.Now()}) // b.highScore = 0 before append
-	b.Add(Entry{Kills: 3, Date: time.Now()}) // b.highScore = 5 before append
+	b.Add(Entry{Kills: 5, Date: time.Now()}) // b.killScore = 0 before append
+	b.Add(Entry{Kills: 3, Date: time.Now()}) // b.killScore = 5 before append
 	b.tracker = &Tracker{Kills: 5}
 
 	out := capture.Output(func() { b.PrintHighScores() })
@@ -121,7 +121,7 @@ func TestBoardPrintScoresPrintsTrophyWhenTiesRecord(t *testing.T) {
 
 func TestBoardPrintScoresPrintsTrophyForFirstEntry(t *testing.T) {
 	b := &Board{}
-	b.Add(Entry{Kills: 5, Date: time.Now()}) // b.highScore = 0
+	b.Add(Entry{Kills: 5, Date: time.Now()}) // b.killScore = 0
 	b.tracker = &Tracker{Kills: 5}
 
 	out := capture.Output(func() { b.PrintHighScores() })

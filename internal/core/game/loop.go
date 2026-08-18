@@ -30,7 +30,7 @@ func (g *Game) allTargetsDead() bool {
 		return false
 	}
 	for _, t := range g.targets {
-		if !t.IsDead() {
+		if !t.isDead() {
 			return false
 		}
 	}

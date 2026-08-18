@@ -191,21 +191,21 @@ func TestTargetContainsNotAlive(t *testing.T) {
 }
 
 func TestTargetIsAlive(t *testing.T) {
-	assert.True(t, (&Target{State: Alive}).IsAlive())
-	assert.False(t, (&Target{State: Killing}).IsAlive())
-	assert.False(t, (&Target{State: Dead}).IsAlive())
+	assert.True(t, (&Target{State: Alive}).isAlive())
+	assert.False(t, (&Target{State: Killing}).isAlive())
+	assert.False(t, (&Target{State: Dead}).isAlive())
 }
 
 func TestTargetIsKilling(t *testing.T) {
-	assert.True(t, (&Target{State: Killing}).IsKilling())
-	assert.False(t, (&Target{State: Alive}).IsKilling())
-	assert.False(t, (&Target{State: Dead}).IsKilling())
+	assert.True(t, (&Target{State: Killing}).isKilling())
+	assert.False(t, (&Target{State: Alive}).isKilling())
+	assert.False(t, (&Target{State: Dead}).isKilling())
 }
 
 func TestTargetIsDead(t *testing.T) {
-	assert.True(t, (&Target{State: Dead}).IsDead())
-	assert.False(t, (&Target{State: Alive}).IsDead())
-	assert.False(t, (&Target{State: Killing}).IsDead())
+	assert.True(t, (&Target{State: Dead}).isDead())
+	assert.False(t, (&Target{State: Alive}).isDead())
+	assert.False(t, (&Target{State: Killing}).isDead())
 }
 
 func TestTargetKill(t *testing.T) {

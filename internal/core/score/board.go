@@ -20,7 +20,7 @@ type Board struct {
 // with the board's current high score, ready for a new live session.
 func NewBoard(entries []Entry) (*Board, *Tracker) {
 	b := &Board{Scores: entries}
-	b.tracker = &Tracker{HighScore: b.HighScore()}
+	b.tracker = &Tracker{HighScore: b.killScore()}
 	return b, b.tracker
 }
 
@@ -31,20 +31,12 @@ func (b *Board) Tracker() *Tracker {
 
 // Add inserts a new score entry and keeps only the top N.
 func (b *Board) Add(entry Entry) {
-	b.highScore = b.HighScore()
+	b.highScore = b.killScore()
 	b.Scores = append(b.Scores, entry)
 	b.sortByRank()
 	if len(b.Scores) > maxScores {
 		b.Scores = b.Scores[:maxScores]
 	}
-}
-
-// HighScore returns the current top score (kills), or 0 if none.
-func (b *Board) HighScore() int {
-	if len(b.Scores) == 0 {
-		return 0
-	}
-	return b.Scores[0].Kills
 }
 
 // PrintHighScores prints a trophy message if the board's tracker's kills beat
@@ -72,6 +64,14 @@ func (b *Board) PrintHighScores() {
 	}
 
 	fmt.Println("  ╚════╩═══════╩═══════╩════════╩════════════╩════════════╝")
+}
+
+// killScore returns the current top score (kills), or 0 if none.
+func (b *Board) killScore() int {
+	if len(b.Scores) == 0 {
+		return 0
+	}
+	return b.Scores[0].Kills
 }
 
 func (b *Board) sortByRank() {
