@@ -9,12 +9,12 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-// TargetState represents the current state of a process entity.
-type TargetState int
+// State represents the current state of a process entity.
+type State int
 
 const (
 	// Alive means the entity is flying around normally.
-	Alive TargetState = iota
+	Alive State = iota
 	// Killing means the kill animation is playing.
 	Killing
 	// Dead means the entity has been removed.
@@ -28,12 +28,12 @@ const KillAnimationDuration = 12
 type Target struct {
 	process.Info
 	movement.Motion
-	State             TargetState
+	State             State
 	KillAnimationTick int
 }
 
-// TargetSnapshot is a point-in-time read model of a visible target.
-type TargetSnapshot struct {
+// Snapshot is a point-in-time read model of a visible target.
+type Snapshot struct {
 	X, Y    int
 	Tag     string
 	Killing bool
@@ -95,8 +95,8 @@ func (t *Target) Reap() bool {
 }
 
 // Snapshot returns the current renderable state of this target.
-func (t *Target) Snapshot() TargetSnapshot {
-	return TargetSnapshot{
+func (t *Target) Snapshot() Snapshot {
+	return Snapshot{
 		X:       int(math.Round(t.Position.X)),
 		Y:       int(math.Round(t.Position.Y)),
 		Tag:     t.Tag(),

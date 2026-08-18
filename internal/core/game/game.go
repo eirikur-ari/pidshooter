@@ -19,7 +19,7 @@ type Config struct {
 // The application layer owns the loop, renderer, event source, and process killer.
 type Game struct {
 	cfg       Config
-	state     state
+	state     atomicLifecycle
 	timer     timer
 	confirm   Confirmation
 	throttle  *movement.Throttle
@@ -27,9 +27,9 @@ type Game struct {
 	targets   []*Target
 }
 
-// Snapshot is a point-in-time read model of all visible targets and alive count.
-type Snapshot struct {
-	Targets []TargetSnapshot
+// Frame is a point-in-time read model of all visible targets and alive count.
+type Frame struct {
+	Targets []Snapshot
 	Alive   int
 }
 
@@ -39,7 +39,7 @@ func New(processes []process.Info, cfg Config) *Game {
 		cfg:       cfg,
 		processes: processes,
 		targets:   make([]*Target, 0, len(processes)),
-		state:     newState(),
+		state:     newAtomicLifecycle(),
 		timer:     newTimer(cfg.TimeLimit),
 		throttle:  movement.NewThrottle(cfg.Speed),
 		confirm:   NewConfirmation(cfg.Confirm),
@@ -94,10 +94,10 @@ func (g *Game) ConfirmTarget() *Target {
 // Confirm returns the game's confirmation state.
 func (g *Game) Confirm() *Confirmation { return &g.confirm }
 
-// Snapshot returns a point-in-time read model of all visible targets and the alive count.
+// Frame returns a point-in-time read model of all visible targets and the alive count.
 // Dead targets are excluded.
-func (g *Game) Snapshot() Snapshot {
-	snaps := make([]TargetSnapshot, 0, len(g.targets))
+func (g *Game) Frame() Frame {
+	snaps := make([]Snapshot, 0, len(g.targets))
 	alive := 0
 	for _, t := range g.targets {
 		if t.isDead() {
@@ -108,7 +108,7 @@ func (g *Game) Snapshot() Snapshot {
 		}
 		snaps = append(snaps, t.Snapshot())
 	}
-	return Snapshot{Targets: snaps, Alive: alive}
+	return Frame{Targets: snaps, Alive: alive}
 }
 
 func (g *Game) initialize(w, h int) {

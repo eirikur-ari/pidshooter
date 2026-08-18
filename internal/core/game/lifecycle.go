@@ -11,20 +11,20 @@ const (
 	stopped                  // game over
 )
 
-// state is an atomic wrapper for lifecycle, safe for concurrent access.
-type state struct {
+// atomicLifecycle is an atomic wrapper for lifecycle, safe for concurrent access.
+type atomicLifecycle struct {
 	value atomic.Int32
 }
 
-// newState returns a state initialized to pending.
-func newState() state { return state{} }
+// newAtomicLifecycle returns an atomicLifecycle initialized to pending.
+func newAtomicLifecycle() atomicLifecycle { return atomicLifecycle{} }
 
 // Store sets the current lifecycle.
-func (s *state) Store(l lifecycle) {
+func (s *atomicLifecycle) Store(l lifecycle) {
 	s.value.Store(int32(l))
 }
 
 // Load returns the current lifecycle.
-func (s *state) Load() lifecycle {
+func (s *atomicLifecycle) Load() lifecycle {
 	return lifecycle(s.value.Load())
 }

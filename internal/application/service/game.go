@@ -165,9 +165,9 @@ func (s *GameService) applyKills(tracker *score.Tracker) {
 }
 
 func buildFrame(g *game.Game, tracker *score.Tracker) outbound.FrameState {
-	snap := g.Snapshot()
-	views := make([]outbound.TargetViewState, len(snap.Targets))
-	for i, s := range snap.Targets {
+	frame := g.Frame()
+	views := make([]outbound.TargetViewState, len(frame.Targets))
+	for i, s := range frame.Targets {
 		views[i] = outbound.TargetViewState{X: s.X, Y: s.Y, Tag: s.Tag, Killing: s.Killing}
 	}
 
@@ -179,7 +179,7 @@ func buildFrame(g *game.Game, tracker *score.Tracker) outbound.FrameState {
 			HighScore: tracker.HighScore,
 		},
 		StatusBar: outbound.StatusState{
-			Alive:      snap.Alive,
+			Alive:      frame.Alive,
 			Speed:      g.Speed(),
 			TimeLimit:  g.TimeLimit(),
 			TimeLeft:   g.TimeLeft(),

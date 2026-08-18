@@ -67,12 +67,12 @@ Total: 27 test files across 11 packages — 231 test functions (including 20 sub
 | `TestSpeedSetAboveLowestDoesNotRaiseLowest` | Setting a higher value updates `Current` but leaves `Lowest` at the previously recorded minimum |
 | `TestSpeedSetAboveStartNeverLowersLowest` | Setting a value above the initial value updates `Current` but `Lowest` never rises above the starting value |
 
-### `internal/core/game/state_test.go` (2 tests)
+### `internal/core/game/lifecycle_test.go` (2 tests)
 
 | Test | Description |
 |------|-------------|
-| `TestStateDefaultIsPending` | The zero-value `state` reads as `pending` |
-| `TestStateStoreLoad` | `Store` followed by `Load` round-trips `running` and `stopped` |
+| `TestAtomicLifecycleDefaultIsPending` | The zero-value `atomicLifecycle` reads as `pending` |
+| `TestAtomicLifecycleStoreLoad` | `Store` followed by `Load` round-trips `running` and `stopped` |
 
 ### `internal/core/game/confirmation_test.go` (5 tests)
 
@@ -123,8 +123,8 @@ Total: 27 test files across 11 packages — 231 test functions (including 20 sub
 | `TestGameConfirmTargetReturnsPendingTarget` | `ConfirmTarget` returns the target held by the internal `Confirmation` |
 | `TestGameConfirmPendingFalseInitially` | `Confirm().Pending()` is false on a new game |
 | `TestGameThrottleMutationAffectsSpeed` | Mutating the throttle returned by `Throttle()` changes `Speed()` |
-| `TestGameSnapshotExcludesDeadTargets` | `Snapshot` omits targets once their kill animation completes and they go `Dead` |
-| `TestGameSnapshotCountsAlive` | `Snapshot.Alive` counts only `Alive`-state targets, while a `Killing` target remains visible but uncounted |
+| `TestGameFrameExcludesDeadTargets` | `Frame` omits targets once their kill animation completes and they go `Dead` |
+| `TestGameFrameCountsAlive` | `Frame.Alive` counts only `Alive`-state targets, while a `Killing` target remains visible but uncounted |
 
 ### `internal/core/game/target_test.go` (25 tests)
 
@@ -401,7 +401,7 @@ Total: 27 test files across 11 packages — 231 test functions (including 20 sub
 
 **Domain logic is split into standalone, independently-tested packages** — `core/process` (pattern validation, `Info.IsProtected`, `Find` filtering), `core/movement` (`Bounds`, `Motion`, `Speed`, `Throttle`), and `core/score` (`Entry.beats` ranking, `Board` add/cap/print, `Tracker` kill accounting) each own their rules and tests independently of the game loop.
 
-**`game` itself is decomposed by responsibility** — Instead of one large test file, each concern gets its own: `state_test.go` (atomic lifecycle: `pending`/`running`/`stopped`), `confirmation_test.go` (hold/accept/cancel a pending kill), `timer_test.go` (elapsed/remaining time, unlimited mode), `loop_test.go` (per-tick `Update`), `game_test.go` (lifecycle and `Snapshot`), `target_test.go` (per-target physics, hit-detection, kill/reap lifecycle), and `input_test.go` (player intent → domain calls).
+**`game` itself is decomposed by responsibility** — Instead of one large test file, each concern gets its own: `lifecycle_test.go` (atomic lifecycle: `pending`/`running`/`stopped`), `confirmation_test.go` (hold/accept/cancel a pending kill), `timer_test.go` (elapsed/remaining time, unlimited mode), `loop_test.go` (per-tick `Update`), `game_test.go` (lifecycle and `Frame`), `target_test.go` (per-target physics, hit-detection, kill/reap lifecycle), and `input_test.go` (player intent → domain calls).
 
 **Input handling lives directly in `core/game`** — `Input` (in `core/game/input.go`) is the domain gateway for player intent (`OnQuit`, `OnYes`, `OnNo`, `OnSpeedUp`, `OnSpeedDown`, `OnClickAt`); it used to live in a separate `core/handler` package but was folded into `game` since it only ever wraps a `*Game`. `application/event.Dispatcher` translates raw `outbound.KeyEvent`/`ClickEvent` values into calls on it. The two halves are tested independently: `application/event/input_test.go` verifies event-to-method routing (including key aliases `=`/`+` and `_`/`-`), while `core/game/input_test.go` verifies `Input`'s actual effect on a real `game.Game`.
 
@@ -415,7 +415,7 @@ Total: 27 test files across 11 packages — 231 test functions (including 20 sub
 
 **Unicode correctness is enforced by regression tests** — `TestTargetUpdateMultiByteRightWall` and `TestTargetContainsMultiByteProcessName` guard against a byte-count bug where multi-byte UTF-8 names caused targets to bounce too early or accept out-of-bounds click hits. `TestRenderMultiByteLabelColumnLayout` guards the same class of bug in the tcell renderer. All three use multi-byte fixtures (`"café"`, `"✦"`).
 
-**Frame pipeline isolation** — `game.Snapshot()`/`Target.Snapshot()` and `service.buildFrame()` are tested directly against structured data rather than terminal output, decoupling rendering correctness from game logic and the TUI library from domain state.
+**Frame pipeline isolation** — `game.Frame()`/`Target.Snapshot()` and `service.buildFrame()` are tested directly against structured data rather than terminal output, decoupling rendering correctness from game logic and the TUI library from domain state.
 
 **Load failure skips save** — `TestIntegrationGameServiceLoadErrorPrintsWarningAndSkipsSave` (and its unit-level counterpart `TestLoadScoreBoardErrorFallsBackToEmptyBoard`) confirm that if the score store is unreadable at session start, no save is attempted at the end. This prevents a corrupted file from being silently overwritten with a zero-kill entry.
 

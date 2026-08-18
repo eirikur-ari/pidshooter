@@ -100,7 +100,7 @@ func TestGameThrottleMutationAffectsSpeed(t *testing.T) {
 	assert.Equal(t, 2.5, g.Speed())
 }
 
-func TestGameSnapshotExcludesDeadTargets(t *testing.T) {
+func TestGameFrameExcludesDeadTargets(t *testing.T) {
 	g := New([]process.Info{process.NewInfo(1, "a", 0)}, Config{Speed: 1.0})
 	g.Start(80, 24)
 	g.targets[0].Kill()
@@ -108,13 +108,13 @@ func TestGameSnapshotExcludesDeadTargets(t *testing.T) {
 		g.Update(80, 24)
 	}
 
-	snap := g.Snapshot()
+	frame := g.Frame()
 
-	assert.Empty(t, snap.Targets)
-	assert.Equal(t, 0, snap.Alive)
+	assert.Empty(t, frame.Targets)
+	assert.Equal(t, 0, frame.Alive)
 }
 
-func TestGameSnapshotCountsAlive(t *testing.T) {
+func TestGameFrameCountsAlive(t *testing.T) {
 	processes := []process.Info{
 		process.NewInfo(1, "a", 0),
 		process.NewInfo(2, "b", 0),
@@ -123,8 +123,8 @@ func TestGameSnapshotCountsAlive(t *testing.T) {
 	g.Start(80, 24)
 	g.targets[0].Kill()
 
-	snap := g.Snapshot()
+	frame := g.Frame()
 
-	require.Len(t, snap.Targets, 2) // killing + alive both visible
-	assert.Equal(t, 1, snap.Alive)
+	require.Len(t, frame.Targets, 2) // killing + alive both visible
+	assert.Equal(t, 1, frame.Alive)
 }

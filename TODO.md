@@ -25,9 +25,9 @@ What is left to refactor
 - [x] confirmation
 - [ ] game
 - [ ] loop
-- [ ] state
-- [ ] target
-- [ ] timer
+- [x] lifecycle
+- [x] target
+- [x] timer
 
 ### handler
 - [x] input
