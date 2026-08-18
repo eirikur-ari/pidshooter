@@ -22,7 +22,7 @@ What is left to refactor
 
 ## core
 ### game
-- [ ] confirmation
+- [x] confirmation
 - [ ] game
 - [ ] loop
 - [ ] state
