@@ -19,6 +19,7 @@ const MinPatternLength = 3
 // MaxPatternLength is the maximum allowed length for a process search pattern.
 const MaxPatternLength = 256
 
+// TODO: perhaps rename the source file to info.go, since it only contains the Info struct and related functions
 // Info is a snapshot of a single running process captured at discovery time.
 type Info struct {
 	Pid  int

@@ -23,14 +23,12 @@ What is left to refactor
 ## core
 ### game
 - [x] confirmation
-- [ ] game
+- [x] game
+- [x] input
 - [x] lifecycle
 - [x] roster
 - [x] target
 - [x] timer
-
-### handler
-- [x] input
 
 ### movement
 - [x] bounds

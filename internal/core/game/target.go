@@ -23,6 +23,7 @@ const (
 // KillAnimationDuration is the number of game ticks the kill animation plays before the target disappears.
 const KillAnimationDuration = 12
 
+// TODO: perhaps move target to process package, and have it implement a Target interface in the game package, so that the game package doesn't need to know about process.Info
 // Target represents a process displayed as a flying tag in the terminal.
 type Target struct {
 	process.Info
@@ -117,6 +118,7 @@ func tagFor(info process.Info) string {
 	return fmt.Sprintf("[%d %s]", info.Pid, info.Name)
 }
 
+// TODO: perhaps move tag string etc to infrastructure / outbound adapter
 func killAnimationTagFor(tick int) string {
 	tags := []string{"💥", "✦ KILLED ✦", "· · ·", "  ·  ", "     "}
 	idx := tick * len(tags) / KillAnimationDuration
