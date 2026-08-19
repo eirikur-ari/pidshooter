@@ -11,6 +11,12 @@ type roster struct {
 	targets   []*Target
 }
 
+// Frame is a point-in-time read model of all visible targets and alive count.
+type Frame struct {
+	Targets []Snapshot
+	Alive   int
+}
+
 // newRoster returns an empty roster; call spawn once bounds are known to populate it.
 func newRoster(processes []process.Info) roster {
 	return roster{processes: processes, targets: make([]*Target, 0, len(processes))}
@@ -53,12 +59,6 @@ func (r *roster) hitAt(x, y int) *Target {
 		}
 	}
 	return nil
-}
-
-// Frame is a point-in-time read model of all visible targets and alive count.
-type Frame struct {
-	Targets []Snapshot
-	Alive   int
 }
 
 // frame returns a point-in-time read model of all visible targets and the alive count.
