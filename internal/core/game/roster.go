@@ -11,12 +11,6 @@ type roster struct {
 	targets   []*Target
 }
 
-// Frame is a point-in-time read model of all visible targets and alive count.
-type Frame struct {
-	Targets []Snapshot
-	Alive   int
-}
-
 // newRoster returns an empty roster; call spawn once bounds are known to populate it.
 func newRoster(processes []process.Info) roster {
 	return roster{processes: processes, targets: make([]*Target, 0, len(processes))}
@@ -61,10 +55,10 @@ func (r *roster) hitAt(x, y int) *Target {
 	return nil
 }
 
-// frame returns a point-in-time read model of all visible targets and the alive count.
-// Dead targets are excluded.
-func (r *roster) frame() Frame {
-	snaps := make([]Snapshot, 0, len(r.targets))
+// available returns the targets still in play — dead targets excluded —
+// along with how many are currently alive.
+func (r *roster) available() ([]*Target, int) {
+	targets := make([]*Target, 0, len(r.targets))
 	alive := 0
 	for _, t := range r.targets {
 		if t.isDead() {
@@ -73,7 +67,7 @@ func (r *roster) frame() Frame {
 		if t.isAlive() {
 			alive++
 		}
-		snaps = append(snaps, t.Snapshot())
+		targets = append(targets, t)
 	}
-	return Frame{Targets: snaps, Alive: alive}
+	return targets, alive
 }

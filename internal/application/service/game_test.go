@@ -15,20 +15,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
-// --- toConfirmViewState ---
-
-func TestToConfirmViewStateNilInput(t *testing.T) {
-	assert.Nil(t, toConfirmViewState(nil))
-}
-
-func TestToConfirmViewStateMapsFields(t *testing.T) {
-	tgt := game.NewTarget(process.NewInfo(42, "suspect", 0), movement.NewBounds(80, 24))
-	vs := toConfirmViewState(tgt)
-	require.NotNil(t, vs)
-	assert.Equal(t, 42, vs.PID)
-	assert.Equal(t, "suspect", vs.Name)
-}
-
 // --- buildFrame ---
 
 func TestBuildFrameAliveTargetIncluded(t *testing.T) {

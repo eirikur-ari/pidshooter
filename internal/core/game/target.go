@@ -2,7 +2,6 @@ package game
 
 import (
 	"fmt"
-	"math"
 	"unicode/utf8"
 
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
@@ -30,13 +29,6 @@ type Target struct {
 	movement.Motion
 	State             State
 	KillAnimationTick int
-}
-
-// Snapshot is a point-in-time read model of a visible target.
-type Snapshot struct {
-	X, Y    int
-	Tag     string
-	Killing bool
 }
 
 // NewTarget creates a new entity at a random position with random velocity.
@@ -94,21 +86,8 @@ func (t *Target) Reap() bool {
 	return true
 }
 
-// Snapshot returns the current renderable state of this target.
-func (t *Target) Snapshot() Snapshot {
-	return Snapshot{
-		X:       int(math.Round(t.Position.X)),
-		Y:       int(math.Round(t.Position.Y)),
-		Tag:     t.Tag(),
-		Killing: t.isKilling(),
-	}
-}
-
 // isAlive reports whether the target is flying around and can be shot.
 func (t *Target) isAlive() bool { return t.State == Alive }
-
-// isKilling reports whether the kill animation is playing.
-func (t *Target) isKilling() bool { return t.State == Killing }
 
 // isDead reports whether the target has finished its kill animation and been removed.
 func (t *Target) isDead() bool { return t.State == Dead }
@@ -130,6 +109,10 @@ func (t *Target) doomsdayTick() {
 	}
 }
 
+func (t *Target) move(bounds movement.Bounds, speed float64) {
+	t.Motion.Move(bounds, speed, float64(utf8.RuneCountInString(tagFor(t.Info))))
+}
+
 func tagFor(info process.Info) string {
 	return fmt.Sprintf("[%d %s]", info.Pid, info.Name)
 }
@@ -141,8 +124,4 @@ func killAnimationTagFor(tick int) string {
 		idx = len(tags) - 1
 	}
 	return tags[idx]
-}
-
-func (t *Target) move(bounds movement.Bounds, speed float64) {
-	t.Motion.Move(bounds, speed, float64(utf8.RuneCountInString(tagFor(t.Info))))
 }

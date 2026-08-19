@@ -97,7 +97,7 @@ func TestGameThrottleMutationAffectsSpeed(t *testing.T) {
 	assert.Equal(t, 2.5, g.Throttle().Speed())
 }
 
-func TestGameFrameExcludesDeadTargets(t *testing.T) {
+func TestGameAvailableTargetsExcludesDeadTargets(t *testing.T) {
 	g := New([]process.Info{process.NewInfo(1, "a", 0)}, Config{Speed: 1.0})
 	g.Start(80, 24)
 	g.roster.targets[0].Kill()
@@ -105,13 +105,13 @@ func TestGameFrameExcludesDeadTargets(t *testing.T) {
 		g.Step(80, 24)
 	}
 
-	frame := g.Frame()
+	targets, alive := g.AvailableTargets()
 
-	assert.Empty(t, frame.Targets)
-	assert.Equal(t, 0, frame.Alive)
+	assert.Empty(t, targets)
+	assert.Equal(t, 0, alive)
 }
 
-func TestGameFrameCountsAlive(t *testing.T) {
+func TestGameAvailableTargetsCountsAlive(t *testing.T) {
 	processes := []process.Info{
 		process.NewInfo(1, "a", 0),
 		process.NewInfo(2, "b", 0),
@@ -120,10 +120,10 @@ func TestGameFrameCountsAlive(t *testing.T) {
 	g.Start(80, 24)
 	g.roster.targets[0].Kill()
 
-	frame := g.Frame()
+	targets, alive := g.AvailableTargets()
 
-	require.Len(t, frame.Targets, 2) // killing + alive both visible
-	assert.Equal(t, 1, frame.Alive)
+	require.Len(t, targets, 2) // killing + alive both available
+	assert.Equal(t, 1, alive)
 }
 
 func TestStepStopsWhenTimeLimitExpired(t *testing.T) {

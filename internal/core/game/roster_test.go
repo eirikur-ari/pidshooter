@@ -83,25 +83,25 @@ func TestRosterHitAtMissReturnsNil(t *testing.T) {
 	assert.Nil(t, r.hitAt(0, 0))
 }
 
-func TestRosterFrameExcludesDeadTargets(t *testing.T) {
+func TestRosterAvailableExcludesDeadTargets(t *testing.T) {
 	r := roster{targets: []*Target{
 		{Info: process.NewInfo(1, "a", 0), State: Dead},
 	}}
 
-	frame := r.frame()
+	targets, alive := r.available()
 
-	assert.Empty(t, frame.Targets)
-	assert.Equal(t, 0, frame.Alive)
+	assert.Empty(t, targets)
+	assert.Equal(t, 0, alive)
 }
 
-func TestRosterFrameCountsAlive(t *testing.T) {
+func TestRosterAvailableCountsAlive(t *testing.T) {
 	r := roster{targets: []*Target{
 		{Info: process.NewInfo(1, "a", 0), State: Killing},
 		{Info: process.NewInfo(2, "b", 0), State: Alive},
 	}}
 
-	frame := r.frame()
+	targets, alive := r.available()
 
-	require.Len(t, frame.Targets, 2) // killing + alive both visible
-	assert.Equal(t, 1, frame.Alive)
+	require.Len(t, targets, 2) // killing + alive both available
+	assert.Equal(t, 1, alive)
 }

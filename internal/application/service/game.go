@@ -113,8 +113,7 @@ func (s *GameService) runLoop(g *game.Game, tracker *score.Tracker) (time.Time, 
 	}
 	defer s.renderer.Cleanup()
 
-	w, h := s.renderer.Size()
-	g.Start(w, h)
+	g.Start(s.renderer.Size())
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGTSTP)
@@ -138,8 +137,7 @@ func (s *GameService) runLoop(g *game.Game, tracker *score.Tracker) (time.Time, 
 	for g.IsRunning() {
 		s.applyKills(tracker)
 		s.drainEvents(evt, done)
-		w, h = s.renderer.Size()
-		g.Step(w, h)
+		g.Step(s.renderer.Size())
 		s.renderer.Render(buildFrame(g, tracker))
 		<-ticker.C
 	}
@@ -165,34 +163,13 @@ func (s *GameService) applyKills(tracker *score.Tracker) {
 }
 
 func buildFrame(g *game.Game, tracker *score.Tracker) outbound.FrameState {
-	frame := g.Frame()
-	views := make([]outbound.TargetViewState, len(frame.Targets))
-	for i, s := range frame.Targets {
-		views[i] = outbound.TargetViewState{X: s.X, Y: s.Y, Tag: s.Tag, Killing: s.Killing}
-	}
+	targets, alive := g.AvailableTargets()
 
 	return outbound.FrameState{
-		Targets: views,
-		HUD: outbound.HUDState{
-			FreedMem:  tracker.FreedMem,
-			Kills:     tracker.Kills,
-			HighScore: tracker.HighScore,
-		},
-		StatusBar: outbound.StatusState{
-			Alive:      frame.Alive,
-			Speed:      g.Throttle().Speed(),
-			TimeLimit:  g.TimeLimit(),
-			TimeLeft:   g.TimeLeft(),
-			Confirming: toConfirmViewState(g.PendingConfirm()),
-		},
+		Targets:   toTargetViewStates(targets),
+		HUD:       toHUDState(tracker),
+		StatusBar: toStatusState(g, alive),
 	}
-}
-
-func toConfirmViewState(t *game.Target) *outbound.ConfirmViewState {
-	if t == nil {
-		return nil
-	}
-	return &outbound.ConfirmViewState{PID: t.Pid, Name: t.Name}
 }
 
 func (s *GameService) drainEvents(d *event.Dispatcher, done <-chan struct{}) {

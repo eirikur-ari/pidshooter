@@ -75,11 +75,15 @@ func (g *Game) Stop() { g.state.Store(stopped) }
 // StartTime returns when the game session was started.
 func (g *Game) StartTime() time.Time { return g.timer.StartTime() }
 
+// Throttle returns the game's throttle.
+func (g *Game) Throttle() *movement.Throttle { return g.throttle }
+
 // Targets returns the live target slice for frame assembly. Callers must not modify it.
 func (g *Game) Targets() []*Target { return g.roster.targets }
 
-// Throttle returns the game's throttle.
-func (g *Game) Throttle() *movement.Throttle { return g.throttle }
+// AvailableTargets returns the targets still in play — dead targets excluded —
+// along with how many are currently alive.
+func (g *Game) AvailableTargets() ([]*Target, int) { return g.roster.available() }
 
 // TimeLimit returns the configured time limit in seconds (0 = unlimited).
 func (g *Game) TimeLimit() int { return g.timer.LimitSeconds() }
@@ -98,10 +102,6 @@ func (g *Game) PendingConfirm() *Target {
 // RequestConfirm registers target as pending confirmation (confirm mode) or returns
 // it immediately for killing (passthrough mode).
 func (g *Game) RequestConfirm(t *Target) *Target { return g.confirm.Request(t) }
-
-// Frame returns a point-in-time read model of all visible targets and the alive count.
-// Dead targets are excluded.
-func (g *Game) Frame() Frame { return g.roster.frame() }
 
 func (g *Game) initialize(w, h int) {
 	g.timer.Start()

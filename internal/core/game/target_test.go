@@ -196,12 +196,6 @@ func TestTargetIsAlive(t *testing.T) {
 	assert.False(t, (&Target{State: Dead}).isAlive())
 }
 
-func TestTargetIsKilling(t *testing.T) {
-	assert.True(t, (&Target{State: Killing}).isKilling())
-	assert.False(t, (&Target{State: Alive}).isKilling())
-	assert.False(t, (&Target{State: Dead}).isKilling())
-}
-
 func TestTargetIsDead(t *testing.T) {
 	assert.True(t, (&Target{State: Dead}).isDead())
 	assert.False(t, (&Target{State: Alive}).isDead())
@@ -231,32 +225,4 @@ func TestTargetReapNoOpWhenNotAlive(t *testing.T) {
 	e := &Target{Info: process.NewInfo(1, "xxx", 0), State: Killing}
 	assert.False(t, e.Reap())
 	assert.Equal(t, Killing, e.State)
-}
-
-func TestTargetSnapshotAliveTarget(t *testing.T) {
-	e := &Target{
-		Info:   process.NewInfo(1, "x", 0),
-		Motion: movement.Motion{Position: movement.Vector{X: 10.6, Y: 5.4}, Velocity: movement.Vector{X: 0, Y: 0}},
-		State:  Alive,
-	}
-
-	s := e.Snapshot()
-
-	assert.Equal(t, 11, s.X)
-	assert.Equal(t, 5, s.Y)
-	assert.Equal(t, "[1 x]", s.Tag)
-	assert.False(t, s.Killing)
-}
-
-func TestTargetSnapshotKillingTarget(t *testing.T) {
-	e := &Target{
-		Info:              process.NewInfo(1, "x", 0),
-		Motion:            movement.Motion{Position: movement.Vector{X: 3.0, Y: 7.0}, Velocity: movement.Vector{X: 0, Y: 0}},
-		State:             Killing,
-		KillAnimationTick: 0,
-	}
-
-	s := e.Snapshot()
-
-	assert.True(t, s.Killing)
 }
