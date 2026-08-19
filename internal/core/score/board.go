@@ -39,6 +39,7 @@ func (b *Board) Add(entry Entry) {
 	}
 }
 
+// TODO: perhaps this should not be part of a domain layer, but rather a presentation layer concern, since it prints to stdout. Maybe move to a view package?
 // PrintHighScores prints a trophy message if the board's tracker's kills beat
 // the high score recorded at the time of the last Add call, then displays the
 // high score table.
