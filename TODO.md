@@ -24,8 +24,8 @@ What is left to refactor
 ### game
 - [x] confirmation
 - [x] game
-- [ ] loop
 - [x] lifecycle
+- [x] roster
 - [x] target
 - [x] timer
 

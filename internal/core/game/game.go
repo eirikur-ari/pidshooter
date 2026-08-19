@@ -18,31 +18,23 @@ type Config struct {
 // Game manages targets and session state as a pure state machine.
 // The application layer owns the loop, renderer, event source, and process killer.
 type Game struct {
-	cfg       Config
-	state     atomicLifecycle
-	timer     timer
-	confirm   confirmation
-	throttle  *movement.Throttle
-	processes []process.Info
-	targets   []*Target
+	cfg      Config
+	state    atomicLifecycle
+	timer    timer
+	confirm  confirmation
+	throttle *movement.Throttle
+	roster   roster
 }
 
-// Frame is a point-in-time read model of all visible targets and alive count.
-type Frame struct {
-	Targets []Snapshot
-	Alive   int
-}
-
-// New creates a new Game with the given configuration. Call Start before the first Update.
+// New creates a new Game with the given configuration. Call Start before the first Step.
 func New(processes []process.Info, cfg Config) *Game {
 	return &Game{
-		cfg:       cfg,
-		processes: processes,
-		targets:   make([]*Target, 0, len(processes)),
-		state:     newAtomicLifecycle(),
-		timer:     newTimer(cfg.TimeLimit),
-		throttle:  movement.NewThrottle(cfg.Speed),
-		confirm:   newConfirmation(cfg.Confirm),
+		cfg:      cfg,
+		roster:   newRoster(processes),
+		state:    newAtomicLifecycle(),
+		timer:    newTimer(cfg.TimeLimit),
+		throttle: movement.NewThrottle(cfg.Speed),
+		confirm:  newConfirmation(cfg.Confirm),
 	}
 }
 
@@ -59,6 +51,21 @@ func (g *Game) Start(w, h int) {
 	}
 }
 
+// Step advances the game state by one step. w and h are the current terminal dimensions.
+// It moves every target and stops the game if the time limit has expired or all targets are dead.
+func (g *Game) Step(w, h int) {
+	if g.timer.Expired() {
+		g.Stop()
+		return
+	}
+
+	g.roster.move(movement.NewBounds(w, h), g.throttle.Speed())
+
+	if g.roster.allDead() {
+		g.Stop()
+	}
+}
+
 // IsRunning reports whether the game loop should continue.
 func (g *Game) IsRunning() bool { return g.state.Load() == running }
 
@@ -69,7 +76,7 @@ func (g *Game) Stop() { g.state.Store(stopped) }
 func (g *Game) StartTime() time.Time { return g.timer.StartTime() }
 
 // Targets returns the live target slice for frame assembly. Callers must not modify it.
-func (g *Game) Targets() []*Target { return g.targets }
+func (g *Game) Targets() []*Target { return g.roster.targets }
 
 // Throttle returns the game's throttle.
 func (g *Game) Throttle() *movement.Throttle { return g.throttle }
@@ -94,26 +101,11 @@ func (g *Game) RequestConfirm(t *Target) *Target { return g.confirm.Request(t) }
 
 // Frame returns a point-in-time read model of all visible targets and the alive count.
 // Dead targets are excluded.
-func (g *Game) Frame() Frame {
-	snaps := make([]Snapshot, 0, len(g.targets))
-	alive := 0
-	for _, t := range g.targets {
-		if t.isDead() {
-			continue
-		}
-		if t.isAlive() {
-			alive++
-		}
-		snaps = append(snaps, t.Snapshot())
-	}
-	return Frame{Targets: snaps, Alive: alive}
-}
+func (g *Game) Frame() Frame { return g.roster.frame() }
 
 func (g *Game) initialize(w, h int) {
 	g.timer.Start()
-	for _, p := range g.processes {
-		g.targets = append(g.targets, NewTarget(p, movement.NewBounds(w, h)))
-	}
+	g.roster.spawn(movement.NewBounds(w, h))
 	g.state.Store(running)
 }
 

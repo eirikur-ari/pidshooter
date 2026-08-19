@@ -57,7 +57,7 @@ func TestBuildFrameDeadTargetExcluded(t *testing.T) {
 	g.Start(80, 24)
 	g.Targets()[0].Kill()
 	for i := 0; i < game.KillAnimationDuration; i++ {
-		g.Update(80, 24)
+		g.Step(80, 24)
 	}
 
 	f := buildFrame(g, &score.Tracker{})

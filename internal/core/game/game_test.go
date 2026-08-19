@@ -2,10 +2,12 @@ package game
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
@@ -30,7 +32,7 @@ func TestStartTransitionsToRunning(t *testing.T) {
 	g.Start(80, 24)
 
 	assert.True(t, g.IsRunning())
-	assert.Len(t, g.targets, 1)
+	assert.Len(t, g.roster.targets, 1)
 }
 
 func TestStopTransitionsToStopped(t *testing.T) {
@@ -98,9 +100,9 @@ func TestGameThrottleMutationAffectsSpeed(t *testing.T) {
 func TestGameFrameExcludesDeadTargets(t *testing.T) {
 	g := New([]process.Info{process.NewInfo(1, "a", 0)}, Config{Speed: 1.0})
 	g.Start(80, 24)
-	g.targets[0].Kill()
+	g.roster.targets[0].Kill()
 	for range KillAnimationDuration {
-		g.Update(80, 24)
+		g.Step(80, 24)
 	}
 
 	frame := g.Frame()
@@ -116,10 +118,30 @@ func TestGameFrameCountsAlive(t *testing.T) {
 	}
 	g := New(processes, Config{Speed: 1.0})
 	g.Start(80, 24)
-	g.targets[0].Kill()
+	g.roster.targets[0].Kill()
 
 	frame := g.Frame()
 
 	require.Len(t, frame.Targets, 2) // killing + alive both visible
 	assert.Equal(t, 1, frame.Alive)
+}
+
+func TestStepStopsWhenTimeLimitExpired(t *testing.T) {
+	g := New(nil, Config{TimeLimit: 1})
+	g.Start(0, 0)
+	g.timer.start = time.Now().Add(-2 * time.Second)
+
+	g.Step(80, 24)
+
+	assert.False(t, g.IsRunning())
+}
+
+func TestStepStopsWhenAllTargetsDead(t *testing.T) {
+	tgt := &Target{Info: process.NewInfo(1, "target", 0), State: Dead}
+	g := &Game{roster: roster{targets: []*Target{tgt}}, throttle: movement.NewThrottle(movement.MinSpeed)}
+	g.Start(0, 0)
+
+	g.Step(80, 24)
+
+	assert.False(t, g.IsRunning())
 }

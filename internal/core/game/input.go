@@ -46,10 +46,9 @@ func (h *Input) OnClickAt(x, y int) *Target {
 	if h.g.confirm.Pending() {
 		return nil
 	}
-	for _, t := range h.g.Targets() {
-		if t.isHitAt(x, y) {
-			return h.g.confirm.Request(t)
-		}
+	t := h.g.roster.hitAt(x, y)
+	if t == nil {
+		return nil
 	}
-	return nil
+	return h.g.confirm.Request(t)
 }
