@@ -15,6 +15,7 @@ type Config struct {
 	TimeLimit int
 }
 
+// TODO: perhaps rename this source file to session.go or play.go and perhaps rename Game to PlaySession or GameSession, since it is not a game in itself but rather a session of the game.
 // Game manages targets and session state as a pure state machine.
 // The application layer owns the loop, renderer, event source, and process killer.
 type Game struct {
