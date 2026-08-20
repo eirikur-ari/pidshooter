@@ -51,9 +51,9 @@ func (s *Session) Start(w, h int) {
 	}
 }
 
-// Step advances the session state by one step. w and h are the current terminal dimensions.
+// Update advances the session state by one frame. w and h are the current terminal dimensions.
 // It moves every target and stops the session if the time limit has expired or all targets are dead.
-func (s *Session) Step(w, h int) {
+func (s *Session) Update(w, h int) {
 	if s.timer.Expired() {
 		s.Stop()
 		return

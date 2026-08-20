@@ -102,7 +102,7 @@ func TestGameAvailableTargetsExcludesDeadTargets(t *testing.T) {
 	s.Start(80, 24)
 	s.roster.targets[0].Kill()
 	for range KillAnimationDuration {
-		s.Step(80, 24)
+		s.Update(80, 24)
 	}
 
 	targets, alive := s.AvailableTargets()
@@ -126,22 +126,22 @@ func TestGameAvailableTargetsCountsAlive(t *testing.T) {
 	assert.Equal(t, 1, alive)
 }
 
-func TestStepStopsWhenTimeLimitExpired(t *testing.T) {
+func TestUpdateStopsWhenTimeLimitExpired(t *testing.T) {
 	s := NewSession(nil, Config{TimeLimit: 1})
 	s.Start(0, 0)
 	s.timer.start = time.Now().Add(-2 * time.Second)
 
-	s.Step(80, 24)
+	s.Update(80, 24)
 
 	assert.False(t, s.IsRunning())
 }
 
-func TestStepStopsWhenAllTargetsDead(t *testing.T) {
+func TestUpdateStopsWhenAllTargetsDead(t *testing.T) {
 	tgt := &Target{Info: process.NewInfo(1, "target", 0), State: Dead}
 	s := &Session{roster: roster{targets: []*Target{tgt}}, throttle: movement.NewThrottle(movement.MinSpeed)}
 	s.Start(0, 0)
 
-	s.Step(80, 24)
+	s.Update(80, 24)
 
 	assert.False(t, s.IsRunning())
 }

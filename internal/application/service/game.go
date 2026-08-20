@@ -137,7 +137,7 @@ func (s *GameService) runLoop(gs *game.Session, tracker *score.Tracker) (time.Ti
 	for gs.IsRunning() {
 		s.applyKills(tracker)
 		s.drainEvents(evt, done)
-		gs.Step(s.renderer.Size())
+		gs.Update(s.renderer.Size())
 		s.renderer.Render(buildFrame(gs, tracker))
 		<-ticker.C
 	}
