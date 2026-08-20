@@ -1,4 +1,4 @@
-package service
+package game
 
 import (
 	"errors"
@@ -11,6 +11,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/event"
+	scoresvc "github.com/eirikur-ari/pidshooter/internal/application/score"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
@@ -18,10 +19,10 @@ import (
 
 const frameDuration = time.Second / 20
 
-// GameService implements inbound.GamePlay by orchestrating core domain objects and outbound ports.
-type GameService struct {
+// Service implements inbound.GamePlay by orchestrating core domain objects and outbound ports.
+type Service struct {
 	process  outbound.Process
-	scores   *ScoreService
+	scores   *scoresvc.Service
 	renderer outbound.Renderer
 	events   outbound.InputSource
 	kills    chan killSignal
@@ -38,23 +39,23 @@ type killSignal struct {
 // by the time its kill could be verified.
 var errAlreadyKilled = errors.New("target process already killed")
 
-// NewGameService constructs a GameService with all required outbound ports injected.
-func NewGameService(
+// NewService constructs a Service with all required outbound ports injected.
+func NewService(
 	process outbound.Process,
 	store outbound.ScoreStore,
 	renderer outbound.Renderer,
 	events outbound.InputSource,
-) *GameService {
-	return &GameService{
+) *Service {
+	return &Service{
 		process:  process,
-		scores:   NewScoreService(store),
+		scores:   scoresvc.NewService(store),
 		renderer: renderer,
 		events:   events,
 	}
 }
 
 // Play runs a complete game session: discovery → game loop → score persistence → display.
-func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
+func (s *Service) Play(cfg inbound.GamePlayConfig) error {
 	processes, err := s.findProcesses(cfg.Patterns)
 	if err != nil {
 		return err
@@ -64,7 +65,7 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 		return nil
 	}
 
-	board, tracker, success := s.scores.loadScoreBoard()
+	board, tracker, success := s.scores.LoadScoreBoard()
 
 	gs := s.newGame(cfg, processes)
 
@@ -75,14 +76,14 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 
 	duration := endTime.Sub(gs.StartTime()).Seconds()
 
-	s.scores.recordScore(board, gs.Throttle().LowestSpeed(), cfg.TimeLimit, duration, success)
+	s.scores.RecordScore(board, gs.Throttle().LowestSpeed(), cfg.TimeLimit, duration, success)
 
-	printResults(duration, board)
+	scoresvc.PrintResults(duration, board)
 
 	return nil
 }
 
-func (s *GameService) findProcesses(patterns []string) ([]process.Info, error) {
+func (s *Service) findProcesses(patterns []string) ([]process.Info, error) {
 	if err := validateSearchPatterns(patterns); err != nil {
 		return nil, err
 	}
@@ -103,11 +104,11 @@ func (s *GameService) findProcesses(patterns []string) ([]process.Info, error) {
 	return matches, nil
 }
 
-func (s *GameService) newGame(cfg inbound.GamePlayConfig, processes []process.Info) *game.Session {
+func (s *Service) newGame(cfg inbound.GamePlayConfig, processes []process.Info) *game.Session {
 	return game.NewSession(processes, game.Config{Confirm: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
 }
 
-func (s *GameService) runLoop(gs *game.Session, tracker *score.Tracker) (time.Time, error) {
+func (s *Service) runLoop(gs *game.Session, tracker *score.Tracker) (time.Time, error) {
 	if err := s.renderer.Init(); err != nil {
 		return time.Time{}, fmt.Errorf("renderer initialization failed: %w", err)
 	}
@@ -145,7 +146,7 @@ func (s *GameService) runLoop(gs *game.Session, tracker *score.Tracker) (time.Ti
 	return time.Now(), nil
 }
 
-func (s *GameService) applyKills(tracker *score.Tracker) {
+func (s *Service) applyKills(tracker *score.Tracker) {
 	for {
 		select {
 		case sig := <-s.kills:
@@ -172,7 +173,7 @@ func buildFrame(gs *game.Session, tracker *score.Tracker) outbound.FrameState {
 	}
 }
 
-func (s *GameService) drainEvents(d *event.Dispatcher, done <-chan struct{}) {
+func (s *Service) drainEvents(d *event.Dispatcher, done <-chan struct{}) {
 	for {
 		select {
 		case ev := <-s.events.Events():
@@ -206,7 +207,7 @@ func (s *GameService) drainEvents(d *event.Dispatcher, done <-chan struct{}) {
 // in the time between discovery and the player confirming the kill. Either
 // case is reported as errAlreadyKilled so the caller can reap the target
 // instead of leaving it stuck as Alive forever.
-func (s *GameService) kill(target *game.Target) (bool, error) {
+func (s *Service) kill(target *game.Target) (bool, error) {
 	pid := target.Pid
 	if target.Info.IsProtected() {
 		return false, fmt.Errorf("refusing to kill PID %d", pid)

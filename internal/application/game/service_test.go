@@ -1,4 +1,4 @@
-package service
+package game
 
 import (
 	"errors"
@@ -86,8 +86,8 @@ func TestBuildFrameNoConfirmPending(t *testing.T) {
 	assert.Nil(t, f.StatusBar.Confirming)
 }
 
-func TestGameServiceFinderError(t *testing.T) {
-	svc := NewGameService(
+func TestServiceFinderError(t *testing.T) {
+	svc := NewService(
 		&fake.Process{ListErr: errors.New("ps failed")},
 		&fake.Store{},
 		&fake.Renderer{},
@@ -97,9 +97,9 @@ func TestGameServiceFinderError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestGameServiceApplyKillsCompletesPendingKill(t *testing.T) {
+func TestServiceApplyKillsCompletesPendingKill(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096)
-	svc := NewGameService(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
+	svc := NewService(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	svc.kills = make(chan killSignal, 1)
 
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
@@ -112,9 +112,9 @@ func TestGameServiceApplyKillsCompletesPendingKill(t *testing.T) {
 	assert.Equal(t, 1, tracker.Kills)
 }
 
-func TestGameServiceApplyKillsReapsAlreadyKilledTarget(t *testing.T) {
+func TestServiceApplyKillsReapsAlreadyKilledTarget(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096)
-	svc := NewGameService(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
+	svc := NewService(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	svc.kills = make(chan killSignal, 1)
 
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
@@ -127,8 +127,8 @@ func TestGameServiceApplyKillsReapsAlreadyKilledTarget(t *testing.T) {
 	assert.Equal(t, 0, tracker.Kills, "reaping an already-gone target should not award a kill")
 }
 
-func TestGameServiceApplyKillsEmptyChannelNoOps(t *testing.T) {
-	svc := NewGameService(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
+func TestServiceApplyKillsEmptyChannelNoOps(t *testing.T) {
+	svc := NewService(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	svc.kills = make(chan killSignal, 1)
 
 	tracker := &score.Tracker{}
@@ -139,9 +139,9 @@ func TestGameServiceApplyKillsEmptyChannelNoOps(t *testing.T) {
 
 // --- kill ---
 
-func TestGameServiceKillProtectedPIDReturnsError(t *testing.T) {
+func TestServiceKillProtectedPIDReturnsError(t *testing.T) {
 	fp := &fake.Process{}
-	svc := NewGameService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
+	svc := NewService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	target := game.NewTarget(process.NewInfo(1, "init", 0), movement.NewBounds(80, 24))
 
 	killed, err := svc.kill(target)
@@ -151,9 +151,9 @@ func TestGameServiceKillProtectedPIDReturnsError(t *testing.T) {
 	assert.Empty(t, fp.KilledPIDs)
 }
 
-func TestGameServiceKillLookupErrorReturnsErrAlreadyKilled(t *testing.T) {
+func TestServiceKillLookupErrorReturnsErrAlreadyKilled(t *testing.T) {
 	fp := &fake.Process{LookupNameErr: errors.New("ps lookup failed")}
-	svc := NewGameService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
+	svc := NewService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	target := game.NewTarget(process.NewInfo(100, "target", 0), movement.NewBounds(80, 24))
 
 	killed, err := svc.kill(target)
@@ -165,9 +165,9 @@ func TestGameServiceKillLookupErrorReturnsErrAlreadyKilled(t *testing.T) {
 	assert.Empty(t, fp.KilledPIDs)
 }
 
-func TestGameServiceKillNameMismatchReturnsErrAlreadyKilled(t *testing.T) {
+func TestServiceKillNameMismatchReturnsErrAlreadyKilled(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "somethingElse"}
-	svc := NewGameService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
+	svc := NewService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	target := game.NewTarget(process.NewInfo(100, "target", 0), movement.NewBounds(80, 24))
 
 	killed, err := svc.kill(target)
@@ -177,9 +177,9 @@ func TestGameServiceKillNameMismatchReturnsErrAlreadyKilled(t *testing.T) {
 	assert.Empty(t, fp.KilledPIDs)
 }
 
-func TestGameServiceKillNameMatchInvokesKill(t *testing.T) {
+func TestServiceKillNameMatchInvokesKill(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "target"}
-	svc := NewGameService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
+	svc := NewService(fp, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
 	target := game.NewTarget(process.NewInfo(100, "target", 0), movement.NewBounds(80, 24))
 
 	killed, err := svc.kill(target)
@@ -189,8 +189,8 @@ func TestGameServiceKillNameMatchInvokesKill(t *testing.T) {
 	assert.Equal(t, []int{100}, fp.KilledPIDs)
 }
 
-func TestGameServiceNoProcesses(t *testing.T) {
-	svc := NewGameService(
+func TestServiceNoProcesses(t *testing.T) {
+	svc := NewService(
 		&fake.Process{},
 		&fake.Store{},
 		&fake.Renderer{},

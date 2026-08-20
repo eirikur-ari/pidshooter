@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/service"
+	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/eirikur-ari/pidshooter/internal/entrypoint/cli"
@@ -33,6 +33,6 @@ func run() error {
 	}
 	ui := tcellui.NewUI(screen)
 
-	svc := service.NewGameService(proc, store, ui, ui)
+	svc := game.NewService(proc, store, ui, ui)
 	return cli.NewCLI(svc).Run(os.Args[1:])
 }

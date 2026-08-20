@@ -1,4 +1,4 @@
-package service
+package score
 
 import (
 	"errors"
@@ -14,15 +14,15 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
-// --- ScoreService.loadScoreBoard ---
+// --- Service.loadScoreBoard ---
 
 func TestLoadScoreBoardMapsStoredEntries(t *testing.T) {
 	date := time.Now()
-	svc := NewScoreService(&fake.Store{Board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
+	svc := NewService(&fake.Store{Board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
 		{Kills: 8, FreedMem: 1024, Speed: 2.0, Time: 30, Duration: 5, Date: date},
 	}}})
 
-	board, tracker, success := svc.loadScoreBoard()
+	board, tracker, success := svc.LoadScoreBoard()
 
 	assert.True(t, success)
 	require.Len(t, board.Scores, 1)
@@ -30,13 +30,13 @@ func TestLoadScoreBoardMapsStoredEntries(t *testing.T) {
 }
 
 func TestLoadScoreBoardErrorFallsBackToEmptyBoard(t *testing.T) {
-	svc := NewScoreService(&fake.Store{LoadErr: errors.New("disk error")})
+	svc := NewService(&fake.Store{LoadErr: errors.New("disk error")})
 
 	var board *score.Board
 	var tracker *score.Tracker
 	var success bool
 	stderr := capture.Stderr(func() {
-		board, tracker, success = svc.loadScoreBoard()
+		board, tracker, success = svc.LoadScoreBoard()
 	})
 
 	assert.False(t, success)
@@ -45,15 +45,15 @@ func TestLoadScoreBoardErrorFallsBackToEmptyBoard(t *testing.T) {
 	assert.Contains(t, stderr, "could not load scores")
 }
 
-// --- ScoreService.recordScore ---
+// --- Service.recordScore ---
 
 func TestRecordScoreAddsEntryFromTracker(t *testing.T) {
-	svc := NewScoreService(&fake.Store{})
+	svc := NewService(&fake.Store{})
 	board, tracker := score.NewBoard(nil)
 	tracker.Kills = 4
 	tracker.FreedMem = 2048
 
-	svc.recordScore(board, 2.5, 30, 12.5, true)
+	svc.RecordScore(board, 2.5, 30, 12.5, true)
 
 	require.Len(t, board.Scores, 1)
 	entry := board.Scores[0]
@@ -66,11 +66,11 @@ func TestRecordScoreAddsEntryFromTracker(t *testing.T) {
 
 func TestRecordScoreSavesWhenPersistTrue(t *testing.T) {
 	fakeStore := &fake.Store{}
-	svc := NewScoreService(fakeStore)
+	svc := NewService(fakeStore)
 	board, tracker := score.NewBoard(nil)
 	tracker.Kills = 1
 
-	svc.recordScore(board, 0, 0, 1.0, true)
+	svc.RecordScore(board, 0, 0, 1.0, true)
 
 	require.NotNil(t, fakeStore.Saved)
 	assert.Len(t, fakeStore.Saved.Scores, 1)
@@ -78,30 +78,30 @@ func TestRecordScoreSavesWhenPersistTrue(t *testing.T) {
 
 func TestRecordScoreSkipsSaveWhenPersistFalse(t *testing.T) {
 	fakeStore := &fake.Store{}
-	svc := NewScoreService(fakeStore)
+	svc := NewService(fakeStore)
 	board, tracker := score.NewBoard(nil)
 	tracker.Kills = 1
 
-	svc.recordScore(board, 0, 0, 1.0, false)
+	svc.RecordScore(board, 0, 0, 1.0, false)
 
 	assert.Nil(t, fakeStore.Saved)
 }
 
 func TestRecordScoreSaveErrorPrintsWarning(t *testing.T) {
 	fakeStore := &fake.Store{SaveErr: errors.New("disk full")}
-	svc := NewScoreService(fakeStore)
+	svc := NewService(fakeStore)
 	board, tracker := score.NewBoard(nil)
 	tracker.Kills = 1
 
 	stderr := capture.Stderr(func() {
-		svc.recordScore(board, 0, 0, 1.0, true)
+		svc.RecordScore(board, 0, 0, 1.0, true)
 	})
 
 	assert.Contains(t, stderr, "score not saved")
 	assert.Contains(t, stderr, "disk full")
 }
 
-// --- printResults ---
+// --- PrintResults ---
 
 func TestPrintResultsPrintsGameOverSummary(t *testing.T) {
 	board, tracker := score.NewBoard(nil)
@@ -109,7 +109,7 @@ func TestPrintResultsPrintsGameOverSummary(t *testing.T) {
 	tracker.FreedMem = 4096
 
 	out := capture.Output(func() {
-		printResults(7.5, board)
+		PrintResults(7.5, board)
 	})
 
 	assert.Contains(t, out, "Game Over!")
@@ -120,7 +120,7 @@ func TestPrintResultsDelegatesToBoardPrintScores(t *testing.T) {
 	board, _ := score.NewBoard(nil)
 
 	out := capture.Output(func() {
-		printResults(0, board)
+		PrintResults(0, board)
 	})
 
 	assert.Contains(t, out, "No high scores yet!")
