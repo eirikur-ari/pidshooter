@@ -93,7 +93,7 @@ func TestServiceFinderError(t *testing.T) {
 		&fake.Renderer{},
 		fake.NewInputSource(),
 	)
-	err := svc.Play(inbound.GamePlayConfig{Patterns: []string{"foo"}, Speed: 2.0, TimeLimit: 30})
+	err := svc.Play(inbound.Config{Patterns: []string{"foo"}, Speed: 2.0, TimeLimit: 30})
 	require.Error(t, err)
 }
 
@@ -196,6 +196,6 @@ func TestServiceNoProcesses(t *testing.T) {
 		&fake.Renderer{},
 		fake.NewInputSource(),
 	)
-	err := svc.Play(inbound.GamePlayConfig{Patterns: []string{"nonexistent"}, Speed: 2.0, TimeLimit: 30})
+	err := svc.Play(inbound.Config{Patterns: []string{"nonexistent"}, Speed: 2.0, TimeLimit: 30})
 	assert.NoError(t, err)
 }

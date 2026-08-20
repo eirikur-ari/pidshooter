@@ -15,7 +15,7 @@ import (
 
 // CLI is the entrypoint adapter that translates command-line arguments to application calls.
 type CLI struct {
-	service   inbound.GamePlay
+	service   inbound.Runner
 	out       io.Writer
 	errOut    io.Writer
 	confirm   bool
@@ -24,7 +24,7 @@ type CLI struct {
 }
 
 // NewCLI returns a CLI adapter wrapping the given application service.
-func NewCLI(service inbound.GamePlay) *CLI {
+func NewCLI(service inbound.Runner) *CLI {
 	return &CLI{service: service, out: os.Stdout, errOut: os.Stderr}
 }
 
@@ -72,7 +72,7 @@ func (c *CLI) play(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return c.service.Play(inbound.GamePlayConfig{
+	return c.service.Run(inbound.Config{
 		Patterns:    args,
 		ConfirmMode: c.confirm,
 		Speed:       c.speed,

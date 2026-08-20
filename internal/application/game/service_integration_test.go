@@ -32,7 +32,7 @@ func TestIntegrationServiceHappyPath(t *testing.T) {
 		events,
 	)
 
-	require.NoError(t, svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0}))
+	require.NoError(t, svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0}))
 	require.NotNil(t, store.Saved)
 	require.Len(t, store.Saved.Scores, 1)
 	entry := store.Saved.Scores[0]
@@ -53,7 +53,7 @@ func TestIntegrationServiceLoadErrorPrintsWarningAndSkipsSave(t *testing.T) {
 
 	var err error
 	stderr := capture.Stderr(func() {
-		err = svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+		err = svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 	})
 
 	require.NoError(t, err)
@@ -73,7 +73,7 @@ func TestIntegrationServiceSaveErrorPrintsWarning(t *testing.T) {
 
 	var err error
 	stderr := capture.Stderr(func() {
-		err = svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+		err = svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 	})
 
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestIntegrationServiceQuitOnQ(t *testing.T) {
 		&fake.Store{},
 		events,
 	)
-	assert.NoError(t, svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}))
+	assert.NoError(t, svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
 }
 
 func TestIntegrationServiceQuitOnEscape(t *testing.T) {
@@ -108,7 +108,7 @@ func TestIntegrationServiceQuitOnEscape(t *testing.T) {
 		&fake.Store{},
 		events,
 	)
-	assert.NoError(t, svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}))
+	assert.NoError(t, svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
 }
 
 func TestIntegrationServiceQuitOnCtrlC(t *testing.T) {
@@ -123,7 +123,7 @@ func TestIntegrationServiceQuitOnCtrlC(t *testing.T) {
 		&fake.Store{},
 		events,
 	)
-	assert.NoError(t, svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}))
+	assert.NoError(t, svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
 }
 
 func TestIntegrationServiceQuitOnCtrlZ(t *testing.T) {
@@ -138,7 +138,7 @@ func TestIntegrationServiceQuitOnCtrlZ(t *testing.T) {
 		&fake.Store{},
 		events,
 	)
-	assert.NoError(t, svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}))
+	assert.NoError(t, svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
 }
 
 func TestIntegrationServiceTimeLimitExpires(t *testing.T) {
@@ -149,7 +149,7 @@ func TestIntegrationServiceTimeLimitExpires(t *testing.T) {
 	)
 
 	start := time.Now()
-	require.NoError(t, svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 1}))
+	require.NoError(t, svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 1}))
 	assert.LessOrEqual(t, time.Since(start), 3*time.Second, "game took too long to exit on time limit")
 }
 
@@ -167,7 +167,7 @@ func TestIntegrationServiceSignalGoroutineDoesNotAccumulate(t *testing.T) {
 			&fake.Store{},
 			events,
 		)
-		if err := svc.Play(inbound.GamePlayConfig{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
+		if err := svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
 			t.Fatalf("pid %d: unexpected error: %v", pid, err)
 		}
 	}

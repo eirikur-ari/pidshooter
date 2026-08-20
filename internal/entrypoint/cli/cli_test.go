@@ -14,19 +14,19 @@ import (
 
 type stubService struct{ err error }
 
-func (s *stubService) Play(_ inbound.GamePlayConfig) error { return s.err }
+func (s *stubService) Run(_ inbound.Config) error { return s.err }
 
 type captureService struct {
 	err error
-	cfg inbound.GamePlayConfig
+	cfg inbound.Config
 }
 
-func (s *captureService) Play(cfg inbound.GamePlayConfig) error {
+func (s *captureService) Run(cfg inbound.Config) error {
 	s.cfg = cfg
 	return s.err
 }
 
-func newSilentCLI(svc inbound.GamePlay) *CLI {
+func newSilentCLI(svc inbound.Runner) *CLI {
 	c := NewCLI(svc)
 	c.out = io.Discard
 	c.errOut = io.Discard

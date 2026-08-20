@@ -19,7 +19,7 @@ import (
 
 const frameDuration = time.Second / 20
 
-// Service implements inbound.GamePlay by orchestrating core domain objects and outbound ports.
+// Service orchestrates core domain objects and outbound ports to play a single game session.
 type Service struct {
 	process  outbound.Process
 	scores   *scoresvc.Service
@@ -55,7 +55,7 @@ func NewService(
 }
 
 // Play runs a complete game session: discovery → game loop → score persistence → display.
-func (s *Service) Play(cfg inbound.GamePlayConfig) error {
+func (s *Service) Play(cfg inbound.Config) error {
 	processes, err := s.findProcesses(cfg.Patterns)
 	if err != nil {
 		return err
@@ -104,7 +104,7 @@ func (s *Service) findProcesses(patterns []string) ([]process.Info, error) {
 	return matches, nil
 }
 
-func (s *Service) newGame(cfg inbound.GamePlayConfig, processes []process.Info) *game.Session {
+func (s *Service) newGame(cfg inbound.Config, processes []process.Info) *game.Session {
 	return game.NewSession(processes, game.Config{Confirm: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
 }
 
