@@ -1,0 +1,21 @@
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts
+build/
+bin/
+dist/
+tmp/
+log/
+
+# Claude
+.claude/settings.local.json
+
+# Other
+*.env
+*.log
+*.test
+*.out
+coverage*
+.DS_Store
