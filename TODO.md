@@ -2,9 +2,10 @@
 What is left to refactor
 
 ## application
+- [ ] runner
 ### contract
 #### inbound
-- [ ] gameplay
+- [ ] runner
 
 #### outbound
 - [ ] input
@@ -16,6 +17,10 @@ What is left to refactor
 - [x] dispatcher
 
 ### game
+- [ ] converter
+- [ ] service
+
+### process
 - [ ] converter
 - [ ] service
 - [x] validation

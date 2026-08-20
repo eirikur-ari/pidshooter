@@ -18,10 +18,9 @@ pidshooter chrome firefox node
 
 Patterns are validated at startup:
 - At least one pattern is required
-- Empty patterns are rejected
-- Patterns longer than 256 characters are rejected
+- Each pattern must be between 3 and 256 characters (this also rejects empty patterns; patterns shorter than 3 characters match too broadly and risk surfacing critical system processes)
 - Unknown flags (any `-` prefixed argument that is not a recognised flag) are rejected with a usage hint
-- The game itself and PID 1 are always excluded from results
+- The game itself and any process with PID ≤ 1 are always excluded from results
 
 ### Confirm mode (`--confirm`)
 Before a kill is executed, the status bar prompts for confirmation with the target's PID and name. The player responds with `y`/`n` or cancels with `q`. Without this flag kills are immediate on click.
@@ -31,7 +30,7 @@ pidshooter sleep --confirm
 ```
 
 ### Speed (`--speed=N`)
-Sets the initial movement speed multiplier. Range: `0.1`–`5.0`, default `2.0`. Can also be adjusted live during the game with `+`/`-`.
+Sets the initial movement speed multiplier. Range: `0.5`–`5.0`, default `2.0`. Can also be adjusted live during the game with `+`/`-`.
 
 ```
 pidshooter node --speed=1.5
@@ -62,13 +61,13 @@ Before entering the game loop the application:
 ## Gameplay
 
 ### Entity spawning
-Each matched process becomes an entity — a label in the format `[PID name]` placed at a random position on the terminal. Entities start with randomised velocities: horizontal speed is stronger than vertical to keep labels readable. Specifically, horizontal velocity magnitudes are in the range 0.2–1.0, vertical in the range 0.1–0.5.
+Each matched process becomes an entity — a label in the format `[PID name]` placed at a random position on the terminal. Entities start with randomised velocities: horizontal speed is stronger than vertical to keep labels readable. Specifically, horizontal velocity magnitudes are in the range 0.5–1.0, vertical in the range 0.25–0.5.
 
 ### Bouncing physics
 Entities bounce off all four walls continuously. The right and bottom bounds account for the label width and the status bar row respectively, so labels never clip out of view.
 
 ### Speed control
-`+` increases speed by 0.5× per keypress (cap: 5.0×). `-` decreases by 0.5× (floor: 0.1×). Changes take effect immediately and apply to all entities uniformly.
+`+` increases speed by 0.5× per keypress (cap: 5.0×). `-` decreases by 0.5× (floor: 0.5×). Changes take effect immediately and apply to all entities uniformly.
 
 ### Killing
 Left-clicking on an entity's label sends `SIGKILL` to that PID. A kill animation plays over 12 frames cycling through `💥 → ✦ KILLED ✦ → · · · → · → (blank)`, after which the entity transitions to dead and stops rendering.
@@ -107,7 +106,7 @@ Memory is formatted as bytes, KB, MB, or GB automatically.
 The bottom row is a persistent status bar showing:
 
 ```
- Targets: N | Speed: X.Xf | Time: Ns | Click to kill | +/- speed | 'q' quit
+ Targets: N | Speed: X.Xx | Time: Ns | Click to kill | +/- speed | 'q' quit
 ```
 
 The `Time:` segment is omitted when no time limit is set.
@@ -122,7 +121,7 @@ During a confirm prompt the status bar switches to: `Kill [PID name]? (Y)es / (N
 Scores are stored as JSON at `~/.config/pidshooter/highscores.json`. The directory is created automatically on first save. Up to 10 entries are kept.
 
 ### Ranking
-Entries are ranked by kills descending. Ties are broken by freed memory descending. The top 10 are retained; lower scores are dropped on save.
+Entries are ranked by kills descending. Ties are broken, in order, by speed descending, then duration ascending (faster clears win), then freed memory descending. The top 10 are retained; lower scores are dropped on save.
 
 ### Score record
 Each entry stores: kills, freed memory (bytes), speed multiplier, time limit setting, actual game duration (seconds), and date.
@@ -137,7 +136,7 @@ After the game ends the terminal is restored and a summary is printed:
 
 The "New high score!" line appears when the session's kill count is greater than zero and equals or exceeds the previous top score (a tie also qualifies).
 
-Followed by the full leaderboard table showing rank, kills, freed memory, speed, and date for all stored entries.
+Followed by the full leaderboard table showing rank, kills, speed, duration, freed memory, and date for all stored entries.
 
 ---
 
@@ -153,4 +152,4 @@ Processes are discovered by running `ps` and parsing its output:
 - On **macOS** the command is `ps -ceo pid,rss,comm` (the `-c` flag returns the short executable name without the full path).
 - On **Linux and other platforms** the command is `ps -eo pid,rss,comm`.
 
-Resident Set Size (RSS) is reported in kilobytes by `ps` and converted to bytes internally. The current process and PID 1 are always filtered out.
+Resident Set Size (RSS) is reported in kilobytes by `ps` and converted to bytes internally. The current process and any process with PID ≤ 1 are always filtered out.

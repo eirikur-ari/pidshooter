@@ -1,6 +1,6 @@
 # Test Cases
 
-Total: 27 test files across 11 packages — 230 test functions (including 20 subtests).
+Total: 30 test files across 14 packages — 244 test functions (including 20 subtests).
 
 ---
 
@@ -11,7 +11,7 @@ Total: 27 test files across 11 packages — 230 test functions (including 20 sub
 | Test | Description |
 |------|-------------|
 | `TestValidateNoPatterns` | `Validate` returns `ErrNoPatterns` for both `nil` and empty pattern slices |
-| `TestValidateTooShort` | Patterns of 1–2 characters (below `MinPatternLength`) are rejected |
+| `TestValidateTooShort` | Patterns of 0–2 characters (below `MinPatternLength`) are rejected |
 | `TestValidateExactMinLength` | Pattern at exactly `MinPatternLength` is accepted |
 | `TestValidateValid` | A normal pattern (`"firefox"`) is accepted |
 | `TestValidateExactMaxLength` | Pattern at exactly `MaxPatternLength` is accepted |
@@ -99,18 +99,11 @@ Total: 27 test files across 11 packages — 230 test functions (including 20 sub
 | `TestTimerStartTimeZeroBeforeStart` | `StartTime` is zero before `Start` is called |
 | `TestTimerStartTimeSetAfterStart` | `StartTime` is set to (at or after) the moment `Start` was called |
 
-### `internal/core/game/loop_test.go` (2 tests)
+### `internal/core/game/session_test.go` (16 tests)
 
 | Test | Description |
 |------|-------------|
-| `TestUpdateStopsWhenTimeLimitExpired` | `Update` stops the game once elapsed time exceeds the configured time limit |
-| `TestUpdateStopsWhenAllTargetsDead` | `Update` stops the game once every target is in the `Dead` state |
-
-### `internal/core/game/game_test.go` (14 tests)
-
-| Test | Description |
-|------|-------------|
-| `TestNew` | `New` sets `Confirm`, throttle speed, and `TimeLimit`; the game starts in the `pending` state |
+| `TestNewSession` | `NewSession` sets `Confirm`, throttle speed, and `TimeLimit`; the session starts in the `pending` state |
 | `TestStartTransitionsToRunning` | `Start` makes `IsRunning` true and spawns one target per process |
 | `TestStopTransitionsToStopped` | `Stop` transitions the internal lifecycle to `stopped` |
 | `TestStartPanicsWhenRunning` | Calling `Start` twice (already running) panics |
@@ -120,12 +113,29 @@ Total: 27 test files across 11 packages — 230 test functions (including 20 sub
 | `TestGameTargetsPopulatedAfterStart` | `Targets` has one entry per process after `Start` |
 | `TestGamePendingConfirmNilWhenNoPending` | `PendingConfirm` returns `nil` when no confirmation is pending |
 | `TestGamePendingConfirmReturnsPendingTarget` | `PendingConfirm` returns the target held by the internal `confirmation` |
-| `TestGameConfirmPendingFalseInitially` | `confirm.Pending()` is false on a new game |
+| `TestGameConfirmPendingFalseInitially` | `confirm.Pending()` is false on a new session |
 | `TestGameThrottleMutationAffectsSpeed` | Mutating the throttle returned by `Throttle()` changes `Speed()` |
-| `TestGameFrameExcludesDeadTargets` | `Frame` omits targets once their kill animation completes and they go `Dead` |
-| `TestGameFrameCountsAlive` | `Frame.Alive` counts only `Alive`-state targets, while a `Killing` target remains visible but uncounted |
+| `TestGameAvailableTargetsExcludesDeadTargets` | `AvailableTargets` omits targets once their kill animation completes and they go `Dead`, reporting 0 alive |
+| `TestGameAvailableTargetsCountsAlive` | `AvailableTargets` counts only `Alive`-state targets, while a `Killing` target stays in the returned slice but uncounted |
+| `TestUpdateStopsWhenTimeLimitExpired` | `Update` stops the session once elapsed time exceeds the configured time limit |
+| `TestUpdateStopsWhenAllTargetsDead` | `Update` stops the session once every target is in the `Dead` state |
 
-### `internal/core/game/target_test.go` (25 tests)
+### `internal/core/game/roster_test.go` (10 tests)
+
+| Test | Description |
+|------|-------------|
+| `TestNewRosterEmptyBeforeSpawn` | `newRoster` holds no targets until `spawn` is called |
+| `TestRosterSpawnCreatesTargetForEachProcess` | `spawn` creates one target per process in the roster |
+| `TestRosterMoveAdvancesTargets` | `move` advances every target's position by one step |
+| `TestRosterAllDeadFalseWhenEmpty` | `allDead` is `false` for an empty roster — no targets means nothing was ever killed |
+| `TestRosterAllDeadTrueWhenAllDead` | `allDead` is `true` once every target has reached the `Dead` state |
+| `TestRosterAllDeadFalseWhenSomeAlive` | `allDead` is `false` when at least one target is not `Dead` |
+| `TestRosterHitAtReturnsTargetAtCoordinates` | `hitAt` returns the target whose tag covers the given coordinates |
+| `TestRosterHitAtMissReturnsNil` | `hitAt` returns `nil` when no target covers the given coordinates |
+| `TestRosterAvailableExcludesDeadTargets` | `available` excludes `Dead` targets and reports 0 alive |
+| `TestRosterAvailableCountsAlive` | `available` counts only `Alive`-state targets, while `Killing` targets remain in the returned slice |
+
+### `internal/core/game/target_test.go` (22 tests)
 
 | Test | Description |
 |------|-------------|
@@ -146,25 +156,22 @@ Total: 27 test files across 11 packages — 230 test functions (including 20 sub
 | `TestTargetContainsMultiByteProcessName` | `isHitAt` uses rune count for width so multi-byte names don't over-count — regression for byte-count bug |
 | `TestTargetContainsNotAlive` | Non-alive target returns `false` from `isHitAt` for all positions |
 | `TestTargetIsAlive` | `isAlive` is true only in the `Alive` state |
-| `TestTargetIsKilling` | `isKilling` is true only in the `Killing` state |
 | `TestTargetIsDead` | `isDead` is true only in the `Dead` state |
 | `TestTargetKill` | `Kill` on an alive target returns true, sets state to `Killing`, resets the animation tick |
 | `TestTargetKillNoOpWhenNotAlive` | `Kill` on a dead target returns false and leaves state unchanged |
 | `TestTargetReap` | `Reap` on an alive target returns true and sets state straight to `Dead`, skipping the kill animation |
 | `TestTargetReapNoOpWhenNotAlive` | `Reap` on a target that isn't alive (e.g. `Killing`) returns false and leaves state unchanged |
-| `TestTargetSnapshotAliveTarget` | `Snapshot` rounds position to integer X/Y, carries the tag, and reports `Killing=false` |
-| `TestTargetSnapshotKillingTarget` | `Snapshot` reports `Killing=true` for a target mid kill-animation |
 
 ### `internal/core/game/input_test.go` (9 tests)
 
 | Test | Description |
 |------|-------------|
-| `TestInputOnQuitStopsGame` | `OnQuit` stops the game when no confirmation is pending |
-| `TestInputOnQuitCancelsConfirmWhenPending` | `OnQuit` cancels a pending confirmation instead of stopping the game |
+| `TestInputOnQuitStopsGame` | `OnQuit` stops the session when no confirmation is pending |
+| `TestInputOnQuitCancelsConfirmWhenPending` | `OnQuit` cancels a pending confirmation instead of stopping the session |
 | `TestInputOnYesReturnsConfirmedTarget` | `OnYes` returns the confirmed target and clears the pending confirmation |
-| `TestInputOnNoCancelsPending` | `OnNo` clears the pending confirmation without stopping the game |
-| `TestInputOnSpeedUpIncreasesSpeed` | `OnSpeedUp` increases game speed by 0.5 |
-| `TestInputOnSpeedDownDecreasesSpeed` | `OnSpeedDown` decreases game speed by 0.5 |
+| `TestInputOnNoCancelsPending` | `OnNo` clears the pending confirmation without stopping the session |
+| `TestInputOnSpeedUpIncreasesSpeed` | `OnSpeedUp` increases session speed by 0.5 |
+| `TestInputOnSpeedDownDecreasesSpeed` | `OnSpeedDown` decreases session speed by 0.5 |
 | `TestInputOnClickAtReturnsTarget` | Clicking on a target's position returns that target |
 | `TestInputOnClickAtMissReturnsNil` | Clicking empty space returns `nil` |
 | `TestInputOnClickAtNoOpWhenAlreadyConfirming` | A second click while a confirmation is already pending returns `nil` and leaves the pending target unchanged |
@@ -209,17 +216,17 @@ Total: 27 test files across 11 packages — 230 test functions (including 20 sub
 
 ## Application Layer
 
-### `internal/application/event/input_test.go` (16 tests)
+### `internal/application/event/dispatcher_test.go` (16 tests)
 
 | Test | Description |
 |------|-------------|
 | `TestDispatcherClickReturnsHitTarget` | A `ClickEvent` on a target's position is forwarded to `OnClickAt` and the hit target is returned |
 | `TestDispatcherClickMissReturnsNil` | A `ClickEvent` with no targets present returns `nil` |
-| `TestDispatcherEscapeStopsGame` | `KeyEscape` calls `OnQuit` and stops the game |
-| `TestDispatcherCtrlCStopsGame` | `KeyCtrlC` calls `OnQuit` and stops the game |
-| `TestDispatcherCtrlZStopsGame` | `KeyCtrlZ` calls `OnQuit` and stops the game |
-| `TestDispatcherQStopsGame` | Rune `q` calls `OnQuit` and stops the game |
-| `TestDispatcherQUppercaseStopsGame` | Rune `Q` also calls `OnQuit` and stops the game |
+| `TestDispatcherEscapeStopsGame` | `KeyEscape` calls `OnQuit` and stops the session |
+| `TestDispatcherCtrlCStopsGame` | `KeyCtrlC` calls `OnQuit` and stops the session |
+| `TestDispatcherCtrlZStopsGame` | `KeyCtrlZ` calls `OnQuit` and stops the session |
+| `TestDispatcherQStopsGame` | Rune `q` calls `OnQuit` and stops the session |
+| `TestDispatcherQUppercaseStopsGame` | Rune `Q` also calls `OnQuit` and stops the session |
 | `TestDispatcherYReturnsConfirmedTarget` | Rune `y` accepts a pending confirmation and returns the target, clearing the pending state |
 | `TestDispatcherYUppercaseAcceptsConfirmation` | Rune `Y` also accepts a pending confirmation |
 | `TestDispatcherNCancelsConfirmation` | Rune `n` clears a pending confirmation without returning a target |
@@ -230,54 +237,54 @@ Total: 27 test files across 11 packages — 230 test functions (including 20 sub
 | `TestDispatcherUnderscoreDecreasesSpeed` | Rune `_` is an alias for `-` and also calls `OnSpeedDown` |
 | `TestDispatcherUnknownRuneNoOp` | An unmapped rune (`z`) returns `nil` and leaves running state and speed unchanged |
 
-### `internal/application/service/converter_test.go` (7 tests)
+### `internal/application/game/converter_test.go` (9 tests)
+
+| Test | Description |
+|------|-------------|
+| `TestToConfirmViewStateNilInput` | `toConfirmViewState(nil)` returns `nil` |
+| `TestToConfirmViewStateMapsFields` | `toConfirmViewState` maps a target's PID and name onto the view state |
+| `TestToTargetViewStateRoundsPosition` | `toTargetViewState` rounds position to integer X/Y, carries the tag, and reports `Killing=false` for an alive target |
+| `TestToTargetViewStateMarksKilling` | `toTargetViewState` reports `Killing=true` for a target mid kill-animation |
+| `TestToTargetViewStatesMapsAll` | `toTargetViewStates` maps every target in order, preserving each one's `Killing` flag |
+| `TestToTargetViewStatesEmptyInput` | `toTargetViewStates(nil)` returns an empty result |
+| `TestToHUDStateMapsFields` | `toHUDState` maps a tracker's `FreedMem`/`Kills`/`HighScore` onto the HUD view |
+| `TestToStatusStateMapsFields` | `toStatusState` maps alive count, speed, and time limit, with `Confirming` nil when none pending |
+| `TestToStatusStateIncludesConfirming` | `toStatusState`'s `Confirming` field carries the pending target's PID once `RequestConfirm` is called |
+
+### `internal/application/game/service_test.go` (9 tests)
+
+| Test | Description |
+|------|-------------|
+| `TestBuildFrameAliveTargetIncluded` | `buildFrame` includes an alive target with `Killing=false` |
+| `TestBuildFrameKillingTargetMarked` | `buildFrame` marks a target mid-kill with `Killing=true` |
+| `TestBuildFrameDeadTargetExcluded` | `buildFrame` omits a target once its kill animation finishes and it goes `Dead` |
+| `TestBuildFrameHUDReflectsStats` | `buildFrame`'s HUD carries the tracker's current kills and freed memory |
+| `TestBuildFrameStatusBarAliveCount` | `buildFrame`'s `StatusBar.Alive` counts only `Alive`-state targets |
+| `TestBuildFrameNoConfirmPending` | `buildFrame`'s `StatusBar.Confirming` is `nil` when no confirmation is pending |
+| `TestServiceApplyKillsCompletesPendingKill` | `applyKills` transitions a queued target to `Killing` and increments the tracker's kill count |
+| `TestServiceApplyKillsReapsAlreadyKilledTarget` | `applyKills` with `shouldReap` set transitions the target straight to `Dead` without awarding a kill |
+| `TestServiceApplyKillsEmptyChannelNoOps` | `applyKills` on an empty kills channel returns immediately without blocking and leaves kills at 0 |
+
+### `internal/application/process/converter_test.go` (3 tests)
 
 | Test | Description |
 |------|-------------|
 | `TestToProcessInfoMapsFields` | `toProcessInfo` maps Pid/Name/Rss from an `outbound.ProcessInfo` |
 | `TestToProcessInfosMapsAll` | `toProcessInfos` maps every element of a slice in order |
 | `TestToProcessInfosEmptyInput` | `toProcessInfos(nil)` returns an empty result |
-| `TestToBoardMapsFields` | `toBoard` maps a stored `ScoreBoard`'s entries into `score.Entry` values and seeds the tracker's `HighScore` |
-| `TestToBoardEmptyInput` | `toBoard` on an empty `ScoreBoard` returns an empty board and `HighScore` 0 |
-| `TestToScoreBoardMapsFields` | `toScoreBoard` maps a `score.Board`'s entries back into `outbound.ScoreEntry` values |
-| `TestToScoreBoardEmptyInput` | `toScoreBoard` on an empty `score.Board` returns an empty `ScoreBoard` |
 
-### `internal/application/service/game_test.go` (17 tests)
+### `internal/application/process/service_test.go` (6 tests)
 
 | Test | Description |
 |------|-------------|
-| `TestToConfirmViewStateNilInput` | `toConfirmViewState(nil)` returns `nil` |
-| `TestToConfirmViewStateMapsFields` | `toConfirmViewState` maps a target's PID and name onto the view state |
-| `TestBuildFrameAliveTargetIncluded` | Alive target appears in the built frame with `Killing=false` |
-| `TestBuildFrameKillingTargetMarked` | Target mid-kill appears in the frame with `Killing=true` |
-| `TestBuildFrameDeadTargetExcluded` | Dead target is omitted from the frame |
-| `TestBuildFrameHUDReflectsStats` | Frame's HUD carries the tracker's current kills and freed memory |
-| `TestBuildFrameStatusBarAliveCount` | `StatusBar.Alive` counts only `Alive`-state targets |
-| `TestBuildFrameNoConfirmPending` | `StatusBar.Confirming` is `nil` when no confirmation is pending |
-| `TestGameServiceFinderError` | A finder/lister error during `Play` is surfaced to the caller |
-| `TestGameServiceApplyKillsCompletesPendingKill` | `applyKills` transitions a pending target to `Killing` and increments the tracker's kill count |
-| `TestGameServiceApplyKillsReapsAlreadyKilledTarget` | `applyKills` with `shouldReap` set transitions the target straight to `Dead` without awarding a kill |
-| `TestGameServiceApplyKillsEmptyChannelNoOps` | `applyKills` on an empty channel does not block and leaves kills at 0 |
-| `TestGameServiceKillProtectedPIDReturnsError` | `kill` refuses a protected PID (e.g. PID 1, "init") without calling the process adapter's `Kill` |
-| `TestGameServiceKillLookupErrorReturnsErrAlreadyKilled` | `kill` wraps a `LookupName` failure in `errAlreadyKilled`, preserving the underlying error, without calling `Kill` |
-| `TestGameServiceKillNameMismatchReturnsErrAlreadyKilled` | `kill` wraps a mismatched live process name in `errAlreadyKilled` — the PID was likely recycled — without calling `Kill` |
-| `TestGameServiceKillNameMatchInvokesKill` | `kill` calls the process adapter's `Kill` once the live name is verified to match |
-| `TestGameServiceNoProcesses` | An empty process list exits `Play` cleanly with `nil` error |
+| `TestFindProcessesListError` | `FindProcesses` surfaces an error returned by the process adapter's `List` |
+| `TestFindProcessesNoMatches` | `FindProcesses` returns an empty slice, no error, when no pattern matches |
+| `TestKillProtectedPIDReturnsError` | `Kill` refuses a protected PID (e.g. PID 1, `"init"`) — returns `killed=false`, `shouldReap=false`, and an error — without calling the process adapter's `Kill` |
+| `TestKillLookupErrorReturnsShouldReap` | `Kill` returns `shouldReap=true` and surfaces the underlying `LookupName` error when the live-name lookup fails, without calling `Kill` |
+| `TestKillNameMismatchReturnsShouldReap` | `Kill` returns `shouldReap=true` when the live process name no longer matches the target's (PID likely recycled), without calling `Kill` |
+| `TestKillNameMatchInvokesKill` | `Kill` calls the process adapter's `Kill` once the live name is verified to match, returning `killed=true` |
 
-### `internal/application/service/score_test.go` (8 tests)
-
-| Test | Description |
-|------|-------------|
-| `TestLoadScoreBoardMapsStoredEntries` | `loadScoreBoard` maps stored entries and returns `success=true` with the correct `HighScore` |
-| `TestLoadScoreBoardErrorFallsBackToEmptyBoard` | A store load error yields an empty board, `HighScore=0`, `success=false`, and a `"could not load scores"` stderr warning |
-| `TestRecordScoreAddsEntryFromTracker` | `recordScore` appends a board entry built from the tracker's kills/freed memory plus the given speed/time/duration |
-| `TestRecordScoreSavesWhenPersistTrue` | `recordScore` saves the board to the store when `persist` is true |
-| `TestRecordScoreSkipsSaveWhenPersistFalse` | `recordScore` does not save to the store when `persist` is false |
-| `TestRecordScoreSaveErrorPrintsWarning` | A store save error during `recordScore` prints a `"score not saved"` warning containing the underlying error |
-| `TestPrintResultsPrintsGameOverSummary` | `printResults` prints `"Game Over!"` and the correct kill count |
-| `TestPrintResultsDelegatesToBoardPrintScores` | `printResults` delegates to the board's score printing, showing `"No high scores yet!"` for an empty board |
-
-### `internal/application/service/validation_test.go` (7 tests)
+### `internal/application/process/validation_test.go` (7 tests)
 
 | Test | Description |
 |------|-------------|
@@ -289,19 +296,41 @@ Total: 27 test files across 11 packages — 230 test functions (including 20 sub
 | `TestValidateSearchPatternsValid` | Multiple valid patterns are accepted |
 | `TestValidateSearchPatternsExactMaxLength` | Pattern at exactly `MaxPatternLength` is accepted |
 
-### `internal/application/service/game_integration_test.go` (9 tests) `// go:build integration`
+### `internal/application/score/converter_test.go` (4 tests)
 
 | Test | Description |
 |------|-------------|
-| `TestIntegrationGameServiceHappyPath` | Pre-queued `q` key runs `Play` to completion; Save is called; the session entry has `kills=0` and `duration>0` |
-| `TestIntegrationGameServiceLoadErrorPrintsWarningAndSkipsSave` | A `Load` failure prints `"could not load scores"` to stderr; `Play` still returns `nil`; Save is skipped |
-| `TestIntegrationGameServiceSaveErrorPrintsWarning` | A `Save` failure prints `"score not saved"` and the underlying error to stderr; `Play` still returns `nil` |
-| `TestIntegrationGameServiceQuitOnQ` | `q` key sent asynchronously during a live game session causes `Play` to return without error |
-| `TestIntegrationGameServiceQuitOnEscape` | Escape key sent asynchronously causes `Play` to return without error |
-| `TestIntegrationGameServiceQuitOnCtrlC` | Ctrl+C sent asynchronously causes `Play` to return without error |
-| `TestIntegrationGameServiceQuitOnCtrlZ` | Ctrl+Z sent asynchronously causes `Play` to return without error |
-| `TestIntegrationGameServiceTimeLimitExpires` | Game with a 1-second time limit exits on its own within 3 seconds |
-| `TestIntegrationGameServiceSignalGoroutineDoesNotAccumulate` | The signal-handling goroutine started inside `runLoop` exits when `Play` returns; three sequential games do not accumulate goroutines |
+| `TestToBoardMapsFields` | `toBoard` maps a stored `outbound.ScoreBoard`'s entries into `score.Entry` values and seeds the tracker's `HighScore` |
+| `TestToBoardEmptyInput` | `toBoard` on an empty `ScoreBoard` returns an empty board and `HighScore` 0 |
+| `TestToScoreBoardMapsFields` | `toScoreBoard` maps a `score.Board`'s entries back into `outbound.ScoreEntry` values |
+| `TestToScoreBoardEmptyInput` | `toScoreBoard` on an empty `score.Board` returns an empty `outbound.ScoreBoard` |
+
+### `internal/application/score/service_test.go` (8 tests)
+
+| Test | Description |
+|------|-------------|
+| `TestLoadScoreBoardMapsStoredEntries` | `LoadScoreBoard` maps stored entries and returns `success=true` with the correct `HighScore` |
+| `TestLoadScoreBoardErrorFallsBackToEmptyBoard` | A store load error yields an empty board, `HighScore=0`, `success=false`, and a `"could not load scores"` stderr warning |
+| `TestRecordScoreAddsEntryFromTracker` | `RecordScore` appends a board entry built from the tracker's kills/freed memory plus the given speed/time/duration |
+| `TestRecordScoreSavesWhenPersistTrue` | `RecordScore` saves the board to the store when `persist` is true |
+| `TestRecordScoreSkipsSaveWhenPersistFalse` | `RecordScore` does not save to the store when `persist` is false |
+| `TestRecordScoreSaveErrorPrintsWarning` | A store save error during `RecordScore` prints a `"score not saved"` warning containing the underlying error |
+| `TestPrintResultsPrintsGameOverSummary` | `PrintResults` prints `"Game Over!"` and the correct kill count |
+| `TestPrintResultsDelegatesToBoardPrintScores` | `PrintResults` delegates to the board's score printing, showing `"No high scores yet!"` for an empty board |
+
+### `internal/application/runner_integration_test.go` (9 tests) `// go:build integration`
+
+| Test | Description |
+|------|-------------|
+| `TestIntegrationRunnerHappyPath` | Pre-queued `q` key runs `Runner.Run` to completion; the store's `Save` is called; the saved entry has `kills=0` and `duration>0` |
+| `TestIntegrationRunnerLoadErrorPrintsWarningAndSkipsSave` | A `Load` failure prints `"could not load scores"` to stderr; `Run` still returns `nil`; `Save` is skipped |
+| `TestIntegrationRunnerSaveErrorPrintsWarning` | A `Save` failure prints `"score not saved"` and the underlying error to stderr; `Run` still returns `nil` |
+| `TestIntegrationRunnerQuitOnQ` | `q` key sent asynchronously during a live session causes `Run` to return without error |
+| `TestIntegrationRunnerQuitOnEscape` | Escape key sent asynchronously causes `Run` to return without error |
+| `TestIntegrationRunnerQuitOnCtrlC` | Ctrl+C sent asynchronously causes `Run` to return without error |
+| `TestIntegrationRunnerQuitOnCtrlZ` | Ctrl+Z sent asynchronously causes `Run` to return without error |
+| `TestIntegrationRunnerTimeLimitExpires` | A session with a 1-second time limit exits on its own within 3 seconds |
+| `TestIntegrationRunnerSignalGoroutineDoesNotAccumulate` | The signal-handling goroutine started inside `runLoop` exits when `Run` returns; three sequential games (after an `os/signal` warm-up run) leave no extra goroutines behind |
 
 ---
 
@@ -335,7 +364,7 @@ Total: 27 test files across 11 packages — 230 test functions (including 20 sub
 | `TestListReturnsResults` | A real `ps` call via the adapter returns at least one process |
 | `TestOwnPidMatchesOSGetpid` | `OwnPid` matches `os.Getpid()` |
 | `TestLookupNameReturnsOwnName` | `LookupName` on the running test binary's own PID returns a non-empty name |
-| `TestKillerNonexistentPID` | `Kill` on a PID that doesn't exist returns an error |
+| `TestKillerNonexistentPID` | `Kill` on a PID that doesn't exist returns an error — `Kill` itself no longer guards PID or verifies name (that's `application/process.Service.Kill`'s job), so this only checks the one safe, deterministic case |
 
 ### `internal/infrastructure/osprocess/osprocess_integration_test.go` (4 tests) `// go:build integration`
 
@@ -344,7 +373,7 @@ Total: 27 test files across 11 packages — 230 test functions (including 20 sub
 | `TestIntegrationListReturnsResults` | Real `ps` call returns at least one process |
 | `TestIntegrationListValidFields` | Every listed process has a positive PID, non-empty name, and non-negative RSS |
 | `TestIntegrationListShortProcessNames` | Process names are base names, not full paths |
-| `TestIntegrationFindExcludesOwnAndInitPID` | `process.Find` excludes the caller's own PID and PID 1 when run against real adapter output |
+| `TestIntegrationFindExcludesOwnAndInitPID` | `process.Find` — the domain policy, not the adapter — excludes the caller's own PID and PID 1 when run against real adapter output |
 
 ### `internal/infrastructure/scorefilestore/score_file_store_test.go` (7 tests)
 
@@ -398,28 +427,30 @@ Total: 27 test files across 11 packages — 230 test functions (including 20 sub
 
 ## Highlights
 
-**Domain logic is split into standalone, independently-tested packages** — `core/process` (pattern validation, `Info.IsProtected`, `Find` filtering), `core/movement` (`Bounds`, `Motion`, `Speed`, `Throttle`), and `core/score` (`Entry.beats` ranking, `Board` add/cap/print, `Tracker` kill accounting) each own their rules and tests independently of the game loop.
+**Domain logic is split into standalone, independently-tested packages** — `core/process` (pattern validation, `Info.IsProtected`, `Find` filtering), `core/movement` (`Bounds`, `Motion`, `Speed`, `Throttle`), and `core/score` (`Entry.beats` ranking, `Board` add/cap/print, `Tracker` kill accounting) each own their rules and tests independently of the game loop, and of each other.
 
-**`game` itself is decomposed by responsibility** — Instead of one large test file, each concern gets its own: `lifecycle_test.go` (atomic lifecycle: `pending`/`running`/`stopped`), `confirmation_test.go` (hold/accept/cancel a pending kill), `timer_test.go` (elapsed/remaining time, unlimited mode), `loop_test.go` (per-tick `Update`), `game_test.go` (lifecycle and `Frame`), `target_test.go` (per-target physics, hit-detection, kill/reap lifecycle), and `input_test.go` (player intent → domain calls).
+**`core/game` is decomposed by responsibility, one file per concern** — `lifecycle_test.go` (atomic lifecycle: `pending`/`running`/`stopped`), `confirmation_test.go` (hold/accept/cancel a pending kill), `timer_test.go` (elapsed/remaining time, unlimited mode), `roster_test.go` (the internal target collection: spawn, move, `allDead`, `hitAt`, `available`), `session_test.go` (the `Session` type's lifecycle, `Update`, and `AvailableTargets` — this absorbed what used to be a separate `loop_test.go`'s per-tick `Update` tests when `Game` was renamed to `Session`), `target_test.go` (per-target physics, hit-detection, kill/reap lifecycle), and `input_test.go` (player intent → domain calls). `Session` no longer builds its own frame/snapshot — that moved to the application layer.
 
-**Input handling lives directly in `core/game`** — `Input` (in `core/game/input.go`) is the domain gateway for player intent (`OnQuit`, `OnYes`, `OnNo`, `OnSpeedUp`, `OnSpeedDown`, `OnClickAt`); it used to live in a separate `core/handler` package but was folded into `game` since it only ever wraps a `*Game`. `application/event.Dispatcher` translates raw `outbound.KeyEvent`/`ClickEvent` values into calls on it. The two halves are tested independently: `application/event/input_test.go` verifies event-to-method routing (including key aliases `=`/`+` and `_`/`-`), while `core/game/input_test.go` verifies `Input`'s actual effect on a real `game.Game`.
+**The old `Game`/`Frame` API is gone** — `core/game.Session` (in `session.go`) replaces `Game`; there is no `Frame` or `Snapshot` type left in `core/game`. Frame assembly for rendering now happens in `application/game.buildFrame`, which returns `outbound.FrameState`, tested directly in `application/game/service_test.go` and `application/game/converter_test.go` against structured data rather than terminal output.
 
-**Kill safety lives at the application layer** — `osprocess_test.go` does not test PID/name guards directly (exercising `Kill` against PID 0/1/-1/self would send a real signal). That responsibility lives in `application/service.kill`, which calls `process.Info.IsProtected()` and re-verifies the live process name via `LookupName` before ever invoking the adapter's `Kill`, returning the sentinel `errAlreadyKilled` on either failure so the caller can `Reap()` the target instead of leaving it stuck `Alive` forever. Covered by `TestGameServiceKillProtectedPIDReturnsError`, `TestGameServiceKillLookupErrorReturnsErrAlreadyKilled`, `TestGameServiceKillNameMismatchReturnsErrAlreadyKilled`, `TestGameServiceKillNameMatchInvokesKill`, and the `applyKills` reap path in `TestGameServiceApplyKillsReapsAlreadyKilledTarget`. The integration suite (`TestIntegrationFindExcludesOwnAndInitPID`) replicates the exclusion policy against a live process table.
+**The old single `application/service` package was split into three independently-tested services, plus a composing `application` package** — `application/game` (`Service.Play`, the game loop and frame-building; `converter_test.go` + `service_test.go`), `application/process` (`Service.FindProcesses`/`Service.Kill`, process discovery and kill verification; `converter_test.go` + `service_test.go` + `validation_test.go`), and `application/score` (`Service.LoadScoreBoard`/`RecordScore`, plus package-level `PrintResults`; `converter_test.go` + `service_test.go`). The new top-level `application` package (`runner.go`) wires all three together behind `Runner.Run`; its own `runner_integration_test.go` is what the old `service/game_integration_test.go` behavior now lives under.
 
-**Score persistence is a three-stage pipeline, each stage tested on its own** — `core/score` owns ranking/ranking-cap/print logic (`board_test.go`, `entry_test.go`, `tracker_test.go`); `application/service/converter_test.go` covers the pure mapping between the persisted `outbound.ScoreBoard` shape and the domain `score.Board`/`score.Entry`; `application/service/score_test.go` covers the orchestration (`loadScoreBoard`, `recordScore`, `printResults`) against a fake store; `infrastructure/scorefilestore` covers the actual file I/O.
+**Kill safety lives in `application/process.Service.Kill` and returns its result directly, no sentinel error** — `Kill` now returns `(killed, shouldReap bool, err error)` instead of wrapping a sentinel `errAlreadyKilled`. It calls `process.Info.IsProtected()` and re-verifies the live process name via `LookupName` before ever invoking the adapter's `Kill`, setting `shouldReap=true` on either failure so the caller can `Reap()` the target instead of leaving it stuck `Alive` forever. Covered by `TestKillProtectedPIDReturnsError`, `TestKillLookupErrorReturnsShouldReap`, `TestKillNameMismatchReturnsShouldReap`, `TestKillNameMatchInvokesKill` (`application/process/service_test.go`), and the consuming side in `TestServiceApplyKillsReapsAlreadyKilledTarget` (`application/game/service_test.go`). The integration suite (`TestIntegrationFindExcludesOwnAndInitPID`) replicates the exclusion policy against a live process table, and `osprocess_test.go` now documents in a comment that PID/name guarding is deliberately not tested at the adapter level.
 
-**Validation is checked at every seam it's used** — `core/process.Validate` is the canonical boundary check (`MinPatternLength`/`MaxPatternLength`); `application/service.validateSearchPatterns` and `entrypoint/cli`'s tests re-assert the same min/max boundaries at the service and CLI layers using the shared constants, so a change to the limits is caught everywhere a pattern can enter the system.
+**Input handling lives directly in `core/game`** — `Input` (in `core/game/input.go`) is the domain gateway for player intent (`OnQuit`, `OnYes`, `OnNo`, `OnSpeedUp`, `OnSpeedDown`, `OnClickAt`), operating on a `*Session`. `application/event.Dispatcher` translates raw `outbound.KeyEvent`/`ClickEvent` values into calls on it. The two halves are tested independently: `application/event/dispatcher_test.go` (renamed from `input_test.go`, same behavior) verifies event-to-method routing (including key aliases `=`/`+` and `_`/`-`), while `core/game/input_test.go` verifies `Input`'s actual effect on a real `Session`.
 
-**Integration vs unit split** — Two files carry `//go:build integration` tags (`osprocess_integration_test.go`, `game_integration_test.go`). These tests touch the real OS process table or run a full game loop. All other tests are pure unit tests that run offline with fake/stub dependencies. Run with `go test -tags integration ./...`.
+**Score persistence is a three-stage pipeline, each stage tested on its own** — `core/score` owns ranking/cap/print logic (`board_test.go`, `entry_test.go`, `tracker_test.go`); `application/score/converter_test.go` covers the pure mapping between the persisted `outbound.ScoreBoard` shape and the domain `score.Board`/`score.Entry`; `application/score/service_test.go` covers the orchestration (`LoadScoreBoard`, `RecordScore`, `PrintResults`) against a fake store; `infrastructure/scorefilestore` covers the actual file I/O.
 
-**Unicode correctness is enforced by regression tests** — `TestTargetUpdateMultiByteRightWall` and `TestTargetContainsMultiByteProcessName` guard against a byte-count bug where multi-byte UTF-8 names caused targets to bounce too early or accept out-of-bounds click hits. `TestRenderMultiByteLabelColumnLayout` guards the same class of bug in the tcell renderer. All three use multi-byte fixtures (`"café"`, `"✦"`).
+**Validation is checked at every seam it's used** — `core/process.Validate` is the canonical boundary check (`MinPatternLength`/`MaxPatternLength`); `application/process.validateSearchPatterns` and `entrypoint/cli`'s tests re-assert the same min/max boundaries at the service and CLI layers using the shared constants, so a change to the limits is caught everywhere a pattern can enter the system.
 
-**Frame pipeline isolation** — `game.Frame()`/`Target.Snapshot()` and `service.buildFrame()` are tested directly against structured data rather than terminal output, decoupling rendering correctness from game logic and the TUI library from domain state.
+**Integration vs unit split** — Two files carry `//go:build integration` tags: `internal/infrastructure/osprocess/osprocess_integration_test.go` and `internal/application/runner_integration_test.go`. These touch the real OS process table or run a full game loop through the composed `Runner`. All other tests are pure unit tests that run offline with fake/stub dependencies. Run with `go test -tags integration ./...`.
 
-**Load failure skips save** — `TestIntegrationGameServiceLoadErrorPrintsWarningAndSkipsSave` (and its unit-level counterpart `TestLoadScoreBoardErrorFallsBackToEmptyBoard`) confirm that if the score store is unreadable at session start, no save is attempted at the end. This prevents a corrupted file from being silently overwritten with a zero-kill entry.
+**Unicode correctness is enforced by regression tests** — `TestTargetUpdateMultiByteRightWall` and `TestTargetContainsMultiByteProcessName` (`core/game/target_test.go`) guard against a byte-count bug where multi-byte UTF-8 names caused targets to bounce too early or accept out-of-bounds click hits. `TestRenderMultiByteLabelColumnLayout` (`infrastructure/tcellui`) guards the same class of bug in the tcell renderer, and is explicitly marked as a regression test for issue #13. All three use multi-byte fixtures (`"café"`, `"✦"`).
 
-**All quit signals are exercised** — Integration tests verify that `q`, Escape, Ctrl+C, and Ctrl+Z each independently terminate a live session, providing full coverage of the four supported exit paths.
+**Named regressions are called out in comments and preserved in the doc** — `TestPollGoroutineExitsAfterCleanup` (issue #6), `TestDrawHUDNarrowTerminalSuppressesCenter` (issue #14), and `TestRenderMultiByteLabelColumnLayout` (issue #13) all carry doc comments identifying the GitHub issue they guard against, in `internal/infrastructure/tcellui/tcellui_test.go`.
 
-**Signal goroutine lifecycle** — `TestIntegrationGameServiceSignalGoroutineDoesNotAccumulate` runs three sequential game sessions and verifies that goroutine count does not grow, confirming the signal goroutine in `runLoop` exits cleanly when `Play` returns. `TestPollGoroutineExitsAfterCleanup` does the same for the tcell poll goroutine.
+**All quit signals are exercised** — `runner_integration_test.go`'s `TestIntegrationRunnerQuitOnQ`/`QuitOnEscape`/`QuitOnCtrlC`/`QuitOnCtrlZ` verify that `q`, Escape, Ctrl+C, and Ctrl+Z each independently terminate a live session end-to-end through `Runner.Run`.
 
-**Test infrastructure is organised as shared sub-packages** — `internal/testutil/fake` provides typed test doubles (`Process`, `Store`, `Renderer`, `InputSource`) used across multiple test files. `internal/testutil/capture` provides dependency-free stdout/stderr capture helpers. `internal/testutil/fixture` provides shared game-construction helpers (`Game`, `Processes`, `ConfirmGame`, `PendingConfirmGame`) used by `core/game`'s own tests and by `application` layer tests. All three are structured as proper sub-packages to prevent duplication and circular imports.
+**Signal goroutine lifecycle is verified under repeated runs** — `TestIntegrationRunnerSignalGoroutineDoesNotAccumulate` warms up `os/signal`'s lazily-created background goroutine with one throwaway game, then runs three more sequential sessions and asserts goroutine count does not grow, confirming the signal-handling goroutine started inside `application/game.Service.runLoop` exits cleanly every time `Play` (and therefore `Run`) returns. `TestPollGoroutineExitsAfterCleanup` verifies the analogous property for the tcell poll goroutine.
+
+**Test infrastructure is organised as three shared sub-packages under `internal/testutil`** — `fake` provides typed test doubles: `Process` (test double for `outbound.ProcessManager`, with `ListErr`/`LookupNameErr`/`LookupNameValue`/`KillErr`/`KilledPIDs` knobs), `Store` (`outbound.ScoreStore` double capturing the last `Saved` board), `Renderer` (no-op `outbound.Renderer`), and `InputSource` (buffered-channel `outbound.InputSource` driven by pushing onto `Ch`). `capture` provides `Output`/`Stderr`, dependency-free stdout/stderr capture helpers built on `os.Pipe`. `fixture` is now two files: `game.go` provides session builders (`Game`, `ConfirmGameSession`, `PendingConfirmGameSession`) used throughout `core/game`'s own tests as well as `application/event` and `application/game` tests, and `process.go` provides `Process`/`Processes` builders for `process.Info` fixtures. All three packages exist to prevent duplicated fakes and avoid import cycles between test files and the packages they exercise.

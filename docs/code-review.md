@@ -1,6 +1,6 @@
 # pidshooter — Code Review Report
 
-*Updated 2026-07-14. Reflects current package layout: `core/` domain, `application/service` orchestration with `contract/inbound` and `contract/outbound` port packages, `entrypoint/cli` delivery adapter, `infrastructure/osprocess`/`tcellui`/`scorefilestore` driven adapters.*
+*Updated 2026-08-20. Reflects current package layout: `core/` domain (`game`, `movement`, `process`, `score`), an `application` layer split into `game`/`process`/`score` services composed by a top-level `Runner` (`internal/application/runner.go`), `contract/inbound` and `contract/outbound` port packages, `entrypoint/cli` delivery adapter, `infrastructure/osprocess`/`tcellui`/`scorefilestore` driven adapters. This pass re-verified every open finding against current source (file paths below reflect where each issue now actually lives) and found three previously-open issues already resolved as a side effect of later refactoring — noted inline where that happened. Historical entries describing already-resolved issues keep the file/type names that were accurate at the time of the fix and are not rewritten to current names.*
 
 ---
 
@@ -40,25 +40,25 @@ The old code computed elapsed time inside the loop before cleanup. The saved `En
 
 `runLoop` now returns `(time.Time, error)`, capturing `time.Now()` as the last statement before the deferred `Cleanup()` fires. `Play` computes `duration := endTime.Sub(g.StartTime()).Seconds()` from that snapshot.
 
-### 32. `--speed=NaN` bypasses range validation — `entrypoint/cli/cli.go:90`
+### 32. `--speed=NaN` bypasses range validation — `entrypoint/cli/cli.go` (`validate`)
 
 Cobra's `Float64Var` calls `strconv.ParseFloat`, which accepts the string `"NaN"`. The existing guard:
 
 ```go
-if speed < game.MinSpeed || speed > game.MaxSpeed {
+if speed < movement.MinSpeed || speed > movement.MaxSpeed {
 ```
 
-evaluates to `false` for NaN (all comparisons with NaN are false), so NaN passes validation. It then propagates into `Velocity` and `FrameVector.Apply`, making every target position NaN. `int(math.Round(NaN))` yields a garbage coordinate; `isHitAt`'s equality check can never match; and `Velocity.Increase`/`Decrease` cannot recover (`NaN + 0.5 == NaN`, clamp comparisons stay false). The game renders nothing sensible and is unwinnable.
+evaluates to `false` for NaN (all comparisons with NaN are false), so NaN passes validation. `cfg.Speed` then flows into `core/game.Config.Speed` → `movement.NewThrottle(speed)` → every `movement.Motion.Move` call (`Position.X += Velocity.X * speed`), making every target's position NaN. `int(math.Round(NaN))` (in `application/game/converter.go`'s `toTargetViewState`) yields a garbage coordinate; `Target.isHitAt`'s equality check can never match; and `Throttle.Increase`/`Decrease` cannot recover (`NaN + 0.5 == NaN`, clamp comparisons stay false). The game renders nothing sensible and is unwinnable.
 
 Fix: invert the guard so NaN fails it:
 
 ```go
-if !(speed >= game.MinSpeed && speed <= game.MaxSpeed) {
+if !(speed >= movement.MinSpeed && speed <= movement.MaxSpeed) {
 ```
 
 or add an explicit `math.IsNaN(speed)` check before the range test.
 
-### 33. `--time` with a large value overflows to "no time limit" — `entrypoint/cli/cli.go:94`, `core/game/timer.go:16`
+### 33. `--time` with a large value overflows to "no time limit" — `entrypoint/cli/cli.go` (`validate`), `core/game/timer.go` (`newTimer`)
 
 Only negative values are rejected (`timeLimit < 0`). `NewTimer` multiplies the value by `time.Second`:
 
@@ -77,20 +77,20 @@ if timeLimit < 0 || timeLimit > maxTimeLimit {
 }
 ```
 
-### 34. Hit detection truncates while rendering rounds — `core/game/target.go:86`
+### 34. Hit detection truncates while rendering rounds — `core/game/target.go` (`isHitAt`) vs. `application/game/converter.go` (`toTargetViewState`)
 
-`isHitAt` converts the float position with `int()` (truncation), but `ViewState` uses `math.Round`:
+`isHitAt` converts the float position with `int()` (truncation), but the outbound view-state converter uses `math.Round`:
 
 ```go
-// isHitAt (line 86) — truncation
+// core/game/target.go — isHitAt: truncation
 return y == int(t.Position.Y) && x >= int(t.Position.X) && x < int(t.Position.X)+width
 
-// ViewState (lines 92-93) — rounding
+// application/game/converter.go — toTargetViewState: rounding
 X: int(math.Round(t.Position.X)),
 Y: int(math.Round(t.Position.Y)),
 ```
 
-When the fractional part of `Position.Y` is ≥ 0.5, the tag is drawn at row `n+1` but a click on row `n+1` does not register (`int()` truncates to `n`). Clicks on the visible target fail roughly half the time on the Y axis; the horizontal edge is similarly off by one column.
+When the fractional part of `Position.Y` is ≥ 0.5, the tag is drawn at row `n+1` (rounded) but a click on row `n+1` does not register (`isHitAt` truncates to `n`). Clicks on the visible target fail roughly half the time on the Y axis; the horizontal edge is similarly off by one column.
 
 Fix: use the same conversion in both places:
 
@@ -135,9 +135,9 @@ return y == py && x >= px && x < px+width
 
 `s.store.Save(board)` error is now checked; on failure a `warning: score not saved: <err>` line is printed to stderr. `Play` still returns `nil` — a save failure is not fatal. `fake.Store` now has separate `LoadErr`/`SaveErr` fields so the two paths can be controlled independently. `TestGameService_SaveError_PrintsWarning` (integration) verifies the warning appears and `Play` returns `nil`.
 
-### 11. `PrintScores()` couples the domain to stdout — `core/score/score.go`
+### 11. `PrintHighScores()` couples the domain to stdout — `core/score/board.go`
 
-`Board.PrintScores()` calls `fmt.Println` and `fmt.Printf` directly, making the core domain package responsible for terminal output. This violates the layering used everywhere else in the codebase (where output goes through the `Renderer` port or the application layer). The display logic belongs in `application/game.go`'s `Play()` after the game completes — the domain should only provide the data.
+`Board.PrintHighScores()` calls `fmt.Println` and `fmt.Printf` directly, making the core domain package responsible for terminal output. This violates the layering used everywhere else in the codebase (where output goes through the `Renderer` port or the application layer). Some of this has already moved out — `application/score.PrintResults(duration, board)` now owns the "Game Over!" summary line — but `Board.PrintHighScores()` itself still does the trophy line and the score table directly via `fmt.Println`/`fmt.Printf`. The display logic belongs entirely in `application/score`, which already receives `*score.Board` as an argument; the domain should only provide the data (e.g. a `Board.Rank() []Entry` plus the trophy boolean).
 
 ### ~~12. `NewKiller()` returns a concrete type~~ ✓ Resolved
 
@@ -196,11 +196,11 @@ Speeding up now requires holding Shift on the main keyboard. The usage string (`
 
 `FrameState`, `TargetViewState`, `HUDState`, `StatusState`, and `ConfirmState` were defined in `internal/core/game/frame.go` — the rendering contract inside the domain. Resolved together with #43: the file was moved to `application/contract/outbound/ui.go` (alongside the `Renderer` interface it serves), the package declaration changed from `frame` to `outbound`, and `outbound/ui.go` now owns all frame types. The `core/game` import is gone from the outbound package. `ConfirmState` was renamed `ConfirmViewState` to distinguish the view model from the domain type `ConfirmTarget` (see #43).
 
-### 35. Inbound port `Play()` performs no validation — `application/service/game.go:45`
+### 35. Inbound port `Run()` performs no validation — `application/runner.go` (`Runner.Run`)
 
-All input validation lives exclusively in the CLI adapter (`cli.go validate()`). `GameService.Play`, `game.New`, `NewVelocity`, and `NewTimer` accept any `GamePlayConfig` without checking it. Any second delivery adapter (a future TUI, a test, a daemon entrypoint) that calls `Play` with `Speed: 0`, a NaN speed, or a negative `TimeLimit` gets silent NaN positions or an infinite game with no error.
+All input validation lives exclusively in the CLI adapter (`entrypoint/cli/cli.go`'s `validate()`). `Runner.Run`, `game.Service.Play`, `game.NewSession`, `movement.NewThrottle`, and `core/game.newTimer` all accept any `inbound.Config` without checking it. Any second delivery adapter (a future TUI, a test, a daemon entrypoint) that calls `Runner.Run` with `Speed: 0`, a NaN speed, or a negative `TimeLimit` gets silent NaN positions or an infinite game with no error.
 
-The inbound port is the architectural boundary in a hexagonal layout — the defence should live there, not only in one delivery adapter. Fix: add the same range checks at the top of `GameService.Play` (or enforce them in `game.New`), returning an error when `!(cfg.Speed >= game.MinSpeed && cfg.Speed <= game.MaxSpeed) || cfg.TimeLimit < 0`.
+The inbound port is the architectural boundary in a hexagonal layout — the defence should live there, not only in one delivery adapter. Fix: add the same range checks at the top of `Runner.Run` (or enforce them in `game.NewSession`), returning an error when `!(cfg.Speed >= movement.MinSpeed && cfg.Speed <= movement.MaxSpeed) || cfg.TimeLimit < 0`.
 
 ### ~~37. Keybinding policy split across core and application — `core/game/event_handler.go:22–36`~~ ✓ Resolved
 
@@ -210,39 +210,37 @@ Fix: add intent-level methods to `Game` — `Quit()`, `ConfirmKill() *Target`, `
 
 `core/game/event_handler.go` deleted entirely. A new `core/handler/input.go` (package `handler`) introduces the `InputHandler` interface — intent-level methods `OnQuit`, `OnYes`, `OnNo`, `OnSpeedUp`, `OnSpeedDown`, `OnClickAt` — and a `Handler` struct that implements it against `*game.Game`. All rune-to-intent translation moved to `application/event/input.go` (package `event`), where `Dispatcher.Dispatch` owns the full `InputEvent` switch. `NewDispatcher` accepts `handler.InputHandler` (not `*game.Game`), establishing a clean injection seam. To avoid exposing mutable internals across the new boundary, `Confirmer` and `Speeder` interfaces were introduced in `core/game/confirmation.go` and `core/game/velocity.go`; `game.Confirm()` and `game.Velocity()` now return those interfaces instead of raw pointers. Covered by `TestHandler_*` in `core/handler/input_test.go` and `TestDispatcher_*` in `application/event/input_test.go`.
 
-### 38. Renderer chrome hardcoded in domain physics — `core/game/frame_bounds.go:43`, `core/game/target.go:117`
+### 38. Renderer chrome hardcoded in domain physics — `core/movement/bounds.go` (`bounceBottom`), `core/movement/motion.go` (`newRandomPosition`)
 
 Bounce physics and spawn logic subtract 2 from frame height to "reserve bottom row for status bar":
 
 ```go
-// frame_bounds.go:43
-float64(b.Height - 2) // reserve bottom row for status bar
+// bounds.go — bounceBottom
+bound := float64(b.height - 2) // reserve bottom row for status bar
 
-// target.go:117
-y := maxY - 2 // Leave room for status bar
+// motion.go — newRandomPosition
+y := max(bounds.height-2, 1) // Leave room for status bar
 ```
 
-This hardcodes knowledge of `tcellui`'s specific screen layout into the domain. If the renderer adds a second chrome row or removes the status bar entirely, core physics must change. The magic `-2` is duplicated across two core files and must stay in sync with `tcellui.go:123,141`.
+This hardcodes knowledge of `tcellui`'s specific screen layout into the domain (now `core/movement`, having moved out of `core/game/target.go` at some point — the underlying issue is unchanged). If the renderer adds a second chrome row or removes the status bar entirely, core physics must change. The magic `-2` is duplicated across two core files and must stay in sync with `tcellui`'s own status-bar row usage.
 
-Fix: the domain should bounce within whatever bounds it is given. Have the application layer subtract chrome height before passing dimensions: `w, h := s.renderer.Size()` → pass `h - chromeRows` to `g.Update`. The renderer is the one that knows how many rows its chrome occupies.
+Fix: the domain should bounce within whatever bounds it is given. Have the application layer subtract chrome height before passing dimensions: `w, h := s.renderer.Size()` → pass `h - chromeRows` into `Session.Update`/`Session.Start`. The renderer is the one that knows how many rows its chrome occupies.
 
-### 39. Kill-animation glyphs owned by domain; duration expressed in ticks — `core/game/target.go:24–25, 145–152`
+### 39. Kill-animation glyphs owned by domain; duration expressed in ticks — `core/game/target.go` (`killAnimationTagFor`, `KillAnimationDuration`)
 
-The domain selects literal glyph strings (`"💥"`, `"✦ KILLED ✦"`, `"· · ·"`, `"  ·  "`, `"     "`) for each animation frame. Glyph selection is pure presentation and belongs in the renderer adapter. Additionally, `KillAnimationDuration = 12` is expressed in ticks, which only means "0.6 s" because the application layer's ticker happens to run at 20 fps (`service/game.go:18`). Changing `frameDuration` silently changes every animation's duration.
+The domain selects literal glyph strings (`"💥"`, `"✦ KILLED ✦"`, `"· · ·"`, `"  ·  "`, `"     "`) for each animation frame. Glyph selection is pure presentation and belongs in the renderer adapter — there's now a `// TODO: perhaps move tag string etc to infrastructure / outbound adapter` comment sitting directly above `killAnimationTagFor`, so this is already flagged in-code. Additionally, `KillAnimationDuration = 12` is expressed in ticks, which only means "0.6 s" because the application layer's ticker happens to run at 20 fps (`application/game/service.go`'s `frameDuration = time.Second / 20`). Changing `frameDuration` silently changes every animation's duration.
 
 Note: the live `[pid name]` tag is defensible in core because its rune width drives hit detection and bounce. A *dying* target is neither hittable nor bounced, so its display string has no domain role.
 
 Fix: keep `Killing`/`Dead` states and the tick counter in core, but expose progress as data — add an `AnimationPhase int` (or a 0..1 fraction) to `TargetViewState` and let `tcellui` own the glyph table. Make `KillAnimationDuration` a `game.Config` field so the application layer, which owns the tick rate, can supply a consistent value.
 
-### 40. High-score cross-aggregate coordination in the domain — `core/game/stats.go:7, 14–19`
+### ~~40. High-score cross-aggregate coordination in the domain — `core/game`~~ ✓ Resolved
 
-`Game` carries a `highScore` field injected from the persisted `score.Board` (seeded at `application/service/game.go:65`) and bumps it live on each kill in `RecordKill`. The high score belongs to the `core/score` aggregate; tracking "max(stored high, current kills)" is a presentation policy, not a rule of the shooting game. The game session plays identically with or without it.
+`core/game.Session` no longer carries any score or high-score state at all — no `highScore` field, no `RecordKill` method, no coupling to `core/score` in any form. Score tracking (`Kills`, `FreedMem`, `HighScore`) lives entirely in `core/score.Tracker`, seeded once by `score.NewBoard` and threaded through `application/game.Service.Play(cfg, processes, tracker)` as a plain parameter — the game loop calls `tracker.RecordKill(rss)` directly on kill, and the HUD's `HighScore` value is read straight from the tracker by `application/game/converter.go`'s `toHUDState`. `Session` plays identically whether or not a tracker/score system exists at all; the cross-aggregate coordination the original finding objected to is gone. Resolved as part of the broader `application/score` extraction, not tracked under a specific prior issue number.
 
-Fix: delete `highScore`, `SetHighScore`, and the `HighScore()` accessor from `Stats`; remove `SetHighScore` from `Frame()` assembly in `loop.go`. Have the application layer compute `max(board.HighScore(), g.Kills())` before calling `s.renderer.Render(...)` and inject the value into the frame there.
+### 41. System clock side effect in core domain — `core/game/timer.go` (`timer.now`)
 
-### 41. System clock side effect in core domain — `core/game/timer.go:10, 17, 23–26`
-
-`Timer` reads `time.Now` directly — an environmental side effect that makes the "pure state machine" non-deterministic and untestable without the `now func() time.Time` hook (which is itself an admission that the dependency doesn't belong there). The application layer already owns time: it runs the ticker and captures `endTime` in `service/game.go:120,134`.
+`timer` reads `time.Now` directly — an environmental side effect that makes the "pure state machine" non-deterministic and untestable without the `now func() time.Time` hook (which is itself an admission that the dependency doesn't belong there; tests reach in and overwrite `timer.start`/`timer.now` directly since they're unexported fields in the same package). The application layer already owns time: `application/game.Service.runLoop` runs the ticker and captures `endTime := time.Now()` right before the deferred `renderer.Cleanup()` fires, then `Play` computes `PlayResult.Duration` from it.
 
 Fix: (a) inject the clock as an explicit dependency — `NewTimer(limitSeconds int, now func() time.Time)` — threaded from the application layer; or (b) make the timer tick-driven — `Update` receives elapsed time or counts ticks × `frameDuration` — so core is fully deterministic and the clock never enters the domain.
 
@@ -262,14 +260,15 @@ Fix: (a) inject the clock as an explicit dependency — `NewTimer(limitSeconds i
 
 `NewFinder()` now calls `exec.LookPath("ps")` at construction time and stores the absolute path in `Finder.psPath`; `List()` uses `f.psPath` instead of the bare string `"ps"`. `NewFinder` returns `(outbound.ProcessFinder, error)` so callers fail fast if `ps` is absent. `main.go` and both test files updated accordingly.
 
-### 16. Score table header does not match data — `core/score/score.go`
+### ~~16. Score table header does not match data — `core/score/board.go`~~ ✓ Resolved
+
+The `TODO: Replace Speed with Time` comment and the header/row mismatch are gone. `Board.PrintHighScores()` now renders both columns:
 
 ```go
-//TODO: Replace Speed with Time
-fmt.Println("  ║  # ║ Kills ║   Freed    ║ Speed ║    Date    ║")
+fmt.Println("  ║  # ║ Kills ║ Speed ║  Time  ║   Freed    ║    Date    ║")
 ```
 
-`Entry` has both `Speed` and `Time` fields, but only `Speed` is rendered. The time-limit column was never added to the table display.
+with the row format `"%2d ║ %3d ║ %4.1fx ║ %5.1fs ║ %8s"` — Speed and Time (duration) are both present and populated from `Entry.Speed`/`Entry.Duration`. Covered by `TestBoardPrintScoresPrintsTable` (Speed/Freed headers) and `TestBoardPrintScoresPrintsDuration` (Time header, formatted duration string). Found already resolved during the 2026-08-20 pass — not clear which prior change fixed it, as no corresponding entry exists in "Resolved Since Previous Review" below.
 
 ### ~~17. Grammar error in `validate()` — `osprocess/osprocess.go:96`~~ ✓ Resolved
 
@@ -346,12 +345,12 @@ None appear in the replacement `internal/core/game/target.go`. The godoc lines w
 | 8 | `application/service/game.go` (`drainEvents`) | ✓ Resolved | Kill score recorded even if SIGKILL fails |
 | 9 | `core/game/loop.go` | ✓ Resolved | High score display stale mid-game |
 | 10 | `application/service/game.go` | ✓ Resolved | Save error silently discarded |
-| 11 | `core/score/score.go` | Design | `PrintScores()` on domain type — stdout I/O belongs in app layer |
+| 11 | `core/score/board.go` | Design | `PrintHighScores()` on domain type — stdout I/O belongs in app layer |
 | 12 | `infrastructure/osprocess/osprocess.go` | ✓ Resolved | `NewKiller()` returns `*Killer` not the port interface |
 | 13 | `core/game/target.go`; `infrastructure/tcellui/tcellui.go` | ✓ Resolved | Byte count/offset used for bounds, hit-detection, and rendering — breaks for multi-byte chars |
 | 14 | `infrastructure/tcellui/tcellui.go` | ✓ Resolved | HUD elements overlap on narrow terminals |
 | 15 | `infrastructure/osprocess/osprocess.go` | ✓ Resolved | `ps` found via `$PATH` |
-| 16 | `core/score/score.go` | Minor | Score table shows Speed column; TODO says replace with Time |
+| 16 | `core/score/board.go` | ✓ Resolved | Score table shows Speed column; TODO said replace with Time |
 | 17 | `infrastructure/osprocess/osprocess.go` | ✓ Resolved | Grammar: "patterns is" → "pattern is" |
 | 18 | `application/service/game_integration_test.go` | ✓ Resolved | No happy-path test for `GameService` |
 | 19 | `infrastructure/tcellui/tcellui_test.go` | ✓ Resolved | No tests for `tcellui` package |
@@ -367,24 +366,24 @@ None appear in the replacement `internal/core/game/target.go`. The godoc lines w
 | 29 | `infrastructure/tcellui/tcellui.go:169` | ✓ Resolved | `ResizeEvent` emitted but never consumed — dead abstraction |
 | 30 | `entrypoint/cli/cli.go:76-108` | ✓ Resolved | `--help` hint inconsistently appended to some cli error messages but not others |
 | 31 | `core/game/frame.go` | ✓ Resolved | Frame snapshot types moved to `application/contract/outbound/ui.go`; `core/game` import removed from outbound port |
-| 32 | `entrypoint/cli/cli.go:90` | High | `--speed=NaN` bypasses range guard — NaN propagates into all target positions, game unwinnable |
-| 33 | `entrypoint/cli/cli.go:94`, `core/game/timer.go:16` | Medium | `--time` with value > ~292 years overflows `time.Duration` to negative, silently becomes no time limit |
-| 34 | `core/game/target.go:86` | Medium | `isHitAt` truncates float position (`int()`) while `ViewState` rounds (`math.Round`) — clicks on visible target miss ~50% of the time |
-| 35 | `application/service/game.go:45` | Medium | `GameService.Play` performs no input validation — only the CLI adapter validates; any second delivery adapter bypasses all guards |
-| 36 | `infrastructure/scorefilestore/score_file_store.go:34` | Low | Score file contents trusted after unmarshal — unsorted, oversized, or negative-valued entries corrupt the high score and get re-saved |
+| 32 | `entrypoint/cli/cli.go` (`validate`) | High | `--speed=NaN` bypasses range guard — NaN propagates into all target positions, game unwinnable |
+| 33 | `entrypoint/cli/cli.go` (`validate`), `core/game/timer.go` (`newTimer`) | Medium | `--time` with value > ~292 years overflows `time.Duration` to negative, silently becomes no time limit |
+| 34 | `core/game/target.go` (`isHitAt`), `application/game/converter.go` (`toTargetViewState`) | Medium | `isHitAt` truncates float position (`int()`) while the view-state converter rounds (`math.Round`) — clicks on visible target miss ~50% of the time |
+| 35 | `application/runner.go` (`Runner.Run`) | Medium | `Runner.Run` performs no input validation — only the CLI adapter validates; any second delivery adapter bypasses all guards |
+| 36 | `infrastructure/scorefilestore/score_file_store.go` | Low | Score file contents trusted after unmarshal — unsorted, oversized, or negative-valued entries corrupt the high score and get re-saved |
 | 37 | `core/game/event_handler.go:22–36` | ✓ Resolved | Keybinding policy (rune→action map) in the domain; control-key translation already lives in the app layer — binding logic split across three layers |
-| 38 | `core/game/frame_bounds.go:43`, `core/game/target.go:117` | Design | Bounce physics and spawn logic hardcode `-2` for the tcellui status bar — renderer chrome knowledge baked into domain physics |
-| 39 | `core/game/target.go:24–25, 145–152` | Design | Kill-animation glyphs owned by domain (presentation); `KillAnimationDuration` in ticks silently couples to the app-layer ticker rate |
-| 40 | `core/game/stats.go:7, 14–19` | Design | High-score cross-aggregate coordination (`SetHighScore`/live bump) in the domain; "max(stored, current)" is a presentation policy belonging in the app layer |
-| 41 | `core/game/timer.go:10, 17, 23–26` | Design | `time.Now` side effect in core; `now` test hook is an admission; app layer already owns the clock via the ticker |
-| 42 | `core/game/state.go:3, 15–31` | Minor | `atomic.Int32` in core exists only for app-layer concurrency; dead `CompareAndSwap` has no production callers |
+| 38 | `core/movement/bounds.go` (`bounceBottom`), `core/movement/motion.go` (`newRandomPosition`) | Design | Bounce physics and spawn logic hardcode `-2` for the tcellui status bar — renderer chrome knowledge baked into domain physics |
+| 39 | `core/game/target.go` (`killAnimationTagFor`, `KillAnimationDuration`) | Design | Kill-animation glyphs owned by domain (presentation, though now flagged with an in-code TODO); `KillAnimationDuration` in ticks silently couples to the app-layer ticker rate |
+| 40 | `core/game` | ✓ Resolved | High-score cross-aggregate coordination in the domain — `Session` now carries zero score state; all of it lives in `core/score.Tracker` |
+| 41 | `core/game/timer.go` (`timer.now`) | Design | `time.Now` side effect in core; `now` test hook is an admission; app layer already owns the clock via the ticker |
+| 42 | `core/game/lifecycle.go` | Design | `atomic.Int32` in core exists only for app-layer concurrency (dead `CompareAndSwap` half of this finding is gone — only `Store`/`Load` remain) |
 | 43 | `core/game/frame.go` (whole), `core/game/loop.go:18–37` | ✓ Resolved | `Frame()` removed from core; frame assembly moved to `buildFrame()` in service; core exposes slim accessors only |
 
 ---
 
 ## Test Coverage
 
-Fourteen test files cover all packages. Pure logic and state transitions are well covered. All packages including `tcellui` have direct unit tests.
+Thirty test files across 14 packages cover the codebase (244 top-level test functions, 20 of them table-driven subtests — see `docs/test-cases.md` for the full per-file breakdown). Pure logic and state transitions are well covered. All packages including `tcellui` have direct unit tests.
 
 ### Build and test commands
 
@@ -406,12 +405,12 @@ Fourteen test files cover all packages. Pure logic and state transitions are wel
 
 Two files carry `//go:build integration` tags:
 
-- `application/service/game_integration_test.go` — runs a full game loop with hand-rolled stub renderer and event source (no tcell dependency). Covers quit-on-Q, quit-on-Escape, time-limit expiry, happy-path save, corrupt-load warning, save-error warning, and signal goroutine lifecycle. All tests are named `TestIntegration_GameService_*`. Run with `make test-integration`.
+- `internal/application/runner_integration_test.go` (package `application`) — runs a full game loop through `Runner.Run` with hand-rolled fake process/store/renderer/event-source doubles (no tcell dependency). Covers quit-on-Q, quit-on-Escape, quit-on-Ctrl-C, quit-on-Ctrl-Z, time-limit expiry, happy-path save, corrupt-load warning, save-error warning, and signal goroutine lifecycle. Tests are named `TestIntegrationRunner*`. Run with `make test-integration`.
 - `infrastructure/osprocess/osprocess_integration_test.go` — calls the real `ps` command. Covers non-empty results, valid fields, short names, and own-PID exclusion on a live system.
 
 ### Race detector
 
-Issue #1 (data race on `game.running`) has been resolved — `running` is now an `atomic.Bool` and all reads/writes go through `Store`/`Load`. Issue #7 (signal goroutine leak) has also been resolved — `runLoop()` uses a done channel so the signal goroutine exits via `select` when the game ends rather than blocking indefinitely on `<-sigCh`. Verified by `TestGameService_SignalGoroutineDoesNotAccumulate`.
+Issue #1 (data race on `game.running`) has been resolved — the lifecycle is now `atomicLifecycle` wrapping an `atomic.Int32`, and all reads/writes go through `Store`/`Load`. Issue #7 (signal goroutine leak) has also been resolved — `application/game.Service.runLoop` uses a `done` channel so the signal goroutine exits via `select` when the session ends rather than blocking indefinitely on `<-sigCh`. Verified by `TestIntegrationRunnerSignalGoroutineDoesNotAccumulate`.
 
 ### ~~27. `Frame()` iterates `g.targets` twice per tick — `core/game/loop.go`~~ ✓ Resolved
 
@@ -454,27 +453,26 @@ func (e *Target) Label() string {
 
 Fix: normalize in `Store.Load` after unmarshal: drop entries with negative `Kills`/`FreedMem`, call `sortByRank()`, and truncate to `maxScores`.
 
-### 42. `sync/atomic` in core driven by application threading model — `core/game/state.go:3, 15–31`
+### 42. `sync/atomic` in core driven by application threading model — `core/game/lifecycle.go`
 
-`Lifecycle` wraps an `atomic.Int32` solely so the application layer's signal-handling goroutine (`service/game.go:112–118`) can call `g.Stop()` concurrently with the game loop. A pure state machine needs a plain field. The atomicity is app-layer concurrency complexity leaked into the domain. `CompareAndSwap` (lines 29–31) has no production callers and is dead code regardless.
+`atomicLifecycle` wraps an `atomic.Int32` solely so the application layer's signal-handling goroutine (`application/game/service.go`'s `runLoop`, `go func() { select { case <-sigCh: gs.Stop() ...`) can call `Session.Stop()` concurrently with the game loop's own `Session.IsRunning()`/`Update()` calls. A pure state machine needs a plain field. The atomicity is app-layer concurrency complexity leaked into the domain. The dead-code half of this finding (`CompareAndSwap` with no production callers) is gone — `atomicLifecycle` now only has `Store`/`Load` — but the core design point stands: the domain type is atomic only because of how the application layer happens to call into it.
 
-Fix: if the application layer instead funnels the signal into the loop (e.g., select on `sigCh` inside the loop iteration so `g.Stop()` is always called from the loop goroutine), core can drop `sync/atomic` entirely and use a plain `int` or typed constant. At minimum, remove the dead `CompareAndSwap` method.
+Fix: if the application layer instead funnels the signal into the loop (e.g., select on `sigCh` inside the loop iteration so `Session.Stop()` is always called from the loop goroutine), core can drop `sync/atomic` entirely and use a plain `int` or typed constant.
 
 ### ~~43. `Frame()` view-model assembly and frame types in core — `core/game/frame.go` (whole file), `core/game/loop.go:18–37`~~ ✓ Resolved
 
 Resolved together with #31. `Frame()` and `targetViews()` removed from `core/game/loop.go`. Frame assembly moved to `buildFrame(*game.Game) outbound.FrameState` in `application/service/game.go` — a pure mapper that reads game state through slim public accessors (`Targets()`, `Speed()`, `TimeLimit()`, `TimeLeft()`, `ConfirmTarget()`, `Kills()`, `FreedMem()`, `HighScore()`). A private `toConfirmViewState(*game.Target) *outbound.ConfirmViewState` handles the confirmation mapping step. Core remains a renderer-agnostic state machine with no outbound imports. `Confirmation` retains domain identity via `ConfirmTarget` struct (PID, Name) accessible through `Game.ConfirmTarget() *Target`; the outbound view model `ConfirmViewState` lives in `outbound/ui.go`.
 
-### Score cap assertion is loose — `score_test.go`
+### ~~Score cap assertion is loose — `core/score/board_test.go`~~ ✓ Resolved
 
-`TestBoard_Add_CapsAtMax` adds entries `0..maxScores+4` and asserts:
+`TestBoardAddCapsAtMax` now asserts exact equality:
 
 ```go
-if lowestKills < 5 {
-    t.Errorf(...)
-}
+expectedLowest := 5 // entries 0..4 are evicted; 5..14 are kept
+assert.Equal(t, expectedLowest, b.Scores[len(b.Scores)-1].Kills)
 ```
 
-The loop produces entries with kills `0–14`; the top `maxScores` retained entries are kills `5–14`, making the lowest retained exactly `5`. The assertion `lowestKills < 5` passes vacuously for any value ≥ 5 and would not catch an off-by-one error that retained kill-count 4 instead. The assertion should be `!= 5` (or derive the expected minimum from `maxScores` and the loop bounds) to tighten the invariant.
+This is the tightened form the original finding asked for — it would now catch an off-by-one that retained kill-count 4 instead of 5, which the old `lowestKills < 5` check would have passed vacuously.
 
 ### ~~`TestHandleKeyPress_ConfirmYes` does not verify the signal — `core/game/event_handler_test.go`~~ ✓ Resolved
 
@@ -482,4 +480,4 @@ The loop produces entries with kills `0–14`; the top `maxScores` retained entr
 
 ### Undocumented confirm-cancel-with-q behaviour
 
-`TestHandleKeyPress_QCancelsConfirm` tests that pressing `q` during a confirmation dialog cancels the confirm without quitting. This intentional UX decision is not reflected in the `usage` string in `entrypoint/cli/cli.go`. A one-line addition under Controls (`q  Cancel confirmation / Quit`) would prevent future maintainers from treating it as a bug.
+`TestInputOnQuitCancelsConfirmWhenPending` (`core/game/input_test.go`) and `TestDispatcherQStopsGame`-adjacent coverage confirm that pressing `q` during a confirmation dialog cancels the confirm without quitting (`Input.OnQuit`: if a confirmation is pending, cancel it; otherwise stop the session). This intentional UX decision is still not reflected anywhere in `entrypoint/cli/cli.go`'s cobra `Long`/`Example` usage text. A one-line addition (`q  Cancel confirmation / Quit`) would prevent future maintainers from treating it as a bug.

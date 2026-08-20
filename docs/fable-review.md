@@ -1,179 +1,189 @@
 # pidshooter — Fable AI Code Review
 
-**Reviewed by:** Claude Fable 5  
-**Date:** 2026-07-10  
+**Reviewed by:** Claude Fable 5
+**Date:** 2026-08-20
 **Scope:** Full codebase — functional correctness, design, security, architecture
+**Supersedes:** the 2026-07-10 review. This is a from-scratch review against the current package layout, written after the service-layer refactor that split the former monolithic `internal/application/service` package into `internal/application/{game,process,score}` plus `internal/application/{runner.go,event/dispatcher.go}`. No file paths or findings were carried forward from the prior review without re-verifying them against current line numbers and logic.
 
 ---
 
 ## 1. Executive Summary
 
-The codebase is small (~1,600 LOC), well-factored, and unusually well-tested for a project of its size, including regression tests for previously fixed goroutine-leak and multibyte-rune bugs. The hexagonal architecture is genuine, not cosmetic: the core game is a near-pure state machine, all I/O flows through ports, and adapters are cleanly swappable (proven by the test fakes and tcell simulation screen).
+The refactor is a real improvement, not just a reshuffle: `core/game`, `core/movement`, `core/process`, and `core/score` have zero imports outside the standard library, `internal/util`, and each other; the former `core/game ↔ application/process` coupling is now avoided entirely through structural typing (`application/game/service.go` declares its own unexported `killer` interface, satisfied by `application/process.Service` without either package importing the other); and pattern-length validation is unified into one implementation (`core/process.Validate`) called from both the CLI and the application layer instead of being duplicated.
 
-The most significant remaining problems are:
+That said, several real bugs and boundary violations remain, and one is a fresh regression introduced by the refactor:
 
-- (a) A **UI/logic contradiction in the kill-confirmation prompt** — says "(Q)uit" but Q cancels
-- (b) A **`--speed=NaN` validation bypass** that breaks the game
-- (c) **Kills completed in the final frame are silently lost from the score**
-- (d) Lingering **console I/O in the domain and application layers** that undermines the hexagonal boundary
+- **The `--speed` flag's help text and `docs/features.md` both advertise a range of `0.1–5.0`, but the enforced minimum is `0.5`** (`movement.MinSpeed`) — confirmed by actually running `--speed=0.2`, which is rejected.
+- **`--speed=NaN` still bypasses range validation** — confirmed by direct comparison: NaN fails both `<` and `>` checks, so `cli.go`'s guard silently lets it through.
+- **Kills that complete asynchronously right as a session ends can still be lost from the score** — the async kill-confirmation channel is only drained while the session is still reported as running, and there's no final drain or wait for in-flight kill goroutines.
+- **Console I/O still leaks into `core/score` (domain) and into both `application/process` and `application/score` (use-case layer)**, undermining the hexagonal boundary the rest of the codebase is careful to respect.
+- **No inbound-port validation** — `Speed`/`TimeLimit` are checked only by the one driving adapter (`entrypoint/cli`); the application service and its `Config` struct accept anything.
+- **Security posture is essentially unchanged from before**: no safeguard against running as root, and the residual PID-recycling TOCTOU window (inherent to signal-by-PID) is unchanged. Both are pre-existing, not refactor regressions.
 
-Security posture is strong for what the tool does (name re-verification before SIGKILL, PID ≤ 1 guard, min pattern length), with only residual TOCTOU and root-execution hardening left to consider. No critical findings.
+No critical or new-and-exploitable security findings; the SIGKILL-path safety layering (name re-verification, `PID ≤ 1` guard, minimum pattern length) is intact and was re-verified against the new package layout.
 
 ---
 
 ## 2. Functional Issues
 
-**F1. [moderate] Confirmation prompt says "(Q)uit" but Q cancels the confirmation instead of quitting.**  
-`internal/infrastructure/tcellui/tcellui.go:128` renders `" Kill [%d %s]? (Y)es / (N)o / (Q)uit"`, but `internal/core/game/event_handler.go:26-31` treats `q` during confirmation as cancel (`g.confirming = nil`), not quit. The UI actively misleads the user; a player pressing Q to exit stays in the game. Either the prompt text or the handler must change.
+**F1. [moderate] `--speed` help text and docs claim a `0.1–5.0` range; the enforced minimum is `0.5`.**
+`internal/entrypoint/cli/cli.go:57` registers the flag with `"Speed multiplier (range: 0.1-5.0)"`, and `docs/features.md:34` repeats the same `0.1–5.0` range. But `internal/core/movement/throttle.go:4-6` defines `MinSpeed = 0.5`, and `validate()` (`cli.go:88-90`) enforces exactly that constant. Confirmed by running the built binary:
+```
+$ pidshooter --speed=0.2 sleep
+Error: speed must be between 0.5 and 5, got: 0.2
+```
+The error message correctly reports `0.5`, but the `--help` text a user reads first still says `0.1`. This is a regression from the refactor: `MinSpeed` used to be `0.1` (per the prior review's citation of the old bounds); it was tightened to `0.5` without updating the flag description or `docs/features.md`.
 
-**F2. [moderate] `--speed=NaN` bypasses range validation and breaks the game.**  
-`internal/entrypoint/cli/cli.go:74-81`: `strconv.ParseFloat("NaN", 64)` succeeds, and both range checks (`s < 0.1 || s > 5.0`) are false for NaN, so `cfg.Speed = NaN` is accepted. NaN propagates into every `Position` via `target.go:103-104`, making `int(e.Position.X)` undefined and targets unclickable/invisible. Fix: add `math.IsNaN(s)` (or `s != s`) to the validation check. `+Inf`/`-Inf` are already rejected by the range comparison.
+**F2. [moderate] `--speed=NaN` still bypasses range validation.**
+`cli.go:88-90`:
+```go
+if speed < movement.MinSpeed || speed > movement.MaxSpeed {
+    return fmt.Errorf(...)
+}
+```
+All comparisons with `NaN` are `false`, so neither branch fires and `NaN` passes. Confirmed directly: `NaN < 0.5 || NaN > 5.0` evaluates to `false`. `NaN` then flows unclamped into `movement.NewThrottle` (no clamping at construction — only `Increase`/`Decrease` clamp) and from there into every `Position`/`Velocity` computation in `core/movement/motion.go:27-31`, making targets un-renderable/unclickable. There is no second line of defense (see D3) — any caller that reaches `Play` without going through `cli.go`'s `validate()` gets no protection at all.
 
-**F3. [moderate] Kills completing in the final frame are never recorded in the score.**  
-`internal/application/service/game.go:125-134`: the loop exits as soon as `g.Running()` is false. A kill goroutine (spawned at lines 166-173) that succeeds after the final `applyKills` call sends into `s.kills` and gets the `<-done` branch when the channel isn't drained — the OS process **was killed** but the kill/freed-memory never appears in the session stats or saved score. A final drain of `s.kills` (after `signal.Stop`, before returning) would close the gap for buffered entries; fully closing it requires waiting on in-flight kill goroutines (e.g., a `sync.WaitGroup`).
+**F3. [moderate] Kills that complete asynchronously as (or after) a session ends can be lost from the score.**
+`internal/application/game/service.go`'s `runLoop` (lines 80-116) drains completed kills via `applyKills` (lines 118-133) only once per iteration, while `gs.IsRunning()` is still `true`. `drainEvents` (lines 145-172) dispatches each accepted kill target to a goroutine that runs `s.killer.Kill(target)` (a `ps` lookup plus a signal syscall — not instantaneous) and only reports the result if it can still send on `s.kills` before `done` is closed. `Session.Update` (`internal/core/game/session.go:56-67`) can call `Stop()` independently of any in-flight kill — e.g. on timer expiry — so a kill request accepted in the same tick the timer expires races the loop's exit: the goroutine's result arrives after the final `applyKills` call and after `close(done)` (deferred at `service.go:92`), so it takes the `case <-done:` branch and the result — the process **was** SIGKILLed, but the score's kill/freed-memory count never reflects it and the target's on-screen state never updates. This is not covered by `internal/application/runner_integration_test.go`, which has no test exercising a kill in flight when the session stops.
 
-**F4. [minor] Process names containing consecutive spaces can never be killed.**  
-`internal/infrastructure/osprocess/osprocess.go:78` canonicalizes names as `strings.Join(strings.Fields(line)[2:], " ")` (collapses whitespace runs), while `currentName` at line 125 returns `strings.TrimSpace(raw)` (preserves interior whitespace). For a comm like `"my  app"`, the name comparison in `validateProcessName` (lines 160-165) always fails, so the kill is silently refused (`return false, nil`) and the target appears unkillable with no feedback.
+**F4. [moderate] `--time` has no upper bound; large values silently become "no time limit."**
+`cli.go:92-94` only rejects negative values. `internal/core/game/timer.go:14-19` computes `limit: time.Duration(limitSeconds) * time.Second` — `time.Duration` is `int64` nanoseconds, so this multiplication overflows for `limitSeconds` beyond ~292 years. Confirmed directly: `time.Duration(9223372036854775807) * time.Second` evaluates to `-1s`. `Timer.Expired()` treats `limit <= 0` as "no limit" (`timer.go:31-33`), so e.g. `--time=9223372036854775807` — a value `IntVar` happily accepts — silently disables the time limit instead of erroring, the opposite of what was requested.
 
-**F5. [minor] Mouse drag with button held fires repeated ClickEvents — "drag-to-kill".**  
-`internal/infrastructure/tcellui/tcellui.go:159-164` forwards every `EventMouse` where `Buttons() == Button1`, including motion events while the button is held. Sweeping the cursor across the screen with the button down kills every target touched with a single sustained "click". If unintended, track button-press transitions (previous button state) and only emit on press.
+**F5. [moderate] A failed OS-level kill is silently swallowed — no reap, no error, no player feedback.**
+`internal/application/process/service.go:48-63`'s `Kill` returns `(killed=false, shouldReap=false, err=non-nil)` when the final `s.process.Kill(pid)` call fails (line 61-62) — e.g. `EPERM` because pidshooter isn't running as root/owner of the target process, a realistic case given there's no root check (S1). Back in `internal/application/game/service.go`'s `drainEvents` goroutine (lines 154-166), the `switch` only has cases for `err == nil && killed` and `shouldReap` — a real, non-reap error matches neither, so it is dropped entirely. Unlike the load/save-score paths (`application/score/service.go:28,50`), nothing is printed to stderr; the target just silently stays `Alive` forever with no indication to the player that their click did nothing.
 
-**F6. [minor] Zero-kill sessions pollute the top-10 board.**  
-`internal/application/service/game.go:76-83` unconditionally adds an entry even if the player quit instantly with 0 kills. Until the board fills with 10 real scores, quitting immediately writes junk rows to `~/.config/pidshooter/highscores.json`.
+**F6. [moderate] Hit-detection truncates while the rendered position rounds — clicks miss the visible target.**
+`internal/core/game/target.go:98-104`'s `isHitAt` uses `int(t.Position.Y)`/`int(t.Position.X)` (truncation toward zero), while `internal/application/game/converter.go:18-25`'s `toTargetViewState` uses `math.Round` for the same coordinates. Targets accumulate non-integer positions every tick via velocity (`core/movement/motion.go:27-31`), so whenever the fractional part of `Position.Y` (or `X`) is `≥ 0.5`, the tag is drawn one row (or column) away from where a click actually registers. Since fractional parts are effectively uniformly distributed over time, this affects roughly half of all click attempts on a moving target.
 
-**F7. [minor] Timer displays "Time: 0s" for up to a full second while the game is still running.**  
-`internal/core/game/loop.go:51` truncates with `int(g.timeRemaining().Seconds())`; remaining = 0.9s renders as `0s`. Use `math.Ceil` on seconds for a countdown display.
+**F7. [minor] `LookupName` failures for any reason are treated as "process already exited."**
+`internal/application/process/service.go:53-56` maps *any* error from `s.process.LookupName(pid)` — which just wraps `ps`'s `exec.Command(...).Output()` error (`internal/infrastructure/osprocess/osprocess.go:49-52`) — to `shouldReap = true`. A transient `ps` failure (resource exhaustion, unexpected exit code, spawn failure) is indistinguishable from "PID no longer exists," so the target gets silently reaped (marked `Dead`, no kill, no score credit) even if the real process is still running.
 
-**F8. [minor] `--time=` has no upper bound; extreme values overflow the duration math.**  
-`internal/entrypoint/cli/cli.go:82-91` accepts any non-negative int. `loop.go:82` computes `time.Duration(g.timeLimit)*time.Second`; for `--time=9223372036854775807` this overflows int64 nanoseconds to a negative duration, `timeRemaining()` clamps to 0, and the game exits on the first tick. Cap at something sane (e.g., 86400 seconds).
+**F8. [minor] Zero-kill sessions are still recorded to the score board.**
+`internal/application/score/service.go:37-53`'s `RecordScore` unconditionally calls `board.Add(...)` regardless of `tracker.Kills`. Quitting instantly (`q`) still creates a 0-kill/0-freed entry, and it gets persisted whenever the initial load succeeded (`persist=true` is `success` from `LoadScoreBoard`, independent of whether any kills happened), polluting the top-10 table until it fills with real scores.
 
-**F9. [minor] `sort.Slice` is not stable — tie-breaking at the top-10 cutoff is arbitrary.**  
-`internal/core/score/score.go:78-82` uses unstable `sort.Slice` and `beats` (lines 84-89) only tie-breaks on `FreedMem`. Two entries with equal kills and freed memory sort in unspecified order, so whether the new or old entry survives the `Scores[:maxScores]` cut is nondeterministic. Use `sort.SliceStable` or add `Date` as a final tie-break.
+**F9. [minor] Timer display truncates instead of rounding up.**
+`internal/core/game/timer.go:54-56`'s `SecondsLeft()` returns `int(t.Remaining().Seconds())` — a floor, so e.g. 0.9s remaining still displays "0s" for up to a full second before the game actually ends.
 
-**F10. [minor] `capture.Output`/`capture.Stderr` leave stdout/stderr hijacked if `fn` panics.**  
-`internal/testutil/capture/capture.go:16-20 and 32-36` restore the stream after `fn()` without `defer`. A panicking test leaves `os.Stdout`/`os.Stderr` pointing at a closed pipe for all subsequent tests in the package, producing confusing cascading failures. Test-only impact, but a two-line `defer` fix.
+**F10. [minor] Score-list tie-break is nondeterministic.**
+`internal/core/score/board.go:78-82`'s `sortByRank` uses `sort.Slice` (not `SliceStable`), and `Entry.beats` (`internal/core/score/entry.go:19-30`) ties out fully identical entries (same kills, speed, duration, and freed memory) with no further tie-break. Which of two otherwise-identical entries survives the `maxScores` cutoff (`board.go:37-39`) is unspecified.
+
+**F11. [minor] Process-name canonicalization can differ between discovery and kill-time verification.**
+`internal/infrastructure/osprocess/osprocess.go:105` (`list()`) collapses internal whitespace runs via `strings.Fields(...)` + `Join(..., " ")`, while `LookupName` (`osprocess.go:44-54`, `TrimSpace` at line 53) only trims the outer whitespace of the raw `ps` output without collapsing interior runs. A `comm` value with irregular internal spacing would never satisfy `validateProcessName` (`internal/application/process/validation.go:13-18`), silently refusing every kill attempt on that target with no player-visible feedback.
+
+**F12. [minor, test-only] `capture.Output`/`capture.Stderr` don't restore the streams via `defer`.**
+`internal/testutil/capture/capture.go:11-24` and `:27-40` reassign `os.Stdout`/`os.Stderr` back to the original after calling `fn()`, without `defer`. A panicking `fn` leaves the package-level stream variable pointed at a closed pipe for every subsequent test in the process.
 
 ---
 
 ## 3. Design Issues
 
-**D1. [moderate] Domain layer performs console I/O — `score.Board.PrintScores`/`PrintHighScore`.**  
-`internal/core/score/score.go:50-76` — `fmt.Println` box-drawing and trophy output live in `core/`. This is the largest remaining hexagonal violation. The domain should expose data (`Entries()`, `IsNewHighScore(kills) bool`) and rendering should move to the delivery layer or a presenter adapter. Related: the table header prints "Speed" where "Time" is intended (`score.go:63`).
+**D1. [moderate] Domain package performs console I/O.**
+`internal/core/score/board.go:46-68`'s `PrintHighScores` calls `fmt.Println`/`fmt.Printf` directly from `core/score`. The refactor removed this class of violation from `core/game` (frame/view-model assembly now lives in `application/game/converter.go`) but it persists in `core/score` — the file even carries its own acknowledging TODO at line 42 ("*perhaps this should not be part of a domain layer... Maybe move to a view package?*").
 
-**D2. [moderate] Application service writes directly to stdout/stderr.**  
-`internal/application/service/game.go:52, 56, 60, 86, 90-93` — `fmt.Printf`/`fmt.Fprintf(os.Stderr, ...)` in `Play`. The service is otherwise fully port-driven; these prints make it untestable without stream capture (exactly what the integration tests are forced to do via `capture.Stderr`). Introduce an outbound notifier/presenter port, or inject `io.Writer`s.
+**D2. [moderate] Application-layer services write directly to stdout/stderr instead of going through a port.**
+`internal/application/process/service.go:34,38` (`fmt.Printf` for match-count messages) and `internal/application/score/service.go:28,50,58-59` (`fmt.Fprintf(os.Stderr, ...)` warnings plus the `fmt.Printf` game-over summary in `PrintResults`) all bypass the `outbound.Renderer` port that the rest of the application is careful to route through. None of this is testable without `testutil/capture`, which is exactly what `internal/application/runner_integration_test.go` has to reach for.
 
-**D3. [moderate] `GameService.kills` is mutable struct state initialized inside `runLoop` — latent race and leaky testing seam.**  
-`internal/application/service/game.go:26 (field), 123 (assignment)`. The channel is per-session state stored on the long-lived service; two concurrent `Play` calls would data-race on the field, and unit tests must reach into the unexported field to exercise `applyKills`. Make it a local in `runLoop` passed as a parameter.
+**D3. [moderate] The inbound port performs no validation of its own; boundary defense lives in exactly one driving adapter.**
+`internal/application/contract/inbound/runner.go`'s `Config` and `internal/application/game/service.go`'s `Play` (lines 62-74) accept any `Speed`/`TimeLimit` without checking them. F2's NaN gap and F4's overflow gap only get caught today because `entrypoint/cli/cli.go`'s `validate()` happens to run first and is the *only* caller of `Runner.Run`. A hexagonal inbound port is supposed to be the architectural boundary; nothing here stops a second driving adapter (a future daemon, a test harness calling the runner directly, a scripting entrypoint) from skipping every one of these guards silently.
 
-**D4. [minor] `outbound.Process.List()` is on the port but unused by the application.**  
-`internal/application/contract/outbound/process.go:9` — the service only calls `Find` and `Kill`; `List` exists for the adapter's internals. Interface segregation: drop `List` from the port.
+**D4. [minor] `Service.kills` is mutable struct state assigned inside `runLoop`, not passed as a parameter.**
+`internal/application/game/service.go:31` (field) and `:104` (assignment). A `*game.Service` is driven by exactly one `Runner.Run()` call in the current wiring (`internal/application/runner.go`), so this isn't exercised today, but it's a latent data race if the same `*Service` were ever reused for two concurrent `Play` calls, and it forces any would-be unit test of `applyKills`/`drainEvents` in isolation to reach into unexported state.
 
-**D5. [minor] `Game` embeds `Session`, leaking mutators through the aggregate.**  
-`internal/core/game/game.go:21` — embedding exposes `g.SetHighScore`, `g.RecordKill` etc. on `Game`'s public surface. External code could call `g.RecordKill` directly, bypassing the `CompleteKill` state check at `loop.go:73-79`. Prefer a named field `session Session` with explicit read accessors.
+**D5. [minor] `Target` embeds `movement.Motion`, promoting `Move()` and bypassing the `State`-gated `Update()` that's supposed to be the only mutator.**
+`internal/core/game/target.go:28-33` embeds both `process.Info` and `movement.Motion`. Confirmed directly: calling the promoted `target.Move(bounds, speed, tagWidth)` on a `Dead` target moves its position while leaving `State` unchanged — the guard inside `Target.Update()` (`target.go:56-66`) that's supposed to gate all movement is entirely circumventable by any code holding a `*Target`, since `Move` is exported via promotion regardless.
 
-**D6. [minor] `Board.highScore` has hidden temporal coupling: `PrintHighScore` is only meaningful after `Add`.**  
-`internal/core/score/score.go:31-37, 50-54` — `highScore` is captured as a side effect of `Add` (and is zero after JSON `Load`), so `PrintHighScore` silently reports "new high score" for any kills>0 if called before `Add`. Make `Add` return `wasHighScore bool` instead.
+**D6. [minor] `sync/atomic` in the "pure" core exists solely to support the application layer's concurrency design.**
+`internal/core/game/lifecycle.go` wraps session state in `atomic.Int32` because `application/game/service.go`'s signal-handling goroutine (lines 93-99) calls `gs.Stop()` from a separate goroutine while the main loop goroutine concurrently reads `IsRunning()`/calls `Update()`. This is a real, currently-necessary requirement given how signals are wired today (funneling `os/signal` into the main loop's own `select` instead of a separate `Stop()`-calling goroutine would let `core/game` drop `sync/atomic` entirely) — noted as a design trade-off, not a bug.
 
-**D7. [minor] A "pure state machine" core that contains a concurrency primitive.**  
-`internal/core/game/game.go:19` — `running atomic.Bool` exists solely because the application's signal goroutine calls `g.Stop()` cross-thread. Concurrency has leaked into the "pure" core. Cleaner: the signal goroutine sets an application-level flag (or cancels a context) and the loop calls plain `g.Stop()` from the loop goroutine.
+**D7. [minor] Composition root builds adapters that can fail or block before argument parsing.**
+`cmd/pidshooter/main.go:24` (`osprocess.NewProcess()`, requires `ps` resolvable via `exec.LookPath`) and `:30` (`tcell.NewScreen()`) both run before `cli.NewCLI(runner).Run(os.Args[1:])` ever parses flags (line 36-37). `pidshooter --help` still pays for, and can fail on, both adapters in the current layout.
 
-**D8. [minor] Composition root builds heavy adapters before argument parsing.**  
-`cmd/pidshooter/main.go:24-37` — `osprocess.NewProcess()` (requires `ps` on `$PATH`) and `tcell.NewScreen()` run before the CLI ever parses args. Consequence: `pidshooter --help` fails on a system without `ps`, and allocates a terminal screen just to print usage. Parse args first, construct adapters only when a game will actually run.
-
-**D9. [minor] Pattern validation duplicated in two layers with drift risk.**  
-`internal/entrypoint/cli/cli.go:97-102` and `internal/infrastructure/osprocess/osprocess.go:128-141` implement the same min/max length rules. Consider a shared `process.ValidatePattern(p string) error` in the domain package that owns the constants.
-
-**D10. [minor] `UI.Cleanup` panics if called twice.**  
-`internal/infrastructure/tcellui/tcellui.go:45-48` — `close(a.done)` on an already-closed channel panics, and the `Renderer` port doesn't document one-shot semantics. Guard with `sync.Once`.
+**D8. [low] `UI.Cleanup()` has no re-entry guard.**
+`internal/infrastructure/tcellui/tcellui.go:44-47` closes `a.done` unconditionally; a second call panics on the already-closed channel. Not triggered by the single call site in `game/service.go` today, but the `outbound.Renderer` port doesn't document one-shot semantics either.
 
 ---
 
 ## 4. Security Concerns
 
-**S1. [moderate] Residual TOCTOU window between name verification and SIGKILL.**  
-`internal/infrastructure/osprocess/osprocess.go:97-111` — `currentName(pid)` (a `ps` subprocess, milliseconds of latency) then `proc.Signal(SIGKILL)`. If the PID dies and is recycled in that window, an unrelated process is killed. The previous fix narrowed the window dramatically but didn't eliminate it — that's inherent to signal-by-PID. On Linux, `pidfd_open` + `pidfd_send_signal` closes it completely; on macOS there is no perfect primitive. This residual risk should be documented in the `Kill` contract (`outbound/process.go:6-7`).
+**S1. [moderate] No safeguard against running as root.**
+Confirmed: no `os.Geteuid()` or equivalent check exists anywhere in `cmd/pidshooter/main.go` or `internal/infrastructure/osprocess`. As root, every process on the machine (besides `PID ≤ 1` and pidshooter itself) becomes a one-click SIGKILL target, compounded by S3 (drag-to-kill) and F5 (a failed kill against a non-owned process now fails completely silently, which — combined with running as non-root, the safer default — at least fails closed rather than crashing).
 
-**S2. [moderate] No safeguard against running as root.**  
-Nothing in `main.go` or `osprocess.go` checks `os.Geteuid()`. As root, every process on the machine (except PID ≤ 1 and self) becomes a one-click SIGKILL target in a game where mis-clicks are the core mechanic — and F5 (drag-to-kill) amplifies this significantly. Recommend refusing to run as root, or requiring an explicit `--i-am-root` override flag.
+**S2. [moderate] Residual TOCTOU window between name re-verification and SIGKILL.**
+`internal/application/process/service.go:53-61` looks up the current name via `ps` (`LookupName`), compares it, then calls `s.process.Kill(pid)` (`internal/infrastructure/osprocess/osprocess.go:59-68`, a plain `os.FindProcess` + `Signal`). The window between the two — a `ps` subprocess round-trip — remains open for a PID recycle. Inherent to signal-by-PID on both Linux and macOS; unchanged by the refactor.
 
-**S3. [low] `ps` output parsing trusts process-name content.**  
-`internal/infrastructure/osprocess/osprocess.go:55-85` — the parser splits raw `ps` output on lines/fields. A process that names itself with embedded newlines could (on platforms where `ps` doesn't escape control characters) inject a fake row with an arbitrary PID. Exploitability is largely neutralized by the kill-time name re-verification, but the parser should reject rows with implausible field counts.
+**S3. [low] Mouse-drag fires a kill on every motion sample while the button is held, not just on press.**
+`internal/infrastructure/tcellui/tcellui.go:158-163` forwards every `*tcell.EventMouse` where `Buttons() == Button1`, including motion events while the button stays down. In the default (non-confirm) mode, sweeping the cursor across the screen with the button held triggers a `ClickEvent`, and therefore a kill attempt, on every target the cursor passes over in one continuous gesture.
 
-**S4. [low] SIGKILL only — no graceful termination option.**  
-`osprocess.go:108` sends `SIGKILL` unconditionally: no flush, no cleanup handlers, guaranteed data loss for the victim. A `--sigterm` mode (SIGTERM, escalating to SIGKILL after a grace period) would make the tool safer to use as a process manager.
+**S4. [low] Unbounded concurrent kill goroutines.**
+`internal/application/game/service.go:153` spawns one goroutine (a `ps` subprocess plus a signal syscall) per accepted kill target, with no cap. Combined with S3, a single drag gesture can spawn many concurrent `ps` invocations.
 
-**S5. [low] Score file written non-atomically.**  
-`internal/infrastructure/scorefilestore/score_file_store.go:52` — `os.WriteFile` truncates in place; a crash mid-write corrupts `highscores.json` permanently (triggering the load-error/skip-save path on every subsequent run). Write to a temp file in the same directory and `os.Rename` to replace atomically. File permissions (0600/0700) are already correct.
+**S5. [low] SIGKILL only — no graceful termination option.**
+`internal/infrastructure/osprocess/osprocess.go:64` always signals `SIGKILL`: no flush, no cleanup handler, guaranteed data loss for the target process. Unchanged from before.
 
-**S6. [low] Unbounded kill-goroutine spawning per input event.**  
-`internal/application/service/game.go:166` — every accepted kill request spawns a goroutine that runs a `ps` subprocess. Combined with F5 (drag events), a single mouse sweep can spawn dozens of concurrent `ps` invocations. A small worker pool or per-target in-flight dedup (a `Killing`-pending flag checked in `HandleClick`) would bound resource consumption.
+**S6. [low] Score file written non-atomically.**
+`internal/infrastructure/scorefilestore/score_file_store.go:67` — `os.WriteFile` truncates and rewrites `highscores.json` in place; a crash mid-write corrupts it permanently. File permissions (`0600`/`0700`, `score_file_store.go:67`, `:115`) are correctly restrictive.
+
+**S7. [low] `ps` output parsing trusts field structure.**
+`internal/infrastructure/osprocess/osprocess.go:81-113` splits raw `ps` output on lines/whitespace with only a `len(fields) < 3` sanity check. Exploitability remains substantially neutralized by the kill-time name re-verification (S2's mechanism), unchanged from before.
 
 ---
 
 ## 5. Architecture Observations & Proposals
 
-**Current state.** The hexagon is genuine: `core/` has zero outward dependencies; ports live in `application/contract/{inbound,outbound}`; `entrypoint/cli` is a thin driver adapter; `infrastructure/*` are driven adapters wired only in `cmd/pidshooter/main.go`. The `Game`-as-state-machine + `KillRequest` design (core decides *what* to kill, application performs the side effect, `CompleteKill` confirms) is a textbook-clean way to keep OS calls out of the domain.
+**What the refactor got right.** `core/game`, `core/movement`, `core/process`, and `core/score` genuinely have zero outward imports — verified by reading every non-test file's import block, not just the package diagram. The former `core/game` ↔ `os`/`syscall`/`tcell` couplings documented in `docs/hexagonal-arc.md` are gone. The kill flow's two-phase design (core returns intent, application performs the OS side effect, result flows back through a channel) now runs the OS call off the render-loop goroutine entirely, and the `killer` interface in `application/game/service.go` is satisfied structurally by `application/process.Service` with no import between the two `application/*` sub-packages — a clean way to avoid what would otherwise be a cross-package dependency. Pattern-length validation duplication (flagged pre-refactor) is resolved: both `entrypoint/cli` and `application/process` now call the single `core/process.Validate`.
 
-**Proposals:**
-
-**P1. Presenter port** — Introduce `outbound.Presenter` (or `Notifier`) covering pre-game messages, warnings, game-over summary, and score table. This resolves D1+D2 in one move, makes `Play` fully deterministic under test, and removes the `testutil/capture` dependency from service tests.
-
-**P2. Select-based game loop** — `runLoop` (`service/game.go:125-134`) currently busy-drains two channels with `default:` each frame. A single `select { case <-ticker.C: ...; case ev := <-events: ...; case t := <-kills: ...; case <-ctx.Done(): }` loop is simpler, lower-latency for input, and naturally handles the final-frame kill drain (F3).
-
-**P3. Context propagation** — There is no `context.Context` anywhere. `signal.NotifyContext` in `main`/`Play` would replace the hand-rolled `sigCh`/`done` plumbing (`service/game.go:107-118`) and give kill goroutines a proper cancellation story.
-
-**P4. Kill executor abstraction** — The goroutine-per-kill logic embedded in `drainEvents` (lines 164-174) is the hardest part of the service to test (no test covers the click→kill→CompleteKill round trip through `drainEvents`). Extract an async `killExecutor` with an injectable completion callback; the fake becomes synchronous and this path becomes unit-testable.
-
-**P5. Process discovery via `/proc` or `gopsutil`** — The `ps` subprocess dependency causes D8 (help needs `ps`), F4 (name canonicalization drift), S3 (parse trust), platform-specific flags (`osprocess.go:44-47`), and the Linux 15-char comm truncation issue. Reading `/proc/<pid>/{comm,statm}` on Linux (keeping `ps` for darwin) removes a whole class of issues.
-
-**P6. Stdlib flag parsing** — `parseArgs` hand-rolls `--flag=value` parsing (`cli.go:61-112`); `--speed 2.5` (space-separated) is silently treated as a pattern. The stdlib `flag` package would fix that, and F2's NaN gap gets a natural home in a custom `flag.Value` type.
+**What's left.**
+- D1–D3 (console I/O in `core/score` and both application services, plus no inbound-port validation) are the largest remaining boundary violations. A `Presenter`/`Notifier` outbound port covering pre-game messages, warnings, and the end-of-game summary/table would resolve D1 and D2 in one move and make the application services fully deterministic under test without `testutil/capture`.
+- F3 (lost final-frame kills) would be closed by either draining `s.kills` one more time after the loop exits but before `done` is closed, or — more completely — having `runLoop` wait on an explicit `sync.WaitGroup` for in-flight kill goroutines before returning.
+- D3's inbound-validation gap and F2/F4's concrete symptoms share one fix: validate `Config` once, at the `application/game.Service.Play` boundary (or in `game.NewSession`), so every current and future driving adapter gets the same guarantees the CLI happens to provide today.
+- F1 (help text vs. enforced range) is a one-line documentation fix once someone decides whether `0.1` or `0.5` is the intended floor — right now the error message and the `--help` text disagree with each other.
 
 ---
 
 ## 6. Positive Observations
 
-1. **Test discipline is exceptional for the project size**: regression tests pinned to fixed issue numbers (`tcellui_test.go:55, 83, 142`), goroutine-leak tests for both the signal goroutine and the poll goroutine, multibyte-rune bug tests (`target_test.go:178-239`), and a build-tag-separated integration suite with Makefile targets including `test-race`.
+1. **The hexagon is real, not cosmetic.** Every `core/*` package's imports were checked directly; none reach outward into `application` or `infrastructure`. `application/game`'s `killer` interface being satisfied structurally by `application/process.Service` — with neither package importing the other — is a clean example of Go interfaces avoiding an import cycle that a naive refactor could easily have introduced.
 
-2. **Kill-safety layering is thoughtful**: PID ≤ 1 refusal (`osprocess.go:94`), name re-verification before signaling, own-PID and PID-0/1 exclusion in `filter` (`osprocess.go:145-148`), 3-char minimum pattern with a documented rationale (`core/process/process.go:4-8`), and `ps` resolved by absolute path at construction (`osprocess.go:23-29`) to avoid runtime `$PATH` hijacking.
+2. **The async kill path is well-built where it counts.** `drainEvents` (`application/game/service.go:145-172`) moves the `ps`-subprocess-plus-signal call off the 20fps render loop into a goroutine, and every channel send in it (and in `tcellui.poll`, `infrastructure/tcellui/tcellui.go:172-176`) is guarded by a `done`-channel `select`, avoiding goroutine leaks. The one gap (F3) is a genuine edge case, not a wholesale design flaw.
 
-3. **The `Frame`/`TargetView` snapshot pattern** (`core/game/frame.go`) cleanly decouples domain state from rendering — the renderer receives plain data, never domain objects.
+3. **Validation is now unified, not duplicated.** `core/process.Validate` is the single implementation called from both `entrypoint/cli/cli.go:84` and `application/process/service.go:23` (via `validateSearchPatterns`) — the drift risk flagged in the pre-refactor review is gone.
 
-4. **Correct channel hygiene**: the `done`-guarded send in kill goroutines (`service/game.go:168-171`) and in `tcellui.poll` (`tcellui.go:173-177`) prevent the goroutine leaks that plagued earlier revisions.
+4. **Kill-safety layering is intact after the move.** `PID ≤ 1` refusal now lives at both discovery time (`core/process/process.go:44`) and kill time (`application/process/service.go:50`), name re-verification precedes every `SIGKILL`, and `ps` is resolved to an absolute path once at construction (`infrastructure/osprocess/osprocess.go:22-28`) rather than trusted from `$PATH` at call time.
 
-5. **Score file security**: stored with 0600/0700 permissions in a dedicated config dir; corrupt-file handling deliberately skips save to preserve the file for recovery, with a test pinning that behavior.
+5. **Ports are narrow and directional.** `application/contract/{inbound,outbound}` splits cleanly into one small file per concern (`input.go`, `process.go`, `score.go`, `ui.go`), each defining only the methods its consumers actually use.
 
-6. **Living documentation**: `docs/code-review.md` and `docs/security-issues.md` track issues to resolution with fix descriptions appended — a rare and valuable practice.
+6. **The codebase documents its own known rough edges.** `core/score/board.go:42` and `core/game/target.go:26` both carry TODOs pointing at exactly the design tension this review independently flagged (D1, and the domain's dependence on `process.Info`), which suggests these are known, tracked simplifications rather than oversights.
 
 ---
 
 ## Summary Table
 
-| ID  | Severity | Category    | Short Description                                      |
-|-----|----------|-------------|--------------------------------------------------------|
-| F1  | moderate | Functional  | "(Q)uit" in prompt does cancel, not quit               |
-| F2  | moderate | Functional  | `--speed=NaN` bypasses validation                      |
-| F3  | moderate | Functional  | Final-frame kills lost from score                      |
-| F4  | minor    | Functional  | Multi-space process names never killable               |
-| F5  | minor    | Functional  | Drag-to-kill via held mouse button                     |
-| F6  | minor    | Functional  | Zero-kill sessions pollute scoreboard                  |
-| F7  | minor    | Functional  | Timer shows "0s" for sub-second remaining              |
-| F8  | minor    | Functional  | `--time=` integer overflow on extreme values           |
-| F9  | minor    | Functional  | Unstable sort causes nondeterministic score cutoff     |
-| F10 | minor    | Functional  | `capture` helpers don't use `defer` for restore        |
-| D1  | moderate | Design      | Domain layer performs console I/O                      |
-| D2  | moderate | Design      | Application service writes directly to stdout/stderr   |
-| D3  | moderate | Design      | `kills` channel on service struct is a latent race     |
-| D4  | minor    | Design      | `List()` on process port violates ISP                  |
-| D5  | minor    | Design      | Embedded `Session` leaks mutators on `Game`            |
-| D6  | minor    | Design      | Temporal coupling on `Board.highScore`                 |
-| D7  | minor    | Design      | Atomic in "pure" core leaks concurrency concerns       |
-| D8  | minor    | Design      | Adapters constructed before arg parsing                |
-| D9  | minor    | Design      | Pattern validation duplicated across layers            |
-| D10 | minor    | Design      | `UI.Cleanup` panics if called twice                    |
-| S1  | moderate | Security    | Residual TOCTOU window in kill flow                    |
-| S2  | moderate | Security    | No guard against running as root                       |
-| S3  | low      | Security    | `ps` output parsing trusts process-name content        |
-| S4  | low      | Security    | SIGKILL only — no graceful shutdown option             |
-| S5  | low      | Security    | Score file written non-atomically                      |
-| S6  | low      | Security    | Unbounded kill-goroutine spawning                      |
+| ID  | Severity | Category    | Short Description                                                  |
+|-----|----------|-------------|----------------------------------------------------------------------|
+| F1  | moderate | Functional  | `--speed` help text/docs say 0.1–5.0; enforced minimum is 0.5        |
+| F2  | moderate | Functional  | `--speed=NaN` bypasses range validation                              |
+| F3  | moderate | Functional  | Kills completing at/after session end can be lost from the score     |
+| F4  | moderate | Functional  | `--time` upper bound unchecked; overflows silently to "unlimited"    |
+| F5  | moderate | Functional  | Failed OS-level kill is silently swallowed, no player feedback       |
+| F6  | moderate | Functional  | Hit-detection truncates while render position rounds — clicks miss   |
+| F7  | minor    | Functional  | `LookupName` errors of any kind treated as "process already exited"  |
+| F8  | minor    | Functional  | Zero-kill sessions still recorded to the score board                 |
+| F9  | minor    | Functional  | Timer display truncates instead of rounding up                       |
+| F10 | minor    | Functional  | Unstable sort causes nondeterministic score-list tie-break           |
+| F11 | minor    | Functional  | Process-name canonicalization mismatch between discovery/kill-time   |
+| F12 | minor    | Functional  | `capture` test helpers don't restore streams via `defer`             |
+| D1  | moderate | Design      | Domain (`core/score`) performs console I/O                           |
+| D2  | moderate | Design      | Application services write directly to stdout/stderr                 |
+| D3  | moderate | Design      | Inbound port performs no validation; only the CLI adapter defends    |
+| D4  | minor    | Design      | `kills` channel field on `Service` is a latent race if `Service` reused |
+| D5  | minor    | Design      | Embedded `Motion` promotes `Move()`, bypassing `Target.Update()` guard |
+| D6  | minor    | Design      | Atomic lifecycle in core exists only for app-layer signal concurrency |
+| D7  | minor    | Design      | Composition root builds `ps`/tcell adapters before arg parsing       |
+| D8  | low      | Design      | `UI.Cleanup` panics if called twice                                   |
+| S1  | moderate | Security    | No guard against running as root                                     |
+| S2  | moderate | Security    | Residual TOCTOU window in kill flow                                  |
+| S3  | low      | Security    | Mouse-drag fires kill events continuously while button held          |
+| S4  | low      | Security    | Unbounded concurrent kill-goroutine spawning                         |
+| S5  | low      | Security    | SIGKILL only — no graceful shutdown option                           |
+| S6  | low      | Security    | Score file written non-atomically                                    |
+| S7  | low      | Security    | `ps` output parsing trusts field structure                           |
