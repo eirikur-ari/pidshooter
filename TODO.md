@@ -13,12 +13,16 @@ What is left to refactor
 - [ ] ui
 
 ### event
-- [x] input
+- [x] dispatcher
 
-### service
+### game
 - [ ] converter
-- [ ] game
+- [ ] service
 - [x] validation
+
+### score
+- [ ] converter
+- [ ] service
 
 ## core
 ### game
