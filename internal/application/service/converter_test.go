@@ -162,10 +162,10 @@ func TestToHUDStateMapsFields(t *testing.T) {
 // --- toStatusState ---
 
 func TestToStatusStateMapsFields(t *testing.T) {
-	g := game.New([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 2.0, TimeLimit: 30})
-	g.Start(80, 24)
+	gs := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 2.0, TimeLimit: 30})
+	gs.Start(80, 24)
 
-	status := toStatusState(g, 3)
+	status := toStatusState(gs, 3)
 
 	assert.Equal(t, 3, status.Alive)
 	assert.Equal(t, 2.0, status.Speed)
@@ -174,11 +174,11 @@ func TestToStatusStateMapsFields(t *testing.T) {
 }
 
 func TestToStatusStateIncludesConfirming(t *testing.T) {
-	g := game.New([]process.Info{process.NewInfo(42, "suspect", 0)}, game.Config{Confirm: true, Speed: 1.0})
-	g.Start(80, 24)
-	g.RequestConfirm(g.Targets()[0])
+	gs := game.NewSession([]process.Info{process.NewInfo(42, "suspect", 0)}, game.Config{Confirm: true, Speed: 1.0})
+	gs.Start(80, 24)
+	gs.RequestConfirm(gs.Targets()[0])
 
-	status := toStatusState(g, 1)
+	status := toStatusState(gs, 1)
 
 	require.NotNil(t, status.Confirming)
 	assert.Equal(t, 42, status.Confirming.PID)

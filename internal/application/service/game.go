@@ -66,16 +66,16 @@ func (s *GameService) Play(cfg inbound.GamePlayConfig) error {
 
 	board, tracker, success := s.scores.loadScoreBoard()
 
-	g := s.newGame(cfg, processes)
+	gs := s.newGame(cfg, processes)
 
-	endTime, err := s.runLoop(g, tracker)
+	endTime, err := s.runLoop(gs, tracker)
 	if err != nil {
 		return err
 	}
 
-	duration := endTime.Sub(g.StartTime()).Seconds()
+	duration := endTime.Sub(gs.StartTime()).Seconds()
 
-	s.scores.recordScore(board, g.Throttle().LowestSpeed(), cfg.TimeLimit, duration, success)
+	s.scores.recordScore(board, gs.Throttle().LowestSpeed(), cfg.TimeLimit, duration, success)
 
 	printResults(duration, board)
 
@@ -103,17 +103,17 @@ func (s *GameService) findProcesses(patterns []string) ([]process.Info, error) {
 	return matches, nil
 }
 
-func (s *GameService) newGame(cfg inbound.GamePlayConfig, processes []process.Info) *game.Game {
-	return game.New(processes, game.Config{Confirm: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
+func (s *GameService) newGame(cfg inbound.GamePlayConfig, processes []process.Info) *game.Session {
+	return game.NewSession(processes, game.Config{Confirm: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
 }
 
-func (s *GameService) runLoop(g *game.Game, tracker *score.Tracker) (time.Time, error) {
+func (s *GameService) runLoop(gs *game.Session, tracker *score.Tracker) (time.Time, error) {
 	if err := s.renderer.Init(); err != nil {
 		return time.Time{}, fmt.Errorf("renderer initialization failed: %w", err)
 	}
 	defer s.renderer.Cleanup()
 
-	g.Start(s.renderer.Size())
+	gs.Start(s.renderer.Size())
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGTSTP)
@@ -123,7 +123,7 @@ func (s *GameService) runLoop(g *game.Game, tracker *score.Tracker) (time.Time, 
 	go func() {
 		select {
 		case <-sigCh:
-			g.Stop()
+			gs.Stop()
 		case <-done:
 		}
 	}()
@@ -132,13 +132,13 @@ func (s *GameService) runLoop(g *game.Game, tracker *score.Tracker) (time.Time, 
 	defer ticker.Stop()
 
 	s.kills = make(chan killSignal, 10)
-	evt := event.NewDispatcher(game.NewInput(g))
+	evt := event.NewDispatcher(game.NewInput(gs))
 
-	for g.IsRunning() {
+	for gs.IsRunning() {
 		s.applyKills(tracker)
 		s.drainEvents(evt, done)
-		g.Step(s.renderer.Size())
-		s.renderer.Render(buildFrame(g, tracker))
+		gs.Step(s.renderer.Size())
+		s.renderer.Render(buildFrame(gs, tracker))
 		<-ticker.C
 	}
 	// Capture end time before deferred Cleanup() runs.
@@ -162,13 +162,13 @@ func (s *GameService) applyKills(tracker *score.Tracker) {
 	}
 }
 
-func buildFrame(g *game.Game, tracker *score.Tracker) outbound.FrameState {
-	targets, alive := g.AvailableTargets()
+func buildFrame(gs *game.Session, tracker *score.Tracker) outbound.FrameState {
+	targets, alive := gs.AvailableTargets()
 
 	return outbound.FrameState{
 		Targets:   toTargetViewStates(targets),
 		HUD:       toHUDState(tracker),
-		StatusBar: toStatusState(g, alive),
+		StatusBar: toStatusState(gs, alive),
 	}
 }
 

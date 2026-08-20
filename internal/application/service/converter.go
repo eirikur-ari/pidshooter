@@ -83,12 +83,12 @@ func toHUDState(tracker *score.Tracker) outbound.HUDState {
 	}
 }
 
-func toStatusState(g *game.Game, alive int) outbound.StatusState {
+func toStatusState(s *game.Session, alive int) outbound.StatusState {
 	return outbound.StatusState{
 		Alive:      alive,
-		Speed:      g.Throttle().Speed(),
-		TimeLimit:  g.TimeLimit(),
-		TimeLeft:   g.TimeLeft(),
-		Confirming: toConfirmViewState(g.PendingConfirm()),
+		Speed:      s.Throttle().Speed(),
+		TimeLimit:  s.TimeLimit(),
+		TimeLeft:   s.TimeLeft(),
+		Confirming: toConfirmViewState(s.PendingConfirm()),
 	}
 }

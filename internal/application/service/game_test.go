@@ -18,46 +18,46 @@ import (
 // --- buildFrame ---
 
 func TestBuildFrameAliveTargetIncluded(t *testing.T) {
-	g := game.New([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
-	g.Start(80, 24)
+	gs := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
+	gs.Start(80, 24)
 
-	f := buildFrame(g, &score.Tracker{})
+	f := buildFrame(gs, &score.Tracker{})
 
 	require.Len(t, f.Targets, 1)
 	assert.False(t, f.Targets[0].Killing)
 }
 
 func TestBuildFrameKillingTargetMarked(t *testing.T) {
-	g := game.New([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
-	g.Start(80, 24)
-	g.Targets()[0].Kill()
+	gs := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
+	gs.Start(80, 24)
+	gs.Targets()[0].Kill()
 
-	f := buildFrame(g, &score.Tracker{})
+	f := buildFrame(gs, &score.Tracker{})
 
 	require.Len(t, f.Targets, 1)
 	assert.True(t, f.Targets[0].Killing)
 }
 
 func TestBuildFrameDeadTargetExcluded(t *testing.T) {
-	g := game.New([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
-	g.Start(80, 24)
-	g.Targets()[0].Kill()
+	gs := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
+	gs.Start(80, 24)
+	gs.Targets()[0].Kill()
 	for i := 0; i < game.KillAnimationDuration; i++ {
-		g.Step(80, 24)
+		gs.Step(80, 24)
 	}
 
-	f := buildFrame(g, &score.Tracker{})
+	f := buildFrame(gs, &score.Tracker{})
 
 	assert.Empty(t, f.Targets)
 }
 
 func TestBuildFrameHUDReflectsStats(t *testing.T) {
-	g := game.New([]process.Info{process.NewInfo(1, "a", 4096)}, game.Config{Speed: 1.0})
-	g.Start(80, 24)
+	gs := game.NewSession([]process.Info{process.NewInfo(1, "a", 4096)}, game.Config{Speed: 1.0})
+	gs.Start(80, 24)
 	tracker := &score.Tracker{}
-	tracker.RecordKill(g.Targets()[0].Rss)
+	tracker.RecordKill(gs.Targets()[0].Rss)
 
-	f := buildFrame(g, tracker)
+	f := buildFrame(gs, tracker)
 
 	assert.Equal(t, 1, f.HUD.Kills)
 	assert.Equal(t, int64(4096), f.HUD.FreedMem)
@@ -68,20 +68,20 @@ func TestBuildFrameStatusBarAliveCount(t *testing.T) {
 		process.NewInfo(1, "a", 0),
 		process.NewInfo(2, "b", 0),
 	}
-	g := game.New(processes, game.Config{Speed: 1.0})
-	g.Start(80, 24)
-	g.Targets()[0].Kill()
+	gs := game.NewSession(processes, game.Config{Speed: 1.0})
+	gs.Start(80, 24)
+	gs.Targets()[0].Kill()
 
-	f := buildFrame(g, &score.Tracker{})
+	f := buildFrame(gs, &score.Tracker{})
 
 	assert.Equal(t, 1, f.StatusBar.Alive)
 }
 
 func TestBuildFrameNoConfirmPending(t *testing.T) {
-	g := game.New(nil, game.Config{Speed: 1.0})
-	g.Start(80, 24)
+	gs := game.NewSession(nil, game.Config{Speed: 1.0})
+	gs.Start(80, 24)
 
-	f := buildFrame(g, &score.Tracker{})
+	f := buildFrame(gs, &score.Tracker{})
 
 	assert.Nil(t, f.StatusBar.Confirming)
 }
