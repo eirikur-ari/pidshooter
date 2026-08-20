@@ -1,6 +1,6 @@
 //go:build integration
 
-package game
+package application
 
 import (
 	"errors"
@@ -17,22 +17,22 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
-func newService(proc *fake.Process, store *fake.Store, events *fake.InputSource) *Service {
-	return NewService(proc, store, &fake.Renderer{}, events)
+func newRunner(proc *fake.Process, store *fake.Store, events *fake.InputSource) *Runner {
+	return NewRunner(proc, store, &fake.Renderer{}, events)
 }
 
-func TestIntegrationServiceHappyPath(t *testing.T) {
+func TestIntegrationRunnerHappyPath(t *testing.T) {
 	events := fake.NewInputSource()
 	events.Ch <- outbound.KeyEvent{Ch: 'q'}
 
 	store := &fake.Store{}
-	svc := newService(
+	r := newRunner(
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 200, Name: "target", Rss: 1024}}},
 		store,
 		events,
 	)
 
-	require.NoError(t, svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0}))
+	require.NoError(t, r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0}))
 	require.NotNil(t, store.Saved)
 	require.Len(t, store.Saved.Scores, 1)
 	entry := store.Saved.Scores[0]
@@ -40,12 +40,12 @@ func TestIntegrationServiceHappyPath(t *testing.T) {
 	assert.Greater(t, entry.Duration, 0.0)
 }
 
-func TestIntegrationServiceLoadErrorPrintsWarningAndSkipsSave(t *testing.T) {
+func TestIntegrationRunnerLoadErrorPrintsWarningAndSkipsSave(t *testing.T) {
 	events := fake.NewInputSource()
 	events.Ch <- outbound.KeyEvent{Ch: 'q'}
 
 	store := &fake.Store{LoadErr: errors.New("json: invalid character")}
-	svc := newService(
+	r := newRunner(
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 201, Name: "target", Rss: 1024}}},
 		store,
 		events,
@@ -53,7 +53,7 @@ func TestIntegrationServiceLoadErrorPrintsWarningAndSkipsSave(t *testing.T) {
 
 	var err error
 	stderr := capture.Stderr(func() {
-		err = svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+		err = r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 	})
 
 	require.NoError(t, err)
@@ -61,11 +61,11 @@ func TestIntegrationServiceLoadErrorPrintsWarningAndSkipsSave(t *testing.T) {
 	assert.Nil(t, store.Saved)
 }
 
-func TestIntegrationServiceSaveErrorPrintsWarning(t *testing.T) {
+func TestIntegrationRunnerSaveErrorPrintsWarning(t *testing.T) {
 	events := fake.NewInputSource()
 	events.Ch <- outbound.KeyEvent{Ch: 'q'}
 
-	svc := newService(
+	r := newRunner(
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 202, Name: "target", Rss: 1024}}},
 		&fake.Store{SaveErr: errors.New("disk full")},
 		events,
@@ -73,7 +73,7 @@ func TestIntegrationServiceSaveErrorPrintsWarning(t *testing.T) {
 
 	var err error
 	stderr := capture.Stderr(func() {
-		err = svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+		err = r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 	})
 
 	require.NoError(t, err)
@@ -81,93 +81,93 @@ func TestIntegrationServiceSaveErrorPrintsWarning(t *testing.T) {
 	assert.Contains(t, stderr, "disk full")
 }
 
-func TestIntegrationServiceQuitOnQ(t *testing.T) {
+func TestIntegrationRunnerQuitOnQ(t *testing.T) {
 	events := fake.NewInputSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
 		events.Ch <- outbound.KeyEvent{Ch: 'q'}
 	}()
 
-	svc := newService(
+	r := newRunner(
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 100, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
 	)
-	assert.NoError(t, svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
+	assert.NoError(t, r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
 }
 
-func TestIntegrationServiceQuitOnEscape(t *testing.T) {
+func TestIntegrationRunnerQuitOnEscape(t *testing.T) {
 	events := fake.NewInputSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
 		events.Ch <- outbound.KeyEvent{Key: outbound.KeyEscape}
 	}()
 
-	svc := newService(
+	r := newRunner(
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 101, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
 	)
-	assert.NoError(t, svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
+	assert.NoError(t, r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
 }
 
-func TestIntegrationServiceQuitOnCtrlC(t *testing.T) {
+func TestIntegrationRunnerQuitOnCtrlC(t *testing.T) {
 	events := fake.NewInputSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
 		events.Ch <- outbound.KeyEvent{Key: outbound.KeyCtrlC}
 	}()
 
-	svc := newService(
+	r := newRunner(
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 104, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
 	)
-	assert.NoError(t, svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
+	assert.NoError(t, r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
 }
 
-func TestIntegrationServiceQuitOnCtrlZ(t *testing.T) {
+func TestIntegrationRunnerQuitOnCtrlZ(t *testing.T) {
 	events := fake.NewInputSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
 		events.Ch <- outbound.KeyEvent{Key: outbound.KeyCtrlZ}
 	}()
 
-	svc := newService(
+	r := newRunner(
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 105, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
 	)
-	assert.NoError(t, svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
+	assert.NoError(t, r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
 }
 
-func TestIntegrationServiceTimeLimitExpires(t *testing.T) {
-	svc := newService(
+func TestIntegrationRunnerTimeLimitExpires(t *testing.T) {
+	r := newRunner(
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 102, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		fake.NewInputSource(),
 	)
 
 	start := time.Now()
-	require.NoError(t, svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 1}))
+	require.NoError(t, r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 1}))
 	assert.LessOrEqual(t, time.Since(start), 3*time.Second, "game took too long to exit on time limit")
 }
 
-// TestIntegration_Service_SignalGoroutineDoesNotAccumulate verifies the signal goroutine
-// started inside runLoop exits when Play returns, preventing goroutine leaks.
-func TestIntegrationServiceSignalGoroutineDoesNotAccumulate(t *testing.T) {
+// TestIntegrationRunnerSignalGoroutineDoesNotAccumulate verifies the signal goroutine
+// started inside runLoop exits when Run returns, preventing goroutine leaks.
+func TestIntegrationRunnerSignalGoroutineDoesNotAccumulate(t *testing.T) {
 	runGame := func(pid int) {
 		events := fake.NewInputSource()
 		go func() {
 			time.Sleep(50 * time.Millisecond)
 			events.Ch <- outbound.KeyEvent{Ch: 'q'}
 		}()
-		svc := newService(
+		r := newRunner(
 			&fake.Process{Processes: []outbound.ProcessInfo{{Pid: pid, Name: "target", Rss: 1024}}},
 			&fake.Store{},
 			events,
 		)
-		if err := svc.Play(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
+		if err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
 			t.Fatalf("pid %d: unexpected error: %v", pid, err)
 		}
 	}

@@ -11,7 +11,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/event"
-	scoresvc "github.com/eirikur-ari/pidshooter/internal/application/score"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
@@ -22,7 +21,6 @@ const frameDuration = time.Second / 20
 // Service orchestrates core domain objects and outbound ports to play a single game session.
 type Service struct {
 	process  outbound.Process
-	scores   *scoresvc.Service
 	renderer outbound.Renderer
 	events   outbound.InputSource
 	kills    chan killSignal
@@ -42,48 +40,40 @@ var errAlreadyKilled = errors.New("target process already killed")
 // NewService constructs a Service with all required outbound ports injected.
 func NewService(
 	process outbound.Process,
-	store outbound.ScoreStore,
 	renderer outbound.Renderer,
 	events outbound.InputSource,
 ) *Service {
 	return &Service{
 		process:  process,
-		scores:   scoresvc.NewService(store),
 		renderer: renderer,
 		events:   events,
 	}
 }
 
-// Play runs a complete game session: discovery → game loop → score persistence → display.
-func (s *Service) Play(cfg inbound.Config) error {
-	processes, err := s.findProcesses(cfg.Patterns)
-	if err != nil {
-		return err
-	}
+// PlayResult carries the outcome of a completed play session, needed by the
+// caller to record a score.
+type PlayResult struct {
+	Duration    float64
+	LowestSpeed float64
+}
 
-	if len(processes) == 0 {
-		return nil
-	}
-
-	board, tracker, success := s.scores.LoadScoreBoard()
-
+// Play runs the game loop for the given already-discovered processes, recording kills against tracker.
+func (s *Service) Play(cfg inbound.Config, processes []process.Info, tracker *score.Tracker) (PlayResult, error) {
 	gs := s.newGame(cfg, processes)
 
 	endTime, err := s.runLoop(gs, tracker)
 	if err != nil {
-		return err
+		return PlayResult{}, err
 	}
 
-	duration := endTime.Sub(gs.StartTime()).Seconds()
-
-	s.scores.RecordScore(board, gs.Throttle().LowestSpeed(), cfg.TimeLimit, duration, success)
-
-	scoresvc.PrintResults(duration, board)
-
-	return nil
+	return PlayResult{
+		Duration:    endTime.Sub(gs.StartTime()).Seconds(),
+		LowestSpeed: gs.Throttle().LowestSpeed(),
+	}, nil
 }
 
-func (s *Service) findProcesses(patterns []string) ([]process.Info, error) {
+// FindProcesses discovers running processes matching patterns.
+func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
 	if err := validateSearchPatterns(patterns); err != nil {
 		return nil, err
 	}
