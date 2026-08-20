@@ -13,13 +13,13 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
-// Process implements outbound.Process using the ps command.
+// Process implements outbound.ProcessManager using the ps command.
 type Process struct{ psPath string }
 
-// NewProcess returns an outbound.Process backed by the OS ps command.
+// NewProcess returns an outbound.ProcessManager backed by the OS ps command.
 // It resolves the absolute path to ps at construction time so the
 // adapter does not depend on $PATH at runtime.
-func NewProcess() (outbound.Process, error) {
+func NewProcess() (outbound.ProcessManager, error) {
 	path, err := exec.LookPath("ps")
 	if err != nil {
 		return nil, fmt.Errorf("ps not found: %w", err)

@@ -6,32 +6,36 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
+	"github.com/eirikur-ari/pidshooter/internal/application/process"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
 )
 
 // Runner wires together the services required to run a game session. It implements inbound.Runner.
 type Runner struct {
-	game  *game.Service
-	score *score.Service
+	processSvc *process.Service
+	gameSvc    *game.Service
+	scoreSvc   *score.Service
 }
 
 // NewRunner constructs a Runner with all required outbound ports injected.
 func NewRunner(
-	process outbound.Process,
+	processMgr outbound.ProcessManager,
 	store outbound.ScoreStore,
 	renderer outbound.Renderer,
 	events outbound.InputSource,
 ) *Runner {
+	processSvc := process.NewService(processMgr)
 	return &Runner{
-		game:  game.NewService(process, renderer, events),
-		score: score.NewService(store),
+		processSvc: processSvc,
+		gameSvc:    game.NewService(processSvc, renderer, events),
+		scoreSvc:   score.NewService(store),
 	}
 }
 
 // Run discovers processes matching cfg.Patterns, plays a game session against
 // them, then records and prints the resulting score.
 func (r *Runner) Run(cfg inbound.Config) error {
-	processes, err := r.game.FindProcesses(cfg.Patterns)
+	processes, err := r.processSvc.FindProcesses(cfg.Patterns)
 	if err != nil {
 		return err
 	}
@@ -40,14 +44,14 @@ func (r *Runner) Run(cfg inbound.Config) error {
 		return nil
 	}
 
-	board, tracker, success := r.score.LoadScoreBoard()
+	board, tracker, success := r.scoreSvc.LoadScoreBoard()
 
-	result, err := r.game.Play(cfg, processes, tracker)
+	result, err := r.gameSvc.Play(cfg, processes, tracker)
 	if err != nil {
 		return err
 	}
 
-	r.score.RecordScore(board, result.LowestSpeed, cfg.TimeLimit, result.Duration, success)
+	r.scoreSvc.RecordScore(board, result.LowestSpeed, cfg.TimeLimit, result.Duration, success)
 
 	score.PrintResults(result.Duration, board)
 

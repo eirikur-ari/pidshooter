@@ -20,8 +20,8 @@ type Killer interface {
 	Kill(pid int) (bool, error)
 }
 
-// Process is the outbound port for process discovery and termination on the host.
-type Process interface {
+// ProcessManager is the outbound port for process discovery and termination on the host.
+type ProcessManager interface {
 	Lister
 	Killer
 }

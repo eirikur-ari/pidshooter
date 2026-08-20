@@ -1,7 +1,6 @@
 package game
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -85,28 +84,11 @@ func TestBuildFrameNoConfirmPending(t *testing.T) {
 	assert.Nil(t, f.StatusBar.Confirming)
 }
 
-func TestFindProcessesListError(t *testing.T) {
-	svc := NewService(
-		&fake.Process{ListErr: errors.New("ps failed")},
-		&fake.Renderer{},
-		fake.NewInputSource(),
-	)
-	_, err := svc.FindProcesses([]string{"foo"})
-	require.Error(t, err)
-}
-
-func TestFindProcessesNoMatches(t *testing.T) {
-	svc := NewService(&fake.Process{}, &fake.Renderer{}, fake.NewInputSource())
-
-	processes, err := svc.FindProcesses([]string{"nonexistent"})
-
-	assert.NoError(t, err)
-	assert.Empty(t, processes)
-}
+// --- applyKills ---
 
 func TestServiceApplyKillsCompletesPendingKill(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096)
-	svc := NewService(&fake.Process{}, &fake.Renderer{}, fake.NewInputSource())
+	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
 	svc.kills = make(chan killSignal, 1)
 
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
@@ -121,7 +103,7 @@ func TestServiceApplyKillsCompletesPendingKill(t *testing.T) {
 
 func TestServiceApplyKillsReapsAlreadyKilledTarget(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096)
-	svc := NewService(&fake.Process{}, &fake.Renderer{}, fake.NewInputSource())
+	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
 	svc.kills = make(chan killSignal, 1)
 
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
@@ -135,63 +117,11 @@ func TestServiceApplyKillsReapsAlreadyKilledTarget(t *testing.T) {
 }
 
 func TestServiceApplyKillsEmptyChannelNoOps(t *testing.T) {
-	svc := NewService(&fake.Process{}, &fake.Renderer{}, fake.NewInputSource())
+	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
 	svc.kills = make(chan killSignal, 1)
 
 	tracker := &score.Tracker{}
 	svc.applyKills(tracker) // must not block
 
 	assert.Equal(t, 0, tracker.Kills)
-}
-
-// --- kill ---
-
-func TestServiceKillProtectedPIDReturnsError(t *testing.T) {
-	fp := &fake.Process{}
-	svc := NewService(fp, &fake.Renderer{}, fake.NewInputSource())
-	target := game.NewTarget(process.NewInfo(1, "init", 0), movement.NewBounds(80, 24))
-
-	killed, err := svc.kill(target)
-
-	assert.False(t, killed)
-	require.Error(t, err)
-	assert.Empty(t, fp.KilledPIDs)
-}
-
-func TestServiceKillLookupErrorReturnsErrAlreadyKilled(t *testing.T) {
-	fp := &fake.Process{LookupNameErr: errors.New("ps lookup failed")}
-	svc := NewService(fp, &fake.Renderer{}, fake.NewInputSource())
-	target := game.NewTarget(process.NewInfo(100, "target", 0), movement.NewBounds(80, 24))
-
-	killed, err := svc.kill(target)
-
-	assert.False(t, killed)
-	require.Error(t, err)
-	assert.ErrorIs(t, err, errAlreadyKilled)
-	assert.ErrorContains(t, err, "ps lookup failed", "expected the underlying ps error to still be visible")
-	assert.Empty(t, fp.KilledPIDs)
-}
-
-func TestServiceKillNameMismatchReturnsErrAlreadyKilled(t *testing.T) {
-	fp := &fake.Process{LookupNameValue: "somethingElse"}
-	svc := NewService(fp, &fake.Renderer{}, fake.NewInputSource())
-	target := game.NewTarget(process.NewInfo(100, "target", 0), movement.NewBounds(80, 24))
-
-	killed, err := svc.kill(target)
-
-	assert.False(t, killed)
-	assert.ErrorIs(t, err, errAlreadyKilled)
-	assert.Empty(t, fp.KilledPIDs)
-}
-
-func TestServiceKillNameMatchInvokesKill(t *testing.T) {
-	fp := &fake.Process{LookupNameValue: "target"}
-	svc := NewService(fp, &fake.Renderer{}, fake.NewInputSource())
-	target := game.NewTarget(process.NewInfo(100, "target", 0), movement.NewBounds(80, 24))
-
-	killed, err := svc.kill(target)
-
-	assert.True(t, killed)
-	assert.NoError(t, err)
-	assert.Equal(t, []int{100}, fp.KilledPIDs)
 }

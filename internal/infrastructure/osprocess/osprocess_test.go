@@ -35,7 +35,7 @@ func TestLookupNameReturnsOwnName(t *testing.T) {
 }
 
 // Kill no longer guards pid or verifies name itself (see the Killer doc
-// comment on outbound.Process) — that's now service.kill's job, using
+// comment on outbound.ProcessManager) — that's now process.Service.Kill's job, using
 // Info.IsProtected and LookupName before ever calling Kill. Exercising
 // Kill against pid 0/1/-1/self here would send a real SIGKILL to the
 // process group, init, or the test binary itself, so this only checks the

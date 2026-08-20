@@ -1,7 +1,6 @@
 package game
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -18,9 +17,15 @@ import (
 
 const frameDuration = time.Second / 20
 
+// killer verifies and terminates the target's backing OS process, reporting
+// whether the caller should reap the target because its process was already gone.
+type killer interface {
+	Kill(target *game.Target) (killed, shouldReap bool, err error)
+}
+
 // Service orchestrates core domain objects and outbound ports to play a single game session.
 type Service struct {
-	process  outbound.Process
+	killer   killer
 	renderer outbound.Renderer
 	events   outbound.InputSource
 	kills    chan killSignal
@@ -33,18 +38,14 @@ type killSignal struct {
 	shouldReap bool
 }
 
-// errAlreadyKilled indicates a target's backing OS process was already gone
-// by the time its kill could be verified.
-var errAlreadyKilled = errors.New("target process already killed")
-
 // NewService constructs a Service with all required outbound ports injected.
 func NewService(
-	process outbound.Process,
+	killer killer,
 	renderer outbound.Renderer,
 	events outbound.InputSource,
 ) *Service {
 	return &Service{
-		process:  process,
+		killer:   killer,
 		renderer: renderer,
 		events:   events,
 	}
@@ -70,28 +71,6 @@ func (s *Service) Play(cfg inbound.Config, processes []process.Info, tracker *sc
 		Duration:    endTime.Sub(gs.StartTime()).Seconds(),
 		LowestSpeed: gs.Throttle().LowestSpeed(),
 	}, nil
-}
-
-// FindProcesses discovers running processes matching patterns.
-func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
-	if err := validateSearchPatterns(patterns); err != nil {
-		return nil, err
-	}
-	processes, err := s.process.List()
-	if err != nil {
-		return nil, fmt.Errorf("process search failed: %w", err)
-	}
-
-	matches := process.Find(toProcessInfos(processes), patterns, s.process.OwnPid())
-
-	if len(matches) == 0 {
-		fmt.Printf("No processes found matching %v\n", patterns)
-		return nil, nil
-	}
-
-	fmt.Printf("Found %d process(es) matching %v. Starting game...\n", len(matches), patterns)
-
-	return matches, nil
 }
 
 func (s *Service) newGame(cfg inbound.Config, processes []process.Info) *game.Session {
@@ -172,14 +151,14 @@ func (s *Service) drainEvents(d *event.Dispatcher, done <-chan struct{}) {
 				continue
 			}
 			go func() {
-				killed, err := s.kill(target)
+				killed, shouldReap, err := s.killer.Kill(target)
 				switch {
 				case err == nil && killed:
 					select {
 					case s.kills <- killSignal{target: target}:
 					case <-done:
 					}
-				case errors.Is(err, errAlreadyKilled):
+				case shouldReap:
 					select {
 					case s.kills <- killSignal{target: target, shouldReap: true}:
 					case <-done:
@@ -190,25 +169,4 @@ func (s *Service) drainEvents(d *event.Dispatcher, done <-chan struct{}) {
 			return
 		}
 	}
-}
-
-// kill re-verifies target immediately before signaling it, since the PID may
-// have been recycled by the OS to a different process — or exited entirely —
-// in the time between discovery and the player confirming the kill. Either
-// case is reported as errAlreadyKilled so the caller can reap the target
-// instead of leaving it stuck as Alive forever.
-func (s *Service) kill(target *game.Target) (bool, error) {
-	pid := target.Pid
-	if target.Info.IsProtected() {
-		return false, fmt.Errorf("refusing to kill PID %d", pid)
-	}
-	name, err := s.process.LookupName(pid)
-	if err != nil {
-		return false, fmt.Errorf("could not verify PID %d: %w: %w", pid, errAlreadyKilled, err)
-	}
-	if err := validateProcessName(target.Name, name); err != nil {
-		return false, fmt.Errorf("%w: %w", errAlreadyKilled, err)
-	}
-
-	return s.process.Kill(pid)
 }
