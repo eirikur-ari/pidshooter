@@ -5,7 +5,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
 )
 
-func toBoard(sb outbound.ScoreBoard) (*score.Board, *score.Tracker) {
+func toBoard(sb outbound.ScoreBoard) *score.Board {
 	entries := make([]score.Entry, len(sb.Scores))
 	for i, e := range sb.Scores {
 		entries[i] = score.Entry{

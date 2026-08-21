@@ -5,7 +5,6 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
-	"github.com/eirikur-ari/pidshooter/internal/core/score"
 )
 
 func toConfirmViewState(t *game.Target) *outbound.ConfirmViewState {
@@ -32,20 +31,30 @@ func toTargetViewStates(targets []*game.Target) []outbound.TargetViewState {
 	return views
 }
 
-func toHUDState(tracker *score.Tracker) outbound.HUDState {
+func toHUDState(tracker *scoreTracker) outbound.HUDState {
 	return outbound.HUDState{
-		FreedMem:  tracker.FreedMem,
-		Kills:     tracker.Kills,
-		HighScore: tracker.HighScore,
+		FreedMem:  tracker.freedMem,
+		Kills:     tracker.kills,
+		HighScore: tracker.highScore,
 	}
 }
 
-func toStatusState(s *game.Session, alive int) outbound.StatusState {
+func toStatusState(session *game.Session, alive int) outbound.StatusState {
 	return outbound.StatusState{
 		Alive:      alive,
-		Speed:      s.Throttle().Speed(),
-		TimeLimit:  s.TimeLimit(),
-		TimeLeft:   s.TimeLeft(),
-		Confirming: toConfirmViewState(s.PendingConfirm()),
+		Speed:      session.Throttle().Speed(),
+		TimeLimit:  session.TimeLimit(),
+		TimeLeft:   session.TimeLeft(),
+		Confirming: toConfirmViewState(session.PendingConfirm()),
+	}
+}
+
+func toFrameState(session *game.Session, tracker *scoreTracker) outbound.FrameState {
+	targets, alive := session.AvailableTargets()
+
+	return outbound.FrameState{
+		Targets:   toTargetViewStates(targets),
+		HUD:       toHUDState(tracker),
+		StatusBar: toStatusState(session, alive),
 	}
 }

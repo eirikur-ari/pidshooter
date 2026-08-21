@@ -9,7 +9,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
-	"github.com/eirikur-ari/pidshooter/internal/core/score"
 )
 
 // --- toConfirmViewState ---
@@ -73,7 +72,7 @@ func TestToTargetViewStatesEmptyInput(t *testing.T) {
 // --- toHUDState ---
 
 func TestToHUDStateMapsFields(t *testing.T) {
-	tracker := &score.Tracker{FreedMem: 4096, Kills: 2, HighScore: 5}
+	tracker := &scoreTracker{freedMem: 4096, kills: 2, highScore: 5}
 
 	hud := toHUDState(tracker)
 
@@ -85,10 +84,10 @@ func TestToHUDStateMapsFields(t *testing.T) {
 // --- toStatusState ---
 
 func TestToStatusStateMapsFields(t *testing.T) {
-	gs := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 2.0, TimeLimit: 30})
-	gs.Start(80, 24)
+	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 2.0, TimeLimit: 30})
+	session.Start(80, 24)
 
-	status := toStatusState(gs, 3)
+	status := toStatusState(session, 3)
 
 	assert.Equal(t, 3, status.Alive)
 	assert.Equal(t, 2.0, status.Speed)
@@ -97,12 +96,83 @@ func TestToStatusStateMapsFields(t *testing.T) {
 }
 
 func TestToStatusStateIncludesConfirming(t *testing.T) {
-	gs := game.NewSession([]process.Info{process.NewInfo(42, "suspect", 0)}, game.Config{Confirm: true, Speed: 1.0})
-	gs.Start(80, 24)
-	gs.RequestConfirm(gs.Targets()[0])
+	session := game.NewSession([]process.Info{process.NewInfo(42, "suspect", 0)}, game.Config{Confirm: true, Speed: 1.0})
+	session.Start(80, 24)
+	session.RequestConfirm(session.Targets()[0])
 
-	status := toStatusState(gs, 1)
+	status := toStatusState(session, 1)
 
 	require.NotNil(t, status.Confirming)
 	assert.Equal(t, 42, status.Confirming.PID)
+}
+
+// --- toFrameState ---
+
+func TestToFrameStateAliveTargetIncluded(t *testing.T) {
+	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
+	session.Start(80, 24)
+
+	f := toFrameState(session, &scoreTracker{})
+
+	require.Len(t, f.Targets, 1)
+	assert.False(t, f.Targets[0].Killing)
+}
+
+func TestToFrameStateKillingTargetMarked(t *testing.T) {
+	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
+	session.Start(80, 24)
+	session.Targets()[0].Kill()
+
+	f := toFrameState(session, &scoreTracker{})
+
+	require.Len(t, f.Targets, 1)
+	assert.True(t, f.Targets[0].Killing)
+}
+
+func TestToFrameStateDeadTargetExcluded(t *testing.T) {
+	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
+	session.Start(80, 24)
+	session.Targets()[0].Kill()
+	for i := 0; i < game.KillAnimationDuration; i++ {
+		session.Update(80, 24)
+	}
+
+	f := toFrameState(session, &scoreTracker{})
+
+	assert.Empty(t, f.Targets)
+}
+
+func TestToFrameStateHUDReflectsStats(t *testing.T) {
+	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 4096)}, game.Config{Speed: 1.0})
+	session.Start(80, 24)
+	tracker := &scoreTracker{}
+	tracker.recordKill(session.Targets()[0].Rss)
+
+	f := toFrameState(session, tracker)
+
+	assert.Equal(t, 1, f.HUD.Kills)
+	assert.Equal(t, int64(4096), f.HUD.FreedMem)
+}
+
+func TestToFrameStateStatusBarAliveCount(t *testing.T) {
+	processes := []process.Info{
+		process.NewInfo(1, "a", 0),
+		process.NewInfo(2, "b", 0),
+	}
+	session := game.NewSession(processes, game.Config{Speed: 1.0})
+	session.Start(80, 24)
+	session.Targets()[0].Kill()
+
+	f := toFrameState(session, &scoreTracker{})
+
+	assert.Equal(t, 1, f.StatusBar.Alive)
+}
+
+func TestToFrameStateNoConfirmPending(t *testing.T) {
+	session := game.NewSession(nil, game.Config{Speed: 1.0})
+	session.Start(80, 24)
+
+	f := toFrameState(session, &scoreTracker{})
+
+	assert.Nil(t, f.StatusBar.Confirming)
 }
