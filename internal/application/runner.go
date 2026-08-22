@@ -35,6 +35,10 @@ func NewRunner(
 // Run discovers processes matching cfg.Patterns, plays a game session against
 // them, then records and prints the resulting score.
 func (r *Runner) Run(cfg inbound.Config) error {
+	if err := validateConfig(cfg); err != nil {
+		return err
+	}
+
 	processes, err := r.processSvc.FindProcesses(cfg.Patterns)
 	if err != nil {
 		return err

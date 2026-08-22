@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/event"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
@@ -13,6 +14,16 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
+
+// --- Play ---
+
+func TestServicePlayNoProcessesReturnsWrappedError(t *testing.T) {
+	svc := NewService(nil, nil, nil)
+
+	_, err := svc.Play(inbound.Config{}, nil, 0)
+
+	assert.ErrorContains(t, err, "aborting game")
+}
 
 // killerFunc adapts a plain function to the killer interface for tests.
 type killerFunc func(target *game.Target) (killed, shouldReap bool, err error)

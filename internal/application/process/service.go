@@ -10,12 +10,12 @@ import (
 
 // Service discovers and terminates OS processes.
 type Service struct {
-	process outbound.ProcessManager
+	processMgr outbound.ProcessManager
 }
 
 // NewService constructs a Service with all required outbound ports injected.
-func NewService(process outbound.ProcessManager) *Service {
-	return &Service{process: process}
+func NewService(processMgr outbound.ProcessManager) *Service {
+	return &Service{processMgr: processMgr}
 }
 
 // FindProcesses discovers running processes matching patterns.
@@ -23,12 +23,12 @@ func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
 	if err := validateSearchPatterns(patterns); err != nil {
 		return nil, err
 	}
-	processes, err := s.process.List()
+	processes, err := s.processMgr.List()
 	if err != nil {
 		return nil, fmt.Errorf("process search failed: %w", err)
 	}
 
-	matches := process.Find(toProcessInfos(processes), patterns, s.process.OwnPid())
+	matches := process.Find(toProcessInfos(processes), patterns, s.processMgr.OwnPid())
 
 	if len(matches) == 0 {
 		fmt.Printf("No processes found matching %v\n", patterns)
@@ -50,7 +50,7 @@ func (s *Service) Kill(target *game.Target) (killed, shouldReap bool, err error)
 	if target.Info.IsProtected() {
 		return false, false, fmt.Errorf("refusing to kill PID %d", pid)
 	}
-	name, err := s.process.LookupName(pid)
+	name, err := s.processMgr.LookupName(pid)
 	if err != nil {
 		return false, true, fmt.Errorf("could not verify PID %d: %w", pid, err)
 	}
@@ -58,6 +58,6 @@ func (s *Service) Kill(target *game.Target) (killed, shouldReap bool, err error)
 		return false, true, err
 	}
 
-	killed, err = s.process.Kill(pid)
+	killed, err = s.processMgr.Kill(pid)
 	return killed, false, err
 }

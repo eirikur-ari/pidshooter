@@ -70,6 +70,14 @@ func NewService(
 // highScore is the caller's persisted best, used to track a running high
 // score for display during the session.
 func (s *Service) Play(cfg inbound.Config, processes []process.Info, highScore int) (PlayResult, error) {
+	if len(processes) == 0 {
+		return PlayResult{}, fmt.Errorf("aborting game, no processes found")
+	}
+
+	if err := validateProcesses(processes); err != nil {
+		return PlayResult{}, fmt.Errorf("aborting game: %w", err)
+	}
+
 	session := game.NewSession(processes, game.Config{Confirm: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
 
 	tracker := &scoreTracker{highScore: highScore}

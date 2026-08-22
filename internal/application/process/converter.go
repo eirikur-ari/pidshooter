@@ -5,14 +5,14 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-func toProcessInfo(p outbound.ProcessInfo) process.Info {
-	return process.NewInfo(p.Pid, p.Name, p.Rss)
+func toProcessInfo(info outbound.ProcessInfo) process.Info {
+	return process.NewInfo(info.Pid, info.Name, info.Rss)
 }
 
-func toProcessInfos(ps []outbound.ProcessInfo) []process.Info {
-	out := make([]process.Info, len(ps))
-	for i, p := range ps {
-		out[i] = toProcessInfo(p)
+func toProcessInfos(infos []outbound.ProcessInfo) []process.Info {
+	out := make([]process.Info, len(infos))
+	for i, info := range infos {
+		out[i] = toProcessInfo(info)
 	}
 	return out
 }
