@@ -36,7 +36,7 @@ type killSignal struct {
 	shouldReap bool
 }
 
-// scoreTracker accumulates kills and freed memory for a single live session,
+// scoreTracker accumulates kills and freed memory for a single game session,
 // tracking the running high score seeded from the caller's persisted best.
 type scoreTracker struct {
 	kills     int
@@ -94,8 +94,8 @@ func (s *Service) runLoop(session *game.Session, tracker *scoreTracker) (time.Ti
 
 	session.Start(s.renderer.Size())
 
-	termSignal, stopSignals := s.registerTermSignalWatcher(session)
-	defer stopSignals()
+	termSignal, stopWatching := s.registerTermSignalWatcher()
+	defer stopWatching()
 
 	// Closing done unblocks any killOrReap goroutine waiting to send on
 	// killSignals after frameLoop exits, preventing a goroutine leak.
@@ -110,20 +110,14 @@ func (s *Service) runLoop(session *game.Session, tracker *scoreTracker) (time.Ti
 	return time.Now(), nil
 }
 
-// registerTermSignalWatcher stops game session when the process receives an interrupt,
-// termination, or suspend signal. termSignal is closed when that happens, letting
-// callers react immediately instead of waiting out a polling interval. The
-// returned stop func deregisters the watcher and must be called once the
-// caller is done with game session.
-func (s *Service) registerTermSignalWatcher(session *game.Session) (termSignal <-chan struct{}, stop func()) {
-	// ctx.Done() fires on either a real signal or an explicit stop() call;
-	// session.Stop() is idempotent, so it's harmless to call it in both cases.
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGTSTP)
-	go func() {
-		<-ctx.Done()
-		session.Stop()
-	}()
-	return ctx.Done(), stop
+// registerTermSignalWatcher watches for an interrupt, termination, or suspend
+// signal. termSignal is closed when that happens, letting callers react
+// immediately instead of waiting out a polling interval. The returned stop watching
+// func deregisters the watcher and must be called once the caller is done
+// with game session.
+func (s *Service) registerTermSignalWatcher() (termSignal <-chan struct{}, stopWatching func()) {
+	ctx, stopWatching := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGTSTP)
+	return ctx.Done(), stopWatching
 }
 
 // frameLoop drives the game at frameDuration cadence until session stops running.
@@ -148,6 +142,7 @@ func (s *Service) frameLoop(session *game.Session, tracker *scoreTracker, dispat
 		select {
 		case <-ticker.C:
 		case <-termSignal:
+			session.Stop()
 		}
 	}
 }
@@ -168,13 +163,13 @@ func (s *Service) applyKillSignals(tracker *scoreTracker, killSignals <-chan kil
 	}
 }
 
-func (s *Service) drainEventQueue(dispatcher *event.Dispatcher, kills chan<- killSignal, done <-chan struct{}) {
+func (s *Service) drainEventQueue(dispatcher *event.Dispatcher, killSignals chan<- killSignal, done <-chan struct{}) {
 	events := s.events.Events()
 	for {
 		select {
 		case inputEvent := <-events:
 			if target := dispatcher.Dispatch(inputEvent); target != nil {
-				go s.killOrReap(target, kills, done)
+				go s.killOrReap(target, killSignals, done)
 			}
 		default:
 			return
@@ -182,7 +177,10 @@ func (s *Service) drainEventQueue(dispatcher *event.Dispatcher, kills chan<- kil
 	}
 }
 
-func (s *Service) killOrReap(target *game.Target, kills chan<- killSignal, done <-chan struct{}) {
+// killOrReap verifies and kills target, then reports the outcome on killSignals.
+// It must be invoked via a goroutine: Kill may shell out to verify the target's
+// backing process, and running it inline would stall the frame loop.
+func (s *Service) killOrReap(target *game.Target, killSignals chan<- killSignal, done <-chan struct{}) {
 	killed, shouldReap, err := s.killer.Kill(target)
 
 	sig := killSignal{target: target}
@@ -194,7 +192,7 @@ func (s *Service) killOrReap(target *game.Target, kills chan<- killSignal, done 
 	}
 
 	select {
-	case kills <- sig:
+	case killSignals <- sig:
 	case <-done:
 	}
 }
