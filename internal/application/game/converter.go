@@ -7,26 +7,26 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 )
 
-func toConfirmViewState(t *game.Target) *outbound.ConfirmViewState {
-	if t == nil {
+func toConfirmViewState(target *game.Target) *outbound.ConfirmViewState {
+	if target == nil {
 		return nil
 	}
-	return &outbound.ConfirmViewState{PID: t.Pid, Name: t.Name}
+	return &outbound.ConfirmViewState{PID: target.Pid, Name: target.Name}
 }
 
-func toTargetViewState(t *game.Target) outbound.TargetViewState {
+func toTargetViewState(target *game.Target) outbound.TargetViewState {
 	return outbound.TargetViewState{
-		X:       int(math.Round(t.Position.X)),
-		Y:       int(math.Round(t.Position.Y)),
-		Tag:     t.Tag(),
-		Killing: t.State == game.Killing,
+		X:       int(math.Round(target.Position.X)),
+		Y:       int(math.Round(target.Position.Y)),
+		Tag:     target.Tag(),
+		Killing: target.State == game.Killing,
 	}
 }
 
 func toTargetViewStates(targets []*game.Target) []outbound.TargetViewState {
 	views := make([]outbound.TargetViewState, len(targets))
-	for i, t := range targets {
-		views[i] = toTargetViewState(t)
+	for i, target := range targets {
+		views[i] = toTargetViewState(target)
 	}
 	return views
 }
