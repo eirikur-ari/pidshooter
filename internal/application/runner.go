@@ -44,6 +44,7 @@ func (r *Runner) Run(cfg inbound.Config) error {
 		return err
 	}
 
+	//TODO: should this return an error message?
 	if len(processes) == 0 {
 		return nil
 	}

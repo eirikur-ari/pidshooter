@@ -7,40 +7,40 @@ import (
 
 // Dispatcher translates raw input events into intent-level domain calls.
 type Dispatcher struct {
-	h *game.Input
+	input *game.Input
 }
 
 // NewDispatcher returns a Dispatcher that dispatches to the given Input.
-func NewDispatcher(h *game.Input) *Dispatcher {
-	return &Dispatcher{h: h}
+func NewDispatcher(input *game.Input) *Dispatcher {
+	return &Dispatcher{input: input}
 }
 
 // Dispatch routes an input event to the appropriate domain call.
-func (d *Dispatcher) Dispatch(ev outbound.InputEvent) *game.Target {
-	switch ev := ev.(type) {
+func (d *Dispatcher) Dispatch(event outbound.InputEvent) *game.Target {
+	switch e := event.(type) {
 	case outbound.ClickEvent:
-		return d.handleClick(ev)
+		return d.handleClick(e)
 	case outbound.KeyEvent:
-		return d.handleKey(ev)
+		return d.handleKey(e)
 	}
 	return nil
 }
 
-func (d *Dispatcher) handleClick(ev outbound.ClickEvent) *game.Target {
-	return d.h.OnClickAt(ev.X, ev.Y)
+func (d *Dispatcher) handleClick(event outbound.ClickEvent) *game.Target {
+	return d.input.OnClickAt(event.X, event.Y)
 }
 
-func (d *Dispatcher) handleKey(ev outbound.KeyEvent) *game.Target {
-	if ev.Key != outbound.KeyNone {
-		return d.handleKeyCode(ev.Key)
+func (d *Dispatcher) handleKey(event outbound.KeyEvent) *game.Target {
+	if event.Key != outbound.KeyNone {
+		return d.handleKeyCode(event.Key)
 	}
-	return d.handleRune(ev.Ch)
+	return d.handleRune(event.Ch)
 }
 
 func (d *Dispatcher) handleKeyCode(key outbound.KeyCode) *game.Target {
 	switch key {
 	case outbound.KeyEscape, outbound.KeyCtrlC, outbound.KeyCtrlZ:
-		d.h.OnQuit()
+		d.input.OnQuit()
 	case outbound.KeyNone:
 		// nothing to do
 	}
@@ -50,15 +50,15 @@ func (d *Dispatcher) handleKeyCode(key outbound.KeyCode) *game.Target {
 func (d *Dispatcher) handleRune(ch rune) *game.Target {
 	switch ch {
 	case 'q', 'Q':
-		d.h.OnQuit()
+		d.input.OnQuit()
 	case 'y', 'Y':
-		return d.h.OnYes()
+		return d.input.OnYes()
 	case 'n', 'N':
-		d.h.OnNo()
+		d.input.OnNo()
 	case '+', '=':
-		d.h.OnSpeedUp()
+		d.input.OnSpeedUp()
 	case '-', '_':
-		d.h.OnSpeedDown()
+		d.input.OnSpeedDown()
 	}
 	return nil
 }
