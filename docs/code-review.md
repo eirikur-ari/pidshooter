@@ -378,6 +378,9 @@ None appear in the replacement `internal/core/game/target.go`. The godoc lines w
 | 41 | `core/game/timer.go` (`timer.now`) | Design | `time.Now` side effect in core; `now` test hook is an admission; app layer already owns the clock via the ticker |
 | 42 | `core/game/lifecycle.go` | Design | `atomic.Int32` in core exists only for app-layer concurrency (dead `CompareAndSwap` half of this finding is gone — only `Store`/`Load` remain) |
 | 43 | `core/game/frame.go` (whole), `core/game/loop.go:18–37` | ✓ Resolved | `Frame()` removed from core; frame assembly moved to `buildFrame()` in service; core exposes slim accessors only |
+| 44 | `application/contract/outbound/ui.go` | Low | View-state type names mix `State` and `ViewState` suffixes inconsistently |
+| 45 | `application/contract/outbound/ui.go` | Design | `StatusState.TimeLimit`/`TimeLeft` encode one optional value as two ints instead of a nilable field |
+| 46 | `application/game/service.go`, `application/contract/outbound/ui.go` | Design | `Renderer` Init/Cleanup ordering contract stems from the service owning both calls, not the composition root |
 
 ---
 
@@ -481,3 +484,15 @@ This is the tightened form the original finding asked for — it would now catch
 ### Undocumented confirm-cancel-with-q behaviour
 
 `TestInputOnQuitCancelsConfirmWhenPending` (`core/game/input_test.go`) and `TestDispatcherQStopsGame`-adjacent coverage confirm that pressing `q` during a confirmation dialog cancels the confirm without quitting (`Input.OnQuit`: if a confirmation is pending, cancel it; otherwise stop the session). This intentional UX decision is still not reflected anywhere in `entrypoint/cli/cli.go`'s cobra `Long`/`Example` usage text. A one-line addition (`q  Cancel confirmation / Quit`) would prevent future maintainers from treating it as a bug.
+
+### 44. Renderer view-state type names don't share a consistent suffix — `application/contract/outbound/ui.go`
+
+`FrameState`, `HUDState`, and `StatusState` use a `State` suffix; `TargetViewState` and `ConfirmViewState` use `ViewState` instead. `FrameState.StatusBar` is typed `StatusState`, which reads oddly next to `Targets []TargetViewState`. Purely cosmetic, no functional impact — worth a single consistent rename the next time this file is touched rather than as a standalone change.
+
+### 45. `StatusState.TimeLimit`/`TimeLeft` encode an optional value as two ints — `application/contract/outbound/ui.go`
+
+`TimeLimit int` (0 means untimed) and `TimeLeft int`, documented as "meaningful only when `TimeLimit > 0`", spend two fields plus a precondition on what is really one optional value. The same struct already has the idiomatic Go shape for this — `Confirming *ConfirmViewState`, nil when absent. A single `TimeLeft *int` (nil = untimed) would drop the precondition: `tcellui.go`'s `if status.TimeLimit > 0` becomes `if status.TimeLeft != nil`. Deferred because, unlike a doc-only change, it touches both the sole producer (`application/game/converter.go`) and the sole consumer (`infrastructure/tcellui/tcellui.go`) together.
+
+### 46. `Renderer`'s Init/Cleanup ordering contract exists only because the service owns both calls — `application/game/service.go` (`runLoop`), `application/contract/outbound/ui.go`
+
+`Renderer.Init` must be called and succeed before `Size`/`Render` are used, and `Cleanup` runs after — a lifecycle now documented on the port (and made safe to call `Cleanup` more than once, since `tcellui.UI` previously panicked on a second call). The ordering requirement exists at all only because `game.Service.runLoop` calls `Init` and defers `Cleanup` itself, deep inside the application layer. If the composition root called `Init` before constructing the service and `Cleanup` after it returns — handing the service an already-initialized `Renderer` — the ordering question would disappear instead of needing to be documented. A real architectural improvement, but one that touches `runner.go`, `game/service.go`, and `main.go` together, so deferred rather than folded into a doc-comment pass.
