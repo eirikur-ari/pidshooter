@@ -1,6 +1,7 @@
 package score
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -21,11 +22,16 @@ func NewService(store outbound.ScoreStore) *Service {
 }
 
 // LoadScoreBoard loads the persisted score board, falling back to an empty
-// board and reporting failure if the load errors. The returned int is the
-// board's current high score, seeding a caller's live session.
+// board and reporting failure if the load errors for any reason other than
+// no board having been persisted yet. The returned int is the board's
+// current high score, seeding a caller's live session.
 func (s *Service) LoadScoreBoard() (*score.Board, int, bool) {
 	sb, err := s.store.Load()
-	if err != nil {
+	switch {
+	case errors.Is(err, outbound.ErrNotFound):
+		board := score.NewBoard(nil)
+		return board, board.HighScore(), true
+	case err != nil:
 		fmt.Fprintf(os.Stderr, "warning: could not load scores: %v\n", err)
 		board := score.NewBoard(nil)
 		return board, board.HighScore(), false

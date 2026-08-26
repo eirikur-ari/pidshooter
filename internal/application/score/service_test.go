@@ -29,6 +29,22 @@ func TestLoadScoreBoardMapsStoredEntries(t *testing.T) {
 	assert.Equal(t, 8, highScore)
 }
 
+func TestLoadScoreBoardNotFoundFallsBackToEmptyBoardWithoutWarning(t *testing.T) {
+	svc := NewService(&fake.Store{LoadErr: outbound.ErrNotFound})
+
+	var board *score.Board
+	var highScore int
+	var success bool
+	stderr := capture.Stderr(func() {
+		board, highScore, success = svc.LoadScoreBoard()
+	})
+
+	assert.True(t, success)
+	assert.Empty(t, board.Scores)
+	assert.Equal(t, 0, highScore)
+	assert.Empty(t, stderr)
+}
+
 func TestLoadScoreBoardErrorFallsBackToEmptyBoard(t *testing.T) {
 	svc := NewService(&fake.Store{LoadErr: errors.New("disk error")})
 
