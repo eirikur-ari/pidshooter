@@ -3,6 +3,7 @@ package tcellui
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -13,9 +14,10 @@ import (
 // UI implements both outbound.Renderer and outbound.InputSource using a tcell.Screen.
 // The event poll goroutine is started inside Init() after the screen is ready.
 type UI struct {
-	screen tcell.Screen
-	ch     chan outbound.InputEvent
-	done   chan struct{}
+	screen      tcell.Screen
+	ch          chan outbound.InputEvent
+	done        chan struct{}
+	cleanupOnce sync.Once
 }
 
 // NewUI returns a tcellui.UI wrapping the given screen.
@@ -41,9 +43,12 @@ func (a *UI) Init() error {
 }
 
 // Cleanup signals the poll goroutine to stop, then shuts down the screen.
+// Safe to call more than once; only the first call has any effect.
 func (a *UI) Cleanup() {
-	close(a.done)
-	a.screen.Fini()
+	a.cleanupOnce.Do(func() {
+		close(a.done)
+		a.screen.Fini()
+	})
 }
 
 // Size returns the current terminal dimensions.
@@ -125,7 +130,7 @@ func (a *UI) drawStatusBar(w, h int, status outbound.StatusState) {
 	var statusStr string
 	if status.Confirming != nil {
 		statusStr = fmt.Sprintf(" Kill [%d %s]? (Y)es / (N)o / (Q)uit",
-			status.Confirming.PID, status.Confirming.Name)
+			status.Confirming.Pid, status.Confirming.Name)
 	} else {
 		timerStr := ""
 		if status.TimeLimit > 0 {

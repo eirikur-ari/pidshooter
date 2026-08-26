@@ -218,7 +218,7 @@ func TestDrawStatusBarConfirming(t *testing.T) {
 	ui, screen := newUI(t)
 	ui.Render(outbound.FrameState{
 		StatusBar: outbound.StatusState{
-			Confirming: &outbound.ConfirmViewState{PID: 42, Name: "myapp"},
+			Confirming: &outbound.ConfirmViewState{Pid: 42, Name: "myapp"},
 		},
 	})
 	_, _, h := screen.GetContents()

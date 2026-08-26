@@ -21,7 +21,7 @@ func TestToConfirmViewStateMapsFields(t *testing.T) {
 	tgt := game.NewTarget(process.NewInfo(42, "suspect", 0), movement.NewBounds(80, 24))
 	vs := toConfirmViewState(tgt)
 	require.NotNil(t, vs)
-	assert.Equal(t, 42, vs.PID)
+	assert.Equal(t, 42, vs.Pid)
 	assert.Equal(t, "suspect", vs.Name)
 }
 
@@ -103,7 +103,7 @@ func TestToStatusStateIncludesConfirming(t *testing.T) {
 	status := toStatusState(session, 1)
 
 	require.NotNil(t, status.Confirming)
-	assert.Equal(t, 42, status.Confirming.PID)
+	assert.Equal(t, 42, status.Confirming.Pid)
 }
 
 // --- toFrameState ---
