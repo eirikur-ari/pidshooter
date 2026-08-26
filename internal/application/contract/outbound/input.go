@@ -25,7 +25,10 @@ func (ConfirmEvent) isInputEvent() {
 }
 
 // SpeedEvent requests a one-step change to the game speed.
-type SpeedEvent struct{ Faster bool }
+type SpeedEvent struct {
+	// Faster is true to speed up, false to slow down.
+	Faster bool
+}
 
 func (SpeedEvent) isInputEvent() {
 	// seals InputEvent to this package
