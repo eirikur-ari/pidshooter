@@ -167,7 +167,11 @@ func (a *UI) poll() {
 			x, y := ev.Position()
 			inputEvent = outbound.ClickEvent{X: x, Y: y}
 		case *tcell.EventKey:
-			inputEvent = outbound.KeyEvent{Key: translateKey(ev.Key()), Ch: ev.Rune()}
+			ie, ok := translateEvent(ev)
+			if !ok {
+				continue
+			}
+			inputEvent = ie
 		case *tcell.EventResize:
 			a.screen.Sync()
 			continue
@@ -182,15 +186,22 @@ func (a *UI) poll() {
 	}
 }
 
-func translateKey(k tcell.Key) outbound.KeyCode {
-	switch k {
-	case tcell.KeyEscape:
-		return outbound.KeyEscape
-	case tcell.KeyCtrlC:
-		return outbound.KeyCtrlC
-	case tcell.KeyCtrlZ:
-		return outbound.KeyCtrlZ
-	default:
-		return outbound.KeyNone
+func translateEvent(ev *tcell.EventKey) (outbound.InputEvent, bool) {
+	switch ev.Key() {
+	case tcell.KeyEscape, tcell.KeyCtrlC:
+		return outbound.QuitEvent{}, true
 	}
+	switch ev.Rune() {
+	case 'q', 'Q':
+		return outbound.QuitEvent{}, true
+	case 'y', 'Y':
+		return outbound.ConfirmEvent{Accept: true}, true
+	case 'n', 'N':
+		return outbound.ConfirmEvent{Accept: false}, true
+	case '+', '=':
+		return outbound.SpeedEvent{Faster: true}, true
+	case '-', '_':
+		return outbound.SpeedEvent{Faster: false}, true
+	}
+	return nil, false
 }

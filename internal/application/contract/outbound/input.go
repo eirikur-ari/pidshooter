@@ -10,27 +10,29 @@ func (ClickEvent) isInputEvent() {
 	// seals InputEvent to this package
 }
 
-// KeyEvent represents a key press.
-type KeyEvent struct {
-	Key KeyCode
-	Ch  rune
-}
+// QuitEvent requests that the game stop running.
+type QuitEvent struct{}
 
-func (KeyEvent) isInputEvent() {
+func (QuitEvent) isInputEvent() {
 	// seals InputEvent to this package
 }
 
-// KeyCode represents a named non-character key.
-type KeyCode int
+// ConfirmEvent answers a pending kill confirmation.
+type ConfirmEvent struct{ Accept bool }
 
-const (
-	KeyNone KeyCode = iota
-	KeyEscape
-	KeyCtrlC
-	KeyCtrlZ
-)
+func (ConfirmEvent) isInputEvent() {
+	// seals InputEvent to this package
+}
+
+// SpeedEvent requests a one-step change to the game speed.
+type SpeedEvent struct{ Faster bool }
+
+func (SpeedEvent) isInputEvent() {
+	// seals InputEvent to this package
+}
 
 // InputSource is the outbound port for user input events.
 type InputSource interface {
+	// Events returns the channel of input events produced by the adapter.
 	Events() <-chan InputEvent
 }
