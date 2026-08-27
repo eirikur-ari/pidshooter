@@ -5,31 +5,31 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
 )
 
-func toBoard(sb outbound.ScoreBoard) (*score.Board, *score.Tracker) {
-	entries := make([]score.Entry, len(sb.Scores))
-	for i, e := range sb.Scores {
+func toBoard(board outbound.ScoreBoard) *score.Board {
+	entries := make([]score.Entry, len(board.Scores))
+	for i, entry := range board.Scores {
 		entries[i] = score.Entry{
-			Kills:    e.Kills,
-			FreedMem: e.FreedMem,
-			Speed:    e.Speed,
-			Time:     e.Time,
-			Duration: e.Duration,
-			Date:     e.Date,
+			Kills:    entry.Kills,
+			FreedMem: entry.FreedMem,
+			Speed:    entry.Speed,
+			Time:     entry.Time,
+			Duration: entry.Duration,
+			Date:     entry.Date,
 		}
 	}
 	return score.NewBoard(entries)
 }
 
-func toScoreBoard(b *score.Board) outbound.ScoreBoard {
-	entries := make([]outbound.ScoreEntry, len(b.Scores))
-	for i, e := range b.Scores {
+func toScoreBoard(board *score.Board) outbound.ScoreBoard {
+	entries := make([]outbound.ScoreEntry, len(board.Scores))
+	for i, entry := range board.Scores {
 		entries[i] = outbound.ScoreEntry{
-			Kills:    e.Kills,
-			FreedMem: e.FreedMem,
-			Speed:    e.Speed,
-			Time:     e.Time,
-			Duration: e.Duration,
-			Date:     e.Date,
+			Kills:    entry.Kills,
+			FreedMem: entry.FreedMem,
+			Speed:    entry.Speed,
+			Time:     entry.Time,
+			Duration: entry.Duration,
+			Date:     entry.Date,
 		}
 	}
 	return outbound.ScoreBoard{Scores: entries}

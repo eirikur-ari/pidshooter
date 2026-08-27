@@ -36,137 +36,52 @@ func TestDispatcherClickMissReturnsNil(t *testing.T) {
 	assert.Nil(t, result)
 }
 
-// --- KeyCode ---
+// --- QuitEvent ---
 
-func TestDispatcherEscapeStopsGame(t *testing.T) {
+func TestDispatcherQuitEventStopsGame(t *testing.T) {
 	s := fixture.Game(nil, game.Config{})
 
-	newDispatcher(s).Dispatch(outbound.KeyEvent{Key: outbound.KeyEscape})
+	newDispatcher(s).Dispatch(outbound.QuitEvent{})
 
 	assert.False(t, s.IsRunning())
 }
 
-func TestDispatcherCtrlCStopsGame(t *testing.T) {
-	s := fixture.Game(nil, game.Config{})
+// --- ConfirmEvent ---
 
-	newDispatcher(s).Dispatch(outbound.KeyEvent{Key: outbound.KeyCtrlC})
-
-	assert.False(t, s.IsRunning())
-}
-
-func TestDispatcherCtrlZStopsGame(t *testing.T) {
-	s := fixture.Game(nil, game.Config{})
-
-	newDispatcher(s).Dispatch(outbound.KeyEvent{Key: outbound.KeyCtrlZ})
-
-	assert.False(t, s.IsRunning())
-}
-
-// --- Rune: quit ---
-
-func TestDispatcherQStopsGame(t *testing.T) {
-	s := fixture.Game(nil, game.Config{})
-
-	newDispatcher(s).Dispatch(outbound.KeyEvent{Ch: 'q'})
-
-	assert.False(t, s.IsRunning())
-}
-
-func TestDispatcherQUppercaseStopsGame(t *testing.T) {
-	s := fixture.Game(nil, game.Config{})
-
-	newDispatcher(s).Dispatch(outbound.KeyEvent{Ch: 'Q'})
-
-	assert.False(t, s.IsRunning())
-}
-
-// --- Rune: confirm yes ---
-
-func TestDispatcherYReturnsConfirmedTarget(t *testing.T) {
+func TestDispatcherConfirmEventAcceptReturnsConfirmedTarget(t *testing.T) {
 	s := fixture.PendingConfirmGameSession(1)
 	d := newDispatcher(s)
 	tgt := s.Targets()[0]
 
-	result := d.Dispatch(outbound.KeyEvent{Ch: 'y'})
+	result := d.Dispatch(outbound.ConfirmEvent{Accept: true})
 
 	assert.Equal(t, tgt, result)
 	assert.Nil(t, s.PendingConfirm())
 }
 
-func TestDispatcherYUppercaseAcceptsConfirmation(t *testing.T) {
-	s := fixture.PendingConfirmGameSession(1)
-	d := newDispatcher(s)
-	tgt := s.Targets()[0]
-
-	result := d.Dispatch(outbound.KeyEvent{Ch: 'Y'})
-
-	assert.Equal(t, tgt, result)
-	assert.Nil(t, s.PendingConfirm())
-}
-
-// --- Rune: confirm no ---
-
-func TestDispatcherNCancelsConfirmation(t *testing.T) {
+func TestDispatcherConfirmEventDeclineCancelsConfirmation(t *testing.T) {
 	s := fixture.PendingConfirmGameSession(1)
 	d := newDispatcher(s)
 
-	d.Dispatch(outbound.KeyEvent{Ch: 'n'})
+	d.Dispatch(outbound.ConfirmEvent{Accept: false})
 
 	assert.Nil(t, s.PendingConfirm())
 }
 
-func TestDispatcherNUppercaseCancelsConfirmation(t *testing.T) {
-	s := fixture.PendingConfirmGameSession(1)
-	d := newDispatcher(s)
+// --- SpeedEvent ---
 
-	d.Dispatch(outbound.KeyEvent{Ch: 'N'})
-
-	assert.Nil(t, s.PendingConfirm())
-}
-
-// --- Rune: speed ---
-
-func TestDispatcherPlusIncreasesSpeed(t *testing.T) {
+func TestDispatcherSpeedEventFasterIncreasesSpeed(t *testing.T) {
 	s := fixture.Game(nil, game.Config{Speed: 2.0})
 
-	newDispatcher(s).Dispatch(outbound.KeyEvent{Ch: '+'})
+	newDispatcher(s).Dispatch(outbound.SpeedEvent{Faster: true})
 
 	assert.Equal(t, 2.5, s.Throttle().Speed())
 }
 
-func TestDispatcherEqualsIncreasesSpeed(t *testing.T) {
+func TestDispatcherSpeedEventSlowerDecreasesSpeed(t *testing.T) {
 	s := fixture.Game(nil, game.Config{Speed: 2.0})
 
-	newDispatcher(s).Dispatch(outbound.KeyEvent{Ch: '='})
-
-	assert.Equal(t, 2.5, s.Throttle().Speed())
-}
-
-func TestDispatcherMinusDecreasesSpeed(t *testing.T) {
-	s := fixture.Game(nil, game.Config{Speed: 2.0})
-
-	newDispatcher(s).Dispatch(outbound.KeyEvent{Ch: '-'})
+	newDispatcher(s).Dispatch(outbound.SpeedEvent{Faster: false})
 
 	assert.Equal(t, 1.5, s.Throttle().Speed())
-}
-
-func TestDispatcherUnderscoreDecreasesSpeed(t *testing.T) {
-	s := fixture.Game(nil, game.Config{Speed: 2.0})
-
-	newDispatcher(s).Dispatch(outbound.KeyEvent{Ch: '_'})
-
-	assert.Equal(t, 1.5, s.Throttle().Speed())
-}
-
-// --- Unknown ---
-
-func TestDispatcherUnknownRuneNoOp(t *testing.T) {
-	s := fixture.Game(nil, game.Config{Speed: 2.0})
-	d := newDispatcher(s)
-
-	result := d.Dispatch(outbound.KeyEvent{Ch: 'z'})
-
-	assert.Nil(t, result)
-	assert.True(t, s.IsRunning())
-	assert.Equal(t, 2.0, s.Throttle().Speed())
 }

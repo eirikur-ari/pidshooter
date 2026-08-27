@@ -1,8 +1,8 @@
 package game
 
 import (
+	"context"
 	"fmt"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -12,7 +12,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/event"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
-	"github.com/eirikur-ari/pidshooter/internal/core/score"
 )
 
 const frameDuration = time.Second / 20
@@ -28,7 +27,6 @@ type Service struct {
 	killer   killer
 	renderer outbound.Renderer
 	events   outbound.InputSource
-	kills    chan killSignal
 }
 
 // killSignal reports the outcome of a verified kill attempt: either a real
@@ -36,6 +34,23 @@ type Service struct {
 type killSignal struct {
 	target     *game.Target
 	shouldReap bool
+}
+
+// scoreTracker accumulates kills and freed memory for a single game session,
+// tracking the running high score seeded from the caller's persisted best.
+type scoreTracker struct {
+	kills     int
+	freedMem  int64
+	highScore int
+}
+
+// PlayResult carries the outcome of a completed play session, needed by the
+// caller to record a score.
+type PlayResult struct {
+	Duration    float64
+	LowestSpeed float64
+	Kills       int
+	FreedMem    int64
 }
 
 // NewService constructs a Service with all required outbound ports injected.
@@ -51,80 +66,104 @@ func NewService(
 	}
 }
 
-// PlayResult carries the outcome of a completed play session, needed by the
-// caller to record a score.
-type PlayResult struct {
-	Duration    float64
-	LowestSpeed float64
-}
+// Play runs the game loop for the given already-discovered processes.
+// highScore is the caller's persisted best, used to track a running high
+// score for display during the session.
+func (s *Service) Play(cfg inbound.Config, processes []process.Info, highScore int) (PlayResult, error) {
+	if len(processes) == 0 {
+		return PlayResult{}, fmt.Errorf("aborting game, no processes found")
+	}
 
-// Play runs the game loop for the given already-discovered processes, recording kills against tracker.
-func (s *Service) Play(cfg inbound.Config, processes []process.Info, tracker *score.Tracker) (PlayResult, error) {
-	gs := s.newGame(cfg, processes)
+	if err := validateProcesses(processes); err != nil {
+		return PlayResult{}, fmt.Errorf("aborting game: %w", err)
+	}
 
-	endTime, err := s.runLoop(gs, tracker)
+	session := game.NewSession(processes, game.Config{Confirm: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
+
+	tracker := &scoreTracker{highScore: highScore}
+	endTime, err := s.runLoop(session, tracker)
 	if err != nil {
 		return PlayResult{}, err
 	}
 
 	return PlayResult{
-		Duration:    endTime.Sub(gs.StartTime()).Seconds(),
-		LowestSpeed: gs.Throttle().LowestSpeed(),
+		Duration:    endTime.Sub(session.StartTime()).Seconds(),
+		LowestSpeed: session.Throttle().LowestSpeed(),
+		Kills:       tracker.kills,
+		FreedMem:    tracker.freedMem,
 	}, nil
 }
 
-func (s *Service) newGame(cfg inbound.Config, processes []process.Info) *game.Session {
-	return game.NewSession(processes, game.Config{Confirm: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
-}
-
-func (s *Service) runLoop(gs *game.Session, tracker *score.Tracker) (time.Time, error) {
+func (s *Service) runLoop(session *game.Session, tracker *scoreTracker) (time.Time, error) {
 	if err := s.renderer.Init(); err != nil {
 		return time.Time{}, fmt.Errorf("renderer initialization failed: %w", err)
 	}
 	defer s.renderer.Cleanup()
 
-	gs.Start(s.renderer.Size())
+	session.Start(s.renderer.Size())
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGTSTP)
-	defer signal.Stop(sigCh)
+	termSignal, stopWatching := s.registerTermSignalWatcher()
+	defer stopWatching()
+
+	// Closing done unblocks any killOrReap goroutine waiting to send on
+	// killSignals after frameLoop exits, preventing a goroutine leak.
 	done := make(chan struct{})
 	defer close(done)
-	go func() {
-		select {
-		case <-sigCh:
-			gs.Stop()
-		case <-done:
-		}
-	}()
 
-	ticker := time.NewTicker(frameDuration)
-	defer ticker.Stop()
+	dispatcher := event.NewDispatcher(game.NewInput(session))
 
-	s.kills = make(chan killSignal, 10)
-	evt := event.NewDispatcher(game.NewInput(gs))
+	s.frameLoop(session, tracker, dispatcher, termSignal, done)
 
-	for gs.IsRunning() {
-		s.applyKills(tracker)
-		s.drainEvents(evt, done)
-		gs.Update(s.renderer.Size())
-		s.renderer.Render(buildFrame(gs, tracker))
-		<-ticker.C
-	}
-	// Capture end time before deferred Cleanup() runs.
+	// Capture end time before deferred cleanup runs.
 	return time.Now(), nil
 }
 
-func (s *Service) applyKills(tracker *score.Tracker) {
+// registerTermSignalWatcher watches for an interrupt, termination, or suspend
+// signal. termSignal is closed when that happens, letting callers react
+// immediately instead of waiting out a polling interval. The returned stop watching
+// func deregisters the watcher and must be called once the caller is done
+// with game session.
+func (s *Service) registerTermSignalWatcher() (termSignal <-chan struct{}, stopWatching func()) {
+	ctx, stopWatching := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGTSTP)
+	return ctx.Done(), stopWatching
+}
+
+// frameLoop drives the game at frameDuration cadence until session stops running.
+// It wakes immediately when session stops mid-frame or termSignal fires, instead of
+// waiting out the remainder of the current tick.
+func (s *Service) frameLoop(session *game.Session, tracker *scoreTracker, dispatcher *event.Dispatcher, termSignal <-chan struct{}, done <-chan struct{}) {
+	ticker := time.NewTicker(frameDuration)
+	defer ticker.Stop()
+
+	killSignals := make(chan killSignal, 10)
+
+	for session.IsRunning() {
+		s.applyKillSignals(tracker, killSignals)
+		s.drainEventQueue(dispatcher, killSignals, done)
+		session.Update(s.renderer.Size())
+		s.renderer.Render(toFrameState(session, tracker))
+
+		if !session.IsRunning() {
+			break
+		}
+
+		select {
+		case <-ticker.C:
+		case <-termSignal:
+			session.Stop()
+		}
+	}
+}
+
+func (s *Service) applyKillSignals(tracker *scoreTracker, killSignals <-chan killSignal) {
 	for {
 		select {
-		case sig := <-s.kills:
-			if sig.shouldReap {
+		case sig := <-killSignals:
+			switch {
+			case sig.shouldReap:
 				sig.target.Reap()
-				continue
-			}
-			if sig.target.Kill() {
-				tracker.RecordKill(sig.target.Rss)
+			case sig.target.Kill():
+				tracker.recordKill(sig.target.Rss)
 			}
 		default:
 			return
@@ -132,41 +171,45 @@ func (s *Service) applyKills(tracker *score.Tracker) {
 	}
 }
 
-func buildFrame(gs *game.Session, tracker *score.Tracker) outbound.FrameState {
-	targets, alive := gs.AvailableTargets()
-
-	return outbound.FrameState{
-		Targets:   toTargetViewStates(targets),
-		HUD:       toHUDState(tracker),
-		StatusBar: toStatusState(gs, alive),
-	}
-}
-
-func (s *Service) drainEvents(d *event.Dispatcher, done <-chan struct{}) {
+func (s *Service) drainEventQueue(dispatcher *event.Dispatcher, killSignals chan<- killSignal, done <-chan struct{}) {
+	events := s.events.Events()
 	for {
 		select {
-		case ev := <-s.events.Events():
-			target := d.Dispatch(ev)
-			if target == nil {
-				continue
+		case inputEvent := <-events:
+			if target := dispatcher.Dispatch(inputEvent); target != nil {
+				go s.killOrReap(target, killSignals, done)
 			}
-			go func() {
-				killed, shouldReap, err := s.killer.Kill(target)
-				switch {
-				case err == nil && killed:
-					select {
-					case s.kills <- killSignal{target: target}:
-					case <-done:
-					}
-				case shouldReap:
-					select {
-					case s.kills <- killSignal{target: target, shouldReap: true}:
-					case <-done:
-					}
-				}
-			}()
 		default:
 			return
 		}
+	}
+}
+
+// killOrReap verifies and kills target, then reports the outcome on killSignals.
+// It must be invoked via a goroutine: Kill may shell out to verify the target's
+// backing process, and running it inline would stall the frame loop.
+func (s *Service) killOrReap(target *game.Target, killSignals chan<- killSignal, done <-chan struct{}) {
+	killed, shouldReap, err := s.killer.Kill(target)
+
+	sig := killSignal{target: target}
+	if err != nil || !killed {
+		if !shouldReap {
+			return
+		}
+		sig.shouldReap = true
+	}
+
+	select {
+	case killSignals <- sig:
+	case <-done:
+	}
+}
+
+// recordKill records a kill, updates freed memory, and raises the high score when needed.
+func (t *scoreTracker) recordKill(freedMemory int64) {
+	t.kills++
+	t.freedMem += freedMemory
+	if t.kills > t.highScore {
+		t.highScore = t.kills
 	}
 }

@@ -3,6 +3,7 @@ package tcellui
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -13,9 +14,10 @@ import (
 // UI implements both outbound.Renderer and outbound.InputSource using a tcell.Screen.
 // The event poll goroutine is started inside Init() after the screen is ready.
 type UI struct {
-	screen tcell.Screen
-	ch     chan outbound.InputEvent
-	done   chan struct{}
+	screen      tcell.Screen
+	ch          chan outbound.InputEvent
+	done        chan struct{}
+	cleanupOnce sync.Once
 }
 
 // NewUI returns a tcellui.UI wrapping the given screen.
@@ -41,9 +43,12 @@ func (a *UI) Init() error {
 }
 
 // Cleanup signals the poll goroutine to stop, then shuts down the screen.
+// Safe to call more than once; only the first call has any effect.
 func (a *UI) Cleanup() {
-	close(a.done)
-	a.screen.Fini()
+	a.cleanupOnce.Do(func() {
+		close(a.done)
+		a.screen.Fini()
+	})
 }
 
 // Size returns the current terminal dimensions.
@@ -125,7 +130,7 @@ func (a *UI) drawStatusBar(w, h int, status outbound.StatusState) {
 	var statusStr string
 	if status.Confirming != nil {
 		statusStr = fmt.Sprintf(" Kill [%d %s]? (Y)es / (N)o / (Q)uit",
-			status.Confirming.PID, status.Confirming.Name)
+			status.Confirming.Pid, status.Confirming.Name)
 	} else {
 		timerStr := ""
 		if status.TimeLimit > 0 {
@@ -162,7 +167,11 @@ func (a *UI) poll() {
 			x, y := ev.Position()
 			inputEvent = outbound.ClickEvent{X: x, Y: y}
 		case *tcell.EventKey:
-			inputEvent = outbound.KeyEvent{Key: translateKey(ev.Key()), Ch: ev.Rune()}
+			ie, ok := translateEvent(ev)
+			if !ok {
+				continue
+			}
+			inputEvent = ie
 		case *tcell.EventResize:
 			a.screen.Sync()
 			continue
@@ -177,15 +186,22 @@ func (a *UI) poll() {
 	}
 }
 
-func translateKey(k tcell.Key) outbound.KeyCode {
-	switch k {
-	case tcell.KeyEscape:
-		return outbound.KeyEscape
-	case tcell.KeyCtrlC:
-		return outbound.KeyCtrlC
-	case tcell.KeyCtrlZ:
-		return outbound.KeyCtrlZ
-	default:
-		return outbound.KeyNone
+func translateEvent(ev *tcell.EventKey) (outbound.InputEvent, bool) {
+	switch ev.Key() {
+	case tcell.KeyEscape, tcell.KeyCtrlC:
+		return outbound.QuitEvent{}, true
 	}
+	switch ev.Rune() {
+	case 'q', 'Q':
+		return outbound.QuitEvent{}, true
+	case 'y', 'Y':
+		return outbound.ConfirmEvent{Accept: true}, true
+	case 'n', 'N':
+		return outbound.ConfirmEvent{Accept: false}, true
+	case '+', '=':
+		return outbound.SpeedEvent{Faster: true}, true
+	case '-', '_':
+		return outbound.SpeedEvent{Faster: false}, true
+	}
+	return nil, false
 }

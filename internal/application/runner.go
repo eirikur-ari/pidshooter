@@ -35,25 +35,30 @@ func NewRunner(
 // Run discovers processes matching cfg.Patterns, plays a game session against
 // them, then records and prints the resulting score.
 func (r *Runner) Run(cfg inbound.Config) error {
+	if err := validateConfig(cfg); err != nil {
+		return err
+	}
+
 	processes, err := r.processSvc.FindProcesses(cfg.Patterns)
 	if err != nil {
 		return err
 	}
 
+	//TODO: should this return an error message?
 	if len(processes) == 0 {
 		return nil
 	}
 
-	board, tracker, success := r.scoreSvc.LoadScoreBoard()
+	board, highScore, success := r.scoreSvc.LoadScoreBoard()
 
-	result, err := r.gameSvc.Play(cfg, processes, tracker)
+	result, err := r.gameSvc.Play(cfg, processes, highScore)
 	if err != nil {
 		return err
 	}
 
-	r.scoreSvc.RecordScore(board, result.LowestSpeed, cfg.TimeLimit, result.Duration, success)
+	r.scoreSvc.RecordScore(board, result.Kills, result.FreedMem, result.LowestSpeed, cfg.TimeLimit, result.Duration, success)
 
-	score.PrintResults(result.Duration, board)
+	score.PrintResults(result.Duration, result.Kills, result.FreedMem, board)
 
 	return nil
 }

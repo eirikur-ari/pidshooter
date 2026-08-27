@@ -13,20 +13,16 @@ const maxScores = 10
 type Board struct {
 	Scores    []Entry
 	highScore int
-	tracker   *Tracker
 }
 
-// NewBoard builds a Board from persisted entries and mints a Tracker seeded
-// with the board's current high score, ready for a new live session.
-func NewBoard(entries []Entry) (*Board, *Tracker) {
-	b := &Board{Scores: entries}
-	b.tracker = &Tracker{HighScore: b.killScore()}
-	return b, b.tracker
+// NewBoard builds a Board from persisted entries.
+func NewBoard(entries []Entry) *Board {
+	return &Board{Scores: entries}
 }
 
-// Tracker returns the board's tracker for the current live session.
-func (b *Board) Tracker() *Tracker {
-	return b.tracker
+// HighScore returns the board's current best kill count, or 0 if none.
+func (b *Board) HighScore() int {
+	return b.killScore()
 }
 
 // Add inserts a new score entry and keeps only the top N.
@@ -40,11 +36,10 @@ func (b *Board) Add(entry Entry) {
 }
 
 // TODO: perhaps this should not be part of a domain layer, but rather a presentation layer concern, since it prints to stdout. Maybe move to a view package?
-// PrintHighScores prints a trophy message if the board's tracker's kills beat
-// the high score recorded at the time of the last Add call, then displays the
-// high score table.
-func (b *Board) PrintHighScores() {
-	if b.tracker.Kills > 0 && b.tracker.Kills >= b.highScore {
+// PrintHighScores prints a trophy message if kills beats the high score
+// recorded at the time of the last Add call, then displays the high score table.
+func (b *Board) PrintHighScores(kills int) {
+	if kills > 0 && kills >= b.highScore {
 		fmt.Println("  🏆 New high score!")
 	}
 

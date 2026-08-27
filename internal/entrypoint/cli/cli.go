@@ -2,15 +2,12 @@
 package cli
 
 import (
-	"fmt"
 	"io"
 	"os"
 
 	"github.com/spf13/cobra"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
-	"github.com/eirikur-ari/pidshooter/internal/core/movement"
-	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
 // CLI is the entrypoint adapter that translates command-line arguments to application calls.
@@ -61,15 +58,8 @@ func (c *CLI) buildCommand() *cobra.Command {
 }
 
 func (c *CLI) play(cmd *cobra.Command, args []string) error {
-	if len(args) == 0 {
-		if cmd.Flags().NFlag() > 0 {
-			return process.ErrNoPatterns
-		}
+	if len(args) == 0 && cmd.Flags().NFlag() == 0 {
 		return cmd.Help()
-	}
-
-	if err := validate(args, c.speed, c.timeLimit); err != nil {
-		return err
 	}
 
 	return c.service.Run(inbound.Config{
@@ -78,20 +68,4 @@ func (c *CLI) play(cmd *cobra.Command, args []string) error {
 		Speed:       c.speed,
 		TimeLimit:   c.timeLimit,
 	})
-}
-
-func validate(patterns []string, speed float64, timeLimit int) error {
-	if err := process.Validate(patterns); err != nil {
-		return err
-	}
-
-	if speed < movement.MinSpeed || speed > movement.MaxSpeed {
-		return fmt.Errorf("speed must be between %g and %g, got: %g", movement.MinSpeed, movement.MaxSpeed, speed)
-	}
-
-	if timeLimit < 0 {
-		return fmt.Errorf("time must be 0 or positive, got: %d", timeLimit)
-	}
-
-	return nil
 }

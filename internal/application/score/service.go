@@ -1,6 +1,7 @@
 package score
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -21,24 +22,29 @@ func NewService(store outbound.ScoreStore) *Service {
 }
 
 // LoadScoreBoard loads the persisted score board, falling back to an empty
-// board and reporting failure if the load errors.
-func (s *Service) LoadScoreBoard() (*score.Board, *score.Tracker, bool) {
+// board and reporting failure if the load errors for any reason other than
+// no board having been persisted yet. The returned int is the board's
+// current high score, seeding a caller's live session.
+func (s *Service) LoadScoreBoard() (*score.Board, int, bool) {
 	sb, err := s.store.Load()
-	if err != nil {
+	switch {
+	case errors.Is(err, outbound.ErrNotFound):
+		board := score.NewBoard(nil)
+		return board, board.HighScore(), true
+	case err != nil:
 		fmt.Fprintf(os.Stderr, "warning: could not load scores: %v\n", err)
-		board, tracker := score.NewBoard(nil)
-		return board, tracker, false
+		board := score.NewBoard(nil)
+		return board, board.HighScore(), false
 	}
-	board, tracker := toBoard(sb)
-	return board, tracker, true
+	board := toBoard(sb)
+	return board, board.HighScore(), true
 }
 
-// RecordScore appends the tracker's results to board as a new entry, persisting the board if persist is true.
-func (s *Service) RecordScore(board *score.Board, speed float64, timeLimit int, duration float64, persist bool) {
-	tracker := board.Tracker()
+// RecordScore appends a new entry for the given session results to board, persisting the board if persist is true.
+func (s *Service) RecordScore(board *score.Board, kills int, freedMem int64, speed float64, timeLimit int, duration float64, persist bool) {
 	board.Add(score.Entry{
-		Kills:    tracker.Kills,
-		FreedMem: tracker.FreedMem,
+		Kills:    kills,
+		FreedMem: freedMem,
 		Speed:    speed,
 		Time:     timeLimit,
 		Duration: duration,
@@ -53,9 +59,8 @@ func (s *Service) RecordScore(board *score.Board, speed float64, timeLimit int, 
 }
 
 // PrintResults prints the end-of-game summary and the board's high scores.
-func PrintResults(duration float64, board *score.Board) {
-	tracker := board.Tracker()
+func PrintResults(duration float64, kills int, freedMem int64, board *score.Board) {
 	fmt.Printf("\n  Game Over! Kills: %d | Freed: %s | Time: %.1fs\n",
-		tracker.Kills, util.FormatBytes(tracker.FreedMem), duration)
-	board.PrintHighScores()
+		kills, util.FormatBytes(freedMem), duration)
+	board.PrintHighScores(kills)
 }

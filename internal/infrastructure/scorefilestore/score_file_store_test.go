@@ -17,10 +17,10 @@ func newTempStore(t *testing.T) *Store {
 	return &Store{path: filepath.Join(t.TempDir(), "scores.json")}
 }
 
-func TestLoadFileNotExistReturnsEmptyBoard(t *testing.T) {
+func TestLoadFileNotExistReturnsErrNotFound(t *testing.T) {
 	s := newTempStore(t)
 	board, err := s.Load()
-	require.NoError(t, err)
+	assert.ErrorIs(t, err, outbound.ErrNotFound)
 	assert.Empty(t, board.Scores)
 }
 

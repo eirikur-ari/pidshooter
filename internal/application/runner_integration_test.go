@@ -23,7 +23,7 @@ func newRunner(proc *fake.Process, store *fake.Store, events *fake.InputSource) 
 
 func TestIntegrationRunnerHappyPath(t *testing.T) {
 	events := fake.NewInputSource()
-	events.Ch <- outbound.KeyEvent{Ch: 'q'}
+	events.Ch <- outbound.QuitEvent{}
 
 	store := &fake.Store{}
 	r := newRunner(
@@ -42,7 +42,7 @@ func TestIntegrationRunnerHappyPath(t *testing.T) {
 
 func TestIntegrationRunnerLoadErrorPrintsWarningAndSkipsSave(t *testing.T) {
 	events := fake.NewInputSource()
-	events.Ch <- outbound.KeyEvent{Ch: 'q'}
+	events.Ch <- outbound.QuitEvent{}
 
 	store := &fake.Store{LoadErr: errors.New("json: invalid character")}
 	r := newRunner(
@@ -63,7 +63,7 @@ func TestIntegrationRunnerLoadErrorPrintsWarningAndSkipsSave(t *testing.T) {
 
 func TestIntegrationRunnerSaveErrorPrintsWarning(t *testing.T) {
 	events := fake.NewInputSource()
-	events.Ch <- outbound.KeyEvent{Ch: 'q'}
+	events.Ch <- outbound.QuitEvent{}
 
 	r := newRunner(
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 202, Name: "target", Rss: 1024}}},
@@ -81,60 +81,15 @@ func TestIntegrationRunnerSaveErrorPrintsWarning(t *testing.T) {
 	assert.Contains(t, stderr, "disk full")
 }
 
-func TestIntegrationRunnerQuitOnQ(t *testing.T) {
+func TestIntegrationRunnerQuitOnQuitEvent(t *testing.T) {
 	events := fake.NewInputSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		events.Ch <- outbound.KeyEvent{Ch: 'q'}
+		events.Ch <- outbound.QuitEvent{}
 	}()
 
 	r := newRunner(
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 100, Name: "target", Rss: 1024}}},
-		&fake.Store{},
-		events,
-	)
-	assert.NoError(t, r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
-}
-
-func TestIntegrationRunnerQuitOnEscape(t *testing.T) {
-	events := fake.NewInputSource()
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		events.Ch <- outbound.KeyEvent{Key: outbound.KeyEscape}
-	}()
-
-	r := newRunner(
-		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 101, Name: "target", Rss: 1024}}},
-		&fake.Store{},
-		events,
-	)
-	assert.NoError(t, r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
-}
-
-func TestIntegrationRunnerQuitOnCtrlC(t *testing.T) {
-	events := fake.NewInputSource()
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		events.Ch <- outbound.KeyEvent{Key: outbound.KeyCtrlC}
-	}()
-
-	r := newRunner(
-		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 104, Name: "target", Rss: 1024}}},
-		&fake.Store{},
-		events,
-	)
-	assert.NoError(t, r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
-}
-
-func TestIntegrationRunnerQuitOnCtrlZ(t *testing.T) {
-	events := fake.NewInputSource()
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		events.Ch <- outbound.KeyEvent{Key: outbound.KeyCtrlZ}
-	}()
-
-	r := newRunner(
-		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 105, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
 	)
@@ -160,7 +115,7 @@ func TestIntegrationRunnerSignalGoroutineDoesNotAccumulate(t *testing.T) {
 		events := fake.NewInputSource()
 		go func() {
 			time.Sleep(50 * time.Millisecond)
-			events.Ch <- outbound.KeyEvent{Ch: 'q'}
+			events.Ch <- outbound.QuitEvent{}
 		}()
 		r := newRunner(
 			&fake.Process{Processes: []outbound.ProcessInfo{{Pid: pid, Name: "target", Rss: 1024}}},

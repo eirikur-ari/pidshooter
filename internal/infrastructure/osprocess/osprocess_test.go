@@ -34,7 +34,7 @@ func TestLookupNameReturnsOwnName(t *testing.T) {
 	assert.NotEmpty(t, name)
 }
 
-// Kill no longer guards pid or verifies name itself (see the Killer doc
+// Kill no longer guards pid or verifies name itself (see the doc
 // comment on outbound.ProcessManager) — that's now process.Service.Kill's job, using
 // Info.IsProtected and LookupName before ever calling Kill. Exercising
 // Kill against pid 0/1/-1/self here would send a real SIGKILL to the

@@ -2,14 +2,12 @@ package cli
 
 import (
 	"io"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
-	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
 type stubService struct{ err error }
@@ -80,8 +78,6 @@ func TestRunSpeedFlag(t *testing.T) {
 		{"valid speed", "--speed=3.5", 3.5, false},
 		{"min speed", "--speed=0.5", 0.5, false},
 		{"max speed", "--speed=5.0", 5.0, false},
-		{"too low", "--speed=0.0", 0, true},
-		{"too high", "--speed=6.0", 0, true},
 		{"invalid", "--speed=abc", 0, true},
 	}
 
@@ -108,7 +104,6 @@ func TestRunTimeFlag(t *testing.T) {
 	}{
 		{"valid time", "--time=60", 60, false},
 		{"no limit", "--time=0", 0, false},
-		{"negative", "--time=-1", 0, true},
 		{"invalid", "--time=abc", 0, true},
 	}
 
@@ -130,24 +125,9 @@ func TestRunUnknownFlag(t *testing.T) {
 	assert.Error(t, newSilentCLI(&stubService{}).Run([]string{"proc", "--unknown"}))
 }
 
-func TestRunNoPatterns(t *testing.T) {
-	err := newSilentCLI(&stubService{}).Run([]string{"--confirm"})
-	require.Error(t, err)
-	assert.ErrorIs(t, err, process.ErrNoPatterns)
-}
-
-func TestRunPatternTooShort(t *testing.T) {
-	for _, p := range []string{"a", "ab"} {
-		assert.Error(t, newSilentCLI(&stubService{}).Run([]string{p}), "expected error for pattern %q shorter than MinPatternLength", p)
-	}
-}
-
-func TestRunPatternExactMinLength(t *testing.T) {
-	min := strings.Repeat("a", process.MinPatternLength)
-	assert.NoError(t, newSilentCLI(&captureService{}).Run([]string{min}))
-}
-
-func TestRunPatternTooLong(t *testing.T) {
-	longPattern := strings.Repeat("a", process.MaxPatternLength+1)
-	assert.Error(t, newSilentCLI(&stubService{}).Run([]string{longPattern}))
+func TestRunNoArgsWithFlagsForwardsToService(t *testing.T) {
+	svc := &captureService{}
+	require.NoError(t, newSilentCLI(svc).Run([]string{"--confirm"}))
+	assert.Empty(t, svc.cfg.Patterns)
+	assert.True(t, svc.cfg.ConfirmMode)
 }

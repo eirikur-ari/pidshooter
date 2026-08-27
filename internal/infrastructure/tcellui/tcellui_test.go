@@ -142,39 +142,106 @@ func TestRenderMultiByteLabelColumnLayout(t *testing.T) {
 	assert.Equal(t, 'K', cells[2*w+2].Runes[0], "col 2 should be 'K' — byte-offset bug in render loop?")
 }
 
-// --- translateKey (exercised via poll) ---
+// --- translateEvent (exercised via poll) ---
 
-func TestPollTranslatesEscape(t *testing.T) {
+func TestPollTranslatesEscapeToQuit(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyEscape, 0, tcell.ModNone)
-	ke, ok := nextEvent(t, ui).(outbound.KeyEvent)
-	require.True(t, ok, "expected KeyEvent")
-	assert.Equal(t, outbound.KeyEscape, ke.Key)
+	_, ok := nextEvent(t, ui).(outbound.QuitEvent)
+	assert.True(t, ok, "expected QuitEvent")
 }
 
-func TestPollTranslatesCtrlC(t *testing.T) {
+func TestPollTranslatesCtrlCToQuit(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyCtrlC, 0, tcell.ModNone)
-	ke, ok := nextEvent(t, ui).(outbound.KeyEvent)
-	require.True(t, ok, "expected KeyEvent")
-	assert.Equal(t, outbound.KeyCtrlC, ke.Key)
+	_, ok := nextEvent(t, ui).(outbound.QuitEvent)
+	assert.True(t, ok, "expected QuitEvent")
 }
 
-func TestPollTranslatesCtrlZ(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectKey(tcell.KeyCtrlZ, 0, tcell.ModNone)
-	ke, ok := nextEvent(t, ui).(outbound.KeyEvent)
-	require.True(t, ok, "expected KeyEvent")
-	assert.Equal(t, outbound.KeyCtrlZ, ke.Key)
-}
-
-func TestPollTranslatesRune(t *testing.T) {
+func TestPollTranslatesQToQuit(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
-	ke, ok := nextEvent(t, ui).(outbound.KeyEvent)
-	require.True(t, ok, "expected KeyEvent")
-	assert.Equal(t, outbound.KeyNone, ke.Key, "expected KeyNone for plain rune")
-	assert.Equal(t, 'q', ke.Ch)
+	_, ok := nextEvent(t, ui).(outbound.QuitEvent)
+	assert.True(t, ok, "expected QuitEvent")
+}
+
+func TestPollTranslatesUppercaseQToQuit(t *testing.T) {
+	ui, screen := newUI(t)
+	screen.InjectKey(tcell.KeyRune, 'Q', tcell.ModNone)
+	_, ok := nextEvent(t, ui).(outbound.QuitEvent)
+	assert.True(t, ok, "expected QuitEvent")
+}
+
+func TestPollTranslatesYToConfirmAccept(t *testing.T) {
+	ui, screen := newUI(t)
+	screen.InjectKey(tcell.KeyRune, 'y', tcell.ModNone)
+	ce, ok := nextEvent(t, ui).(outbound.ConfirmEvent)
+	require.True(t, ok, "expected ConfirmEvent")
+	assert.True(t, ce.Accept)
+}
+
+func TestPollTranslatesUppercaseYToConfirmAccept(t *testing.T) {
+	ui, screen := newUI(t)
+	screen.InjectKey(tcell.KeyRune, 'Y', tcell.ModNone)
+	ce, ok := nextEvent(t, ui).(outbound.ConfirmEvent)
+	require.True(t, ok, "expected ConfirmEvent")
+	assert.True(t, ce.Accept)
+}
+
+func TestPollTranslatesNToConfirmDecline(t *testing.T) {
+	ui, screen := newUI(t)
+	screen.InjectKey(tcell.KeyRune, 'n', tcell.ModNone)
+	ce, ok := nextEvent(t, ui).(outbound.ConfirmEvent)
+	require.True(t, ok, "expected ConfirmEvent")
+	assert.False(t, ce.Accept)
+}
+
+func TestPollTranslatesUppercaseNToConfirmDecline(t *testing.T) {
+	ui, screen := newUI(t)
+	screen.InjectKey(tcell.KeyRune, 'N', tcell.ModNone)
+	ce, ok := nextEvent(t, ui).(outbound.ConfirmEvent)
+	require.True(t, ok, "expected ConfirmEvent")
+	assert.False(t, ce.Accept)
+}
+
+func TestPollTranslatesPlusToSpeedFaster(t *testing.T) {
+	ui, screen := newUI(t)
+	screen.InjectKey(tcell.KeyRune, '+', tcell.ModNone)
+	se, ok := nextEvent(t, ui).(outbound.SpeedEvent)
+	require.True(t, ok, "expected SpeedEvent")
+	assert.True(t, se.Faster)
+}
+
+func TestPollTranslatesEqualsToSpeedFaster(t *testing.T) {
+	ui, screen := newUI(t)
+	screen.InjectKey(tcell.KeyRune, '=', tcell.ModNone)
+	se, ok := nextEvent(t, ui).(outbound.SpeedEvent)
+	require.True(t, ok, "expected SpeedEvent")
+	assert.True(t, se.Faster)
+}
+
+func TestPollTranslatesMinusToSpeedSlower(t *testing.T) {
+	ui, screen := newUI(t)
+	screen.InjectKey(tcell.KeyRune, '-', tcell.ModNone)
+	se, ok := nextEvent(t, ui).(outbound.SpeedEvent)
+	require.True(t, ok, "expected SpeedEvent")
+	assert.False(t, se.Faster)
+}
+
+func TestPollTranslatesUnderscoreToSpeedSlower(t *testing.T) {
+	ui, screen := newUI(t)
+	screen.InjectKey(tcell.KeyRune, '_', tcell.ModNone)
+	se, ok := nextEvent(t, ui).(outbound.SpeedEvent)
+	require.True(t, ok, "expected SpeedEvent")
+	assert.False(t, se.Faster)
+}
+
+func TestPollUnrecognizedRuneDropped(t *testing.T) {
+	ui, screen := newUI(t)
+	screen.InjectKey(tcell.KeyRune, 'z', tcell.ModNone)
+	screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
+	_, ok := nextEvent(t, ui).(outbound.QuitEvent)
+	assert.True(t, ok, "expected 'z' to be dropped and 'q' to translate to QuitEvent")
 }
 
 // --- poll: event-type routing ---
@@ -191,13 +258,12 @@ func TestPollMouseButton1EmitsClickEvent(t *testing.T) {
 func TestPollNonButton1DropsEvent(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectMouse(5, 10, tcell.Button2, tcell.ModNone)
-	screen.InjectKey(tcell.KeyRune, 'z', tcell.ModNone)
+	screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
 	ev := nextEvent(t, ui)
 	_, isClick := ev.(outbound.ClickEvent)
 	assert.False(t, isClick, "Button2 should not produce a ClickEvent")
-	ke, ok := ev.(outbound.KeyEvent)
-	require.True(t, ok, "expected KeyEvent after dropped Button2")
-	assert.Equal(t, 'z', ke.Ch)
+	_, ok := ev.(outbound.QuitEvent)
+	require.True(t, ok, "expected QuitEvent after dropped Button2")
 }
 
 // --- drawStatusBar ---
@@ -218,7 +284,7 @@ func TestDrawStatusBarConfirming(t *testing.T) {
 	ui, screen := newUI(t)
 	ui.Render(outbound.FrameState{
 		StatusBar: outbound.StatusState{
-			Confirming: &outbound.ConfirmViewState{PID: 42, Name: "myapp"},
+			Confirming: &outbound.ConfirmViewState{Pid: 42, Name: "myapp"},
 		},
 	})
 	_, _, h := screen.GetContents()
