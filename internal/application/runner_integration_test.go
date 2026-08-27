@@ -32,7 +32,8 @@ func TestIntegrationRunnerHappyPath(t *testing.T) {
 		events,
 	)
 
-	require.NoError(t, r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0}))
+	err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+	require.NoError(t, err)
 	require.NotNil(t, store.Saved)
 	require.Len(t, store.Saved.Scores, 1)
 	entry := store.Saved.Scores[0]
@@ -79,6 +80,23 @@ func TestIntegrationRunnerSaveErrorPrintsWarning(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, stderr, "score not saved")
 	assert.Contains(t, stderr, "disk full")
+}
+
+func TestIntegrationRunnerNotFoundStillSaves(t *testing.T) {
+	events := fake.NewInputSource()
+	events.Ch <- outbound.QuitEvent{}
+
+	store := &fake.Store{LoadErr: outbound.NotFoundError{}}
+	r := newRunner(
+		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 203, Name: "target", Rss: 1024}}},
+		store,
+		events,
+	)
+
+	err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+
+	require.NoError(t, err)
+	require.NotNil(t, store.Saved, "a fresh (never-persisted) board should still be saved")
 }
 
 func TestIntegrationRunnerQuitOnQuitEvent(t *testing.T) {

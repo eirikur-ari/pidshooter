@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"errors"
 	"io"
 	"testing"
 
@@ -130,4 +132,40 @@ func TestRunNoArgsWithFlagsForwardsToService(t *testing.T) {
 	require.NoError(t, newSilentCLI(svc).Run([]string{"--confirm"}))
 	assert.Empty(t, svc.cfg.Patterns)
 	assert.True(t, svc.cfg.ConfirmMode)
+}
+
+func TestRunPrintsWarningAndReturnsNil(t *testing.T) {
+	warning := inbound.NewError(inbound.ErrorCodeNoProcessesFound, inbound.ErrorSeverityWarning, "no processes found matching [proc]", nil)
+	svc := &stubService{err: warning}
+	c := NewCLI(svc)
+	c.out = io.Discard
+	var errBuf bytes.Buffer
+	c.errOut = &errBuf
+
+	assert.NoError(t, c.Run([]string{"proc"}))
+	assert.Contains(t, errBuf.String(), "no processes found")
+}
+
+func TestRunReturnsErrorOnFatal(t *testing.T) {
+	fatal := inbound.NewError(inbound.ErrorCodeGameFailed, inbound.ErrorSeverityFatal, "game session failed", errors.New("boom"))
+	svc := &stubService{err: fatal}
+
+	err := newSilentCLI(svc).Run([]string{"proc"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "game session failed")
+}
+
+func TestRunShowsUsageOnInvalidConfig(t *testing.T) {
+	fatal := inbound.NewError(inbound.ErrorCodeInvalidConfig, inbound.ErrorSeverityFatal, "invalid configuration", errors.New("speed out of range"))
+	svc := &stubService{err: fatal}
+	c := NewCLI(svc)
+	var outBuf bytes.Buffer
+	c.out = &outBuf
+	c.errOut = io.Discard
+
+	err := c.Run([]string{"proc"})
+
+	require.Error(t, err)
+	assert.Contains(t, outBuf.String(), "Usage:")
 }

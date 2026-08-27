@@ -31,7 +31,6 @@ func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
 	matches := process.Find(toProcessInfos(processes), patterns, s.processMgr.OwnPid())
 
 	if len(matches) == 0 {
-		fmt.Printf("No processes found matching %v\n", patterns)
 		return nil, nil
 	}
 

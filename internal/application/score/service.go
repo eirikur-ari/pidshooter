@@ -1,9 +1,7 @@
 package score
 
 import (
-	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
@@ -21,27 +19,27 @@ func NewService(store outbound.ScoreStore) *Service {
 	return &Service{store: store}
 }
 
-// LoadScoreBoard loads the persisted score board, falling back to an empty
-// board and reporting failure if the load errors for any reason other than
-// no board having been persisted yet. The returned int is the board's
-// current high score, seeding a caller's live session.
-func (s *Service) LoadScoreBoard() (*score.Board, int, bool) {
+// LoadScoreBoard loads the persisted score board, falling back to an
+// empty board if no board has been persisted yet or the load fails. The
+// returned int is the board's current high score, seeding a caller's
+// live session. Any error from the underlying store is returned
+// unwrapped (including outbound.NotFoundError for "no board yet"); it's
+// up to the caller to classify and present it.
+func (s *Service) LoadScoreBoard() (*score.Board, int, error) {
 	sb, err := s.store.Load()
-	switch {
-	case errors.Is(err, outbound.ErrNotFound):
+	if err != nil {
 		board := score.NewBoard(nil)
-		return board, board.HighScore(), true
-	case err != nil:
-		fmt.Fprintf(os.Stderr, "warning: could not load scores: %v\n", err)
-		board := score.NewBoard(nil)
-		return board, board.HighScore(), false
+		return board, board.HighScore(), err
 	}
 	board := toBoard(sb)
-	return board, board.HighScore(), true
+	return board, board.HighScore(), nil
 }
 
-// RecordScore appends a new entry for the given session results to board, persisting the board if persist is true.
-func (s *Service) RecordScore(board *score.Board, kills int, freedMem int64, speed float64, timeLimit int, duration float64, persist bool) {
+// RecordScore appends a new entry for the given session results to board,
+// persisting the board if persist is true. Any error from the underlying
+// store's Save is returned unwrapped; it's up to the caller to classify
+// and present it.
+func (s *Service) RecordScore(board *score.Board, kills int, freedMem int64, speed float64, timeLimit int, duration float64, persist bool) error {
 	board.Add(score.Entry{
 		Kills:    kills,
 		FreedMem: freedMem,
@@ -52,10 +50,9 @@ func (s *Service) RecordScore(board *score.Board, kills int, freedMem int64, spe
 	})
 
 	if persist {
-		if err := s.store.Save(toScoreBoard(board)); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: score not saved: %v\n", err)
-		}
+		return s.store.Save(toScoreBoard(board))
 	}
+	return nil
 }
 
 // PrintResults prints the end-of-game summary and the board's high scores.

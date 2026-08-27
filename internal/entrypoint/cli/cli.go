@@ -2,6 +2,7 @@
 package cli
 
 import (
+	"errors"
 	"io"
 	"os"
 
@@ -62,10 +63,23 @@ func (c *CLI) play(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
 	}
 
-	return c.service.Run(inbound.Config{
+	err := c.service.Run(inbound.Config{
 		Patterns:    args,
 		ConfirmMode: c.confirm,
 		Speed:       c.speed,
 		TimeLimit:   c.timeLimit,
 	})
+
+	var inErr *inbound.Error
+	if errors.As(err, &inErr) {
+		if inErr.Severity == inbound.ErrorSeverityWarning {
+			inErr.Fprint(c.errOut)
+			return nil
+		}
+		if inErr.Code == inbound.ErrorCodeInvalidConfig {
+			cmd.SilenceUsage = false
+		}
+	}
+
+	return err
 }

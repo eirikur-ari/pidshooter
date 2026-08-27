@@ -22,43 +22,33 @@ func TestLoadScoreBoardMapsStoredEntries(t *testing.T) {
 		{Kills: 8, FreedMem: 1024, Speed: 2.0, Time: 30, Duration: 5, Date: date},
 	}}})
 
-	board, highScore, success := svc.LoadScoreBoard()
+	board, highScore, err := svc.LoadScoreBoard()
 
-	assert.True(t, success)
+	assert.NoError(t, err)
 	require.Len(t, board.Scores, 1)
 	assert.Equal(t, 8, highScore)
 }
 
-func TestLoadScoreBoardNotFoundFallsBackToEmptyBoardWithoutWarning(t *testing.T) {
-	svc := NewService(&fake.Store{LoadErr: outbound.ErrNotFound})
+func TestLoadScoreBoardNotFoundReturnsNotFoundError(t *testing.T) {
+	svc := NewService(&fake.Store{LoadErr: outbound.NotFoundError{}})
 
-	var board *score.Board
-	var highScore int
-	var success bool
-	stderr := capture.Stderr(func() {
-		board, highScore, success = svc.LoadScoreBoard()
-	})
+	board, highScore, err := svc.LoadScoreBoard()
 
-	assert.True(t, success)
+	var notFound outbound.NotFoundError
+	assert.ErrorAs(t, err, &notFound)
 	assert.Empty(t, board.Scores)
 	assert.Equal(t, 0, highScore)
-	assert.Empty(t, stderr)
 }
 
-func TestLoadScoreBoardErrorFallsBackToEmptyBoard(t *testing.T) {
-	svc := NewService(&fake.Store{LoadErr: errors.New("disk error")})
+func TestLoadScoreBoardErrorReturnsUnderlyingError(t *testing.T) {
+	cause := errors.New("disk error")
+	svc := NewService(&fake.Store{LoadErr: cause})
 
-	var board *score.Board
-	var highScore int
-	var success bool
-	stderr := capture.Stderr(func() {
-		board, highScore, success = svc.LoadScoreBoard()
-	})
+	board, highScore, err := svc.LoadScoreBoard()
 
-	assert.False(t, success)
+	assert.ErrorIs(t, err, cause)
 	assert.Empty(t, board.Scores)
 	assert.Equal(t, 0, highScore)
-	assert.Contains(t, stderr, "could not load scores")
 }
 
 // --- Service.recordScore ---
@@ -67,7 +57,7 @@ func TestRecordScoreAddsEntryFromTracker(t *testing.T) {
 	svc := NewService(&fake.Store{})
 	board := score.NewBoard(nil)
 
-	svc.RecordScore(board, 4, 2048, 2.5, 30, 12.5, true)
+	require.Nil(t, svc.RecordScore(board, 4, 2048, 2.5, 30, 12.5, true))
 
 	require.Len(t, board.Scores, 1)
 	entry := board.Scores[0]
@@ -83,7 +73,7 @@ func TestRecordScoreSavesWhenPersistTrue(t *testing.T) {
 	svc := NewService(fakeStore)
 	board := score.NewBoard(nil)
 
-	svc.RecordScore(board, 1, 0, 0, 0, 1.0, true)
+	require.Nil(t, svc.RecordScore(board, 1, 0, 0, 0, 1.0, true))
 
 	require.NotNil(t, fakeStore.Saved)
 	assert.Len(t, fakeStore.Saved.Scores, 1)
@@ -94,22 +84,20 @@ func TestRecordScoreSkipsSaveWhenPersistFalse(t *testing.T) {
 	svc := NewService(fakeStore)
 	board := score.NewBoard(nil)
 
-	svc.RecordScore(board, 1, 0, 0, 0, 1.0, false)
+	require.Nil(t, svc.RecordScore(board, 1, 0, 0, 0, 1.0, false))
 
 	assert.Nil(t, fakeStore.Saved)
 }
 
-func TestRecordScoreSaveErrorPrintsWarning(t *testing.T) {
-	fakeStore := &fake.Store{SaveErr: errors.New("disk full")}
+func TestRecordScoreSaveErrorReturnsUnderlyingError(t *testing.T) {
+	cause := errors.New("disk full")
+	fakeStore := &fake.Store{SaveErr: cause}
 	svc := NewService(fakeStore)
 	board := score.NewBoard(nil)
 
-	stderr := capture.Stderr(func() {
-		svc.RecordScore(board, 1, 0, 0, 0, 1.0, true)
-	})
+	err := svc.RecordScore(board, 1, 0, 0, 0, 1.0, true)
 
-	assert.Contains(t, stderr, "score not saved")
-	assert.Contains(t, stderr, "disk full")
+	assert.ErrorIs(t, err, cause)
 }
 
 // --- PrintResults ---
