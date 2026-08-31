@@ -1,6 +1,9 @@
 package game
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // timer tracks how much time remains in a timed game session.
 // A zero limit means no time limit; Expired always returns false.
@@ -63,4 +66,12 @@ func (t *timer) LimitSeconds() int {
 // StartTime returns when the timer was started.
 func (t *timer) StartTime() time.Time {
 	return t.start
+}
+
+// ValidateTimeLimit reports an error if limit is negative. Zero means unlimited.
+func ValidateTimeLimit(limit int) error {
+	if limit < 0 {
+		return fmt.Errorf("time must be 0 or positive, got: %d", limit)
+	}
+	return nil
 }

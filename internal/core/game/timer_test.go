@@ -7,6 +7,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestValidateTimeLimitNegative(t *testing.T) {
+	assert.Error(t, ValidateTimeLimit(-1))
+}
+
+func TestValidateTimeLimitZeroIsUnlimited(t *testing.T) {
+	assert.NoError(t, ValidateTimeLimit(0))
+}
+
+func TestValidateTimeLimitPositive(t *testing.T) {
+	assert.NoError(t, ValidateTimeLimit(30))
+}
+
 func TestTimerExpiredFalseBeforeLimit(t *testing.T) {
 	tr := newTimer(60)
 	tr.Start()

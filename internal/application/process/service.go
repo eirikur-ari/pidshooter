@@ -3,6 +3,7 @@ package process
 import (
 	"fmt"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
@@ -20,18 +21,14 @@ func NewService(processMgr outbound.ProcessManager) *Service {
 
 // FindProcesses discovers running processes matching patterns.
 func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
-	if err := validateSearchPatterns(patterns); err != nil {
-		return nil, err
-	}
 	processes, err := s.processMgr.List()
 	if err != nil {
-		return nil, fmt.Errorf("process search failed: %w", err)
+		return nil, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityFatal, "process discovery failed", err)
 	}
 
 	matches := process.Find(toProcessInfos(processes), patterns, s.processMgr.OwnPid())
-
-	if len(matches) == 0 {
-		return nil, nil
+	if err := process.ValidateProcesses(matches); err != nil {
+		return nil, apperror.NewError(apperror.CodeNoProcessesFound, apperror.SeverityWarning, err.Error(), nil)
 	}
 
 	fmt.Printf("Found %d process(es) matching %v. Starting game...\n", len(matches), patterns)
@@ -53,7 +50,7 @@ func (s *Service) Kill(target *game.Target) (killed, shouldReap bool, err error)
 	if err != nil {
 		return false, true, fmt.Errorf("could not verify PID %d: %w", pid, err)
 	}
-	if err := validateProcessName(target.Name, name); err != nil {
+	if err := process.ValidateName(target.Name, name); err != nil {
 		return false, true, err
 	}
 

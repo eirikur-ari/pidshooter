@@ -2,13 +2,9 @@
 package process
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 )
-
-// ErrNoPatterns is returned when no search patterns are provided.
-var ErrNoPatterns = errors.New("at least one search pattern is required")
 
 // MinPatternLength is the minimum allowed length for a process search pattern.
 // Single- or double-character patterns match too broadly (e.g. "a" matches
@@ -54,8 +50,25 @@ func Find(processes []Info, patterns []string, ownPid int) []Info {
 	return result
 }
 
-// Validate returns an error if patterns is empty or any pattern violates the length constraints.
-func Validate(patterns []string) error {
+// ValidateProcesses returns an error if processes is empty.
+func ValidateProcesses(processes []Info) error {
+	if len(processes) == 0 {
+		return fmt.Errorf("no processes found")
+	}
+	return nil
+}
+
+// ValidateName returns an error if actual does not match expected — used to
+// detect PID recycling between discovery and a later re-verification.
+func ValidateName(expected, actual string) error {
+	if actual != expected {
+		return fmt.Errorf("pid name mismatch: expected %q, got %q", expected, actual)
+	}
+	return nil
+}
+
+// ValidatePatterns returns an error if patterns is empty or any pattern violates the length constraints.
+func ValidatePatterns(patterns []string) error {
 	if err := validatePatterns(patterns); err != nil {
 		return err
 	}
@@ -64,7 +77,7 @@ func Validate(patterns []string) error {
 
 func validatePatterns(patterns []string) error {
 	if len(patterns) == 0 {
-		return ErrNoPatterns
+		return fmt.Errorf("at least one search pattern is required")
 	}
 	return nil
 }

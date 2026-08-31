@@ -8,38 +8,52 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestValidateNoPatterns(t *testing.T) {
-	require.ErrorIs(t, Validate(nil), ErrNoPatterns)
-	require.ErrorIs(t, Validate([]string{}), ErrNoPatterns)
+func TestValidatePatternsNoPatterns(t *testing.T) {
+	assert.ErrorContains(t, ValidatePatterns(nil), "at least one search pattern is required")
+	assert.ErrorContains(t, ValidatePatterns([]string{}), "at least one search pattern is required")
 }
 
-func TestValidateTooShort(t *testing.T) {
+func TestValidatePatternsTooShort(t *testing.T) {
 	for _, p := range []string{"", "a", "ab"} {
-		assert.Error(t, Validate([]string{p}), "expected error for pattern %q shorter than MinPatternLength", p)
+		assert.Error(t, ValidatePatterns([]string{p}), "expected error for pattern %q shorter than MinPatternLength", p)
 	}
 }
 
-func TestValidateExactMinLength(t *testing.T) {
+func TestValidatePatternsExactMinLength(t *testing.T) {
 	p := strings.Repeat("a", MinPatternLength)
-	assert.NoError(t, Validate([]string{p}), "expected no error for min-length pattern")
+	assert.NoError(t, ValidatePatterns([]string{p}), "expected no error for min-length pattern")
 }
 
-func TestValidateValid(t *testing.T) {
-	assert.NoError(t, Validate([]string{"firefox"}))
+func TestValidatePatternsValid(t *testing.T) {
+	assert.NoError(t, ValidatePatterns([]string{"firefox"}))
 }
 
-func TestValidateExactMaxLength(t *testing.T) {
+func TestValidatePatternsExactMaxLength(t *testing.T) {
 	p := strings.Repeat("a", MaxPatternLength)
-	assert.NoError(t, Validate([]string{p}), "expected no error for max-length pattern")
+	assert.NoError(t, ValidatePatterns([]string{p}), "expected no error for max-length pattern")
 }
 
-func TestValidateTooLong(t *testing.T) {
+func TestValidatePatternsTooLong(t *testing.T) {
 	p := strings.Repeat("a", MaxPatternLength+1)
-	assert.Error(t, Validate([]string{p}), "expected error for pattern exceeding MaxPatternLength")
+	assert.Error(t, ValidatePatterns([]string{p}), "expected error for pattern exceeding MaxPatternLength")
 }
 
-func TestErrNoPatternsIsSentinel(t *testing.T) {
-	require.ErrorIs(t, ErrNoPatterns, ErrNoPatterns, "ErrNoPatterns must satisfy errors.Is against itself")
+func TestValidateProcessesEmpty(t *testing.T) {
+	assert.ErrorContains(t, ValidateProcesses(nil), "no processes found")
+}
+
+func TestValidateProcessesNonEmpty(t *testing.T) {
+	assert.NoError(t, ValidateProcesses([]Info{NewInfo(100, "target", 4096)}))
+}
+
+func TestValidateNameMismatch(t *testing.T) {
+	err := ValidateName("target", "somethingElse")
+	assert.ErrorContains(t, err, `expected "target"`)
+	assert.ErrorContains(t, err, `got "somethingElse"`)
+}
+
+func TestValidateNameMatch(t *testing.T) {
+	assert.NoError(t, ValidateName("target", "target"))
 }
 
 func TestInfoIsProtected(t *testing.T) {

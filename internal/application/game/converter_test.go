@@ -72,7 +72,9 @@ func TestToTargetViewStatesEmptyInput(t *testing.T) {
 // --- toHUDState ---
 
 func TestToHUDStateMapsFields(t *testing.T) {
-	tracker := &scoreTracker{freedMem: 4096, kills: 2, highScore: 5}
+	tracker := newKillTracker(5)
+	tracker.recordKill(2048)
+	tracker.recordKill(2048)
 
 	hud := toHUDState(tracker)
 
@@ -112,7 +114,7 @@ func TestToFrameStateAliveTargetIncluded(t *testing.T) {
 	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
 	session.Start(80, 24)
 
-	f := toFrameState(session, &scoreTracker{})
+	f := toFrameState(session, newKillTracker(0))
 
 	require.Len(t, f.Targets, 1)
 	assert.False(t, f.Targets[0].Killing)
@@ -123,7 +125,7 @@ func TestToFrameStateKillingTargetMarked(t *testing.T) {
 	session.Start(80, 24)
 	session.Targets()[0].Kill()
 
-	f := toFrameState(session, &scoreTracker{})
+	f := toFrameState(session, newKillTracker(0))
 
 	require.Len(t, f.Targets, 1)
 	assert.True(t, f.Targets[0].Killing)
@@ -133,11 +135,11 @@ func TestToFrameStateDeadTargetExcluded(t *testing.T) {
 	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
 	session.Start(80, 24)
 	session.Targets()[0].Kill()
-	for i := 0; i < game.KillAnimationDuration; i++ {
+	for range game.KillAnimationDuration {
 		session.Update(80, 24)
 	}
 
-	f := toFrameState(session, &scoreTracker{})
+	f := toFrameState(session, newKillTracker(0))
 
 	assert.Empty(t, f.Targets)
 }
@@ -145,7 +147,7 @@ func TestToFrameStateDeadTargetExcluded(t *testing.T) {
 func TestToFrameStateHUDReflectsStats(t *testing.T) {
 	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 4096)}, game.Config{Speed: 1.0})
 	session.Start(80, 24)
-	tracker := &scoreTracker{}
+	tracker := newKillTracker(0)
 	tracker.recordKill(session.Targets()[0].Rss)
 
 	f := toFrameState(session, tracker)
@@ -163,7 +165,7 @@ func TestToFrameStateStatusBarAliveCount(t *testing.T) {
 	session.Start(80, 24)
 	session.Targets()[0].Kill()
 
-	f := toFrameState(session, &scoreTracker{})
+	f := toFrameState(session, newKillTracker(0))
 
 	assert.Equal(t, 1, f.StatusBar.Alive)
 }
@@ -172,7 +174,7 @@ func TestToFrameStateNoConfirmPending(t *testing.T) {
 	session := game.NewSession(nil, game.Config{Speed: 1.0})
 	session.Start(80, 24)
 
-	f := toFrameState(session, &scoreTracker{})
+	f := toFrameState(session, newKillTracker(0))
 
 	assert.Nil(t, f.StatusBar.Confirming)
 }

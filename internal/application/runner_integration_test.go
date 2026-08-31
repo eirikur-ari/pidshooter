@@ -13,12 +13,11 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/capture"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
-func newRunner(proc *fake.Process, store *fake.Store, events *fake.InputSource) *Runner {
-	return NewRunner(proc, store, &fake.Renderer{}, events)
+func newRunner(proc *fake.Process, store *fake.Store, events *fake.InputSource, logger *fake.Logger) *Runner {
+	return NewRunner(proc, store, &fake.Renderer{}, events, logger)
 }
 
 func TestIntegrationRunnerHappyPath(t *testing.T) {
@@ -30,6 +29,7 @@ func TestIntegrationRunnerHappyPath(t *testing.T) {
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 200, Name: "target", Rss: 1024}}},
 		store,
 		events,
+		&fake.Logger{},
 	)
 
 	err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
@@ -46,19 +46,19 @@ func TestIntegrationRunnerLoadErrorPrintsWarningAndSkipsSave(t *testing.T) {
 	events.Ch <- outbound.QuitEvent{}
 
 	store := &fake.Store{LoadErr: errors.New("json: invalid character")}
+	logger := &fake.Logger{}
 	r := newRunner(
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 201, Name: "target", Rss: 1024}}},
 		store,
 		events,
+		logger,
 	)
 
-	var err error
-	stderr := capture.Stderr(func() {
-		err = r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
-	})
+	err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "could not load scores")
+	require.Len(t, logger.Warnings, 1)
+	assert.Contains(t, logger.Warnings[0], "could not load scores")
 	assert.Nil(t, store.Saved)
 }
 
@@ -66,20 +66,20 @@ func TestIntegrationRunnerSaveErrorPrintsWarning(t *testing.T) {
 	events := fake.NewInputSource()
 	events.Ch <- outbound.QuitEvent{}
 
+	logger := &fake.Logger{}
 	r := newRunner(
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 202, Name: "target", Rss: 1024}}},
 		&fake.Store{SaveErr: errors.New("disk full")},
 		events,
+		logger,
 	)
 
-	var err error
-	stderr := capture.Stderr(func() {
-		err = r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
-	})
+	err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 
 	require.NoError(t, err)
-	assert.Contains(t, stderr, "score not saved")
-	assert.Contains(t, stderr, "disk full")
+	require.Len(t, logger.Warnings, 1)
+	assert.Contains(t, logger.Warnings[0], "score not saved")
+	assert.Contains(t, logger.Warnings[0], "disk full")
 }
 
 func TestIntegrationRunnerNotFoundStillSaves(t *testing.T) {
@@ -91,6 +91,7 @@ func TestIntegrationRunnerNotFoundStillSaves(t *testing.T) {
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 203, Name: "target", Rss: 1024}}},
 		store,
 		events,
+		&fake.Logger{},
 	)
 
 	err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
@@ -110,6 +111,7 @@ func TestIntegrationRunnerQuitOnQuitEvent(t *testing.T) {
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 100, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
+		&fake.Logger{},
 	)
 	assert.NoError(t, r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
 }
@@ -119,6 +121,7 @@ func TestIntegrationRunnerTimeLimitExpires(t *testing.T) {
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 102, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		fake.NewInputSource(),
+		&fake.Logger{},
 	)
 
 	start := time.Now()
@@ -139,6 +142,7 @@ func TestIntegrationRunnerSignalGoroutineDoesNotAccumulate(t *testing.T) {
 			&fake.Process{Processes: []outbound.ProcessInfo{{Pid: pid, Name: "target", Rss: 1024}}},
 			&fake.Store{},
 			events,
+			&fake.Logger{},
 		)
 		if err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
 			t.Fatalf("pid %d: unexpected error: %v", pid, err)

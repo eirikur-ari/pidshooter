@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
@@ -20,7 +21,11 @@ func TestFindProcessesListError(t *testing.T) {
 
 	_, err := svc.FindProcesses([]string{"foo"})
 
-	require.Error(t, err)
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeProcessDiscoveryFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
+	assert.ErrorContains(t, err, "ps failed")
 }
 
 func TestFindProcessesNoMatches(t *testing.T) {
@@ -28,7 +33,10 @@ func TestFindProcessesNoMatches(t *testing.T) {
 
 	processes, err := svc.FindProcesses([]string{"nonexistent"})
 
-	assert.NoError(t, err)
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeNoProcessesFound, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.Empty(t, processes)
 }
 

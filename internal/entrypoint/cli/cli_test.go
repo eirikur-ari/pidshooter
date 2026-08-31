@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 )
 
@@ -135,7 +136,7 @@ func TestRunNoArgsWithFlagsForwardsToService(t *testing.T) {
 }
 
 func TestRunPrintsWarningAndReturnsNil(t *testing.T) {
-	warning := inbound.NewError(inbound.ErrorCodeNoProcessesFound, inbound.ErrorSeverityWarning, "no processes found matching [proc]", nil)
+	warning := apperror.NewError(apperror.CodeNoProcessesFound, apperror.SeverityWarning, "no processes found matching [proc]", nil)
 	svc := &stubService{err: warning}
 	c := NewCLI(svc)
 	c.out = io.Discard
@@ -147,7 +148,7 @@ func TestRunPrintsWarningAndReturnsNil(t *testing.T) {
 }
 
 func TestRunReturnsErrorOnFatal(t *testing.T) {
-	fatal := inbound.NewError(inbound.ErrorCodeGameFailed, inbound.ErrorSeverityFatal, "game session failed", errors.New("boom"))
+	fatal := apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "game session failed", errors.New("boom"))
 	svc := &stubService{err: fatal}
 
 	err := newSilentCLI(svc).Run([]string{"proc"})
@@ -157,7 +158,7 @@ func TestRunReturnsErrorOnFatal(t *testing.T) {
 }
 
 func TestRunShowsUsageOnInvalidConfig(t *testing.T) {
-	fatal := inbound.NewError(inbound.ErrorCodeInvalidConfig, inbound.ErrorSeverityFatal, "invalid configuration", errors.New("speed out of range"))
+	fatal := apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", errors.New("speed out of range"))
 	svc := &stubService{err: fatal}
 	c := NewCLI(svc)
 	var outBuf bytes.Buffer

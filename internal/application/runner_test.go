@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
@@ -14,14 +15,14 @@ import (
 )
 
 func newTestRunner() *Runner {
-	return NewRunner(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource())
+	return NewRunner(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource(), &fake.Logger{})
 }
 
 func assertFatal(t *testing.T, err error) {
 	t.Helper()
-	var inErr *inbound.Error
-	require.ErrorAs(t, err, &inErr)
-	assert.Equal(t, inbound.ErrorSeverityFatal, inErr.Severity)
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
 }
 
 func TestRunnerRunSpeedTooLow(t *testing.T) {
@@ -42,7 +43,7 @@ func TestRunnerRunNegativeTimeLimit(t *testing.T) {
 func TestRunnerRunNoPatterns(t *testing.T) {
 	err := newTestRunner().Run(inbound.Config{Speed: 2.0})
 	assertFatal(t, err)
-	assert.ErrorIs(t, err, process.ErrNoPatterns)
+	assert.ErrorContains(t, err, "at least one search pattern is required")
 }
 
 func TestRunnerRunPatternTooShort(t *testing.T) {
@@ -56,10 +57,11 @@ func TestRunnerRunPatternExactMinLength(t *testing.T) {
 	min := strings.Repeat("a", process.MinPatternLength)
 	err := newTestRunner().Run(inbound.Config{Patterns: []string{min}, Speed: 2.0})
 
-	var inErr *inbound.Error
-	require.ErrorAs(t, err, &inErr)
-	assert.Equal(t, inbound.ErrorSeverityWarning, inErr.Severity)
-	assert.Contains(t, inErr.Error(), "no processes found")
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
+	assert.Equal(t, apperror.CodeNoProcessesFound, appErr.Code)
+	assert.Contains(t, appErr.Error(), "no processes found")
 }
 
 func TestRunnerRunPatternTooLong(t *testing.T) {

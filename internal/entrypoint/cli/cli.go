@@ -3,11 +3,13 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 
 	"github.com/spf13/cobra"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 )
 
@@ -70,13 +72,14 @@ func (c *CLI) play(cmd *cobra.Command, args []string) error {
 		TimeLimit:   c.timeLimit,
 	})
 
-	var inErr *inbound.Error
-	if errors.As(err, &inErr) {
-		if inErr.Severity == inbound.ErrorSeverityWarning {
-			inErr.Fprint(c.errOut)
+	//TODO: Revisit this error handling logic. It seems a bit off.
+	var appErr *apperror.Error
+	if errors.As(err, &appErr) {
+		if appErr.Severity == apperror.SeverityWarning {
+			fmt.Fprintf(c.errOut, "warning: %s\n", appErr.Error())
 			return nil
 		}
-		if inErr.Code == inbound.ErrorCodeInvalidConfig {
+		if appErr.Code == apperror.CodeInvalidConfig {
 			cmd.SilenceUsage = false
 		}
 	}

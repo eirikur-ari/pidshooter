@@ -10,12 +10,13 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/entrypoint/cli"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/scorefilestore"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/stderrlog"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -26,6 +27,7 @@ func run() error {
 		return err
 	}
 	store := scorefilestore.NewStore()
+	logger := stderrlog.NewLogger()
 
 	screen, err := tcell.NewScreen()
 	if err != nil {
@@ -33,6 +35,6 @@ func run() error {
 	}
 	ui := tcellui.NewUI(screen)
 
-	runner := application.NewRunner(proc, store, ui, ui)
-	return cli.NewCLI(runner).Run(os.Args[1:])
+	svc := application.NewRunner(proc, store, ui, ui, logger)
+	return cli.NewCLI(svc).Run(os.Args[1:])
 }
