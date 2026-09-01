@@ -39,38 +39,35 @@ func NewRunner(
 }
 
 // Run discovers processes matching cfg.Patterns, plays a game session against
-// them, then records and prints the resulting score. It returns an error
-// whenever the caller needs to react to it: a fatal one (bad config,
-// process discovery failure, or a failed game session) or a warning that
-// still ends the run (no matching processes). Anything the run can
-// continue past regardless — score load/save failures, and targets the
-// session could not kill — is reported through the logger port instead of
-// being returned.
+// them, then records and prints the resulting score. Every failure is
+// logged here, regardless of severity. Run returns nil unless the failure
+// was Fatal, in which case it's returned too so the caller can terminate
+// the program.
 func (r *Runner) Run(cfg inbound.Config) error {
 	if err := validateConfig(cfg); err != nil {
-		return apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", err)
+		return r.handle(apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", err))
 	}
 
 	processes, err := r.processSvc.FindProcesses(cfg.Patterns)
 	if err != nil {
-		return err
+		return r.handle(err)
 	}
 
 	board, highScore, loadErr := r.scoreSvc.LoadScoreBoard()
 	notFound := errors.As(loadErr, &outbound.NotFoundError{})
 	if loadErr != nil && !notFound {
-		r.logWarning(apperror.CodeScoreLoadFailed, "could not load scores", loadErr)
+		_ = r.handle(apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "could not load scores", loadErr))
 	}
 
 	result, err := r.gameSvc.Play(cfg, processes, highScore)
 	if err != nil {
-		return err
+		return r.handle(err)
 	}
 
 	r.logKillFailures(result.KillFailureMessages)
 
 	if recErr := r.scoreSvc.RecordScore(board, result.Kills, result.FreedMem, result.LowestSpeed, cfg.TimeLimit, result.Duration, loadErr == nil || notFound); recErr != nil {
-		r.logWarning(apperror.CodeScoreSaveFailed, "score not saved", recErr)
+		_ = r.handle(apperror.NewError(apperror.CodeScoreSaveFailed, apperror.SeverityWarning, "score not saved", recErr))
 	}
 
 	score.PrintResults(result.Duration, result.Kills, result.FreedMem, board)
@@ -81,12 +78,24 @@ func (r *Runner) Run(cfg inbound.Config) error {
 // logKillFailures reports each target the run could not kill.
 func (r *Runner) logKillFailures(messages []string) {
 	for _, msg := range messages {
-		r.logWarning(apperror.CodeKillFailed, msg, nil)
+		_ = r.handle(apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, msg, nil))
 	}
 }
 
-// logWarning reports a failure the run continued past, formatted identically
-// to a Warning-severity apperror.Error returned to the caller.
-func (r *Runner) logWarning(code apperror.Code, message string, err error) {
-	r.logger.Warn(apperror.NewError(code, apperror.SeverityWarning, message, err).Error())
+// handle logs err at the level its Severity calls for, then reports whether
+// the caller must still treat the run as failed. A Warning-severity error
+// is absorbed here, so Run reports success. A Fatal-severity error is
+// returned after being logged, so the caller can terminate the program.
+func (r *Runner) handle(err error) error {
+	var appErr *apperror.Error
+	errors.As(err, &appErr)
+	if appErr.Severity == apperror.SeverityWarning {
+		r.logger.Warn(err.Error())
+		return nil
+	}
+	r.logger.Error(err.Error())
+	if appErr.Severity == apperror.SeverityFatal {
+		return err
+	}
+	return nil
 }

@@ -68,7 +68,7 @@ func NewService(
 // score for display during the session.
 func (s *Service) Play(cfg inbound.Config, processes []process.Info, highScore int) (PlayResult, error) {
 	if err := process.ValidateProcesses(processes); err != nil {
-		return PlayResult{}, apperror.NewError(apperror.CodeNoProcessesFound, apperror.SeverityWarning, err.Error(), nil)
+		return PlayResult{}, apperror.NewError(apperror.CodeNoProcessesFound, apperror.SeverityError, err.Error(), nil)
 	}
 
 	session := game.NewSession(processes, game.Config{Confirm: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})

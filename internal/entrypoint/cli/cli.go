@@ -3,7 +3,6 @@ package cli
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"os"
 
@@ -13,9 +12,15 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 )
 
+// logger is the minimal reporting capability this adapter needs.
+type logger interface {
+	Error(msg string)
+}
+
 // CLI is the entrypoint adapter that translates command-line arguments to application calls.
 type CLI struct {
 	service   inbound.Runner
+	logger    logger
 	out       io.Writer
 	errOut    io.Writer
 	confirm   bool
@@ -24,15 +29,26 @@ type CLI struct {
 }
 
 // NewCLI returns a CLI adapter wrapping the given application service.
-func NewCLI(service inbound.Runner) *CLI {
-	return &CLI{service: service, out: os.Stdout, errOut: os.Stderr}
+func NewCLI(service inbound.Runner, logger logger) *CLI {
+	return &CLI{service: service, logger: logger, out: os.Stdout, errOut: os.Stderr}
 }
 
 // Run parses args and calls the application service.
 func (c *CLI) Run(args []string) error {
 	cmd := c.buildCommand()
 	cmd.SetArgs(args)
-	return cmd.Execute()
+	return c.report(cmd.Execute())
+}
+
+// report logs err if it's native to this adapter — such as a malformed
+// flag — rather than already reported by the application layer, then
+// returns it unchanged.
+func (c *CLI) report(err error) error {
+	var appErr *apperror.Error
+	if err != nil && !errors.As(err, &appErr) {
+		c.logger.Error(err.Error())
+	}
+	return err
 }
 
 func (c *CLI) buildCommand() *cobra.Command {
@@ -65,24 +81,10 @@ func (c *CLI) play(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
 	}
 
-	err := c.service.Run(inbound.Config{
+	return c.service.Run(inbound.Config{
 		Patterns:    args,
 		ConfirmMode: c.confirm,
 		Speed:       c.speed,
 		TimeLimit:   c.timeLimit,
 	})
-
-	//TODO: Revisit this error handling logic. It seems a bit off.
-	var appErr *apperror.Error
-	if errors.As(err, &appErr) {
-		if appErr.Severity == apperror.SeverityWarning {
-			fmt.Fprintf(c.errOut, "warning: %s\n", appErr.Error())
-			return nil
-		}
-		if appErr.Code == apperror.CodeInvalidConfig {
-			cmd.SilenceUsage = false
-		}
-	}
-
-	return err
 }

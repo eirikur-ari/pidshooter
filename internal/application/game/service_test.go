@@ -28,7 +28,7 @@ func TestServicePlayNoProcessesReturnsClassifiedError(t *testing.T) {
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, apperror.CodeNoProcessesFound, appErr.Code)
-	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
+	assert.Equal(t, apperror.SeverityError, appErr.Severity)
 }
 
 // killerFunc adapts a plain function to the killer interface for tests.

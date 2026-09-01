@@ -16,25 +16,28 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
 func run() error {
+	logger := stderrlog.NewLogger()
+
 	proc, err := osprocess.NewProcess()
 	if err != nil {
+		logger.Error(err.Error())
 		return err
 	}
 	store := scorefilestore.NewStore()
-	logger := stderrlog.NewLogger()
 
 	screen, err := tcell.NewScreen()
 	if err != nil {
-		return fmt.Errorf("failed to create screen: %w", err)
+		err = fmt.Errorf("failed to create screen: %w", err)
+		logger.Error(err.Error())
+		return err
 	}
 	ui := tcellui.NewUI(screen)
 
-	svc := application.NewRunner(proc, store, ui, ui, logger)
-	return cli.NewCLI(svc).Run(os.Args[1:])
+	runner := application.NewRunner(proc, store, ui, ui, logger)
+	return cli.NewCLI(runner, logger).Run(os.Args[1:])
 }

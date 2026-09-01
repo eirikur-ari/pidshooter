@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"errors"
 	"io"
 	"testing"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
+	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
 type stubService struct{ err error }
@@ -28,7 +28,7 @@ func (s *captureService) Run(cfg inbound.Config) error {
 }
 
 func newSilentCLI(svc inbound.Runner) *CLI {
-	c := NewCLI(svc)
+	c := NewCLI(svc, &fake.Logger{})
 	c.out = io.Discard
 	c.errOut = io.Discard
 	return c
@@ -135,16 +135,30 @@ func TestRunNoArgsWithFlagsForwardsToService(t *testing.T) {
 	assert.True(t, svc.cfg.ConfirmMode)
 }
 
-func TestRunPrintsWarningAndReturnsNil(t *testing.T) {
-	warning := apperror.NewError(apperror.CodeNoProcessesFound, apperror.SeverityWarning, "no processes found matching [proc]", nil)
-	svc := &stubService{err: warning}
-	c := NewCLI(svc)
-	c.out = io.Discard
-	var errBuf bytes.Buffer
-	c.errOut = &errBuf
+func TestRunLogsUnrecognizedError(t *testing.T) {
+	svc := &stubService{err: errors.New("boom")}
+	logger := &fake.Logger{}
+	c := newSilentCLI(svc)
+	c.logger = logger
 
-	assert.NoError(t, c.Run([]string{"proc"}))
-	assert.Contains(t, errBuf.String(), "no processes found")
+	err := c.Run([]string{"proc"})
+
+	require.Error(t, err)
+	require.Len(t, logger.Errors, 1)
+	assert.Contains(t, logger.Errors[0], "boom")
+}
+
+func TestRunDoesNotLogAppError(t *testing.T) {
+	fatal := apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "game session failed", errors.New("boom"))
+	svc := &stubService{err: fatal}
+	logger := &fake.Logger{}
+	c := newSilentCLI(svc)
+	c.logger = logger
+
+	err := c.Run([]string{"proc"})
+
+	require.Error(t, err)
+	assert.Empty(t, logger.Errors, "an *apperror.Error was already logged by the application layer")
 }
 
 func TestRunReturnsErrorOnFatal(t *testing.T) {
@@ -155,18 +169,4 @@ func TestRunReturnsErrorOnFatal(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "game session failed")
-}
-
-func TestRunShowsUsageOnInvalidConfig(t *testing.T) {
-	fatal := apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", errors.New("speed out of range"))
-	svc := &stubService{err: fatal}
-	c := NewCLI(svc)
-	var outBuf bytes.Buffer
-	c.out = &outBuf
-	c.errOut = io.Discard
-
-	err := c.Run([]string{"proc"})
-
-	require.Error(t, err)
-	assert.Contains(t, outBuf.String(), "Usage:")
 }

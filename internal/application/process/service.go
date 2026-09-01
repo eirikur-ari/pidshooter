@@ -28,7 +28,7 @@ func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
 
 	matches := process.Find(toProcessInfos(processes), patterns, s.processMgr.OwnPid())
 	if err := process.ValidateProcesses(matches); err != nil {
-		return nil, apperror.NewError(apperror.CodeNoProcessesFound, apperror.SeverityWarning, err.Error(), nil)
+		return nil, apperror.NewError(apperror.CodeNoProcessesFound, apperror.SeverityError, err.Error(), nil)
 	}
 
 	fmt.Printf("Found %d process(es) matching %v. Starting game...\n", len(matches), patterns)

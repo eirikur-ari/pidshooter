@@ -15,14 +15,19 @@ const (
 	CodeKillFailed
 )
 
-// Severity tells the caller whether an Error should abort its operation
-// or merely be reported alongside a completed one.
+// Severity tells the caller whether an Error should abort its operation,
+// end it early while being logged as an error, or merely be reported
+// alongside a completed one.
 type Severity int
 
 const (
 	// SeverityFatal is the zero value: a Severity left unset defaults to
 	// blocking rather than silently being treated as a mere warning.
 	SeverityFatal Severity = iota
+	// SeverityError is non-fatal — the program keeps running — but ends
+	// the current operation early, so it's logged at error level rather
+	// than warning level.
+	SeverityError
 	SeverityWarning
 )
 

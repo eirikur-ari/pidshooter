@@ -55,13 +55,14 @@ func TestRunnerRunPatternTooShort(t *testing.T) {
 
 func TestRunnerRunPatternExactMinLength(t *testing.T) {
 	min := strings.Repeat("a", process.MinPatternLength)
-	err := newTestRunner().Run(inbound.Config{Patterns: []string{min}, Speed: 2.0})
+	logger := &fake.Logger{}
+	r := NewRunner(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource(), logger)
 
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
-	assert.Equal(t, apperror.CodeNoProcessesFound, appErr.Code)
-	assert.Contains(t, appErr.Error(), "no processes found")
+	err := r.Run(inbound.Config{Patterns: []string{min}, Speed: 2.0})
+
+	require.NoError(t, err)
+	require.Len(t, logger.Errors, 1)
+	assert.Contains(t, logger.Errors[0], "no processes found")
 }
 
 func TestRunnerRunPatternTooLong(t *testing.T) {
