@@ -1,10 +1,15 @@
 package game
 
 import (
-	"fmt"
-
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 )
+
+// KillFailure records a target the run could not kill.
+type KillFailure struct {
+	Target string
+	Pid    int
+	Err    error
+}
 
 // killTracker accumulates state for a single playthrough: score progress,
 // and kill attempts that failed to kill their targets.
@@ -20,7 +25,7 @@ type killScoreTracker struct {
 }
 
 type killFailureTracker struct {
-	messages []string
+	failures []KillFailure
 	pids     map[int]struct{}
 }
 
@@ -48,5 +53,5 @@ func (t *killTracker) recordFailure(target *game.Target, err error) {
 		t.failure.pids = make(map[int]struct{})
 	}
 	t.failure.pids[target.Pid] = struct{}{}
-	t.failure.messages = append(t.failure.messages, fmt.Sprintf("could not kill %s (PID %d): %v", target.Name, target.Pid, err))
+	t.failure.failures = append(t.failure.failures, KillFailure{Target: target.Name, Pid: target.Pid, Err: err})
 }

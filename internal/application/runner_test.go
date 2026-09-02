@@ -10,6 +10,7 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
+	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
@@ -90,12 +91,12 @@ func TestRunnerLogKillFailuresLogsEachAsWarning(t *testing.T) {
 	logger := &fake.Logger{}
 	r := NewRunner(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource(), logger)
 
-	r.logKillFailures([]string{
-		"could not kill proc (PID 123): boom",
-		"could not kill other (PID 456): bam",
+	r.logKillFailures([]game.KillFailure{
+		{Target: "proc", Pid: 123, Err: errors.New("boom")},
+		{Target: "other", Pid: 456, Err: errors.New("bam")},
 	})
 
 	require.Len(t, logger.Warnings, 2)
-	assert.Contains(t, logger.Warnings[0], "could not kill proc (PID 123): boom")
-	assert.Contains(t, logger.Warnings[1], "could not kill other (PID 456): bam")
+	assert.Equal(t, "could not kill proc (PID 123): boom", logger.Warnings[0])
+	assert.Equal(t, "could not kill other (PID 456): bam", logger.Warnings[1])
 }

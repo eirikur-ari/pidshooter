@@ -83,6 +83,11 @@ func (a *UI) Render(state outbound.FrameState) {
 	a.screen.Show()
 }
 
+// Events returns the channel of translated game input events.
+func (a *UI) Events() <-chan outbound.InputEvent {
+	return a.ch
+}
+
 func (a *UI) drawHUD(w int, hud outbound.HUDState) {
 	memStr := fmt.Sprintf(" FREED: %s ", util.FormatBytes(hud.FreedMem))
 	memStyle := tcell.StyleDefault.Foreground(tcell.ColorAqua).Bold(true)
@@ -145,11 +150,6 @@ func (a *UI) drawStatusBar(w, h int, status outbound.StatusState) {
 			a.screen.SetContent(i, h-1, ch, nil, statusStyle)
 		}
 	}
-}
-
-// Events returns the channel of translated game input events.
-func (a *UI) Events() <-chan outbound.InputEvent {
-	return a.ch
 }
 
 func (a *UI) poll() {

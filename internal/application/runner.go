@@ -3,6 +3,8 @@
 package application
 
 import (
+	"fmt"
+
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
@@ -61,7 +63,7 @@ func (r *Runner) Run(cfg inbound.Config) error {
 		return r.errHandler.Handle(err)
 	}
 
-	r.logKillFailures(result.KillFailureMessages)
+	r.logKillFailures(result.KillFailures)
 
 	recErr := r.scoreSvc.RecordScore(board, result.Kills, result.FreedMem, result.LowestSpeed, cfg.TimeLimit, result.Duration, loadErr)
 	if err := r.errHandler.Handle(recErr); err != nil {
@@ -74,8 +76,9 @@ func (r *Runner) Run(cfg inbound.Config) error {
 }
 
 // logKillFailures reports each target the run could not kill.
-func (r *Runner) logKillFailures(messages []string) {
-	for _, msg := range messages {
-		_ = r.errHandler.Handle(apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, msg, nil))
+func (r *Runner) logKillFailures(failures []game.KillFailure) {
+	for _, f := range failures {
+		msg := fmt.Sprintf("could not kill %s (PID %d)", f.Target, f.Pid)
+		_ = r.errHandler.Handle(apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, msg, f.Err))
 	}
 }

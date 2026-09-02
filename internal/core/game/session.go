@@ -31,7 +31,6 @@ func NewSession(processes []process.Info, cfg Config) *Session {
 	return &Session{
 		cfg:      cfg,
 		roster:   newRoster(processes),
-		state:    newAtomicLifecycle(),
 		timer:    newTimer(cfg.TimeLimit),
 		throttle: movement.NewThrottle(cfg.Speed),
 		confirm:  newConfirmation(cfg.Confirm),

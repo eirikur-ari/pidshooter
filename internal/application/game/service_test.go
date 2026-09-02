@@ -95,8 +95,11 @@ func TestServiceApplyKillsRecordsFailureWithoutMutatingTarget(t *testing.T) {
 
 	assert.Equal(t, game.Alive, target.State, "a kill failure must leave the target alive")
 	assert.Equal(t, 0, tracker.score.kills)
-	require.Len(t, tracker.failure.messages, 1)
-	assert.Equal(t, "could not kill target (PID 100): operation not permitted", tracker.failure.messages[0])
+	require.Len(t, tracker.failure.failures, 1)
+	failure := tracker.failure.failures[0]
+	assert.Equal(t, "target", failure.Target)
+	assert.Equal(t, 100, failure.Pid)
+	assert.EqualError(t, failure.Err, "operation not permitted")
 }
 
 func TestServiceApplyKillsDeduplicatesRepeatedFailuresForSamePID(t *testing.T) {
@@ -111,7 +114,7 @@ func TestServiceApplyKillsDeduplicatesRepeatedFailuresForSamePID(t *testing.T) {
 	tracker := newKillTracker(0)
 	svc.applyKillSignals(tracker, kills)
 
-	assert.Len(t, tracker.failure.messages, 1, "a repeat failure for the same PID should not duplicate the entry")
+	assert.Len(t, tracker.failure.failures, 1, "a repeat failure for the same PID should not duplicate the entry")
 }
 
 // --- frameLoop (async kill end-to-end) ---
@@ -144,7 +147,7 @@ func TestServiceFrameLoopAppliesAsyncKillToResult(t *testing.T) {
 
 	assert.Equal(t, 1, tracker.score.kills)
 	assert.Equal(t, info.Rss, tracker.score.freedMem)
-	assert.Empty(t, tracker.failure.messages)
+	assert.Empty(t, tracker.failure.failures)
 }
 
 // --- killOrReap ---

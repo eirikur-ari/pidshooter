@@ -11,13 +11,11 @@ const (
 	stopped                  // game over
 )
 
-// atomicLifecycle is an atomic wrapper for lifecycle, safe for concurrent access.
+// atomicLifecycle is an atomic wrapper for lifecycle, safe for concurrent
+// access. Its zero value is ready to use, initialized to pending.
 type atomicLifecycle struct {
 	value atomic.Int32
 }
-
-// newAtomicLifecycle returns an atomicLifecycle initialized to pending.
-func newAtomicLifecycle() atomicLifecycle { return atomicLifecycle{} }
 
 // Store sets the current lifecycle.
 func (s *atomicLifecycle) Store(l lifecycle) {

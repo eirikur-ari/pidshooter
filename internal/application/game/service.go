@@ -18,17 +18,27 @@ import (
 
 const frameDuration = time.Second / 20
 
-// killer verifies and terminates the target's backing OS process, reporting
-// whether the caller should reap the target because its process was already gone.
-type killer interface {
-	Kill(target *game.Target) (killed, shouldReap bool, err error)
-}
-
 // Service orchestrates core domain objects and outbound ports to play a single game session.
 type Service struct {
 	killer   killer
 	renderer outbound.Renderer
 	events   outbound.InputSource
+}
+
+// PlayResult carries the outcome of a completed play session, needed by the
+// caller to record a score.
+type PlayResult struct {
+	Duration     float64
+	LowestSpeed  float64
+	Kills        int
+	FreedMem     int64
+	KillFailures []KillFailure
+}
+
+// killer verifies and terminates the target's backing OS process, reporting
+// whether the caller should reap the target because its process was already gone.
+type killer interface {
+	Kill(target *game.Target) (killed, shouldReap bool, err error)
 }
 
 // killSignal reports the outcome of a verified kill attempt: a real kill, a
@@ -38,16 +48,6 @@ type killSignal struct {
 	target     *game.Target
 	shouldReap bool
 	err        error // non-nil when the kill failed and the target must stay alive
-}
-
-// PlayResult carries the outcome of a completed play session, needed by the
-// caller to record a score.
-type PlayResult struct {
-	Duration            float64
-	LowestSpeed         float64
-	Kills               int
-	FreedMem            int64
-	KillFailureMessages []string
 }
 
 // NewService constructs a Service with all required outbound ports injected.
@@ -80,11 +80,11 @@ func (s *Service) Play(cfg inbound.Config, processes []process.Info, highScore i
 	}
 
 	return PlayResult{
-		Duration:            endTime.Sub(session.StartTime()).Seconds(),
-		LowestSpeed:         session.Throttle().LowestSpeed(),
-		Kills:               tracker.score.kills,
-		FreedMem:            tracker.score.freedMem,
-		KillFailureMessages: tracker.failure.messages,
+		Duration:     endTime.Sub(session.StartTime()).Seconds(),
+		LowestSpeed:  session.Throttle().LowestSpeed(),
+		Kills:        tracker.score.kills,
+		FreedMem:     tracker.score.freedMem,
+		KillFailures: tracker.failure.failures,
 	}, nil
 }
 

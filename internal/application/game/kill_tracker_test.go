@@ -45,11 +45,15 @@ func TestKillTrackerRecordKillRaisesHighScore(t *testing.T) {
 
 func TestKillTrackerRecordFailureAddsMessage(t *testing.T) {
 	tr := newKillTracker(0)
+	cause := errors.New("operation not permitted")
 
-	tr.recordFailure(newTrackerTestTarget(100, "target"), errors.New("operation not permitted"))
+	tr.recordFailure(newTrackerTestTarget(100, "target"), cause)
 
-	require.Len(t, tr.failure.messages, 1)
-	assert.Equal(t, "could not kill target (PID 100): operation not permitted", tr.failure.messages[0])
+	require.Len(t, tr.failure.failures, 1)
+	failure := tr.failure.failures[0]
+	assert.Equal(t, "target", failure.Target)
+	assert.Equal(t, 100, failure.Pid)
+	assert.Equal(t, cause, failure.Err)
 }
 
 func TestKillTrackerRecordFailureAccumulatesDistinctPIDs(t *testing.T) {
@@ -58,7 +62,7 @@ func TestKillTrackerRecordFailureAccumulatesDistinctPIDs(t *testing.T) {
 	tr.recordFailure(newTrackerTestTarget(100, "one"), errors.New("boom"))
 	tr.recordFailure(newTrackerTestTarget(101, "two"), errors.New("boom"))
 
-	assert.Len(t, tr.failure.messages, 2)
+	assert.Len(t, tr.failure.failures, 2)
 }
 
 func TestKillTrackerRecordFailureDeduplicatesSamePID(t *testing.T) {
@@ -68,5 +72,5 @@ func TestKillTrackerRecordFailureDeduplicatesSamePID(t *testing.T) {
 	tr.recordFailure(target, errors.New("boom"))
 	tr.recordFailure(target, errors.New("boom again"))
 
-	assert.Len(t, tr.failure.messages, 1, "a repeat failure for the same PID should not add a second entry")
+	assert.Len(t, tr.failure.failures, 1, "a repeat failure for the same PID should not add a second entry")
 }

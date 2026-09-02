@@ -15,10 +15,7 @@ type timer struct {
 
 // newTimer creates a timer with the given limit in seconds. Zero means unlimited.
 func newTimer(limitSeconds int) timer {
-	return timer{
-		limit: time.Duration(limitSeconds) * time.Second,
-		now:   time.Now,
-	}
+	return timer{limit: secondsToDuration(limitSeconds)}
 }
 
 // Start records the session start time.
@@ -74,4 +71,9 @@ func ValidateTimeLimit(limit int) error {
 		return fmt.Errorf("time must be 0 or positive, got: %d", limit)
 	}
 	return nil
+}
+
+// secondsToDuration converts a count of seconds to a time.Duration.
+func secondsToDuration(seconds int) time.Duration {
+	return time.Duration(seconds) * time.Second
 }

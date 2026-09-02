@@ -12,11 +12,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 )
 
-// logger is the minimal reporting capability this adapter needs.
-type logger interface {
-	Error(msg string)
-}
-
 // CLI is the entrypoint adapter that translates command-line arguments to application calls.
 type CLI struct {
 	service   inbound.Runner
@@ -26,6 +21,11 @@ type CLI struct {
 	confirm   bool
 	speed     float64
 	timeLimit int
+}
+
+// logger is the minimal reporting capability this adapter needs.
+type logger interface {
+	Error(msg string)
 }
 
 // NewCLI returns a CLI adapter wrapping the given application service.
