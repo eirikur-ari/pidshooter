@@ -3,8 +3,6 @@
 package application
 
 import (
-	"errors"
-
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
@@ -54,9 +52,8 @@ func (r *Runner) Run(cfg inbound.Config) error {
 	}
 
 	board, highScore, loadErr := r.scoreSvc.LoadScoreBoard()
-	notFound := errors.As(loadErr, &outbound.NotFoundError{})
-	if loadErr != nil && !notFound {
-		_ = r.errHandler.Handle(apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "could not load scores", loadErr))
+	if err := r.errHandler.Handle(loadErr); err != nil {
+		return err
 	}
 
 	result, err := r.gameSvc.Play(cfg, processes, highScore)
@@ -66,8 +63,9 @@ func (r *Runner) Run(cfg inbound.Config) error {
 
 	r.logKillFailures(result.KillFailureMessages)
 
-	if recErr := r.scoreSvc.RecordScore(board, result.Kills, result.FreedMem, result.LowestSpeed, cfg.TimeLimit, result.Duration, loadErr == nil || notFound); recErr != nil {
-		_ = r.errHandler.Handle(apperror.NewError(apperror.CodeScoreSaveFailed, apperror.SeverityWarning, "score not saved", recErr))
+	recErr := r.scoreSvc.RecordScore(board, result.Kills, result.FreedMem, result.LowestSpeed, cfg.TimeLimit, result.Duration, loadErr)
+	if err := r.errHandler.Handle(recErr); err != nil {
+		return err
 	}
 
 	score.PrintResults(result.Duration, result.Kills, result.FreedMem, board)

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"testing"
 
@@ -159,6 +160,19 @@ func TestRunDoesNotLogAppError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Empty(t, logger.Errors, "an *apperror.Error was already logged by the application layer")
+}
+
+func TestRunDoesNotLogWrappedAppError(t *testing.T) {
+	fatal := apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "game session failed", errors.New("boom"))
+	svc := &stubService{err: fmt.Errorf("during Run: %w", fatal)}
+	logger := &fake.Logger{}
+	c := newSilentCLI(svc)
+	c.logger = logger
+
+	err := c.Run([]string{"proc"})
+
+	require.Error(t, err)
+	assert.Empty(t, logger.Errors, "a wrapped *apperror.Error was already logged by the application layer")
 }
 
 func TestRunReturnsErrorOnFatal(t *testing.T) {

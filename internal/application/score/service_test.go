@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/capture"
@@ -34,6 +35,10 @@ func TestLoadScoreBoardNotFoundReturnsNotFoundError(t *testing.T) {
 
 	board, highScore, err := svc.LoadScoreBoard()
 
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeScoreLoadFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	var notFound outbound.NotFoundError
 	assert.ErrorAs(t, err, &notFound)
 	assert.Empty(t, board.Scores)
@@ -46,6 +51,10 @@ func TestLoadScoreBoardErrorReturnsUnderlyingError(t *testing.T) {
 
 	board, highScore, err := svc.LoadScoreBoard()
 
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeScoreLoadFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorIs(t, err, cause)
 	assert.Empty(t, board.Scores)
 	assert.Equal(t, 0, highScore)
@@ -57,7 +66,7 @@ func TestRecordScoreAddsEntryFromTracker(t *testing.T) {
 	svc := NewService(&fake.Store{})
 	board := score.NewBoard(nil)
 
-	require.Nil(t, svc.RecordScore(board, 4, 2048, 2.5, 30, 12.5, true))
+	require.Nil(t, svc.RecordScore(board, 4, 2048, 2.5, 30, 12.5, nil))
 
 	require.Len(t, board.Scores, 1)
 	entry := board.Scores[0]
@@ -68,25 +77,45 @@ func TestRecordScoreAddsEntryFromTracker(t *testing.T) {
 	assert.Equal(t, 12.5, entry.Duration)
 }
 
-func TestRecordScoreSavesWhenPersistTrue(t *testing.T) {
+func TestRecordScoreSavesWhenLoadErrIsNil(t *testing.T) {
 	fakeStore := &fake.Store{}
 	svc := NewService(fakeStore)
 	board := score.NewBoard(nil)
 
-	require.Nil(t, svc.RecordScore(board, 1, 0, 0, 0, 1.0, true))
+	require.Nil(t, svc.RecordScore(board, 1, 0, 0, 0, 1.0, nil))
 
 	require.NotNil(t, fakeStore.Saved)
 	assert.Len(t, fakeStore.Saved.Scores, 1)
 }
 
-func TestRecordScoreSkipsSaveWhenPersistFalse(t *testing.T) {
+func TestRecordScoreSavesWhenLoadErrIsNotFound(t *testing.T) {
 	fakeStore := &fake.Store{}
 	svc := NewService(fakeStore)
 	board := score.NewBoard(nil)
 
-	require.Nil(t, svc.RecordScore(board, 1, 0, 0, 0, 1.0, false))
+	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score not loaded", outbound.NotFoundError{})
+	require.Nil(t, svc.RecordScore(board, 1, 0, 0, 0, 1.0, loadErr))
 
-	assert.Nil(t, fakeStore.Saved)
+	require.NotNil(t, fakeStore.Saved, "a fresh (never-persisted) board should still be saved")
+	assert.Len(t, fakeStore.Saved.Scores, 1)
+}
+
+func TestRecordScoreSkipsSaveAndReturnsWarningWhenLoadFailed(t *testing.T) {
+	fakeStore := &fake.Store{}
+	svc := NewService(fakeStore)
+	board := score.NewBoard(nil)
+
+	cause := errors.New("disk error")
+	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score not loaded", cause)
+
+	err := svc.RecordScore(board, 1, 0, 0, 0, 1.0, loadErr)
+
+	assert.Nil(t, fakeStore.Saved, "should not overwrite a file that failed to load for a real reason")
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeScoreSaveFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
+	assert.ErrorIs(t, err, cause, "should report the original load failure as the reason the save was skipped")
 }
 
 func TestRecordScoreSaveErrorReturnsUnderlyingError(t *testing.T) {
@@ -95,8 +124,12 @@ func TestRecordScoreSaveErrorReturnsUnderlyingError(t *testing.T) {
 	svc := NewService(fakeStore)
 	board := score.NewBoard(nil)
 
-	err := svc.RecordScore(board, 1, 0, 0, 0, 1.0, true)
+	err := svc.RecordScore(board, 1, 0, 0, 0, 1.0, nil)
 
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeScoreSaveFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorIs(t, err, cause)
 }
 

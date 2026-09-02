@@ -29,6 +29,11 @@ const (
 	// than warning level.
 	SeverityError
 	SeverityWarning
+	// SeverityUnknown marks an error Handle received without any app-level
+	// severity assessment at all — not a Severity an *Error was built
+	// with, but the fallback Handle applies to an error it cannot
+	// classify as one of its own.
+	SeverityUnknown
 )
 
 // Error wraps an underlying error with a Code, a Severity, and a
@@ -46,10 +51,13 @@ func NewError(code Code, severity Severity, message string, err error) *Error {
 }
 
 func (e *Error) Error() string {
-	if e.Err != nil {
-		return e.Message + ": " + e.Err.Error()
+	if e.Err == nil {
+		return e.Message
 	}
-	return e.Message
+	if e.Message == "" {
+		return e.Err.Error()
+	}
+	return e.Message + ": " + e.Err.Error()
 }
 
 func (e *Error) Unwrap() error {

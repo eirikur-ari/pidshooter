@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
@@ -41,6 +42,26 @@ func TestIntegrationRunnerHappyPath(t *testing.T) {
 	assert.Greater(t, entry.Duration, 0.0)
 }
 
+func TestIntegrationRunnerGameFailsWhenRendererInitFails(t *testing.T) {
+	logger := &fake.Logger{}
+	r := NewRunner(
+		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 204, Name: "target", Rss: 1024}}},
+		&fake.Store{},
+		&fake.Renderer{InitErr: errors.New("terminal not available")},
+		fake.NewInputSource(),
+		logger,
+	)
+
+	err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeGameFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
+	require.Len(t, logger.Errors, 1)
+	assert.Contains(t, logger.Errors[0], "terminal not available")
+}
+
 func TestIntegrationRunnerLoadErrorPrintsWarningAndSkipsSave(t *testing.T) {
 	events := fake.NewInputSource()
 	events.Ch <- outbound.QuitEvent{}
@@ -57,8 +78,10 @@ func TestIntegrationRunnerLoadErrorPrintsWarningAndSkipsSave(t *testing.T) {
 	err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 
 	require.NoError(t, err)
-	require.Len(t, logger.Warnings, 1)
-	assert.Contains(t, logger.Warnings[0], "could not load scores")
+	require.Len(t, logger.Warnings, 2)
+	assert.Contains(t, logger.Warnings[0], "score not loaded")
+	assert.Contains(t, logger.Warnings[1], "score not saved")
+	assert.Contains(t, logger.Warnings[1], "score not loaded", "should report the load failure as the reason the save was skipped")
 	assert.Nil(t, store.Saved)
 }
 
@@ -87,17 +110,20 @@ func TestIntegrationRunnerNotFoundStillSaves(t *testing.T) {
 	events.Ch <- outbound.QuitEvent{}
 
 	store := &fake.Store{LoadErr: outbound.NotFoundError{}}
+	logger := &fake.Logger{}
 	r := newRunner(
 		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 203, Name: "target", Rss: 1024}}},
 		store,
 		events,
-		&fake.Logger{},
+		logger,
 	)
 
 	err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 
 	require.NoError(t, err)
 	require.NotNil(t, store.Saved, "a fresh (never-persisted) board should still be saved")
+	require.Len(t, logger.Warnings, 1)
+	assert.Contains(t, logger.Warnings[0], "score not loaded")
 }
 
 func TestIntegrationRunnerQuitOnQuitEvent(t *testing.T) {

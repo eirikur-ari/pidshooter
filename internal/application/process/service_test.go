@@ -36,8 +36,10 @@ func TestFindProcessesNoMatches(t *testing.T) {
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, apperror.CodeNoProcessesFound, appErr.Code)
-	assert.Equal(t, apperror.SeverityError, appErr.Severity)
+	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
 	assert.Empty(t, processes)
+	assert.Equal(t, "no processes found", err.Error(), "an empty wrapper Message should not change the displayed text")
+	require.Error(t, appErr.Unwrap(), "the underlying cause should still be reachable, not discarded")
 }
 
 // --- Kill ---
