@@ -4,7 +4,10 @@ import (
 	"time"
 )
 
-// NotFoundError is returned by ScoreStore.Load when no board has been persisted yet.
+// NotFoundError is returned by ScoreStore.Load when no board has been
+// persisted yet. Implementations must return it by value (NotFoundError{}),
+// not by pointer — callers detect it with errors.As(err, &NotFoundError{}),
+// which matches the value form only.
 type NotFoundError struct{}
 
 func (NotFoundError) Error() string {

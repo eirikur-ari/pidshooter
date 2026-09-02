@@ -23,6 +23,9 @@ func main() {
 func run() error {
 	logger := stderrlog.NewLogger()
 
+	// These two adapters are constructed before application.NewRunner, so
+	// there's no apperror.Handler yet to route their failures through —
+	// they're the one place in the program that logs directly.
 	proc, err := osprocess.NewProcess()
 	if err != nil {
 		logger.Error(err.Error())
