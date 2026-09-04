@@ -42,24 +42,24 @@ type Error struct {
 	Code     Code
 	Severity Severity
 	Message  string
-	Err      error
+	Cause    error
 }
 
-// NewError constructs an Error wrapping err with the given code, severity, and message.
-func NewError(code Code, severity Severity, message string, err error) *Error {
-	return &Error{Code: code, Severity: severity, Message: message, Err: err}
+// NewError constructs an Error wrapping error cause with the given error code, error severity, and error message.
+func NewError(code Code, severity Severity, message string, cause error) *Error {
+	return &Error{Code: code, Severity: severity, Message: message, Cause: cause}
 }
 
 func (e *Error) Error() string {
-	if e.Err == nil {
+	if e.Cause == nil {
 		return e.Message
 	}
 	if e.Message == "" {
-		return e.Err.Error()
+		return e.Cause.Error()
 	}
-	return e.Message + ": " + e.Err.Error()
+	return e.Message + ": " + e.Cause.Error()
 }
 
 func (e *Error) Unwrap() error {
-	return e.Err
+	return e.Cause
 }
