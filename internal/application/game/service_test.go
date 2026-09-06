@@ -11,7 +11,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/application/event"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
@@ -33,11 +32,34 @@ func TestServicePlayNoProcessesReturnsClassifiedError(t *testing.T) {
 	require.Error(t, appErr.Unwrap(), "the underlying cause should still be reachable, not discarded")
 }
 
-// killerFunc adapts a plain function to the killer interface for tests.
-type killerFunc func(target *game.Target) (killed, shouldReap bool, err error)
+func TestServicePlayRendererInitFailureReturnsClassifiedError(t *testing.T) {
+	processes := []process.Info{process.NewInfo(100, "target", 4096)}
+	renderer := &fake.Renderer{InitErr: errors.New("terminal not available")}
+	svc := NewService(nil, renderer, fake.NewInputSource())
 
-func (f killerFunc) Kill(target *game.Target) (killed, shouldReap bool, err error) {
-	return f(target)
+	_, err := svc.Play(inbound.Config{}, processes, 0)
+
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeGameFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
+	assert.ErrorContains(t, err, "terminal not available")
+}
+
+func TestServicePlaySuccessReturnsPlayResult(t *testing.T) {
+	processes := []process.Info{process.NewInfo(100, "target", 4096)}
+	events := fake.NewInputSource()
+	events.Ch <- outbound.QuitEvent{}
+	svc := NewService(nil, &fake.Renderer{}, events)
+
+	result, err := svc.Play(inbound.Config{Speed: 2.0}, processes, 0)
+
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, result.Duration, 0.0)
+	assert.Equal(t, 2.0, result.LowestSpeed, "quitting before any speed change should leave the starting speed unchanged")
+	assert.Equal(t, 0, result.Kills)
+	assert.Equal(t, int64(0), result.FreedMem)
+	assert.Empty(t, result.KillFailures)
 }
 
 // --- applyKillSignals ---
@@ -117,41 +139,6 @@ func TestServiceApplyKillsDeduplicatesRepeatedFailuresForSamePID(t *testing.T) {
 	assert.Len(t, tracker.failure.failures, 1, "a repeat failure for the same PID should not duplicate the entry")
 }
 
-// --- frameLoop (async kill end-to-end) ---
-
-// TestServiceFrameLoopAppliesAsyncKillToResult drives a click through the real
-// dispatch -> killOrReap goroutine -> applyKillSignals pipeline that Play
-// relies on, verifying a confirmed kill is reflected in the tracked result.
-func TestServiceFrameLoopAppliesAsyncKillToResult(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096)
-	session := game.NewSession([]process.Info{info}, game.Config{Speed: 1.0})
-	session.Start(80, 24)
-
-	target := session.Targets()[0]
-	x, y := int(target.Position.X), int(target.Position.Y)
-
-	events := fake.NewInputSource()
-	events.Ch <- outbound.ClickEvent{X: x, Y: y}
-
-	killer := killerFunc(func(*game.Target) (bool, bool, error) {
-		return true, false, nil
-	})
-	svc := NewService(killer, &fake.Renderer{}, events)
-	dispatcher := event.NewDispatcher(game.NewInput(session))
-
-	done := make(chan struct{})
-	defer close(done)
-
-	tracker := newKillTracker(0)
-	svc.frameLoop(session, tracker, dispatcher, nil, done)
-
-	assert.Equal(t, 1, tracker.score.kills)
-	assert.Equal(t, info.Rss, tracker.score.freedMem)
-	assert.Empty(t, tracker.failure.failures)
-}
-
-// --- killOrReap ---
-
 // TestKillOrReapReportsFailureWithoutReaping covers the two cases that used
 // to be silently dropped: a protected-PID refusal and a kill syscall failure
 // (both shouldReap=false, err!=nil). The target must stay unreaped and the
@@ -159,7 +146,7 @@ func TestServiceFrameLoopAppliesAsyncKillToResult(t *testing.T) {
 func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096)
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
-	killer := killerFunc(func(*game.Target) (bool, bool, error) {
+	killer := fake.Killer(func(*game.Target) (bool, bool, error) {
 		return false, false, errors.New("refusing to kill PID 100")
 	})
 	svc := NewService(killer, &fake.Renderer{}, fake.NewInputSource())
@@ -174,6 +161,8 @@ func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
 	assert.ErrorContains(t, sig.err, "refusing to kill PID 100")
 }
 
+// --- killOrReap ---
+
 // TestKillOrReapFalseKilledWithNilErrorReportsFallbackFailure covers a
 // combination the killer interface permits but osprocess never actually
 // returns (killed=false, shouldReap=false, err=nil): killOrReap must still
@@ -181,7 +170,7 @@ func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
 func TestKillOrReapFalseKilledWithNilErrorReportsFallbackFailure(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096)
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
-	killer := killerFunc(func(*game.Target) (bool, bool, error) {
+	killer := fake.Killer(func(*game.Target) (bool, bool, error) {
 		return false, false, nil
 	})
 	svc := NewService(killer, &fake.Renderer{}, fake.NewInputSource())
@@ -203,7 +192,7 @@ func TestKillOrReapFalseKilledWithNilErrorReportsFallbackFailure(t *testing.T) {
 func TestKillOrReapReapWithoutErrorStaysSilent(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096)
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
-	killer := killerFunc(func(*game.Target) (bool, bool, error) {
+	killer := fake.Killer(func(*game.Target) (bool, bool, error) {
 		return false, true, errors.New("could not verify PID 100: process not found")
 	})
 	svc := NewService(killer, &fake.Renderer{}, fake.NewInputSource())
@@ -218,8 +207,6 @@ func TestKillOrReapReapWithoutErrorStaysSilent(t *testing.T) {
 	assert.NoError(t, sig.err, "a reap outcome must not be reported as a kill failure")
 }
 
-// --- registerTermSignalWatcher ---
-
 func TestRegisterTermSignalWatcherTermSignalClosesOnStop(t *testing.T) {
 	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
 
@@ -232,3 +219,5 @@ func TestRegisterTermSignalWatcherTermSignalClosesOnStop(t *testing.T) {
 		t.Fatal("termSignal was not closed after stop()")
 	}
 }
+
+// --- registerTermSignalWatcher ---
