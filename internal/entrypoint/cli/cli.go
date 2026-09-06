@@ -40,13 +40,7 @@ func (c *CLI) Run(args []string) error {
 	return c.report(cmd.Execute())
 }
 
-// report logs err if it's native to this adapter — such as a malformed
-// flag — rather than already reported by the application layer, then
-// returns it unchanged. This relies on an invariant the application layer
-// must uphold: every *apperror.Error it constructs is routed through
-// apperror.Handler.Handle (and therefore already logged) before it can
-// reach this adapter. A path that returns a raw *apperror.Error without
-// going through Handle first would be silently un-logged here.
+// TODO: This is a temporary solution until we have a proper error handling strategy in place.
 func (c *CLI) report(err error) error {
 	var appErr *apperror.Error
 	if err != nil && !errors.As(err, &appErr) {

@@ -1,4 +1,3 @@
-// Package stderrlog implements outbound.Logger backed by standard error.
 package stderrlog
 
 import (

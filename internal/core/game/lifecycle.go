@@ -11,8 +11,7 @@ const (
 	stopped                  // game over
 )
 
-// atomicLifecycle is an atomic wrapper for lifecycle, safe for concurrent
-// access. Its zero value is ready to use, initialized to pending.
+// atomicLifecycle is an atomic wrapper for lifecycle, safe for concurrent access.
 type atomicLifecycle struct {
 	value atomic.Int32
 }
