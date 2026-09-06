@@ -21,7 +21,7 @@ func newRunner(proc *fake.Process, store *fake.Store, events *fake.InputSource, 
 	return NewRunner(proc, store, &fake.Renderer{}, events, logger)
 }
 
-func TestIntegrationRunnerHappyPath(t *testing.T) {
+func TestIntegrationRunnerRunIsSuccessful(t *testing.T) {
 	events := fake.NewInputSource()
 	events.Ch <- outbound.QuitEvent{}
 
@@ -42,7 +42,7 @@ func TestIntegrationRunnerHappyPath(t *testing.T) {
 	assert.Greater(t, entry.Duration, 0.0)
 }
 
-func TestIntegrationRunnerGameFailsWhenRendererInitFails(t *testing.T) {
+func TestIntegrationRunnerRunReturnsErrorWhenRendererInitFails(t *testing.T) {
 	logger := &fake.Logger{}
 	r := NewRunner(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 204, Name: "target", Rss: 1024}}},
@@ -62,7 +62,7 @@ func TestIntegrationRunnerGameFailsWhenRendererInitFails(t *testing.T) {
 	assert.Contains(t, logger.Errors[0], "terminal not available")
 }
 
-func TestIntegrationRunnerLoadErrorPrintsWarningAndSkipsSave(t *testing.T) {
+func TestIntegrationRunnerRunPrintsWarningAndSkipsSaveWhenLoadingScoreBoardFails(t *testing.T) {
 	events := fake.NewInputSource()
 	events.Ch <- outbound.QuitEvent{}
 
@@ -85,7 +85,7 @@ func TestIntegrationRunnerLoadErrorPrintsWarningAndSkipsSave(t *testing.T) {
 	assert.Nil(t, store.Saved)
 }
 
-func TestIntegrationRunnerSaveErrorPrintsWarning(t *testing.T) {
+func TestIntegrationRunnerRunPrintsWarningAndSkipsSaveWhenSavingScoreFails(t *testing.T) {
 	events := fake.NewInputSource()
 	events.Ch <- outbound.QuitEvent{}
 
@@ -105,7 +105,7 @@ func TestIntegrationRunnerSaveErrorPrintsWarning(t *testing.T) {
 	assert.Contains(t, logger.Warnings[0], "disk full")
 }
 
-func TestIntegrationRunnerNotFoundStillSaves(t *testing.T) {
+func TestIntegrationRunnerRunWillSaveScoreWhenScoreBoardWasNotFound(t *testing.T) {
 	events := fake.NewInputSource()
 	events.Ch <- outbound.QuitEvent{}
 
@@ -126,7 +126,7 @@ func TestIntegrationRunnerNotFoundStillSaves(t *testing.T) {
 	assert.Contains(t, logger.Warnings[0], "score board not loaded")
 }
 
-func TestIntegrationRunnerQuitOnQuitEvent(t *testing.T) {
+func TestIntegrationRunnerRunWillQuitOnQuitEvent(t *testing.T) {
 	events := fake.NewInputSource()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
@@ -139,10 +139,15 @@ func TestIntegrationRunnerQuitOnQuitEvent(t *testing.T) {
 		events,
 		&fake.Logger{},
 	)
-	assert.NoError(t, r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}))
+
+	start := time.Now()
+	err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0})
+
+	require.NoError(t, err)
+	assert.Less(t, time.Since(start), time.Second, "Run should have quit shortly after the QuitEvent, not run indefinitely")
 }
 
-func TestIntegrationRunnerTimeLimitExpires(t *testing.T) {
+func TestIntegrationRunnerRunWillQuitWhenTimeLimitExpires(t *testing.T) {
 	r := newRunner(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 102, Name: "target", Rss: 1024}}},
 		&fake.Store{},
@@ -155,9 +160,9 @@ func TestIntegrationRunnerTimeLimitExpires(t *testing.T) {
 	assert.LessOrEqual(t, time.Since(start), 3*time.Second, "game took too long to exit on time limit")
 }
 
-// TestIntegrationRunnerSignalGoroutineDoesNotAccumulate verifies the signal goroutine
+// TestIntegrationRunnerRunSignalGoroutineDoesNotAccumulate verifies the signal goroutine
 // started inside runLoop exits when Run returns, preventing goroutine leaks.
-func TestIntegrationRunnerSignalGoroutineDoesNotAccumulate(t *testing.T) {
+func TestIntegrationRunnerRunSignalGoroutineDoesNotAccumulate(t *testing.T) {
 	runGame := func(pid int) {
 		events := fake.NewInputSource()
 		go func() {

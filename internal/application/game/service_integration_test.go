@@ -4,6 +4,7 @@ package game
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -14,6 +15,12 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
+// TestIntegrationServiceFrameLoopAppliesAsyncKillToResult drives a click through the real
+// dispatch -> killOrReap goroutine -> applyKillSignals pipeline that Play relies on,
+// riding out the full real-time kill animation (~600ms, 12 frame ticks) over the
+// actual frame ticker, and verifies a confirmed kill is reflected in the tracked
+// result. Bounded by a generous timeout so a regression that stalls the loop fails
+// fast with a clear message instead of hanging until the test runner's own timeout.
 func TestIntegrationServiceFrameLoopAppliesAsyncKillToResult(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096)
 	session := game.NewSession([]process.Info{info}, game.Config{Speed: 1.0})
@@ -35,7 +42,17 @@ func TestIntegrationServiceFrameLoopAppliesAsyncKillToResult(t *testing.T) {
 	defer close(done)
 
 	tracker := newKillTracker(0)
-	svc.frameLoop(session, tracker, dispatcher, nil, done)
+	finished := make(chan struct{})
+	go func() {
+		svc.frameLoop(session, tracker, dispatcher, nil, done)
+		close(finished)
+	}()
+
+	select {
+	case <-finished:
+	case <-time.After(6 * time.Second):
+		t.Fatal("frameLoop did not finish the kill animation within 6s")
+	}
 
 	assert.Equal(t, 1, tracker.score.kills)
 	assert.Equal(t, info.Rss, tracker.score.freedMem)
