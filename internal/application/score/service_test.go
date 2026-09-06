@@ -17,7 +17,7 @@ import (
 
 // --- Service.loadScoreBoard ---
 
-func TestLoadScoreBoardMapsStoredEntries(t *testing.T) {
+func TestLoadScoreBoardReturnsMappedEntries(t *testing.T) {
 	date := time.Now()
 	svc := NewService(&fake.Store{Board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
 		{Kills: 8, FreedMem: 1024, Speed: 2.0, Time: 30, Duration: 5, Date: date},
@@ -30,7 +30,7 @@ func TestLoadScoreBoardMapsStoredEntries(t *testing.T) {
 	assert.Equal(t, 8, highScore)
 }
 
-func TestLoadScoreBoardNotFoundReturnsNotFoundError(t *testing.T) {
+func TestLoadScoreBoardReturnsNotFoundErrorWhenScoreBoardIsNotFound(t *testing.T) {
 	svc := NewService(&fake.Store{LoadErr: outbound.NotFoundError{}})
 
 	board, highScore, err := svc.LoadScoreBoard()
@@ -41,11 +41,12 @@ func TestLoadScoreBoardNotFoundReturnsNotFoundError(t *testing.T) {
 	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	var notFound outbound.NotFoundError
 	assert.ErrorAs(t, err, &notFound)
+	assert.ErrorContains(t, err, "score board not loaded", "should report the underlying NotFoundError as the reason for the load failure")
 	assert.Empty(t, board.Scores)
 	assert.Equal(t, 0, highScore)
 }
 
-func TestLoadScoreBoardErrorReturnsUnderlyingError(t *testing.T) {
+func TestLoadScoreBoardReturnsUnderlyingError(t *testing.T) {
 	cause := errors.New("disk error")
 	svc := NewService(&fake.Store{LoadErr: cause})
 
@@ -56,19 +57,23 @@ func TestLoadScoreBoardErrorReturnsUnderlyingError(t *testing.T) {
 	assert.Equal(t, apperror.CodeScoreLoadFailed, appErr.Code)
 	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorIs(t, err, cause)
+	assert.ErrorContains(t, err, "score board not loaded: disk error", "should report the underlying Error")
 	assert.Empty(t, board.Scores)
 	assert.Equal(t, 0, highScore)
 }
 
 // --- Service.recordScore ---
 
-func TestRecordScoreAddsEntryFromTracker(t *testing.T) {
-	svc := NewService(&fake.Store{})
+func TestRecordScoreReturnsNilWhenBoardIsSavedSuccessfully(t *testing.T) {
+	fakeStore := &fake.Store{}
+	svc := NewService(fakeStore)
 	board := score.NewBoard(nil)
 
 	require.Nil(t, svc.RecordScore(board, 4, 2048, 2.5, 30, 12.5, nil))
 
 	require.Len(t, board.Scores, 1)
+	require.NotNil(t, fakeStore.Saved)
+	assert.Len(t, fakeStore.Saved.Scores, 1)
 	entry := board.Scores[0]
 	assert.Equal(t, 4, entry.Kills)
 	assert.Equal(t, int64(2048), entry.FreedMem)
@@ -77,27 +82,17 @@ func TestRecordScoreAddsEntryFromTracker(t *testing.T) {
 	assert.Equal(t, 12.5, entry.Duration)
 }
 
-func TestRecordScoreSavesWhenLoadErrIsNil(t *testing.T) {
+func TestRecordScoreSavesWhenScoreBoardWasNotFound(t *testing.T) {
 	fakeStore := &fake.Store{}
 	svc := NewService(fakeStore)
 	board := score.NewBoard(nil)
 
-	require.Nil(t, svc.RecordScore(board, 1, 0, 0, 0, 1.0, nil))
-
-	require.NotNil(t, fakeStore.Saved)
-	assert.Len(t, fakeStore.Saved.Scores, 1)
-}
-
-func TestRecordScoreSavesWhenLoadErrIsNotFound(t *testing.T) {
-	fakeStore := &fake.Store{}
-	svc := NewService(fakeStore)
-	board := score.NewBoard(nil)
-
-	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score not loaded", outbound.NotFoundError{})
+	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded", outbound.NotFoundError{})
 	require.Nil(t, svc.RecordScore(board, 1, 0, 0, 0, 1.0, loadErr))
 
 	require.NotNil(t, fakeStore.Saved, "a fresh (never-persisted) board should still be saved")
 	assert.Len(t, fakeStore.Saved.Scores, 1)
+	assert.ErrorContains(t, loadErr, "score board not loaded: not found", "should report the underlying NotFoundError as the reason for the load failure")
 }
 
 func TestRecordScoreSkipsSaveAndReturnsWarningWhenLoadFailed(t *testing.T) {
@@ -106,7 +101,7 @@ func TestRecordScoreSkipsSaveAndReturnsWarningWhenLoadFailed(t *testing.T) {
 	board := score.NewBoard(nil)
 
 	cause := errors.New("disk error")
-	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score not loaded", cause)
+	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded", cause)
 
 	err := svc.RecordScore(board, 1, 0, 0, 0, 1.0, loadErr)
 

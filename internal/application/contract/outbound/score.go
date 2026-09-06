@@ -11,7 +11,7 @@ import (
 type NotFoundError struct{}
 
 func (NotFoundError) Error() string {
-	return "score board not found"
+	return "not found"
 }
 
 // ScoreEntry is the persistence representation of a single high score record.

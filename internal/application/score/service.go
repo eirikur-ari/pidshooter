@@ -32,7 +32,7 @@ func (s *Service) LoadScoreBoard() (*score.Board, int, error) {
 	sb, err := s.store.Load()
 	if err != nil {
 		board := score.NewBoard(nil)
-		return board, board.HighScore(), apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score not loaded", err)
+		return board, board.HighScore(), apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded", err)
 	}
 	board := toBoard(sb)
 	return board, board.HighScore(), nil
@@ -60,7 +60,7 @@ func (s *Service) RecordScore(board *score.Board, kills int, freedMem int64, spe
 	}
 
 	if err != nil {
-		return apperror.NewError(apperror.CodeScoreSaveFailed, apperror.SeverityWarning, "score not saved", err)
+		return apperror.NewError(apperror.CodeScoreSaveFailed, apperror.SeverityWarning, "score board not saved", err)
 	}
 	return nil
 }

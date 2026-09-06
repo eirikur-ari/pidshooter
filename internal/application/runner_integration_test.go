@@ -79,9 +79,9 @@ func TestIntegrationRunnerLoadErrorPrintsWarningAndSkipsSave(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, logger.Warnings, 2)
-	assert.Contains(t, logger.Warnings[0], "score not loaded")
-	assert.Contains(t, logger.Warnings[1], "score not saved")
-	assert.Contains(t, logger.Warnings[1], "score not loaded", "should report the load failure as the reason the save was skipped")
+	assert.Contains(t, logger.Warnings[0], "score board not loaded")
+	assert.Contains(t, logger.Warnings[1], "score board not saved")
+	assert.Contains(t, logger.Warnings[1], "score board not loaded", "should report the load failure as the reason the save was skipped")
 	assert.Nil(t, store.Saved)
 }
 
@@ -101,7 +101,7 @@ func TestIntegrationRunnerSaveErrorPrintsWarning(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, logger.Warnings, 1)
-	assert.Contains(t, logger.Warnings[0], "score not saved")
+	assert.Contains(t, logger.Warnings[0], "score board not saved")
 	assert.Contains(t, logger.Warnings[0], "disk full")
 }
 
@@ -123,7 +123,7 @@ func TestIntegrationRunnerNotFoundStillSaves(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, store.Saved, "a fresh (never-persisted) board should still be saved")
 	require.Len(t, logger.Warnings, 1)
-	assert.Contains(t, logger.Warnings[0], "score not loaded")
+	assert.Contains(t, logger.Warnings[0], "score board not loaded")
 }
 
 func TestIntegrationRunnerQuitOnQuitEvent(t *testing.T) {
