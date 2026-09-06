@@ -4,14 +4,14 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 )
 
-// KillFailure records a target the run could not kill.
+// KillFailure records a target that was not killed, along with the error that caused the failure.
 type KillFailure struct {
 	Target string
 	Pid    int
 	Err    error
 }
 
-// killTracker accumulates state for a single playthrough: score progress,
+// killTracker accumulates state of a single game session: score progress,
 // and kill attempts that failed to kill their targets.
 type killTracker struct {
 	score   killScoreTracker
@@ -32,7 +32,10 @@ type killFailureTracker struct {
 // newKillTracker returns a killTracker seeded with the caller's
 // persisted high score.
 func newKillTracker(highScore int) *killTracker {
-	return &killTracker{score: killScoreTracker{highScore: highScore}}
+	return &killTracker{
+		score:   killScoreTracker{highScore: highScore},
+		failure: killFailureTracker{pids: make(map[int]struct{})},
+	}
 }
 
 // recordKill records a kill, updates freed memory, and raises the high score when needed.
@@ -48,9 +51,6 @@ func (t *killTracker) recordKill(freedMemory int64) {
 func (t *killTracker) recordFailure(target *game.Target, err error) {
 	if _, ok := t.failure.pids[target.Pid]; ok {
 		return
-	}
-	if t.failure.pids == nil {
-		t.failure.pids = make(map[int]struct{})
 	}
 	t.failure.pids[target.Pid] = struct{}{}
 	t.failure.failures = append(t.failure.failures, KillFailure{Target: target.Name, Pid: target.Pid, Err: err})
