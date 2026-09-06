@@ -48,7 +48,7 @@ func TestKillTrackerRecordFailureAddsFailedKillWithNoCause(t *testing.T) {
 	require.Len(t, tr.failure.failures, 1)
 	failure := tr.failure.failures[0]
 	assert.Equal(t, "target", failure.Target)
-	assert.Equal(t, 100, failure.Pid)
+	assert.Equal(t, 100, failure.PID)
 }
 
 func TestKillTrackerRecordFailureAddsFailedKillWithCause(t *testing.T) {

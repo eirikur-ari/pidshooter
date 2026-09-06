@@ -135,7 +135,7 @@ func (a *UI) drawStatusBar(w, h int, status outbound.StatusState) {
 	var statusStr string
 	if status.Confirming != nil {
 		statusStr = fmt.Sprintf(" Kill [%d %s]? (Y)es / (N)o / (Q)uit",
-			status.Confirming.Pid, status.Confirming.Name)
+			status.Confirming.PID, status.Confirming.Name)
 	} else {
 		timerStr := ""
 		if status.TimeLimit > 0 {

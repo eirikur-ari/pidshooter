@@ -22,9 +22,9 @@ func TestListReturnsResults(t *testing.T) {
 	assert.NotEmpty(t, processes)
 }
 
-func TestOwnPidMatchesOSGetpid(t *testing.T) {
+func TestOwnPIDMatchesOSGetpid(t *testing.T) {
 	p := newTestProcess(t)
-	assert.Equal(t, os.Getpid(), p.OwnPid())
+	assert.Equal(t, os.Getpid(), p.OwnPID())
 }
 
 func TestLookupNameReturnsOwnName(t *testing.T) {

@@ -26,7 +26,7 @@ func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
 		return nil, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityFatal, "process discovery failed", err)
 	}
 
-	matches := process.Find(toProcessInfos(processes), patterns, s.processMgr.OwnPid())
+	matches := process.Find(toProcessInfos(processes), patterns, s.processMgr.OwnPID())
 	if err := process.ValidateProcesses(matches); err != nil {
 		return nil, apperror.NewError(apperror.CodeNoProcessesFound, apperror.SeverityFatal, "", err)
 	}
@@ -42,7 +42,7 @@ func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
 // reports whether the caller should reap the target instead of leaving it
 // stuck as alive, because its backing process was already gone.
 func (s *Service) Kill(target *game.Target) (killed, shouldReap bool, err error) {
-	pid := target.Pid
+	pid := target.PID
 	if target.Info.IsProtected() {
 		return false, false, fmt.Errorf("refusing to kill PID %d", pid)
 	}

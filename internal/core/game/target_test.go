@@ -16,12 +16,12 @@ func TestNewTargetWithinBounds(t *testing.T) {
 	maxX, maxY := 80, 24
 	e := NewTarget(process.NewInfo(1234, "test", 1024), movement.NewBounds(maxX, maxY))
 
-	assert.Equal(t, 1234, e.Pid)
+	assert.Equal(t, 1234, e.PID)
 	assert.Equal(t, "test", e.Name)
 	assert.Equal(t, int64(1024), e.Rss)
 	assert.Equal(t, Alive, e.State)
 
-	tag := fmt.Sprintf("[%d %s]", e.Pid, e.Name)
+	tag := fmt.Sprintf("[%d %s]", e.PID, e.Name)
 	width := len(tag)
 	spawnMaxX := maxX - width - 1
 	spawnMaxY := maxY - 2

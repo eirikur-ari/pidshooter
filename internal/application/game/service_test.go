@@ -120,7 +120,7 @@ func TestServiceApplyKillsRecordsFailureWithoutMutatingTarget(t *testing.T) {
 	require.Len(t, tracker.failure.failures, 1)
 	failure := tracker.failure.failures[0]
 	assert.Equal(t, "target", failure.Target)
-	assert.Equal(t, 100, failure.Pid)
+	assert.Equal(t, 100, failure.PID)
 	assert.EqualError(t, failure.Err, "operation not permitted")
 }
 

@@ -92,8 +92,8 @@ func TestRunnerLogKillFailuresLogsEachAsWarning(t *testing.T) {
 	r := NewRunner(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource(), logger)
 
 	r.logKillFailures([]game.KillFailure{
-		{Target: "proc", Pid: 123, Err: errors.New("boom")},
-		{Target: "other", Pid: 456, Err: errors.New("bam")},
+		{Target: "proc", PID: 123, Err: errors.New("boom")},
+		{Target: "other", PID: 456, Err: errors.New("bam")},
 	})
 
 	require.Len(t, logger.Warnings, 2)

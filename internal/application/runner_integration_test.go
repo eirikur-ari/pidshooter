@@ -27,7 +27,7 @@ func TestIntegrationRunnerHappyPath(t *testing.T) {
 
 	store := &fake.Store{}
 	r := newRunner(
-		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 200, Name: "target", Rss: 1024}}},
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024}}},
 		store,
 		events,
 		&fake.Logger{},
@@ -45,7 +45,7 @@ func TestIntegrationRunnerHappyPath(t *testing.T) {
 func TestIntegrationRunnerGameFailsWhenRendererInitFails(t *testing.T) {
 	logger := &fake.Logger{}
 	r := NewRunner(
-		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 204, Name: "target", Rss: 1024}}},
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 204, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		&fake.Renderer{InitErr: errors.New("terminal not available")},
 		fake.NewInputSource(),
@@ -69,7 +69,7 @@ func TestIntegrationRunnerLoadErrorPrintsWarningAndSkipsSave(t *testing.T) {
 	store := &fake.Store{LoadErr: errors.New("json: invalid character")}
 	logger := &fake.Logger{}
 	r := newRunner(
-		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 201, Name: "target", Rss: 1024}}},
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 201, Name: "target", Rss: 1024}}},
 		store,
 		events,
 		logger,
@@ -91,7 +91,7 @@ func TestIntegrationRunnerSaveErrorPrintsWarning(t *testing.T) {
 
 	logger := &fake.Logger{}
 	r := newRunner(
-		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 202, Name: "target", Rss: 1024}}},
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 202, Name: "target", Rss: 1024}}},
 		&fake.Store{SaveErr: errors.New("disk full")},
 		events,
 		logger,
@@ -112,7 +112,7 @@ func TestIntegrationRunnerNotFoundStillSaves(t *testing.T) {
 	store := &fake.Store{LoadErr: outbound.NotFoundError{}}
 	logger := &fake.Logger{}
 	r := newRunner(
-		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 203, Name: "target", Rss: 1024}}},
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 203, Name: "target", Rss: 1024}}},
 		store,
 		events,
 		logger,
@@ -134,7 +134,7 @@ func TestIntegrationRunnerQuitOnQuitEvent(t *testing.T) {
 	}()
 
 	r := newRunner(
-		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 100, Name: "target", Rss: 1024}}},
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 100, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
 		&fake.Logger{},
@@ -144,7 +144,7 @@ func TestIntegrationRunnerQuitOnQuitEvent(t *testing.T) {
 
 func TestIntegrationRunnerTimeLimitExpires(t *testing.T) {
 	r := newRunner(
-		&fake.Process{Processes: []outbound.ProcessInfo{{Pid: 102, Name: "target", Rss: 1024}}},
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 102, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		fake.NewInputSource(),
 		&fake.Logger{},
@@ -165,7 +165,7 @@ func TestIntegrationRunnerSignalGoroutineDoesNotAccumulate(t *testing.T) {
 			events.Ch <- outbound.QuitEvent{}
 		}()
 		r := newRunner(
-			&fake.Process{Processes: []outbound.ProcessInfo{{Pid: pid, Name: "target", Rss: 1024}}},
+			&fake.Process{Infos: []outbound.ProcessInfo{{PID: pid, Name: "target", Rss: 1024}}},
 			&fake.Store{},
 			events,
 			&fake.Logger{},

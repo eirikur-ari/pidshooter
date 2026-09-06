@@ -78,7 +78,7 @@ func (r *Runner) Run(cfg inbound.Config) error {
 // logKillFailures reports each target the run could not kill.
 func (r *Runner) logKillFailures(failures []game.KillFailure) {
 	for _, f := range failures {
-		msg := fmt.Sprintf("could not kill %s (PID %d)", f.Target, f.Pid)
+		msg := fmt.Sprintf("could not kill %s (PID %d)", f.Target, f.PID)
 		_ = r.errHandler.Handle(apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, msg, f.Err))
 	}
 }

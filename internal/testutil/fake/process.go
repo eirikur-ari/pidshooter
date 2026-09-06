@@ -6,17 +6,17 @@ import (
 
 // Process is a test double for outbound.ProcessManager.
 type Process struct {
-	Processes       []outbound.ProcessInfo
+	Infos           []outbound.ProcessInfo
 	ListErr         error
-	OwnPidValue     int
+	OwnPIDValue     int
 	LookupNameValue string
 	LookupNameErr   error
 	KilledPIDs      []int
 	KillErr         error
 }
 
-func (f *Process) List() ([]outbound.ProcessInfo, error) { return f.Processes, f.ListErr }
-func (f *Process) OwnPid() int                           { return f.OwnPidValue }
+func (f *Process) List() ([]outbound.ProcessInfo, error) { return f.Infos, f.ListErr }
+func (f *Process) OwnPID() int                           { return f.OwnPIDValue }
 func (f *Process) LookupName(_ int) (string, error)      { return f.LookupNameValue, f.LookupNameErr }
 
 func (f *Process) Kill(pid int) (bool, error) {

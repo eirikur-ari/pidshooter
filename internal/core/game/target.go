@@ -115,7 +115,7 @@ func (t *Target) move(bounds movement.Bounds, speed float64) {
 }
 
 func tagFor(info process.Info) string {
-	return fmt.Sprintf("[%d %s]", info.Pid, info.Name)
+	return fmt.Sprintf("[%d %s]", info.PID, info.Name)
 }
 
 // TODO: perhaps move tag string etc to infrastructure / outbound adapter

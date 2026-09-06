@@ -70,7 +70,7 @@ func TestFindMatchesByName(t *testing.T) {
 	}
 	result := Find(infos, []string{"myapp"}, 0)
 	require.Len(t, result, 1)
-	assert.Equal(t, 100, result[0].Pid)
+	assert.Equal(t, 100, result[0].PID)
 }
 
 func TestFindSubstringMatch(t *testing.T) {
@@ -108,7 +108,7 @@ func TestFindExcludesPID1(t *testing.T) {
 	}
 	result := Find(infos, []string{"init", "myapp"}, 0)
 	for _, p := range result {
-		assert.NotEqual(t, 1, p.Pid, "should not include PID 1")
+		assert.NotEqual(t, 1, p.PID, "should not include PID 1")
 	}
 }
 
@@ -120,10 +120,10 @@ func TestFindExcludesOwnPID(t *testing.T) {
 	}
 	result := Find(infos, []string{"testprocess"}, ownPID)
 	for _, p := range result {
-		assert.NotEqual(t, ownPID, p.Pid, "should not include own PID")
+		assert.NotEqual(t, ownPID, p.PID, "should not include own PID")
 	}
 	require.Len(t, result, 1)
-	assert.Equal(t, 100, result[0].Pid)
+	assert.Equal(t, 100, result[0].PID)
 }
 
 func TestFindExcludesPID0(t *testing.T) {
@@ -133,8 +133,8 @@ func TestFindExcludesPID0(t *testing.T) {
 	}
 	result := Find(infos, []string{"swapper", "myapp"}, -1)
 	for _, p := range result {
-		assert.Greater(t, p.Pid, 1, "filter should exclude PID %d", p.Pid)
+		assert.Greater(t, p.PID, 1, "filter should exclude PID %d", p.PID)
 	}
 	require.Len(t, result, 1)
-	assert.Equal(t, 100, result[0].Pid)
+	assert.Equal(t, 100, result[0].PID)
 }

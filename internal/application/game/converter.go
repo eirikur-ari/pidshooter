@@ -11,7 +11,7 @@ func toConfirmViewState(target *game.Target) *outbound.ConfirmViewState {
 	if target == nil {
 		return nil
 	}
-	return &outbound.ConfirmViewState{Pid: target.Pid, Name: target.Name}
+	return &outbound.ConfirmViewState{PID: target.PID, Name: target.Name}
 }
 
 func toTargetViewState(target *game.Target) outbound.TargetViewState {

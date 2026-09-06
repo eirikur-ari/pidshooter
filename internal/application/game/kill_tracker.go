@@ -7,7 +7,7 @@ import (
 // KillFailure records a target that was not killed, along with the error that caused the failure.
 type KillFailure struct {
 	Target string
-	Pid    int
+	PID    int
 	Err    error
 }
 
@@ -49,9 +49,9 @@ func (t *killTracker) recordKill(freedMemory int64) {
 
 // recordFailure records a kill attempt that left the target alive, deduplicated by PID.
 func (t *killTracker) recordFailure(target *game.Target, err error) {
-	if _, ok := t.failure.pids[target.Pid]; ok {
+	if _, ok := t.failure.pids[target.PID]; ok {
 		return
 	}
-	t.failure.pids[target.Pid] = struct{}{}
-	t.failure.failures = append(t.failure.failures, KillFailure{Target: target.Name, Pid: target.Pid, Err: err})
+	t.failure.pids[target.PID] = struct{}{}
+	t.failure.failures = append(t.failure.failures, KillFailure{Target: target.Name, PID: target.PID, Err: err})
 }
