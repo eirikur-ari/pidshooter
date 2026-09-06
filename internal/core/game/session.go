@@ -39,10 +39,10 @@ func NewSession(processes []process.Info, cfg Config) *Session {
 
 // Start transitions the session from pending to running. Panics if called on
 // a session that is already running or stopped.
-func (s *Session) Start(w, h int) {
+func (s *Session) Start(width, height int) {
 	switch s.state.Load() {
 	case pending:
-		s.initialize(w, h)
+		s.initialize(width, height)
 	case running:
 		panic("Start called on a running game session")
 	case stopped:
@@ -52,13 +52,13 @@ func (s *Session) Start(w, h int) {
 
 // Update advances the session state by one frame. w and h are the current terminal dimensions.
 // It moves every target and stops the session if the time limit has expired or all targets are dead.
-func (s *Session) Update(w, h int) {
+func (s *Session) Update(width, height int) {
 	if s.timer.Expired() {
 		s.Stop()
 		return
 	}
 
-	s.roster.move(movement.NewBounds(w, h), s.throttle.Speed())
+	s.roster.move(movement.NewBounds(width, height), s.throttle.Speed())
 
 	if s.roster.allDead() {
 		s.Stop()
@@ -102,9 +102,9 @@ func (s *Session) PendingConfirm() *Target {
 // it immediately for killing (passthrough mode).
 func (s *Session) RequestConfirm(t *Target) *Target { return s.confirm.Request(t) }
 
-func (s *Session) initialize(w, h int) {
+func (s *Session) initialize(width, height int) {
 	s.timer.Start()
-	s.roster.spawn(movement.NewBounds(w, h))
+	s.roster.spawn(movement.NewBounds(width, height))
 	s.state.Store(running)
 }
 

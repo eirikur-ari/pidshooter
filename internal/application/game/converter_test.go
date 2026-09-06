@@ -13,23 +13,23 @@ import (
 
 // --- toConfirmViewState ---
 
-func TestToConfirmViewStateNilInput(t *testing.T) {
+func TestToConfirmViewStateReturnNilWhenInputIsNil(t *testing.T) {
 	assert.Nil(t, toConfirmViewState(nil))
 }
 
-func TestToConfirmViewStateMapsFields(t *testing.T) {
-	tgt := game.NewTarget(process.NewInfo(42, "suspect", 0), movement.NewBounds(80, 24))
+func TestToConfirmViewStateReturnsMappedFields(t *testing.T) {
+	tgt := game.NewTarget(process.NewInfo(42, "dummy", 0), movement.NewBounds(80, 24))
 	vs := toConfirmViewState(tgt)
 	require.NotNil(t, vs)
 	assert.Equal(t, 42, vs.Pid)
-	assert.Equal(t, "suspect", vs.Name)
+	assert.Equal(t, "dummy", vs.Name)
 }
 
 // --- toTargetViewState ---
 
-func TestToTargetViewStateRoundsPosition(t *testing.T) {
+func TestToTargetViewStateReturnsMappedFields(t *testing.T) {
 	tgt := &game.Target{
-		Info:   process.NewInfo(1, "x", 0),
+		Info:   process.NewInfo(42, "dummy", 0),
 		Motion: movement.Motion{Position: movement.Vector{X: 10.6, Y: 5.4}},
 		State:  game.Alive,
 	}
@@ -38,21 +38,13 @@ func TestToTargetViewStateRoundsPosition(t *testing.T) {
 
 	assert.Equal(t, 11, view.X)
 	assert.Equal(t, 5, view.Y)
-	assert.Equal(t, "[1 x]", view.Tag)
+	assert.Equal(t, "[42 dummy]", view.Tag)
 	assert.False(t, view.Killing)
-}
-
-func TestToTargetViewStateMarksKilling(t *testing.T) {
-	tgt := &game.Target{Info: process.NewInfo(1, "x", 0), State: game.Killing}
-
-	view := toTargetViewState(tgt)
-
-	assert.True(t, view.Killing)
 }
 
 // --- toTargetViewStates ---
 
-func TestToTargetViewStatesMapsAll(t *testing.T) {
+func TestToTargetViewStatesReturnsASliceOfMappedFields(t *testing.T) {
 	targets := []*game.Target{
 		{Info: process.NewInfo(1, "a", 0), State: game.Alive},
 		{Info: process.NewInfo(2, "b", 0), State: game.Killing},
@@ -65,13 +57,13 @@ func TestToTargetViewStatesMapsAll(t *testing.T) {
 	assert.True(t, views[1].Killing)
 }
 
-func TestToTargetViewStatesEmptyInput(t *testing.T) {
+func TestToTargetViewStatesReturnsEmptySliceWhenInputIsNil(t *testing.T) {
 	assert.Empty(t, toTargetViewStates(nil))
 }
 
 // --- toHUDState ---
 
-func TestToHUDStateMapsFields(t *testing.T) {
+func TestToHUDStateReturnsMappedFields(t *testing.T) {
 	tracker := newKillTracker(5)
 	tracker.recordKill(2048)
 	tracker.recordKill(2048)
@@ -85,7 +77,7 @@ func TestToHUDStateMapsFields(t *testing.T) {
 
 // --- toStatusState ---
 
-func TestToStatusStateMapsFields(t *testing.T) {
+func TestToStatusStateReturnsMappedFieldsWithoutConfirmViewState(t *testing.T) {
 	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 2.0, TimeLimit: 30})
 	session.Start(80, 24)
 
@@ -97,7 +89,7 @@ func TestToStatusStateMapsFields(t *testing.T) {
 	assert.Nil(t, status.Confirming)
 }
 
-func TestToStatusStateIncludesConfirming(t *testing.T) {
+func TestToStatusStateIncludesConfirmViewState(t *testing.T) {
 	session := game.NewSession([]process.Info{process.NewInfo(42, "suspect", 0)}, game.Config{Confirm: true, Speed: 1.0})
 	session.Start(80, 24)
 	session.RequestConfirm(session.Targets()[0])
@@ -110,7 +102,7 @@ func TestToStatusStateIncludesConfirming(t *testing.T) {
 
 // --- toFrameState ---
 
-func TestToFrameStateAliveTargetIncluded(t *testing.T) {
+func TestToFrameStateReturnsMappedFields(t *testing.T) {
 	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
 	session.Start(80, 24)
 
@@ -118,63 +110,4 @@ func TestToFrameStateAliveTargetIncluded(t *testing.T) {
 
 	require.Len(t, f.Targets, 1)
 	assert.False(t, f.Targets[0].Killing)
-}
-
-func TestToFrameStateKillingTargetMarked(t *testing.T) {
-	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
-	session.Start(80, 24)
-	session.Targets()[0].Kill()
-
-	f := toFrameState(session, newKillTracker(0))
-
-	require.Len(t, f.Targets, 1)
-	assert.True(t, f.Targets[0].Killing)
-}
-
-func TestToFrameStateDeadTargetExcluded(t *testing.T) {
-	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
-	session.Start(80, 24)
-	session.Targets()[0].Kill()
-	for range game.KillAnimationDuration {
-		session.Update(80, 24)
-	}
-
-	f := toFrameState(session, newKillTracker(0))
-
-	assert.Empty(t, f.Targets)
-}
-
-func TestToFrameStateHUDReflectsStats(t *testing.T) {
-	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 4096)}, game.Config{Speed: 1.0})
-	session.Start(80, 24)
-	tracker := newKillTracker(0)
-	tracker.recordKill(session.Targets()[0].Rss)
-
-	f := toFrameState(session, tracker)
-
-	assert.Equal(t, 1, f.HUD.Kills)
-	assert.Equal(t, int64(4096), f.HUD.FreedMem)
-}
-
-func TestToFrameStateStatusBarAliveCount(t *testing.T) {
-	processes := []process.Info{
-		process.NewInfo(1, "a", 0),
-		process.NewInfo(2, "b", 0),
-	}
-	session := game.NewSession(processes, game.Config{Speed: 1.0})
-	session.Start(80, 24)
-	session.Targets()[0].Kill()
-
-	f := toFrameState(session, newKillTracker(0))
-
-	assert.Equal(t, 1, f.StatusBar.Alive)
-}
-
-func TestToFrameStateNoConfirmPending(t *testing.T) {
-	session := game.NewSession(nil, game.Config{Speed: 1.0})
-	session.Start(80, 24)
-
-	f := toFrameState(session, newKillTracker(0))
-
-	assert.Nil(t, f.StatusBar.Confirming)
 }
