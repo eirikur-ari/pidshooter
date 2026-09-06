@@ -2,8 +2,8 @@ package outbound
 
 // Logger reports diagnostics at varying severity.
 type Logger interface {
-	// Warn reports a failure the caller was able to continue past.
+	// Warn reports anything that is not an error but still needs attention.
 	Warn(msg string)
-	// Error reports a more severe failure than Warn.
+	// Error reports a system or application specific error that needs attention.
 	Error(msg string)
 }
