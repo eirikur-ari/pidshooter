@@ -35,7 +35,7 @@ func (p *Process) List() ([]outbound.ProcessInfo, error) {
 	return processes, nil
 }
 
-func (p *Process) OwnPid() int {
+func (p *Process) OwnPID() int {
 	return os.Getpid()
 }
 
@@ -105,7 +105,7 @@ func (p *Process) list() ([]outbound.ProcessInfo, error) {
 		name := strings.Join(fields[2:], " ")
 
 		processes = append(processes, outbound.ProcessInfo{
-			Pid:  pid,
+			PID:  pid,
 			Name: name,
 			Rss:  rssKB * 1024,
 		})

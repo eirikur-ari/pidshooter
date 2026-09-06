@@ -6,6 +6,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestValidateSpeedTooLow(t *testing.T) {
+	assert.Error(t, ValidateSpeed(MinSpeed-0.1))
+}
+
+func TestValidateSpeedTooHigh(t *testing.T) {
+	assert.Error(t, ValidateSpeed(MaxSpeed+0.1))
+}
+
+func TestValidateSpeedMinBoundary(t *testing.T) {
+	assert.NoError(t, ValidateSpeed(MinSpeed))
+}
+
+func TestValidateSpeedMaxBoundary(t *testing.T) {
+	assert.NoError(t, ValidateSpeed(MaxSpeed))
+}
+
 func TestNewThrottle(t *testing.T) {
 	v := NewThrottle(2.0)
 	assert.Equal(t, 2.0, v.Speed())

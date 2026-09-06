@@ -22,19 +22,3 @@ func Output(fn func()) string {
 	io.Copy(&buf, r)
 	return buf.String()
 }
-
-// Stderr runs fn and returns everything it wrote to stderr.
-func Stderr(fn func()) string {
-	r, w, err := os.Pipe()
-	if err != nil {
-		panic("capture.Stderr: failed to create pipe: " + err.Error())
-	}
-	old := os.Stderr
-	os.Stderr = w
-	fn()
-	w.Close()
-	os.Stderr = old
-	var buf bytes.Buffer
-	io.Copy(&buf, r)
-	return buf.String()
-}

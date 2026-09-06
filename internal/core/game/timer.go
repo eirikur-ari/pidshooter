@@ -1,6 +1,9 @@
 package game
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // timer tracks how much time remains in a timed game session.
 // A zero limit means no time limit; Expired always returns false.
@@ -12,10 +15,7 @@ type timer struct {
 
 // newTimer creates a timer with the given limit in seconds. Zero means unlimited.
 func newTimer(limitSeconds int) timer {
-	return timer{
-		limit: time.Duration(limitSeconds) * time.Second,
-		now:   time.Now,
-	}
+	return timer{limit: secondsToDuration(limitSeconds)}
 }
 
 // Start records the session start time.
@@ -63,4 +63,17 @@ func (t *timer) LimitSeconds() int {
 // StartTime returns when the timer was started.
 func (t *timer) StartTime() time.Time {
 	return t.start
+}
+
+// ValidateTimeLimit reports an error if limit is negative. Zero means unlimited.
+func ValidateTimeLimit(limit int) error {
+	if limit < 0 {
+		return fmt.Errorf("time must be 0 or positive, got: %d", limit)
+	}
+	return nil
+}
+
+// secondsToDuration converts a count of seconds to a time.Duration.
+func secondsToDuration(seconds int) time.Duration {
+	return time.Duration(seconds) * time.Second
 }

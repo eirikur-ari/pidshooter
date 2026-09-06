@@ -16,9 +16,6 @@ type atomicLifecycle struct {
 	value atomic.Int32
 }
 
-// newAtomicLifecycle returns an atomicLifecycle initialized to pending.
-func newAtomicLifecycle() atomicLifecycle { return atomicLifecycle{} }
-
 // Store sets the current lifecycle.
 func (s *atomicLifecycle) Store(l lifecycle) {
 	s.value.Store(int32(l))

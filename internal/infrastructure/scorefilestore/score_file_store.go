@@ -11,6 +11,11 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
+// Store implements outbound.ScoreStore by persisting to a JSON file.
+type Store struct {
+	path string
+}
+
 // entry is the on-disk JSON representation of a single high score record.
 type entry struct {
 	Kills    int       `json:"kills"`
@@ -26,11 +31,6 @@ type board struct {
 	Scores []entry `json:"scores"`
 }
 
-// Store implements outbound.ScoreStore by persisting to a JSON file.
-type Store struct {
-	path string
-}
-
 // NewStore returns an outbound.ScoreStore that persists to the default user config path.
 func NewStore() *Store {
 	return &Store{path: defaultPath()}
@@ -40,7 +40,7 @@ func (s *Store) Load() (outbound.ScoreBoard, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return outbound.ScoreBoard{}, outbound.ErrNotFound
+			return outbound.ScoreBoard{}, outbound.NotFoundError{}
 		}
 		return outbound.ScoreBoard{}, err
 	}

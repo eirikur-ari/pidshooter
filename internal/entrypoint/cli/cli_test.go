@@ -1,71 +1,54 @@
 package cli
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
+	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
-type stubService struct{ err error }
-
-func (s *stubService) Run(_ inbound.Config) error { return s.err }
-
-type captureService struct {
-	err error
-	cfg inbound.Config
-}
-
-func (s *captureService) Run(cfg inbound.Config) error {
-	s.cfg = cfg
-	return s.err
-}
-
-func newSilentCLI(svc inbound.Runner) *CLI {
-	c := NewCLI(svc)
-	c.out = io.Discard
-	c.errOut = io.Discard
-	return c
-}
-
 func TestRunNoArgsPrintsUsageAndReturnsNil(t *testing.T) {
-	assert.NoError(t, newSilentCLI(&stubService{}).Run([]string{}))
+	assert.NoError(t, newTestCLI(&fake.Runner{}).Run([]string{}))
 }
 
 func TestRunHelpFlagPrintsUsageAndReturnsNil(t *testing.T) {
 	for _, flag := range []string{"--help", "-h"} {
 		t.Run(flag, func(t *testing.T) {
-			assert.NoError(t, newSilentCLI(&stubService{}).Run([]string{flag}))
+			assert.NoError(t, newTestCLI(&fake.Runner{}).Run([]string{flag}))
 		})
 	}
 }
 
 func TestRunBasicPattern(t *testing.T) {
-	svc := &captureService{}
-	require.NoError(t, newSilentCLI(svc).Run([]string{"firefox"}))
-	require.Len(t, svc.cfg.Patterns, 1)
-	assert.Equal(t, "firefox", svc.cfg.Patterns[0])
-	assert.False(t, svc.cfg.ConfirmMode)
-	assert.Equal(t, 2.0, svc.cfg.Speed)
-	assert.Equal(t, 30, svc.cfg.TimeLimit)
+	runner := &fake.Runner{}
+	require.NoError(t, newTestCLI(runner).Run([]string{"firefox"}))
+	require.Len(t, runner.Cfg.Patterns, 1)
+	assert.Equal(t, "firefox", runner.Cfg.Patterns[0])
+	assert.False(t, runner.Cfg.ConfirmMode)
+	assert.Equal(t, 2.0, runner.Cfg.Speed)
+	assert.Equal(t, 30, runner.Cfg.TimeLimit)
 }
 
 func TestRunMultiplePatterns(t *testing.T) {
-	svc := &captureService{}
-	require.NoError(t, newSilentCLI(svc).Run([]string{"chrome", "firefox", "node"}))
-	require.Len(t, svc.cfg.Patterns, 3)
+	runner := &fake.Runner{}
+	require.NoError(t, newTestCLI(runner).Run([]string{"chrome", "firefox", "node"}))
+	require.Len(t, runner.Cfg.Patterns, 3)
 	for i, want := range []string{"chrome", "firefox", "node"} {
-		assert.Equal(t, want, svc.cfg.Patterns[i])
+		assert.Equal(t, want, runner.Cfg.Patterns[i])
 	}
 }
 
 func TestRunConfirmFlag(t *testing.T) {
-	svc := &captureService{}
-	require.NoError(t, newSilentCLI(svc).Run([]string{"sleep", "--confirm"}))
-	assert.True(t, svc.cfg.ConfirmMode)
+	runner := &fake.Runner{}
+	require.NoError(t, newTestCLI(runner).Run([]string{"sleep", "--confirm"}))
+	assert.True(t, runner.Cfg.ConfirmMode)
 }
 
 func TestRunSpeedFlag(t *testing.T) {
@@ -83,14 +66,7 @@ func TestRunSpeedFlag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := &captureService{}
-			err := newSilentCLI(svc).Run([]string{"proc", tt.arg})
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tt.want, svc.cfg.Speed)
-			}
+			assertFlagResult(t, tt.arg, tt.wantErr, tt.want, func(cfg inbound.Config) float64 { return cfg.Speed })
 		})
 	}
 }
@@ -109,25 +85,88 @@ func TestRunTimeFlag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := &captureService{}
-			err := newSilentCLI(svc).Run([]string{"proc", tt.arg})
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tt.want, svc.cfg.TimeLimit)
-			}
+			assertFlagResult(t, tt.arg, tt.wantErr, tt.want, func(cfg inbound.Config) int { return cfg.TimeLimit })
 		})
 	}
 }
 
 func TestRunUnknownFlag(t *testing.T) {
-	assert.Error(t, newSilentCLI(&stubService{}).Run([]string{"proc", "--unknown"}))
+	assert.Error(t, newTestCLI(&fake.Runner{}).Run([]string{"proc", "--unknown"}))
 }
 
 func TestRunNoArgsWithFlagsForwardsToService(t *testing.T) {
-	svc := &captureService{}
-	require.NoError(t, newSilentCLI(svc).Run([]string{"--confirm"}))
-	assert.Empty(t, svc.cfg.Patterns)
-	assert.True(t, svc.cfg.ConfirmMode)
+	runner := &fake.Runner{}
+	require.NoError(t, newTestCLI(runner).Run([]string{"--confirm"}))
+	assert.Empty(t, runner.Cfg.Patterns)
+	assert.True(t, runner.Cfg.ConfirmMode)
+}
+
+func TestRunLogsUnrecognizedError(t *testing.T) {
+	runner := &fake.Runner{Err: errors.New("boom")}
+	logger := &fake.Logger{}
+	c := newTestCLI(runner)
+	c.logger = logger
+
+	err := c.Run([]string{"proc"})
+
+	require.Error(t, err)
+	require.Len(t, logger.Errors, 1)
+	assert.Contains(t, logger.Errors[0], "boom")
+}
+
+func TestRunDoesNotLogAppError(t *testing.T) {
+	fatal := apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "game session failed", errors.New("boom"))
+	runner := &fake.Runner{Err: fatal}
+	logger := &fake.Logger{}
+	c := newTestCLI(runner)
+	c.logger = logger
+
+	err := c.Run([]string{"proc"})
+
+	require.Error(t, err)
+	assert.Empty(t, logger.Errors, "an *apperror.Error was already logged by the application layer")
+}
+
+func TestRunDoesNotLogWrappedAppError(t *testing.T) {
+	fatal := apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "game session failed", errors.New("boom"))
+	runner := &fake.Runner{Err: fmt.Errorf("during Run: %w", fatal)}
+	logger := &fake.Logger{}
+	c := newTestCLI(runner)
+	c.logger = logger
+
+	err := c.Run([]string{"proc"})
+
+	require.Error(t, err)
+	assert.Empty(t, logger.Errors, "a wrapped *apperror.Error was already logged by the application layer")
+}
+
+func TestRunReturnsErrorOnFatal(t *testing.T) {
+	fatal := apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "game session failed", errors.New("boom"))
+	runner := &fake.Runner{Err: fatal}
+
+	err := newTestCLI(runner).Run([]string{"proc"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "game session failed")
+}
+
+func newTestCLI(runner inbound.Runner) *CLI {
+	c := NewCLI(runner, &fake.Logger{})
+	c.out = io.Discard
+	c.errOut = io.Discard
+	return c
+}
+
+// assertFlagResult runs the CLI with arg and asserts either a parse error, or
+// that get extracts want from the resulting Config.
+func assertFlagResult[T any](t *testing.T, arg string, wantErr bool, want T, get func(inbound.Config) T) {
+	t.Helper()
+	runner := &fake.Runner{}
+	err := newTestCLI(runner).Run([]string{"proc", arg})
+	if wantErr {
+		assert.Error(t, err)
+		return
+	}
+	require.NoError(t, err)
+	assert.Equal(t, want, get(runner.Cfg))
 }

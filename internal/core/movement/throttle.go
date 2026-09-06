@@ -1,5 +1,7 @@
 package movement
 
+import "fmt"
+
 const (
 	MinSpeed  = 0.5 // minimum allowed speed multiplier (one full speedStep)
 	MaxSpeed  = 5.0 // maximum allowed speed multiplier
@@ -38,4 +40,12 @@ func (t *Throttle) Decrease() {
 		v = MinSpeed
 	}
 	t.speed.Set(v)
+}
+
+// ValidateSpeed reports an error if speed falls outside [MinSpeed, MaxSpeed].
+func ValidateSpeed(speed float64) error {
+	if speed < MinSpeed || speed > MaxSpeed {
+		return fmt.Errorf("speed must be between %g and %g, got: %g", MinSpeed, MaxSpeed, speed)
+	}
+	return nil
 }

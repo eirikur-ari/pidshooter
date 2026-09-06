@@ -2,7 +2,7 @@ package outbound
 
 // ProcessInfo describes a single process discovered on the host.
 type ProcessInfo struct {
-	Pid  int
+	PID  int
 	Name string
 	Rss  int64
 }
@@ -11,8 +11,8 @@ type ProcessInfo struct {
 type ProcessManager interface {
 	// List returns the processes currently running on the host.
 	List() ([]ProcessInfo, error)
-	// OwnPid returns the PID of the calling process.
-	OwnPid() int
+	// OwnPID returns the PID of the calling process.
+	OwnPID() int
 	// LookupName returns the current name of the process with the given pid.
 	LookupName(pid int) (string, error)
 	// Kill terminates the process with the given pid, reporting whether it

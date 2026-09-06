@@ -2,17 +2,20 @@
 package cli
 
 import (
+	"errors"
 	"io"
 	"os"
 
 	"github.com/spf13/cobra"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 )
 
 // CLI is the entrypoint adapter that translates command-line arguments to application calls.
 type CLI struct {
 	service   inbound.Runner
+	logger    logger
 	out       io.Writer
 	errOut    io.Writer
 	confirm   bool
@@ -20,16 +23,30 @@ type CLI struct {
 	timeLimit int
 }
 
+// logger is the minimal reporting capability this adapter needs.
+type logger interface {
+	Error(msg string)
+}
+
 // NewCLI returns a CLI adapter wrapping the given application service.
-func NewCLI(service inbound.Runner) *CLI {
-	return &CLI{service: service, out: os.Stdout, errOut: os.Stderr}
+func NewCLI(service inbound.Runner, logger logger) *CLI {
+	return &CLI{service: service, logger: logger, out: os.Stdout, errOut: os.Stderr}
 }
 
 // Run parses args and calls the application service.
 func (c *CLI) Run(args []string) error {
 	cmd := c.buildCommand()
 	cmd.SetArgs(args)
-	return cmd.Execute()
+	return c.report(cmd.Execute())
+}
+
+// TODO: This is a temporary solution until we have a proper error handling strategy in place.
+func (c *CLI) report(err error) error {
+	var appErr *apperror.Error
+	if err != nil && !errors.As(err, &appErr) {
+		c.logger.Error(err.Error())
+	}
+	return err
 }
 
 func (c *CLI) buildCommand() *cobra.Command {

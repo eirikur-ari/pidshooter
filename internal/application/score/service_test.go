@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/capture"
@@ -16,60 +17,63 @@ import (
 
 // --- Service.loadScoreBoard ---
 
-func TestLoadScoreBoardMapsStoredEntries(t *testing.T) {
+func TestLoadScoreBoardReturnsMappedEntries(t *testing.T) {
 	date := time.Now()
 	svc := NewService(&fake.Store{Board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
 		{Kills: 8, FreedMem: 1024, Speed: 2.0, Time: 30, Duration: 5, Date: date},
 	}}})
 
-	board, highScore, success := svc.LoadScoreBoard()
+	board, highScore, err := svc.LoadScoreBoard()
 
-	assert.True(t, success)
+	assert.NoError(t, err)
 	require.Len(t, board.Scores, 1)
 	assert.Equal(t, 8, highScore)
 }
 
-func TestLoadScoreBoardNotFoundFallsBackToEmptyBoardWithoutWarning(t *testing.T) {
-	svc := NewService(&fake.Store{LoadErr: outbound.ErrNotFound})
+func TestLoadScoreBoardReturnsNotFoundErrorWhenScoreBoardIsNotFound(t *testing.T) {
+	svc := NewService(&fake.Store{LoadErr: outbound.NotFoundError{}})
 
-	var board *score.Board
-	var highScore int
-	var success bool
-	stderr := capture.Stderr(func() {
-		board, highScore, success = svc.LoadScoreBoard()
-	})
+	board, highScore, err := svc.LoadScoreBoard()
 
-	assert.True(t, success)
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeScoreLoadFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
+	var notFound outbound.NotFoundError
+	assert.ErrorAs(t, err, &notFound)
+	assert.ErrorContains(t, err, "score board not loaded", "should report the underlying NotFoundError as the reason for the load failure")
 	assert.Empty(t, board.Scores)
 	assert.Equal(t, 0, highScore)
-	assert.Empty(t, stderr)
 }
 
-func TestLoadScoreBoardErrorFallsBackToEmptyBoard(t *testing.T) {
-	svc := NewService(&fake.Store{LoadErr: errors.New("disk error")})
+func TestLoadScoreBoardReturnsUnderlyingError(t *testing.T) {
+	cause := errors.New("disk error")
+	svc := NewService(&fake.Store{LoadErr: cause})
 
-	var board *score.Board
-	var highScore int
-	var success bool
-	stderr := capture.Stderr(func() {
-		board, highScore, success = svc.LoadScoreBoard()
-	})
+	board, highScore, err := svc.LoadScoreBoard()
 
-	assert.False(t, success)
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeScoreLoadFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
+	assert.ErrorIs(t, err, cause)
+	assert.ErrorContains(t, err, "score board not loaded: disk error", "should report the underlying Error")
 	assert.Empty(t, board.Scores)
 	assert.Equal(t, 0, highScore)
-	assert.Contains(t, stderr, "could not load scores")
 }
 
 // --- Service.recordScore ---
 
-func TestRecordScoreAddsEntryFromTracker(t *testing.T) {
-	svc := NewService(&fake.Store{})
+func TestRecordScoreReturnsNilWhenBoardIsSavedSuccessfully(t *testing.T) {
+	fakeStore := &fake.Store{}
+	svc := NewService(fakeStore)
 	board := score.NewBoard(nil)
 
-	svc.RecordScore(board, 4, 2048, 2.5, 30, 12.5, true)
+	require.Nil(t, svc.RecordScore(board, 4, 2048, 2.5, 30, 12.5, nil))
 
 	require.Len(t, board.Scores, 1)
+	require.NotNil(t, fakeStore.Saved)
+	assert.Len(t, fakeStore.Saved.Scores, 1)
 	entry := board.Scores[0]
 	assert.Equal(t, 4, entry.Kills)
 	assert.Equal(t, int64(2048), entry.FreedMem)
@@ -78,38 +82,50 @@ func TestRecordScoreAddsEntryFromTracker(t *testing.T) {
 	assert.Equal(t, 12.5, entry.Duration)
 }
 
-func TestRecordScoreSavesWhenPersistTrue(t *testing.T) {
+func TestRecordScoreSavesWhenScoreBoardWasNotFound(t *testing.T) {
 	fakeStore := &fake.Store{}
 	svc := NewService(fakeStore)
 	board := score.NewBoard(nil)
 
-	svc.RecordScore(board, 1, 0, 0, 0, 1.0, true)
+	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded", outbound.NotFoundError{})
+	require.Nil(t, svc.RecordScore(board, 1, 0, 0, 0, 1.0, loadErr))
 
-	require.NotNil(t, fakeStore.Saved)
+	require.NotNil(t, fakeStore.Saved, "a fresh (never-persisted) board should still be saved")
 	assert.Len(t, fakeStore.Saved.Scores, 1)
+	assert.ErrorContains(t, loadErr, "score board not loaded: not found", "should report the underlying NotFoundError as the reason for the load failure")
 }
 
-func TestRecordScoreSkipsSaveWhenPersistFalse(t *testing.T) {
+func TestRecordScoreSkipsSaveAndReturnsWarningWhenLoadFailed(t *testing.T) {
 	fakeStore := &fake.Store{}
 	svc := NewService(fakeStore)
 	board := score.NewBoard(nil)
 
-	svc.RecordScore(board, 1, 0, 0, 0, 1.0, false)
+	cause := errors.New("disk error")
+	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded", cause)
 
-	assert.Nil(t, fakeStore.Saved)
+	err := svc.RecordScore(board, 1, 0, 0, 0, 1.0, loadErr)
+
+	assert.Nil(t, fakeStore.Saved, "should not overwrite a file that failed to load for a real reason")
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeScoreSaveFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
+	assert.ErrorIs(t, err, cause, "should report the original load failure as the reason the save was skipped")
 }
 
-func TestRecordScoreSaveErrorPrintsWarning(t *testing.T) {
-	fakeStore := &fake.Store{SaveErr: errors.New("disk full")}
+func TestRecordScoreSaveErrorReturnsUnderlyingError(t *testing.T) {
+	cause := errors.New("disk full")
+	fakeStore := &fake.Store{SaveErr: cause}
 	svc := NewService(fakeStore)
 	board := score.NewBoard(nil)
 
-	stderr := capture.Stderr(func() {
-		svc.RecordScore(board, 1, 0, 0, 0, 1.0, true)
-	})
+	err := svc.RecordScore(board, 1, 0, 0, 0, 1.0, nil)
 
-	assert.Contains(t, stderr, "score not saved")
-	assert.Contains(t, stderr, "disk full")
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeScoreSaveFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
+	assert.ErrorIs(t, err, cause)
 }
 
 // --- PrintResults ---

@@ -45,7 +45,7 @@ type StatusState struct {
 
 // ConfirmViewState carries the kill-confirmation prompt values.
 type ConfirmViewState struct {
-	Pid  int
+	PID  int
 	Name string
 }
 

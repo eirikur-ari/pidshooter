@@ -6,7 +6,7 @@ import (
 )
 
 func toProcessInfo(info outbound.ProcessInfo) process.Info {
-	return process.NewInfo(info.Pid, info.Name, info.Rss)
+	return process.NewInfo(info.PID, info.Name, info.Rss)
 }
 
 func toProcessInfos(infos []outbound.ProcessInfo) []process.Info {

@@ -3,9 +3,9 @@ package score
 import (
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
 	"github.com/eirikur-ari/pidshooter/internal/util"
@@ -21,27 +21,31 @@ func NewService(store outbound.ScoreStore) *Service {
 	return &Service{store: store}
 }
 
-// LoadScoreBoard loads the persisted score board, falling back to an empty
-// board and reporting failure if the load errors for any reason other than
-// no board having been persisted yet. The returned int is the board's
-// current high score, seeding a caller's live session.
-func (s *Service) LoadScoreBoard() (*score.Board, int, bool) {
+// LoadScoreBoard loads the persisted score board, falling back to an
+// empty board if no board has been persisted yet or the load fails. The
+// returned int is the board's current high score, seeding a caller's
+// live session. Any load failure — including outbound.NotFoundError for
+// "no board yet" — is classified as CodeScoreLoadFailed and SeverityWarning;
+// pass the returned error straight to RecordScore so it can decide whether
+// persisting afterward is safe.
+func (s *Service) LoadScoreBoard() (*score.Board, int, error) {
 	sb, err := s.store.Load()
-	switch {
-	case errors.Is(err, outbound.ErrNotFound):
+	if err != nil {
 		board := score.NewBoard(nil)
-		return board, board.HighScore(), true
-	case err != nil:
-		fmt.Fprintf(os.Stderr, "warning: could not load scores: %v\n", err)
-		board := score.NewBoard(nil)
-		return board, board.HighScore(), false
+		return board, board.HighScore(), apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded", err)
 	}
 	board := toBoard(sb)
-	return board, board.HighScore(), true
+	return board, board.HighScore(), nil
 }
 
-// RecordScore appends a new entry for the given session results to board, persisting the board if persist is true.
-func (s *Service) RecordScore(board *score.Board, kills int, freedMem int64, speed float64, timeLimit int, duration float64, persist bool) {
+// RecordScore appends a new entry for the given session results to board.
+// err is whatever LoadScoreBoard returned for this session: the board is
+// persisted when err is nil or wraps outbound.NotFoundError (a fresh
+// install, safe to write), and the save is skipped — reporting err as the
+// reason — for any other load failure, since overwriting the file then
+// could destroy recoverable data. A save failure is classified as
+// CodeScoreSaveFailed and SeverityWarning either way.
+func (s *Service) RecordScore(board *score.Board, kills int, freedMem int64, speed float64, timeLimit int, duration float64, err error) error {
 	board.Add(score.Entry{
 		Kills:    kills,
 		FreedMem: freedMem,
@@ -51,11 +55,14 @@ func (s *Service) RecordScore(board *score.Board, kills int, freedMem int64, spe
 		Date:     time.Now(),
 	})
 
-	if persist {
-		if err := s.store.Save(toScoreBoard(board)); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: score not saved: %v\n", err)
-		}
+	if err == nil || errors.As(err, &outbound.NotFoundError{}) {
+		err = s.store.Save(toScoreBoard(board))
 	}
+
+	if err != nil {
+		return apperror.NewError(apperror.CodeScoreSaveFailed, apperror.SeverityWarning, "score board not saved", err)
+	}
+	return nil
 }
 
 // PrintResults prints the end-of-game summary and the board's high scores.

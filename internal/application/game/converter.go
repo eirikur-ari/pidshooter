@@ -11,7 +11,7 @@ func toConfirmViewState(target *game.Target) *outbound.ConfirmViewState {
 	if target == nil {
 		return nil
 	}
-	return &outbound.ConfirmViewState{Pid: target.Pid, Name: target.Name}
+	return &outbound.ConfirmViewState{PID: target.PID, Name: target.Name}
 }
 
 func toTargetViewState(target *game.Target) outbound.TargetViewState {
@@ -31,11 +31,11 @@ func toTargetViewStates(targets []*game.Target) []outbound.TargetViewState {
 	return views
 }
 
-func toHUDState(tracker *scoreTracker) outbound.HUDState {
+func toHUDState(tracker *killTracker) outbound.HUDState {
 	return outbound.HUDState{
-		FreedMem:  tracker.freedMem,
-		Kills:     tracker.kills,
-		HighScore: tracker.highScore,
+		FreedMem:  tracker.score.freedMem,
+		Kills:     tracker.score.kills,
+		HighScore: tracker.score.highScore,
 	}
 }
 
@@ -49,7 +49,7 @@ func toStatusState(session *game.Session, alive int) outbound.StatusState {
 	}
 }
 
-func toFrameState(session *game.Session, tracker *scoreTracker) outbound.FrameState {
+func toFrameState(session *game.Session, tracker *killTracker) outbound.FrameState {
 	targets, alive := session.AvailableTargets()
 
 	return outbound.FrameState{
