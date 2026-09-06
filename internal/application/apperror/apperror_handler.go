@@ -42,7 +42,7 @@ func (h Handler) Handle(err error) error {
 	return nil
 }
 
-// severityOf reports err's Severity if it is (or wraps) an *Error, or
+// severityOf reports error Severity if it is (or wraps) an *Error, or
 // SeverityUnknown otherwise.
 func severityOf(err error) Severity {
 	var appErr *Error

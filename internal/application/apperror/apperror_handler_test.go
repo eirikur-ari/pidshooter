@@ -11,7 +11,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
-func TestHandlerHandleWarningAbsorbsAndLogsAsWarning(t *testing.T) {
+func TestHandlerHandleLogsAsWarningWhenSeverityIsWarningAndAbsorbsTheError(t *testing.T) {
 	logger := &fake.Logger{}
 	h := NewHandler(logger)
 	input := NewError(CodeScoreLoadFailed, SeverityWarning, "could not load scores", errors.New("disk full"))
@@ -23,7 +23,7 @@ func TestHandlerHandleWarningAbsorbsAndLogsAsWarning(t *testing.T) {
 	assert.Empty(t, logger.Errors)
 }
 
-func TestHandlerHandleErrorAbsorbsAndLogsAsError(t *testing.T) {
+func TestHandlerHandleLogsAsErrorWhenSeverityIsErrorAbsorbsTheError(t *testing.T) {
 	logger := &fake.Logger{}
 	h := NewHandler(logger)
 	input := NewError(CodeNoProcessesFound, SeverityError, "no processes found", nil)
@@ -35,7 +35,7 @@ func TestHandlerHandleErrorAbsorbsAndLogsAsError(t *testing.T) {
 	assert.Empty(t, logger.Warnings)
 }
 
-func TestHandlerHandleFatalLogsAsErrorAndReturns(t *testing.T) {
+func TestHandlerHandeLogsAsErrorWhenSeverityIsFatalAndReturnsTheError(t *testing.T) {
 	logger := &fake.Logger{}
 	h := NewHandler(logger)
 	input := NewError(CodeGameFailed, SeverityFatal, "game session failed", errors.New("boom"))
@@ -48,7 +48,7 @@ func TestHandlerHandleFatalLogsAsErrorAndReturns(t *testing.T) {
 	assert.Empty(t, logger.Warnings)
 }
 
-func TestHandlerHandleUnknownSeverityLogsAsErrorAndAbsorbs(t *testing.T) {
+func TestHandlerHandleLogsAsErrorWhenSeverityIsUnknownAndAbsorbsTheError(t *testing.T) {
 	logger := &fake.Logger{}
 	h := NewHandler(logger)
 	input := errors.New("plain error")
@@ -60,7 +60,7 @@ func TestHandlerHandleUnknownSeverityLogsAsErrorAndAbsorbs(t *testing.T) {
 	assert.Empty(t, logger.Warnings)
 }
 
-func TestHandlerHandleWrappedFatalErrorStillPropagates(t *testing.T) {
+func TestHandlerHandleWrappedFatalErrorIsLoggedOutAndReturnedAsError(t *testing.T) {
 	logger := &fake.Logger{}
 	h := NewHandler(logger)
 	fatal := NewError(CodeGameFailed, SeverityFatal, "game session failed", errors.New("boom"))
@@ -74,7 +74,7 @@ func TestHandlerHandleWrappedFatalErrorStillPropagates(t *testing.T) {
 	assert.Empty(t, logger.Warnings)
 }
 
-func TestHandlerHandleWrappedWarningStillAbsorbs(t *testing.T) {
+func TestHandlerHandleWrappedWarningIsLoggedOutAndPreservedButIsStillAbsorbed(t *testing.T) {
 	logger := &fake.Logger{}
 	h := NewHandler(logger)
 	warning := NewError(CodeScoreLoadFailed, SeverityWarning, "score not loaded", errors.New("disk full"))
@@ -87,7 +87,7 @@ func TestHandlerHandleWrappedWarningStillAbsorbs(t *testing.T) {
 	assert.Empty(t, logger.Errors)
 }
 
-func TestHandlerHandleNilErrorReturnsNil(t *testing.T) {
+func TestHandlerHandleReturnsNilErrorWhenGivenNil(t *testing.T) {
 	logger := &fake.Logger{}
 	h := NewHandler(logger)
 
