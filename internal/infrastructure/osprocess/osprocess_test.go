@@ -90,6 +90,8 @@ func TestParseProcesses(t *testing.T) {
 // process group, init, or the test binary itself, so this only checks the
 // one safe, deterministic case: a PID that doesn't exist.
 func TestKillerNonexistentPID(t *testing.T) {
-	_, err := newTestProcess(t).Kill(999999)
-	assert.Error(t, err)
+	killed, err := newTestProcess(t).Kill(999999)
+	assert.False(t, killed)
+	require.Error(t, err)
+	assert.ErrorAs(t, err, &outbound.NotFoundError{})
 }

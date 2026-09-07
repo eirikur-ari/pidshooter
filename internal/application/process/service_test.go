@@ -106,6 +106,19 @@ func TestKillReturnsErrorAndShouldReapIfNameValidationFails(t *testing.T) {
 	assert.Empty(t, fp.KilledPIDs)
 }
 
+func TestKillReturnsShouldReapWhenProcessAlreadyExited(t *testing.T) {
+	fp := &fake.Process{LookupNameValue: "target", KillErr: outbound.NotFoundError{}}
+	svc := NewService(fp)
+	target := game.NewTarget(process.NewInfo(100, "target", 0), movement.NewBounds(80, 24))
+
+	killed, shouldReap, err := svc.Kill(target)
+
+	assert.False(t, killed)
+	assert.True(t, shouldReap)
+	require.Error(t, err)
+	assert.ErrorAs(t, err, &outbound.NotFoundError{})
+}
+
 func TestKillReturnsKillingProcessWasASuccess(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "target"}
 	svc := NewService(fp)

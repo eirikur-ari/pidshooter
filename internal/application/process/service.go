@@ -1,6 +1,7 @@
 package process
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
@@ -55,5 +56,8 @@ func (s *Service) Kill(target *game.Target) (killed, shouldReap bool, err error)
 	}
 
 	killed, err = s.processMgr.Kill(pid)
+	if errors.As(err, &outbound.NotFoundError{}) {
+		return false, true, fmt.Errorf("PID %d already exited: %w", pid, err)
+	}
 	return killed, false, err
 }

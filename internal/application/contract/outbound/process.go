@@ -18,6 +18,8 @@ type ProcessManager interface {
 	// Kill terminates the process with the given pid, reporting whether it
 	// was killed. It performs no safety or name verification itself —
 	// callers must confirm via LookupName that pid still refers to the
-	// intended process before calling Kill.
+	// intended process before calling Kill. If no process with pid exists
+	// at signal time, Kill returns a NotFoundError instead of treating it
+	// as a failure.
 	Kill(pid int) (bool, error)
 }

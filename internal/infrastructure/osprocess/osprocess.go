@@ -2,6 +2,7 @@
 package osprocess
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -72,6 +73,9 @@ func (p *Process) Kill(pid int) (bool, error) {
 		return false, err
 	}
 	if err := proc.Signal(syscall.SIGKILL); err != nil {
+		if errors.Is(err, os.ErrProcessDone) {
+			return false, outbound.NotFoundError{}
+		}
 		return false, err
 	}
 	return true, nil
