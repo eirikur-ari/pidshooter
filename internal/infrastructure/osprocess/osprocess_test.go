@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
 func newTestProcess(t *testing.T) *Process {
@@ -32,6 +34,53 @@ func TestLookupNameReturnsOwnName(t *testing.T) {
 	name, err := p.LookupName(os.Getpid())
 	require.NoError(t, err)
 	assert.NotEmpty(t, name)
+}
+
+func TestParseProcesses(t *testing.T) {
+	tests := []struct {
+		name   string
+		output string
+		want   []outbound.ProcessInfo
+	}{
+		{
+			name:   "single process",
+			output: "  PID    RSS COMM\n  123   4096 sleep\n",
+			want:   []outbound.ProcessInfo{{PID: 123, Name: "sleep", Rss: 4096 * 1024}},
+		},
+		{
+			name:   "collapses internal whitespace runs in the name",
+			output: "  PID    RSS COMM\n  123   4096 weird  double   spaces\n",
+			want:   []outbound.ProcessInfo{{PID: 123, Name: "weird double spaces", Rss: 4096 * 1024}},
+		},
+		{
+			name:   "skips rows with too few fields",
+			output: "  PID    RSS COMM\n  123\n  456   4096 sleep\n",
+			want:   []outbound.ProcessInfo{{PID: 456, Name: "sleep", Rss: 4096 * 1024}},
+		},
+		{
+			name:   "skips rows with a non-numeric pid",
+			output: "  PID    RSS COMM\n   ab   4096 sleep\n",
+			want:   nil,
+		},
+		{
+			name:   "defaults rss to zero on parse failure",
+			output: "  PID    RSS COMM\n  123     ab sleep\n",
+			want:   []outbound.ProcessInfo{{PID: 123, Name: "sleep", Rss: 0}},
+		},
+		{
+			name:   "no data rows",
+			output: "  PID    RSS COMM\n",
+			want:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseProcesses([]byte(tt.output))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 // Kill no longer guards pid or verifies name itself (see the doc

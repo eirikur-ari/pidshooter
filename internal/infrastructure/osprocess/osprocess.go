@@ -40,17 +40,27 @@ func (p *Process) OwnPID() int {
 }
 
 // LookupName returns the current comm name of pid from the OS, using the same
-// ps flags as List so truncation and format are consistent.
+// ps flags and parsing as List so truncation and whitespace handling are
+// identical between discovery and the kill-time safety recheck.
 func (p *Process) LookupName(pid int) (string, error) {
-	args := []string{"-p", strconv.Itoa(pid), "-o", "comm="}
+	args := []string{"-p", strconv.Itoa(pid), "-o", "pid,rss,comm"}
 	if runtime.GOOS == "darwin" {
-		args = []string{"-c", "-p", strconv.Itoa(pid), "-o", "comm="}
+		args = append([]string{"-c"}, args...)
 	}
 	out, err := exec.Command(p.psPath, args...).Output()
 	if err != nil {
 		return "", fmt.Errorf("ps lookup failed for PID %d: %w", pid, err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	processes, err := parseProcesses(out)
+	if err != nil {
+		return "", fmt.Errorf("ps lookup failed for PID %d: %w", pid, err)
+	}
+	for _, proc := range processes {
+		if proc.PID == pid {
+			return proc.Name, nil
+		}
+	}
+	return "", fmt.Errorf("ps lookup failed for PID %d: process not found", pid)
 }
 
 // Kill sends SIGKILL to the process identified by pid. It performs no
@@ -77,7 +87,13 @@ func (p *Process) list() ([]outbound.ProcessInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ps command failed: %w", err)
 	}
+	return parseProcesses(output)
+}
 
+// parseProcesses parses `pid,rss,comm`-formatted ps output, shared by list()
+// and LookupName so both apply identical truncation and whitespace handling
+// to the same columns.
+func parseProcesses(output []byte) ([]outbound.ProcessInfo, error) {
 	var processes []outbound.ProcessInfo
 	lines := strings.Split(string(output), "\n")
 
