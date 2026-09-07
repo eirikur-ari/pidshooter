@@ -32,7 +32,7 @@ func TestIntegrationServiceFrameLoopAppliesAsyncKillToResult(t *testing.T) {
 	events := fake.NewInputSource()
 	events.Ch <- outbound.ClickEvent{X: x, Y: y}
 
-	killer := fake.Killer(func(*game.Target) (bool, bool, error) {
+	killer := fake.Killer(func(int, string, bool) (bool, bool, error) {
 		return true, false, nil
 	})
 	svc := NewService(killer, &fake.Renderer{}, events)

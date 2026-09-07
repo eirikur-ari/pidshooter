@@ -2,7 +2,6 @@ package game
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os/signal"
 	"syscall"
@@ -35,10 +34,10 @@ type PlayResult struct {
 	KillFailures []KillFailure
 }
 
-// killer verifies and terminates the target's backing OS process, reporting
+// killer verifies and terminates a target's backing OS process, reporting
 // whether the caller should reap the target because its process was already gone.
 type killer interface {
-	Kill(target *game.Target) (killed, shouldReap bool, err error)
+	Kill(pid int, name string, protected bool) (killed, shouldReap bool, err error)
 }
 
 // killSignal reports the outcome of a verified kill attempt: a real kill, a
@@ -68,7 +67,7 @@ func NewService(
 // score for display during the session.
 func (s *Service) Play(cfg inbound.Config, processes []process.Info, highScore int) (PlayResult, error) {
 	if err := process.ValidateProcesses(processes); err != nil {
-		return PlayResult{}, apperror.NewError(apperror.CodeNoProcessesFound, apperror.SeverityFatal, "", err)
+		return PlayResult{}, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "", err)
 	}
 
 	session := game.NewSession(processes, game.Config{Confirm: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
@@ -189,7 +188,7 @@ func (s *Service) drainEventQueue(dispatcher *event.Dispatcher, killSignals chan
 // killOrReap must be invoked via a goroutine: Kill may shell out to verify
 // the target's backing process, and running it inline would stall the frame loop.
 func (s *Service) killOrReap(target *game.Target, killSignals chan<- killSignal, done <-chan struct{}) {
-	killed, shouldReap, err := s.killer.Kill(target)
+	killed, shouldReap, err := s.killer.Kill(target.PID, target.Name, target.Info.IsProtected())
 
 	sig := killSignal{target: target}
 	switch {
@@ -198,7 +197,7 @@ func (s *Service) killOrReap(target *game.Target, killSignals chan<- killSignal,
 	case err != nil:
 		sig.err = err
 	case !killed:
-		sig.err = errors.New("kill reported no error but target was not killed")
+		sig.err = apperror.NewError(apperror.CodeUnknown, apperror.SeverityError, "kill reported no error but target was not killed", nil)
 	}
 
 	select {

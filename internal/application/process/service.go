@@ -6,7 +6,6 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
@@ -29,7 +28,7 @@ func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
 
 	matches := process.Find(toProcessInfos(processes), patterns, s.processMgr.OwnPID())
 	if err := process.ValidateProcesses(matches); err != nil {
-		return nil, apperror.NewError(apperror.CodeNoProcessesFound, apperror.SeverityFatal, "", err)
+		return nil, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "", err)
 	}
 
 	fmt.Printf("Found %d process(es) matching %v. Starting game...\n", len(matches), patterns)
@@ -37,27 +36,29 @@ func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
 	return matches, nil
 }
 
-// Kill re-verifies target immediately before terminating it, since the PID may
-// have been recycled by the OS to a different process — or exited entirely —
-// in the time between discovery and the player confirming the kill. shouldReap
-// reports whether the caller should reap the target instead of leaving it
-// stuck as alive, because its backing process was already gone.
-func (s *Service) Kill(target *game.Target) (killed, shouldReap bool, err error) {
-	pid := target.PID
-	if target.Info.IsProtected() {
-		return false, false, fmt.Errorf("refusing to kill PID %d", pid)
+// Kill re-verifies the process identified by pid immediately before
+// terminating it, since the PID may have been recycled by the OS to a
+// different process, or have exited entirely, since name was last observed.
+// shouldReap reports whether the caller should treat the process as already
+// gone rather than as a failed kill.
+func (s *Service) Kill(pid int, procName string, protected bool) (killed, shouldReap bool, err error) {
+	if protected {
+		return false, false, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("refusing to kill PID %d", pid), nil)
 	}
-	name, err := s.processMgr.LookupName(pid)
+	currentName, err := s.processMgr.LookupName(pid)
 	if err != nil {
-		return false, true, fmt.Errorf("could not verify PID %d: %w", pid, err)
+		return false, true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not verify PID %d", pid), err)
 	}
-	if err := process.ValidateName(target.Name, name); err != nil {
-		return false, true, err
+	if err := process.ValidateName(procName, currentName); err != nil {
+		return false, true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, "", err)
 	}
 
 	killed, err = s.processMgr.Kill(pid)
 	if errors.As(err, &outbound.NotFoundError{}) {
-		return false, true, fmt.Errorf("PID %d already exited: %w", pid, err)
+		return false, true, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, fmt.Sprintf("PID %d already exited", pid), err)
 	}
-	return killed, false, err
+	if err != nil {
+		return false, false, apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, fmt.Sprintf("failed to kill PID %d", pid), err)
+	}
+	return killed, false, nil
 }

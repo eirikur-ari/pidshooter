@@ -67,7 +67,7 @@ func newErrorTestCases() []struct {
 		},
 		{
 			name:        "with cause only",
-			errCode:     CodeNoProcessesFound,
+			errCode:     CodeProcessNotFound,
 			errSeverity: SeverityFatal,
 			errMessage:  "",
 			errCause:    errors.New("no processes found"),

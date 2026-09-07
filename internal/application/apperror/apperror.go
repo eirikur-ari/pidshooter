@@ -8,7 +8,7 @@ const (
 	CodeUnknown Code = iota
 	CodeInvalidConfig
 	CodeProcessDiscoveryFailed
-	CodeNoProcessesFound
+	CodeProcessNotFound
 	CodeGameFailed
 	CodeScoreLoadFailed
 	CodeScoreSaveFailed
@@ -29,10 +29,7 @@ const (
 	// than warning level.
 	SeverityError
 	SeverityWarning
-	// SeverityUnknown marks an error Handle received without any app-level
-	// severity assessment at all — not a Severity an *Error was built
-	// with, but the fallback Handle applies to an error it cannot
-	// classify as one of its own.
+	// SeverityUnknown marks any unknown error.
 	SeverityUnknown
 )
 

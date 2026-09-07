@@ -26,7 +26,7 @@ func TestServicePlayNoProcessesReturnsClassifiedError(t *testing.T) {
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeNoProcessesFound, appErr.Code)
+	assert.Equal(t, apperror.CodeProcessNotFound, appErr.Code)
 	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
 	assert.Equal(t, "no processes found", err.Error(), "an empty wrapper Message should not change the displayed text")
 	require.Error(t, appErr.Unwrap(), "the underlying cause should still be reachable, not discarded")
@@ -146,7 +146,7 @@ func TestServiceApplyKillsDeduplicatesRepeatedFailuresForSamePID(t *testing.T) {
 func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096)
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
-	killer := fake.Killer(func(*game.Target) (bool, bool, error) {
+	killer := fake.Killer(func(int, string, bool) (bool, bool, error) {
 		return false, false, errors.New("refusing to kill PID 100")
 	})
 	svc := NewService(killer, &fake.Renderer{}, fake.NewInputSource())
@@ -170,7 +170,7 @@ func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
 func TestKillOrReapFalseKilledWithNilErrorReportsFallbackFailure(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096)
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
-	killer := fake.Killer(func(*game.Target) (bool, bool, error) {
+	killer := fake.Killer(func(int, string, bool) (bool, bool, error) {
 		return false, false, nil
 	})
 	svc := NewService(killer, &fake.Renderer{}, fake.NewInputSource())
@@ -182,7 +182,10 @@ func TestKillOrReapFalseKilledWithNilErrorReportsFallbackFailure(t *testing.T) {
 
 	sig := <-killSignals
 	assert.False(t, sig.shouldReap)
-	assert.Error(t, sig.err)
+	var appErr *apperror.Error
+	require.ErrorAs(t, sig.err, &appErr)
+	assert.Equal(t, apperror.CodeUnknown, appErr.Code)
+	assert.Equal(t, apperror.SeverityError, appErr.Severity)
 }
 
 // TestKillOrReapReapWithoutErrorStaysSilent verifies the existing silent-reap
@@ -192,7 +195,7 @@ func TestKillOrReapFalseKilledWithNilErrorReportsFallbackFailure(t *testing.T) {
 func TestKillOrReapReapWithoutErrorStaysSilent(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096)
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
-	killer := fake.Killer(func(*game.Target) (bool, bool, error) {
+	killer := fake.Killer(func(int, string, bool) (bool, bool, error) {
 		return false, true, errors.New("could not verify PID 100: process not found")
 	})
 	svc := NewService(killer, &fake.Renderer{}, fake.NewInputSource())

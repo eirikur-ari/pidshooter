@@ -26,7 +26,7 @@ func TestHandlerHandleLogsAsWarningWhenSeverityIsWarningAndAbsorbsTheError(t *te
 func TestHandlerHandleLogsAsErrorWhenSeverityIsErrorAbsorbsTheError(t *testing.T) {
 	logger := &fake.Logger{}
 	h := NewHandler(logger)
-	input := NewError(CodeNoProcessesFound, SeverityError, "no processes found", nil)
+	input := NewError(CodeProcessNotFound, SeverityError, "no processes found", nil)
 
 	err := h.Handle(input)
 
