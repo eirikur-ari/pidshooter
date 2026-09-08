@@ -13,13 +13,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
-func newTestProcess(t *testing.T) *process {
-	t.Helper()
-	path, err := exec.LookPath("ps")
-	require.NoError(t, err, "ps not found")
-	return &process{psPath: path, timeout: 5 * time.Second}
-}
-
 func TestListReturnsResults(t *testing.T) {
 	processes, err := newTestProcess(t).List()
 	require.NoError(t, err)
@@ -44,6 +37,75 @@ func TestLookupNameReturnsOwnName(t *testing.T) {
 }
 
 func TestParseProcesses(t *testing.T) {
+	tests := parseProcessesTestCase()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseProcesses([]byte(tt.output))
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestListTimesOutWhenPsHangs(t *testing.T) {
+	p := &process{psPath: writeHangingPS(t), timeout: 50 * time.Millisecond}
+
+	start := time.Now()
+	_, err := p.List()
+	elapsed := time.Since(start)
+
+	require.Error(t, err)
+	assert.Less(t, elapsed, 2*time.Second, "List should return once its timeout elapses, not hang for the full ps runtime")
+}
+
+func TestLookupNameTimesOutWhenPsHangs(t *testing.T) {
+	p := &process{psPath: writeHangingPS(t), timeout: 50 * time.Millisecond}
+
+	start := time.Now()
+	_, err := p.LookupName(1)
+	elapsed := time.Since(start)
+
+	require.Error(t, err)
+	assert.Less(t, elapsed, 2*time.Second, "LookupName should return once its timeout elapses, not hang for the full ps runtime")
+}
+
+func TestListErrorIncludesPsStderr(t *testing.T) {
+	p := &process{psPath: writeFailingPS(t), timeout: 5 * time.Second}
+
+	_, err := p.List()
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "permission denied", "the error should surface ps's own stderr text, not just an opaque exit status")
+}
+
+func newTestProcess(t *testing.T) *process {
+	t.Helper()
+	path, err := exec.LookPath("ps")
+	require.NoError(t, err, "ps not found")
+	return &process{psPath: path, timeout: 5 * time.Second}
+}
+
+func writeHangingPS(t *testing.T) string {
+	t.Helper()
+	scriptPath := filepath.Join(t.TempDir(), "ps")
+	require.NoError(t, os.WriteFile(scriptPath, []byte("#!/bin/sh\nexec sleep 10\n"), 0o755))
+	return scriptPath
+}
+
+func writeFailingPS(t *testing.T) string {
+	t.Helper()
+	scriptPath := filepath.Join(t.TempDir(), "ps")
+	script := "#!/bin/sh\necho 'ps: unrecognized option, permission denied' >&2\nexit 1\n"
+	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0o755))
+	return scriptPath
+}
+
+func parseProcessesTestCase() []struct {
+	name   string
+	output string
+	want   []outbound.ProcessInfo
+} {
 	tests := []struct {
 		name   string
 		output string
@@ -85,42 +147,5 @@ func TestParseProcesses(t *testing.T) {
 			want:   nil,
 		},
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseProcesses([]byte(tt.output))
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
-		})
-	}
+	return tests
 }
-
-func writeHangingPS(t *testing.T) string {
-	t.Helper()
-	scriptPath := filepath.Join(t.TempDir(), "ps")
-	require.NoError(t, os.WriteFile(scriptPath, []byte("#!/bin/sh\nexec sleep 10\n"), 0o755))
-	return scriptPath
-}
-
-func TestListTimesOutWhenPsHangs(t *testing.T) {
-	p := &process{psPath: writeHangingPS(t), timeout: 50 * time.Millisecond}
-
-	start := time.Now()
-	_, err := p.List()
-	elapsed := time.Since(start)
-
-	require.Error(t, err)
-	assert.Less(t, elapsed, 2*time.Second, "List should return once its timeout elapses, not hang for the full ps runtime")
-}
-
-func TestLookupNameTimesOutWhenPsHangs(t *testing.T) {
-	p := &process{psPath: writeHangingPS(t), timeout: 50 * time.Millisecond}
-
-	start := time.Now()
-	_, err := p.LookupName(1)
-	elapsed := time.Since(start)
-
-	require.Error(t, err)
-	assert.Less(t, elapsed, 2*time.Second, "LookupName should return once its timeout elapses, not hang for the full ps runtime")
-}
-

@@ -2,6 +2,7 @@ package osprocess
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -95,7 +96,21 @@ func (p *process) list() ([]outbound.ProcessInfo, error) {
 func (p *process) run(args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
-	return exec.CommandContext(ctx, p.psPath, args...).Output()
+	out, err := exec.CommandContext(ctx, p.psPath, args...).Output()
+	if err != nil {
+		return nil, withStderr(err)
+	}
+	return out, nil
+}
+
+// withStderr appends ps's own stderr text to err when available, so a
+// non-zero exit doesn't leave callers with just an opaque exit status.
+func withStderr(err error) error {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(exitErr.Stderr)))
+	}
+	return err
 }
 
 // processColumnNames returns the comma-separated process attribute columns
