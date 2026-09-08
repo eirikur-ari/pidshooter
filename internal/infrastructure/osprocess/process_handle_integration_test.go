@@ -25,8 +25,7 @@ func TestIntegrationPinThenKillReportsNotFoundAfterProcessExits(t *testing.T) {
 
 	require.NoError(t, cmd.Wait(), "the process must actually exit and be reaped before Kill is attempted")
 
-	killed, err := handle.Kill()
-	assert.False(t, killed)
+	err = handle.Kill()
 	require.Error(t, err)
 	assert.ErrorAs(t, err, &outbound.NotFoundError{}, "killing a handle pinned before the process exited must still report NotFoundError, not silently succeed")
 }

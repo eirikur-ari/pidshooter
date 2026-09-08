@@ -20,8 +20,7 @@ func TestKillerNonexistentPID(t *testing.T) {
 	h, err := newTestProcess(t).Pin(999999)
 	require.NoError(t, err)
 
-	killed, err := h.Kill()
-	assert.False(t, killed)
+	err = h.Kill()
 	require.Error(t, err)
 	assert.ErrorAs(t, err, &outbound.NotFoundError{})
 }

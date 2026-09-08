@@ -16,12 +16,12 @@ import (
 type processHandle struct{ proc *os.Process }
 
 // Kill sends SIGKILL to the process this handle refers to.
-func (h *processHandle) Kill() (bool, error) {
+func (h *processHandle) Kill() error {
 	if err := h.proc.Signal(syscall.SIGKILL); err != nil {
 		if errors.Is(err, os.ErrProcessDone) {
-			return false, outbound.NotFoundError{}
+			return outbound.NotFoundError{}
 		}
-		return false, err
+		return err
 	}
-	return true, nil
+	return nil
 }

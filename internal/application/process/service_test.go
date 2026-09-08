@@ -85,9 +85,8 @@ func TestKillReturnsErrorIfPIDIsProtected(t *testing.T) {
 	fp := &fake.Process{}
 	svc := NewService(fp)
 
-	killed, shouldReap, err := svc.Kill(1, "init", true)
+	shouldReap, err := svc.Kill(1, "init", true)
 
-	assert.False(t, killed)
 	assert.False(t, shouldReap)
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -101,9 +100,8 @@ func TestKillReturnsErrorAndShouldReapIfPinFails(t *testing.T) {
 	fp := &fake.Process{PinErr: errors.New("could not find process")}
 	svc := NewService(fp)
 
-	killed, shouldReap, err := svc.Kill(100, "target", false)
+	shouldReap, err := svc.Kill(100, "target", false)
 
-	assert.False(t, killed)
 	assert.True(t, shouldReap)
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -117,9 +115,8 @@ func TestKillReturnsErrorAndShouldReapIfProcessLookupByNameFails(t *testing.T) {
 	fp := &fake.Process{LookupNameErr: errors.New("ps lookup failed")}
 	svc := NewService(fp)
 
-	killed, shouldReap, err := svc.Kill(100, "target", false)
+	shouldReap, err := svc.Kill(100, "target", false)
 
-	assert.False(t, killed)
 	assert.True(t, shouldReap)
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -133,9 +130,8 @@ func TestKillReturnsErrorAndShouldReapIfNameValidationFails(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "somethingElse"}
 	svc := NewService(fp)
 
-	killed, shouldReap, err := svc.Kill(100, "target", false)
+	shouldReap, err := svc.Kill(100, "target", false)
 
-	assert.False(t, killed)
 	assert.True(t, shouldReap)
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -149,9 +145,8 @@ func TestKillReturnsShouldReapWhenProcessAlreadyExited(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "target", KillErr: outbound.NotFoundError{}}
 	svc := NewService(fp)
 
-	killed, shouldReap, err := svc.Kill(100, "target", false)
+	shouldReap, err := svc.Kill(100, "target", false)
 
-	assert.False(t, killed)
 	assert.True(t, shouldReap)
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -164,9 +159,8 @@ func TestKillReturnsErrorWhenKillFails(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "target", KillErr: errors.New("permission denied")}
 	svc := NewService(fp)
 
-	killed, shouldReap, err := svc.Kill(100, "target", false)
+	shouldReap, err := svc.Kill(100, "target", false)
 
-	assert.False(t, killed)
 	assert.False(t, shouldReap)
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -179,9 +173,8 @@ func TestKillReturnsKillingProcessWasASuccess(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "target"}
 	svc := NewService(fp)
 
-	killed, shouldReap, err := svc.Kill(100, "target", false)
+	shouldReap, err := svc.Kill(100, "target", false)
 
-	assert.True(t, killed)
 	assert.False(t, shouldReap)
 	assert.NoError(t, err)
 	assert.Equal(t, []int{100}, fp.KilledPIDs)

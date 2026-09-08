@@ -12,10 +12,10 @@ type ProcessInfo struct {
 // ProcessManager.Pin, pinning its identity so a later Kill call cannot be
 // redirected to a different process that has since reused the same PID.
 type ProcessHandle interface {
-	// Kill terminates the process this ProcessHandle refers to, reporting
-	// whether it was killed. If the process no longer exists, Kill returns
-	// a NotFoundError instead of treating it as a failure.
-	Kill() (bool, error)
+	// Kill terminates the process this ProcessHandle refers to. If the
+	// process no longer exists, Kill returns a NotFoundError instead of
+	// treating it as a failure.
+	Kill() error
 }
 
 // ProcessManager is the outbound port for process discovery and termination on the host.

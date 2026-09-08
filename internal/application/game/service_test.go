@@ -146,8 +146,8 @@ func TestServiceApplyKillsDeduplicatesRepeatedFailuresForSamePID(t *testing.T) {
 func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096, 0)
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
-	killer := fake.Killer(func(int, string, bool) (bool, bool, error) {
-		return false, false, errors.New("refusing to kill PID 100")
+	killer := fake.Killer(func(int, string, bool) (bool, error) {
+		return false, errors.New("refusing to kill PID 100")
 	})
 	svc := NewService(killer, &fake.Renderer{}, fake.NewInputSource())
 	killSignals := make(chan killSignal, 1)
@@ -163,31 +163,6 @@ func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
 
 // --- killOrReap ---
 
-// TestKillOrReapFalseKilledWithNilErrorReportsFallbackFailure covers a
-// combination the killer interface permits but osprocess never actually
-// returns (killed=false, shouldReap=false, err=nil): killOrReap must still
-// report a failure rather than silently treating it as success.
-func TestKillOrReapFalseKilledWithNilErrorReportsFallbackFailure(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096, 0)
-	target := game.NewTarget(info, movement.NewBounds(80, 24))
-	killer := fake.Killer(func(int, string, bool) (bool, bool, error) {
-		return false, false, nil
-	})
-	svc := NewService(killer, &fake.Renderer{}, fake.NewInputSource())
-	killSignals := make(chan killSignal, 1)
-	done := make(chan struct{})
-	defer close(done)
-
-	svc.killOrReap(target, killSignals, done)
-
-	sig := <-killSignals
-	assert.False(t, sig.shouldReap)
-	var appErr *apperror.Error
-	require.ErrorAs(t, sig.err, &appErr)
-	assert.Equal(t, apperror.CodeUnknown, appErr.Code)
-	assert.Equal(t, apperror.SeverityError, appErr.Severity)
-}
-
 // TestKillOrReapReapWithoutErrorStaysSilent verifies the existing silent-reap
 // path (process already gone / PID recycled — shouldReap=true, err set) does
 // not start reporting a failure now that killOrReap also surfaces them: the
@@ -195,8 +170,8 @@ func TestKillOrReapFalseKilledWithNilErrorReportsFallbackFailure(t *testing.T) {
 func TestKillOrReapReapWithoutErrorStaysSilent(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096, 0)
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
-	killer := fake.Killer(func(int, string, bool) (bool, bool, error) {
-		return false, true, errors.New("could not verify PID 100: process not found")
+	killer := fake.Killer(func(int, string, bool) (bool, error) {
+		return true, errors.New("could not verify PID 100: process not found")
 	})
 	svc := NewService(killer, &fake.Renderer{}, fake.NewInputSource())
 	killSignals := make(chan killSignal, 1)

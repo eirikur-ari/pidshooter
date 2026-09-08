@@ -7,7 +7,7 @@ type processHandle struct {
 	pid     int
 }
 
-func (h *processHandle) Kill() (bool, error) {
+func (h *processHandle) Kill() error {
 	h.process.KilledPIDs = append(h.process.KilledPIDs, h.pid)
-	return h.process.KillErr == nil, h.process.KillErr
+	return h.process.KillErr
 }

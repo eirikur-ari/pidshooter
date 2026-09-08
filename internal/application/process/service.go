@@ -41,28 +41,28 @@ func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
 // between verification and kill cannot be silently signaled in the
 // original's place. shouldReap reports whether the caller should treat the
 // process as already gone rather than as a failed kill.
-func (s *Service) Kill(pid int, procName string, protected bool) (killed, shouldReap bool, err error) {
+func (s *Service) Kill(pid int, procName string, protected bool) (shouldReap bool, err error) {
 	if protected {
-		return false, false, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("refusing to kill PID %d", pid), nil)
+		return false, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("refusing to kill PID %d", pid), nil)
 	}
 	handle, err := s.processMgr.Pin(pid)
 	if err != nil {
-		return false, true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not pin PID %d", pid), err)
+		return true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not pin PID %d", pid), err)
 	}
 	currentName, err := s.processMgr.LookupName(pid)
 	if err != nil {
-		return false, true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not verify PID %d", pid), err)
+		return true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not verify PID %d", pid), err)
 	}
 	if err := process.ValidateName(procName, currentName); err != nil {
-		return false, true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, "", err)
+		return true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, "", err)
 	}
 
-	killed, err = handle.Kill()
+	err = handle.Kill()
 	if errors.As(err, &outbound.NotFoundError{}) {
-		return false, true, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, fmt.Sprintf("PID %d already exited", pid), err)
+		return true, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, fmt.Sprintf("PID %d already exited", pid), err)
 	}
 	if err != nil {
-		return false, false, apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, fmt.Sprintf("failed to kill PID %d", pid), err)
+		return false, apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, fmt.Sprintf("failed to kill PID %d", pid), err)
 	}
-	return killed, false, nil
+	return false, nil
 }
