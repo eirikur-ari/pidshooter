@@ -48,10 +48,7 @@ func (p *Process) OwnUID() int {
 // ps flags and parsing as List so truncation and whitespace handling are
 // identical between discovery and the kill-time safety recheck.
 func (p *Process) LookupName(pid int) (string, error) {
-	args := []string{"-p", strconv.Itoa(pid), "-o", "uid,pid,rss,comm"}
-	if runtime.GOOS == "darwin" {
-		args = append([]string{"-c"}, args...)
-	}
+	args := []string{"-p", strconv.Itoa(pid), "-o", processColumnNames()}
 	out, err := exec.Command(p.psPath, args...).Output()
 	if err != nil {
 		return "", fmt.Errorf("ps lookup failed for PID %d: %w", pid, err)
@@ -86,11 +83,7 @@ func (p *Process) Kill(pid int) (bool, error) {
 }
 
 func (p *Process) list() ([]outbound.ProcessInfo, error) {
-	flags := "-eo"
-	if runtime.GOOS == "darwin" {
-		flags = "-ceo"
-	}
-	cmd := exec.Command(p.psPath, flags, "uid,pid,rss,comm")
+	cmd := exec.Command(p.psPath, "-eo", processColumnNames())
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("ps command failed: %w", err)
@@ -98,7 +91,21 @@ func (p *Process) list() ([]outbound.ProcessInfo, error) {
 	return parseProcesses(output)
 }
 
-// parseProcesses parses `uid,pid,rss,comm`-formatted ps output, shared by
+// processColumnNames returns the comma-separated process attribute columns
+// to query: uid, pid, rss, and a command name. On darwin the command name
+// column is ucomm — the kernel-owned name — rather than comm, which BSD ps
+// instead derives from the process's own, unbounded, spoofable argv[0];
+// using ucomm keeps the kill-time name recheck honest about which binary is
+// actually running. Elsewhere, comm is already kernel-owned, so no
+// substitution is needed.
+func processColumnNames() string {
+	if runtime.GOOS == "darwin" {
+		return "uid,pid,rss,ucomm"
+	}
+	return "uid,pid,rss,comm"
+}
+
+// parseProcesses parses uid/pid/rss/name-formatted ps output, shared by
 // list() and LookupName so both apply identical truncation and whitespace
 // handling to the same columns.
 func parseProcesses(output []byte) ([]outbound.ProcessInfo, error) {

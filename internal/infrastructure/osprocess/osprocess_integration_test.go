@@ -3,6 +3,7 @@
 package osprocess_test
 
 import (
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -67,4 +68,20 @@ func TestIntegrationFindExcludesOwnAndInitPID(t *testing.T) {
 			assert.Equal(t, ownUID, p.UID, "non-root caller should only see processes it owns")
 		}
 	}
+}
+
+func TestIntegrationLookupNameResistsArgv0Spoofing(t *testing.T) {
+	sleepPath, err := exec.LookPath("sleep")
+	require.NoError(t, err)
+
+	cmd := &exec.Cmd{Path: sleepPath, Args: []string{"TOTALLY-DIFFERENT-SPOOFED-NAME", "30"}}
+	require.NoError(t, cmd.Start())
+	defer func() { _ = cmd.Process.Kill() }()
+
+	f, err := osprocess.NewProcess()
+	require.NoError(t, err)
+
+	name, err := f.LookupName(cmd.Process.Pid)
+	require.NoError(t, err)
+	assert.Equal(t, "sleep", name, "LookupName must report the real executable name, not a spoofed argv[0]")
 }
