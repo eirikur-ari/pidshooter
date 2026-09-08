@@ -16,6 +16,13 @@ func TestPinReturnsHandleForExistingPID(t *testing.T) {
 	assert.NotNil(t, h)
 }
 
+func TestReleaseSucceedsForExistingPID(t *testing.T) {
+	h, err := newTestProcess(t).Pin(os.Getpid())
+	require.NoError(t, err)
+
+	assert.NoError(t, h.Release())
+}
+
 func TestKillerNonexistentPID(t *testing.T) {
 	h, err := newTestProcess(t).Pin(999999)
 	require.NoError(t, err)

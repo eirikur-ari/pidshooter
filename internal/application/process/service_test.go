@@ -94,6 +94,7 @@ func TestKillReturnsErrorIfPIDIsProtected(t *testing.T) {
 	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorContains(t, err, "refusing to kill PID 1", "expected the service to refuse to kill protected PIDs")
 	assert.Empty(t, fp.KilledPIDs)
+	assert.Empty(t, fp.ReleasedPIDs, "a protected PID is refused before Pin is ever called")
 }
 
 func TestKillReturnsErrorAndShouldReapIfPinFails(t *testing.T) {
@@ -109,6 +110,7 @@ func TestKillReturnsErrorAndShouldReapIfPinFails(t *testing.T) {
 	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorContains(t, err, "could not pin PID 100: could not find process")
 	assert.Empty(t, fp.KilledPIDs)
+	assert.Empty(t, fp.ReleasedPIDs, "there is no handle to release when Pin itself fails")
 }
 
 func TestKillReturnsErrorAndShouldReapIfProcessLookupByNameFails(t *testing.T) {
@@ -124,6 +126,7 @@ func TestKillReturnsErrorAndShouldReapIfProcessLookupByNameFails(t *testing.T) {
 	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorContains(t, err, "could not verify PID 100: ps lookup failed", "expected the underlying ps error to still be visible")
 	assert.Empty(t, fp.KilledPIDs)
+	assert.Equal(t, []int{100}, fp.ReleasedPIDs, "the pinned handle must be released even when LookupName fails afterward")
 }
 
 func TestKillReturnsErrorAndShouldReapIfNameValidationFails(t *testing.T) {
@@ -139,6 +142,7 @@ func TestKillReturnsErrorAndShouldReapIfNameValidationFails(t *testing.T) {
 	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorContains(t, err, "pid name mismatch: expected \"target\", got \"somethingElse\"", "expected the service to report a name mismatch")
 	assert.Empty(t, fp.KilledPIDs)
+	assert.Equal(t, []int{100}, fp.ReleasedPIDs, "the pinned handle must be released even when name validation fails afterward")
 }
 
 func TestKillReturnsShouldReapWhenProcessAlreadyExited(t *testing.T) {
@@ -153,6 +157,7 @@ func TestKillReturnsShouldReapWhenProcessAlreadyExited(t *testing.T) {
 	assert.Equal(t, apperror.CodeProcessNotFound, appErr.Code)
 	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorAs(t, err, &outbound.NotFoundError{})
+	assert.Equal(t, []int{100}, fp.ReleasedPIDs)
 }
 
 func TestKillReturnsErrorWhenKillFails(t *testing.T) {
@@ -167,6 +172,7 @@ func TestKillReturnsErrorWhenKillFails(t *testing.T) {
 	assert.Equal(t, apperror.CodeKillFailed, appErr.Code)
 	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorContains(t, err, "failed to kill PID 100: permission denied")
+	assert.Equal(t, []int{100}, fp.ReleasedPIDs)
 }
 
 func TestKillReturnsKillingProcessWasASuccess(t *testing.T) {
@@ -178,4 +184,5 @@ func TestKillReturnsKillingProcessWasASuccess(t *testing.T) {
 	assert.False(t, shouldReap)
 	assert.NoError(t, err)
 	assert.Equal(t, []int{100}, fp.KilledPIDs)
+	assert.Equal(t, []int{100}, fp.ReleasedPIDs, "the pinned handle must be released after a successful kill too")
 }

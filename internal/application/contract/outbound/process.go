@@ -16,6 +16,10 @@ type ProcessHandle interface {
 	// process no longer exists, Kill returns a NotFoundError instead of
 	// treating it as a failure.
 	Kill() error
+	// Release releases any resources held by this ProcessHandle. Callers
+	// must call Release exactly once when finished with the handle, whether
+	// or not Kill was called.
+	Release() error
 }
 
 // ProcessManager is the outbound port for process discovery and termination on the host.

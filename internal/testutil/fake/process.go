@@ -15,6 +15,7 @@ type Process struct {
 	PinErr          error
 	KilledPIDs      []int
 	KillErr         error
+	ReleasedPIDs    []int
 }
 
 func (f *Process) List() ([]outbound.ProcessInfo, error) { return f.Infos, f.ListErr }

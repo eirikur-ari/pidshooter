@@ -49,6 +49,8 @@ func (s *Service) Kill(pid int, procName string, protected bool) (shouldReap boo
 	if err != nil {
 		return true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not pin PID %d", pid), err)
 	}
+	defer func() { _ = handle.Release() }()
+
 	currentName, err := s.processMgr.LookupName(pid)
 	if err != nil {
 		return true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not verify PID %d", pid), err)

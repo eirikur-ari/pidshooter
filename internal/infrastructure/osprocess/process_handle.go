@@ -25,3 +25,10 @@ func (h *processHandle) Kill() error {
 	}
 	return nil
 }
+
+// Release releases the OS resources FindProcess associated with this handle
+// (a pidfd on Linux) rather than leaving them to be closed by the garbage
+// collector's finalizer.
+func (h *processHandle) Release() error {
+	return h.proc.Release()
+}
