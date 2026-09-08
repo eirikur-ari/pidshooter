@@ -13,8 +13,8 @@ import (
 
 func TestNewSession(t *testing.T) {
 	processes := []process.Info{
-		process.NewInfo(1, "a", 100),
-		process.NewInfo(2, "b", 200),
+		process.NewInfo(1, "a", 100, 0),
+		process.NewInfo(2, "b", 200, 0),
 	}
 
 	s := NewSession(processes, Config{Confirm: true, Speed: 3.5, TimeLimit: 60})
@@ -26,7 +26,7 @@ func TestNewSession(t *testing.T) {
 }
 
 func TestStartTransitionsToRunning(t *testing.T) {
-	processes := []process.Info{process.NewInfo(1, "a", 100)}
+	processes := []process.Info{process.NewInfo(1, "a", 100, 0)}
 	s := NewSession(processes, Config{})
 
 	s.Start(80, 24)
@@ -65,12 +65,12 @@ func TestGameTimeLimit(t *testing.T) {
 }
 
 func TestGameTargetsEmptyBeforeStart(t *testing.T) {
-	s := NewSession([]process.Info{process.NewInfo(1, "a", 0)}, Config{})
+	s := NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{})
 	assert.Empty(t, s.Targets())
 }
 
 func TestGameTargetsPopulatedAfterStart(t *testing.T) {
-	s := NewSession([]process.Info{process.NewInfo(1, "a", 0)}, Config{})
+	s := NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{})
 	s.Start(80, 24)
 	assert.Len(t, s.Targets(), 1)
 }
@@ -81,7 +81,7 @@ func TestGamePendingConfirmNilWhenNoPending(t *testing.T) {
 }
 
 func TestGamePendingConfirmReturnsPendingTarget(t *testing.T) {
-	tgt := &Target{Info: process.NewInfo(42, "suspect", 0)}
+	tgt := &Target{Info: process.NewInfo(42, "suspect", 0, 0)}
 	s := &Session{confirm: confirmation{target: tgt, confirm: true}}
 	assert.Equal(t, tgt, s.PendingConfirm())
 }
@@ -98,7 +98,7 @@ func TestGameThrottleMutationAffectsSpeed(t *testing.T) {
 }
 
 func TestGameAvailableTargetsExcludesDeadTargets(t *testing.T) {
-	s := NewSession([]process.Info{process.NewInfo(1, "a", 0)}, Config{Speed: 1.0})
+	s := NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{Speed: 1.0})
 	s.Start(80, 24)
 	s.roster.targets[0].Kill()
 	for range KillAnimationDuration {
@@ -113,8 +113,8 @@ func TestGameAvailableTargetsExcludesDeadTargets(t *testing.T) {
 
 func TestGameAvailableTargetsCountsAlive(t *testing.T) {
 	processes := []process.Info{
-		process.NewInfo(1, "a", 0),
-		process.NewInfo(2, "b", 0),
+		process.NewInfo(1, "a", 0, 0),
+		process.NewInfo(2, "b", 0, 0),
 	}
 	s := NewSession(processes, Config{Speed: 1.0})
 	s.Start(80, 24)
@@ -137,7 +137,7 @@ func TestUpdateStopsWhenTimeLimitExpired(t *testing.T) {
 }
 
 func TestUpdateStopsWhenAllTargetsDead(t *testing.T) {
-	tgt := &Target{Info: process.NewInfo(1, "target", 0), State: Dead}
+	tgt := &Target{Info: process.NewInfo(1, "target", 0, 0), State: Dead}
 	s := &Session{roster: roster{targets: []*Target{tgt}}, throttle: movement.NewThrottle(movement.MinSpeed)}
 	s.Start(0, 0)
 

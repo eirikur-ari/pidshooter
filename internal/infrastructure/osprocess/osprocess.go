@@ -1,4 +1,3 @@
-// Package osprocess implements process discovery and process killing via OS APIs.
 package osprocess
 
 import (
@@ -40,11 +39,16 @@ func (p *Process) OwnPID() int {
 	return os.Getpid()
 }
 
+// OwnUID returns the effective UID of the calling process.
+func (p *Process) OwnUID() int {
+	return os.Geteuid()
+}
+
 // LookupName returns the current comm name of pid from the OS, using the same
 // ps flags and parsing as List so truncation and whitespace handling are
 // identical between discovery and the kill-time safety recheck.
 func (p *Process) LookupName(pid int) (string, error) {
-	args := []string{"-p", strconv.Itoa(pid), "-o", "pid,rss,comm"}
+	args := []string{"-p", strconv.Itoa(pid), "-o", "uid,pid,rss,comm"}
 	if runtime.GOOS == "darwin" {
 		args = append([]string{"-c"}, args...)
 	}
@@ -86,7 +90,7 @@ func (p *Process) list() ([]outbound.ProcessInfo, error) {
 	if runtime.GOOS == "darwin" {
 		flags = "-ceo"
 	}
-	cmd := exec.Command(p.psPath, flags, "pid,rss,comm")
+	cmd := exec.Command(p.psPath, flags, "uid,pid,rss,comm")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("ps command failed: %w", err)
@@ -94,9 +98,9 @@ func (p *Process) list() ([]outbound.ProcessInfo, error) {
 	return parseProcesses(output)
 }
 
-// parseProcesses parses `pid,rss,comm`-formatted ps output, shared by list()
-// and LookupName so both apply identical truncation and whitespace handling
-// to the same columns.
+// parseProcesses parses `uid,pid,rss,comm`-formatted ps output, shared by
+// list() and LookupName so both apply identical truncation and whitespace
+// handling to the same columns.
 func parseProcesses(output []byte) ([]outbound.ProcessInfo, error) {
 	var processes []outbound.ProcessInfo
 	lines := strings.Split(string(output), "\n")
@@ -108,26 +112,32 @@ func parseProcesses(output []byte) ([]outbound.ProcessInfo, error) {
 		}
 
 		fields := strings.Fields(line)
-		if len(fields) < 3 {
+		if len(fields) < 4 {
 			continue
 		}
 
-		pid, err := strconv.Atoi(fields[0])
+		uid, err := strconv.Atoi(fields[0])
 		if err != nil {
 			continue
 		}
 
-		rssKB, err := strconv.ParseInt(fields[1], 10, 64)
+		pid, err := strconv.Atoi(fields[1])
+		if err != nil {
+			continue
+		}
+
+		rssKB, err := strconv.ParseInt(fields[2], 10, 64)
 		if err != nil {
 			rssKB = 0
 		}
 
-		name := strings.Join(fields[2:], " ")
+		name := strings.Join(fields[3:], " ")
 
 		processes = append(processes, outbound.ProcessInfo{
 			PID:  pid,
 			Name: name,
 			Rss:  rssKB * 1024,
+			UID:  uid,
 		})
 	}
 

@@ -18,7 +18,7 @@ func TestToConfirmViewStateReturnNilWhenInputIsNil(t *testing.T) {
 }
 
 func TestToConfirmViewStateReturnsMappedFields(t *testing.T) {
-	tgt := game.NewTarget(process.NewInfo(42, "dummy", 0), movement.NewBounds(80, 24))
+	tgt := game.NewTarget(process.NewInfo(42, "dummy", 0, 0), movement.NewBounds(80, 24))
 	vs := toConfirmViewState(tgt)
 	require.NotNil(t, vs)
 	assert.Equal(t, 42, vs.PID)
@@ -29,7 +29,7 @@ func TestToConfirmViewStateReturnsMappedFields(t *testing.T) {
 
 func TestToTargetViewStateReturnsMappedFields(t *testing.T) {
 	tgt := &game.Target{
-		Info:   process.NewInfo(42, "dummy", 0),
+		Info:   process.NewInfo(42, "dummy", 0, 0),
 		Motion: movement.Motion{Position: movement.Vector{X: 10.6, Y: 5.4}},
 		State:  game.Alive,
 	}
@@ -46,8 +46,8 @@ func TestToTargetViewStateReturnsMappedFields(t *testing.T) {
 
 func TestToTargetViewStatesReturnsASliceOfMappedFields(t *testing.T) {
 	targets := []*game.Target{
-		{Info: process.NewInfo(1, "a", 0), State: game.Alive},
-		{Info: process.NewInfo(2, "b", 0), State: game.Killing},
+		{Info: process.NewInfo(1, "a", 0, 0), State: game.Alive},
+		{Info: process.NewInfo(2, "b", 0, 0), State: game.Killing},
 	}
 
 	views := toTargetViewStates(targets)
@@ -78,7 +78,7 @@ func TestToHUDStateReturnsMappedFields(t *testing.T) {
 // --- toStatusState ---
 
 func TestToStatusStateReturnsMappedFieldsWithoutConfirmViewState(t *testing.T) {
-	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 2.0, TimeLimit: 30})
+	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, game.Config{Speed: 2.0, TimeLimit: 30})
 	session.Start(80, 24)
 
 	status := toStatusState(session, 3)
@@ -90,7 +90,7 @@ func TestToStatusStateReturnsMappedFieldsWithoutConfirmViewState(t *testing.T) {
 }
 
 func TestToStatusStateIncludesConfirmViewState(t *testing.T) {
-	session := game.NewSession([]process.Info{process.NewInfo(42, "suspect", 0)}, game.Config{Confirm: true, Speed: 1.0})
+	session := game.NewSession([]process.Info{process.NewInfo(42, "suspect", 0, 0)}, game.Config{Confirm: true, Speed: 1.0})
 	session.Start(80, 24)
 	session.RequestConfirm(session.Targets()[0])
 
@@ -103,7 +103,7 @@ func TestToStatusStateIncludesConfirmViewState(t *testing.T) {
 // --- toFrameState ---
 
 func TestToFrameStateReturnsMappedFields(t *testing.T) {
-	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0)}, game.Config{Speed: 1.0})
+	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, game.Config{Speed: 1.0})
 	session.Start(80, 24)
 
 	f := toFrameState(session, newKillTracker(0))

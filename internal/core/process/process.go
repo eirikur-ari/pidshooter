@@ -21,23 +21,30 @@ type Info struct {
 	PID  int
 	Name string
 	Rss  int64
+	UID  int
 }
 
 // NewInfo constructs an Info snapshot.
-func NewInfo(pid int, name string, rss int64) Info {
-	return Info{PID: pid, Name: name, Rss: rss}
+func NewInfo(pid int, name string, rss int64, uid int) Info {
+	return Info{PID: pid, Name: name, Rss: rss, UID: uid}
 }
 
 // IsProtected reports whether this process must never be targeted —
 // any PID <= 1 (init, PID 0, or a negative PID), all of which are unsafe to kill.
 func (i Info) IsProtected() bool { return i.PID <= 1 }
 
+// IsKillableBy reports whether a caller with effective UID ownUID is
+// permitted to target this process: root (UID 0) may target any process;
+// everyone else may only target processes they themselves own.
+func (i Info) IsKillableBy(ownUID int) bool { return ownUID == 0 || i.UID == ownUID }
+
 // Find returns the subset of processes whose name matches any pattern
-// (case-insensitive substring match), excluding ownPID and protected PIDs.
-func Find(processes []Info, patterns []string, ownPID int) []Info {
+// (case-insensitive substring match), excluding ownPID, protected PIDs, and
+// any process the caller (identified by ownUID) is not permitted to kill.
+func Find(processes []Info, patterns []string, ownPID, ownUID int) []Info {
 	var result []Info
 	for _, pr := range processes {
-		if pr.PID == ownPID || pr.IsProtected() {
+		if pr.PID == ownPID || pr.IsProtected() || !pr.IsKillableBy(ownUID) {
 			continue
 		}
 		for _, pattern := range patterns {

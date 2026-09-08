@@ -33,7 +33,7 @@ func TestServicePlayNoProcessesReturnsClassifiedError(t *testing.T) {
 }
 
 func TestServicePlayRendererInitFailureReturnsClassifiedError(t *testing.T) {
-	processes := []process.Info{process.NewInfo(100, "target", 4096)}
+	processes := []process.Info{process.NewInfo(100, "target", 4096, 0)}
 	renderer := &fake.Renderer{InitErr: errors.New("terminal not available")}
 	svc := NewService(nil, renderer, fake.NewInputSource())
 
@@ -47,7 +47,7 @@ func TestServicePlayRendererInitFailureReturnsClassifiedError(t *testing.T) {
 }
 
 func TestServicePlaySuccessReturnsPlayResult(t *testing.T) {
-	processes := []process.Info{process.NewInfo(100, "target", 4096)}
+	processes := []process.Info{process.NewInfo(100, "target", 4096, 0)}
 	events := fake.NewInputSource()
 	events.Ch <- outbound.QuitEvent{}
 	svc := NewService(nil, &fake.Renderer{}, events)
@@ -65,7 +65,7 @@ func TestServicePlaySuccessReturnsPlayResult(t *testing.T) {
 // --- applyKillSignals ---
 
 func TestServiceApplyKillsCompletesPendingKill(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096)
+	info := process.NewInfo(100, "target", 4096, 0)
 	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
 	kills := make(chan killSignal, 1)
 
@@ -80,7 +80,7 @@ func TestServiceApplyKillsCompletesPendingKill(t *testing.T) {
 }
 
 func TestServiceApplyKillsReapsAlreadyKilledTarget(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096)
+	info := process.NewInfo(100, "target", 4096, 0)
 	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
 	kills := make(chan killSignal, 1)
 
@@ -105,7 +105,7 @@ func TestServiceApplyKillsEmptyChannelNoOps(t *testing.T) {
 }
 
 func TestServiceApplyKillsRecordsFailureWithoutMutatingTarget(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096)
+	info := process.NewInfo(100, "target", 4096, 0)
 	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
 	kills := make(chan killSignal, 1)
 
@@ -125,7 +125,7 @@ func TestServiceApplyKillsRecordsFailureWithoutMutatingTarget(t *testing.T) {
 }
 
 func TestServiceApplyKillsDeduplicatesRepeatedFailuresForSamePID(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096)
+	info := process.NewInfo(100, "target", 4096, 0)
 	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
 	kills := make(chan killSignal, 2)
 
@@ -144,7 +144,7 @@ func TestServiceApplyKillsDeduplicatesRepeatedFailuresForSamePID(t *testing.T) {
 // (both shouldReap=false, err!=nil). The target must stay unreaped and the
 // failure must be reported on killSignals rather than swallowed.
 func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096)
+	info := process.NewInfo(100, "target", 4096, 0)
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
 	killer := fake.Killer(func(int, string, bool) (bool, bool, error) {
 		return false, false, errors.New("refusing to kill PID 100")
@@ -168,7 +168,7 @@ func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
 // returns (killed=false, shouldReap=false, err=nil): killOrReap must still
 // report a failure rather than silently treating it as success.
 func TestKillOrReapFalseKilledWithNilErrorReportsFallbackFailure(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096)
+	info := process.NewInfo(100, "target", 4096, 0)
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
 	killer := fake.Killer(func(int, string, bool) (bool, bool, error) {
 		return false, false, nil
@@ -193,7 +193,7 @@ func TestKillOrReapFalseKilledWithNilErrorReportsFallbackFailure(t *testing.T) {
 // not start reporting a failure now that killOrReap also surfaces them: the
 // signal must carry shouldReap and no err, exactly as before this change.
 func TestKillOrReapReapWithoutErrorStaysSilent(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096)
+	info := process.NewInfo(100, "target", 4096, 0)
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
 	killer := fake.Killer(func(int, string, bool) (bool, bool, error) {
 		return false, true, errors.New("could not verify PID 100: process not found")

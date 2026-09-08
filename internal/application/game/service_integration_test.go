@@ -22,7 +22,7 @@ import (
 // result. Bounded by a generous timeout so a regression that stalls the loop fails
 // fast with a clear message instead of hanging until the test runner's own timeout.
 func TestIntegrationServiceFrameLoopAppliesAsyncKillToResult(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096)
+	info := process.NewInfo(100, "target", 4096, 0)
 	session := game.NewSession([]process.Info{info}, game.Config{Speed: 1.0})
 	session.Start(80, 24)
 

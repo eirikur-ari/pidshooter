@@ -29,6 +29,11 @@ func TestOwnPIDMatchesOSGetpid(t *testing.T) {
 	assert.Equal(t, os.Getpid(), p.OwnPID())
 }
 
+func TestOwnUIDMatchesOSGeteuid(t *testing.T) {
+	p := newTestProcess(t)
+	assert.Equal(t, os.Geteuid(), p.OwnUID())
+}
+
 func TestLookupNameReturnsOwnName(t *testing.T) {
 	p := newTestProcess(t)
 	name, err := p.LookupName(os.Getpid())
@@ -44,32 +49,37 @@ func TestParseProcesses(t *testing.T) {
 	}{
 		{
 			name:   "single process",
-			output: "  PID    RSS COMM\n  123   4096 sleep\n",
-			want:   []outbound.ProcessInfo{{PID: 123, Name: "sleep", Rss: 4096 * 1024}},
+			output: "  UID   PID    RSS COMM\n 1000   123   4096 sleep\n",
+			want:   []outbound.ProcessInfo{{PID: 123, Name: "sleep", Rss: 4096 * 1024, UID: 1000}},
 		},
 		{
 			name:   "collapses internal whitespace runs in the name",
-			output: "  PID    RSS COMM\n  123   4096 weird  double   spaces\n",
-			want:   []outbound.ProcessInfo{{PID: 123, Name: "weird double spaces", Rss: 4096 * 1024}},
+			output: "  UID   PID    RSS COMM\n 1000   123   4096 weird  double   spaces\n",
+			want:   []outbound.ProcessInfo{{PID: 123, Name: "weird double spaces", Rss: 4096 * 1024, UID: 1000}},
 		},
 		{
 			name:   "skips rows with too few fields",
-			output: "  PID    RSS COMM\n  123\n  456   4096 sleep\n",
-			want:   []outbound.ProcessInfo{{PID: 456, Name: "sleep", Rss: 4096 * 1024}},
+			output: "  UID   PID    RSS COMM\n  123\n 1000   456   4096 sleep\n",
+			want:   []outbound.ProcessInfo{{PID: 456, Name: "sleep", Rss: 4096 * 1024, UID: 1000}},
+		},
+		{
+			name:   "skips rows with a non-numeric uid",
+			output: "  UID   PID    RSS COMM\n   ab   123   4096 sleep\n",
+			want:   nil,
 		},
 		{
 			name:   "skips rows with a non-numeric pid",
-			output: "  PID    RSS COMM\n   ab   4096 sleep\n",
+			output: "  UID   PID    RSS COMM\n 1000    ab   4096 sleep\n",
 			want:   nil,
 		},
 		{
 			name:   "defaults rss to zero on parse failure",
-			output: "  PID    RSS COMM\n  123     ab sleep\n",
-			want:   []outbound.ProcessInfo{{PID: 123, Name: "sleep", Rss: 0}},
+			output: "  UID   PID    RSS COMM\n 1000   123     ab sleep\n",
+			want:   []outbound.ProcessInfo{{PID: 123, Name: "sleep", Rss: 0, UID: 1000}},
 		},
 		{
 			name:   "no data rows",
-			output: "  PID    RSS COMM\n",
+			output: "  UID   PID    RSS COMM\n",
 			want:   nil,
 		},
 	}

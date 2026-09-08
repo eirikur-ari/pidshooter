@@ -43,7 +43,7 @@ func TestValidateProcessesEmpty(t *testing.T) {
 }
 
 func TestValidateProcessesNonEmpty(t *testing.T) {
-	assert.NoError(t, ValidateProcesses([]Info{NewInfo(100, "target", 4096)}))
+	assert.NoError(t, ValidateProcesses([]Info{NewInfo(100, "target", 4096, 0)}))
 }
 
 func TestValidateNameMismatch(t *testing.T) {
@@ -57,56 +57,86 @@ func TestValidateNameMatch(t *testing.T) {
 }
 
 func TestInfoIsProtected(t *testing.T) {
-	assert.True(t, NewInfo(0, "swapper", 0).IsProtected())
-	assert.True(t, NewInfo(1, "init", 0).IsProtected())
-	assert.False(t, NewInfo(2, "init", 0).IsProtected())
-	assert.False(t, NewInfo(100, "myapp", 0).IsProtected())
+	assert.True(t, NewInfo(0, "swapper", 0, 0).IsProtected())
+	assert.True(t, NewInfo(1, "init", 0, 0).IsProtected())
+	assert.False(t, NewInfo(2, "init", 0, 0).IsProtected())
+	assert.False(t, NewInfo(100, "myapp", 0, 0).IsProtected())
+}
+
+func TestInfoIsKillableBy(t *testing.T) {
+	owned := NewInfo(100, "myapp", 0, 1000)
+	assert.True(t, owned.IsKillableBy(1000), "caller should be able to kill a process it owns")
+	assert.False(t, owned.IsKillableBy(2000), "caller should not be able to kill a process owned by someone else")
+	assert.True(t, owned.IsKillableBy(0), "root should be able to kill any process")
+
+	rootOwned := NewInfo(100, "sshd", 0, 0)
+	assert.True(t, rootOwned.IsKillableBy(0), "root should be able to kill its own processes")
+	assert.False(t, rootOwned.IsKillableBy(1000), "non-root caller should not be able to kill a root-owned process")
+}
+
+func TestFindExcludesProcessesNotOwnedByCaller(t *testing.T) {
+	infos := []Info{
+		NewInfo(100, "myapp", 1024, 1000),
+		NewInfo(200, "otherapp", 1024, 2000),
+	}
+	result := Find(infos, []string{"app"}, 0, 1000)
+	require.Len(t, result, 1)
+	assert.Equal(t, 100, result[0].PID)
+}
+
+func TestFindAsRootIncludesProcessesOwnedByAnyUser(t *testing.T) {
+	infos := []Info{
+		NewInfo(100, "myapp", 1024, 1000),
+		NewInfo(200, "otherapp", 1024, 2000),
+	}
+	result := Find(infos, []string{"app"}, 0, 0)
+	assert.Len(t, result, 2, "root should see processes regardless of owner")
 }
 
 func TestFindMatchesByName(t *testing.T) {
 	infos := []Info{
-		NewInfo(100, "myapp", 1024),
-		NewInfo(200, "worker", 2048),
+		NewInfo(100, "myapp", 1024, 0),
+		NewInfo(200, "worker", 2048, 0),
 	}
-	result := Find(infos, []string{"myapp"}, 0)
+	result := Find(infos, []string{"myapp"}, 0, 0)
 	require.Len(t, result, 1)
 	assert.Equal(t, 100, result[0].PID)
 }
 
 func TestFindSubstringMatch(t *testing.T) {
-	infos := []Info{NewInfo(100, "myapp-worker", 1024)}
-	result := Find(infos, []string{"app"}, 0)
+	infos := []Info{NewInfo(100, "myapp-worker", 1024, 0)}
+	result := Find(infos, []string{"app"}, 0, 0)
 	assert.Len(t, result, 1)
 }
 
 func TestFindCaseInsensitive(t *testing.T) {
-	infos := []Info{NewInfo(100, "MyApp", 1024)}
-	result := Find(infos, []string{"myapp"}, 0)
+	infos := []Info{NewInfo(100, "MyApp", 1024, 0)}
+	result := Find(infos, []string{"myapp"}, 0, 0)
 	assert.Len(t, result, 1)
 }
 
 func TestFindMultipleTerms(t *testing.T) {
 	infos := []Info{
-		NewInfo(100, "myapp", 1024),
-		NewInfo(200, "worker", 2048),
-		NewInfo(300, "other", 512),
+		NewInfo(100, "myapp", 1024, 0),
+		NewInfo(200, "worker", 2048, 0),
+		NewInfo(300, "other", 512, 0),
 	}
-	result := Find(infos, []string{"myapp", "worker"}, 0)
+	result := Find(infos, []string{"myapp", "worker"}, 0, 0)
 	assert.Len(t, result, 2)
 }
 
 func TestFindNoMatch(t *testing.T) {
-	infos := []Info{NewInfo(100, "myapp", 1024)}
-	result := Find(infos, []string{"worker"}, 0)
+	infos := []Info{NewInfo(100, "myapp", 1024, 0)}
+	result := Find(infos, []string{"worker"}, 0, 0)
 	assert.Empty(t, result)
 }
 
 func TestFindExcludesPID1(t *testing.T) {
 	infos := []Info{
-		NewInfo(1, "init", 512),
-		NewInfo(100, "myapp", 1024),
+		NewInfo(1, "init", 512, 0),
+		NewInfo(100, "myapp", 1024, 0),
 	}
-	result := Find(infos, []string{"init", "myapp"}, 0)
+	result := Find(infos, []string{"init", "myapp"}, 0, 0)
 	for _, p := range result {
 		assert.NotEqual(t, 1, p.PID, "should not include PID 1")
 	}
@@ -115,10 +145,10 @@ func TestFindExcludesPID1(t *testing.T) {
 func TestFindExcludesOwnPID(t *testing.T) {
 	const ownPID = 999
 	infos := []Info{
-		NewInfo(ownPID, "testprocess", 1024),
-		NewInfo(100, "testprocess", 2048),
+		NewInfo(ownPID, "testprocess", 1024, 0),
+		NewInfo(100, "testprocess", 2048, 0),
 	}
-	result := Find(infos, []string{"testprocess"}, ownPID)
+	result := Find(infos, []string{"testprocess"}, ownPID, 0)
 	for _, p := range result {
 		assert.NotEqual(t, ownPID, p.PID, "should not include own PID")
 	}
@@ -128,10 +158,10 @@ func TestFindExcludesOwnPID(t *testing.T) {
 
 func TestFindExcludesPID0(t *testing.T) {
 	infos := []Info{
-		NewInfo(0, "swapper", 0),
-		NewInfo(100, "myapp", 1024),
+		NewInfo(0, "swapper", 0, 0),
+		NewInfo(100, "myapp", 1024, 0),
 	}
-	result := Find(infos, []string{"swapper", "myapp"}, -1)
+	result := Find(infos, []string{"swapper", "myapp"}, -1, 0)
 	for _, p := range result {
 		assert.Greater(t, p.PID, 1, "filter should exclude PID %d", p.PID)
 	}

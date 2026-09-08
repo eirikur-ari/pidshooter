@@ -5,6 +5,7 @@ type ProcessInfo struct {
 	PID  int
 	Name string
 	Rss  int64
+	UID  int
 }
 
 // ProcessManager is the outbound port for process discovery and termination on the host.
@@ -13,6 +14,9 @@ type ProcessManager interface {
 	List() ([]ProcessInfo, error)
 	// OwnPID returns the PID of the calling process.
 	OwnPID() int
+	// OwnUID returns the effective UID of the calling process, used to
+	// determine which discovered processes the caller is permitted to kill.
+	OwnUID() int
 	// LookupName returns the current name of the process with the given pid.
 	LookupName(pid int) (string, error)
 	// Kill terminates the process with the given pid, reporting whether it

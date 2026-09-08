@@ -12,11 +12,12 @@ import (
 // --- toProcessInfo ---
 
 func TestToProcessInfoMapsFields(t *testing.T) {
-	info := toProcessInfo(outbound.ProcessInfo{PID: 42, Name: "suspect", Rss: 1024})
+	info := toProcessInfo(outbound.ProcessInfo{PID: 42, Name: "suspect", Rss: 1024, UID: 1000})
 
 	assert.Equal(t, 42, info.PID)
 	assert.Equal(t, "suspect", info.Name)
 	assert.Equal(t, int64(1024), info.Rss)
+	assert.Equal(t, 1000, info.UID)
 }
 
 // --- toProcessInfos ---

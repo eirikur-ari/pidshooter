@@ -26,7 +26,7 @@ func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
 		return nil, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityFatal, "process discovery failed", err)
 	}
 
-	matches := process.Find(toProcessInfos(processes), patterns, s.processMgr.OwnPID())
+	matches := process.Find(toProcessInfos(processes), patterns, s.processMgr.OwnPID(), s.processMgr.OwnUID())
 	if err := process.ValidateProcesses(matches); err != nil {
 		return nil, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "", err)
 	}

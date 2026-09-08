@@ -56,8 +56,26 @@ func TestFindProcessesReturnsMatchingProcesses(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []process.Info{
-		process.NewInfo(100, "target", 4096),
-		process.NewInfo(101, "another-target", 2048),
+		process.NewInfo(100, "target", 4096, 0),
+		process.NewInfo(101, "another-target", 2048, 0),
+	}, processes)
+}
+
+func TestFindProcessesExcludesProcessesNotOwnedByCaller(t *testing.T) {
+	fp := &fake.Process{
+		Infos: []outbound.ProcessInfo{
+			{PID: 100, Name: "target", Rss: 4096, UID: 1000},
+			{PID: 101, Name: "target-other-owner", Rss: 2048, UID: 2000},
+		},
+		OwnUIDValue: 1000,
+	}
+	svc := NewService(fp)
+
+	processes, err := svc.FindProcesses([]string{"target"})
+
+	require.NoError(t, err)
+	assert.Equal(t, []process.Info{
+		process.NewInfo(100, "target", 4096, 1000),
 	}, processes)
 }
 
