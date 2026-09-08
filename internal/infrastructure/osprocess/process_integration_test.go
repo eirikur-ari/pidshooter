@@ -44,9 +44,6 @@ func TestIntegrationListShortProcessNames(t *testing.T) {
 	}
 }
 
-// PID exclusion (self and PID<=1) is domain policy applied by process.Find,
-// not something the adapter does anymore. This exercises the real List/OwnPID
-// adapter output through the real domain filter end-to-end.
 func TestIntegrationFindExcludesOwnAndInitPID(t *testing.T) {
 	f, err := osprocess.NewProcess()
 	require.NoError(t, err)

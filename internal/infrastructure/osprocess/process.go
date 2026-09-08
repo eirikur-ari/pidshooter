@@ -2,21 +2,19 @@ package osprocess
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
-// Process implements outbound.ProcessManager using the ps command.
-type Process struct {
+// process implements outbound.ProcessManager using the ps command.
+type process struct {
 	psPath string
 	// timeout bounds how long a single ps invocation may run. A wedged ps
 	// (stalled /proc reader, hung container runtime) would otherwise hang
@@ -33,10 +31,10 @@ func NewProcess() (outbound.ProcessManager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ps not found: %w", err)
 	}
-	return &Process{psPath: path, timeout: 5 * time.Second}, nil
+	return &process{psPath: path, timeout: 5 * time.Second}, nil
 }
 
-func (p *Process) List() ([]outbound.ProcessInfo, error) {
+func (p *process) List() ([]outbound.ProcessInfo, error) {
 	processes, err := p.list()
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect processes: %w", err)
@@ -44,19 +42,19 @@ func (p *Process) List() ([]outbound.ProcessInfo, error) {
 	return processes, nil
 }
 
-func (p *Process) OwnPID() int {
+func (p *process) OwnPID() int {
 	return os.Getpid()
 }
 
 // OwnUID returns the effective UID of the calling process.
-func (p *Process) OwnUID() int {
+func (p *process) OwnUID() int {
 	return os.Geteuid()
 }
 
 // LookupName returns the current comm name of pid from the OS, using the same
 // ps flags and parsing as List so truncation and whitespace handling are
 // identical between discovery and the kill-time safety recheck.
-func (p *Process) LookupName(pid int) (string, error) {
+func (p *process) LookupName(pid int) (string, error) {
 	out, err := p.run("-p", strconv.Itoa(pid), "-o", processColumnNames())
 	if err != nil {
 		return "", fmt.Errorf("ps lookup failed for PID %d: %w", pid, err)
@@ -73,24 +71,18 @@ func (p *Process) LookupName(pid int) (string, error) {
 	return "", fmt.Errorf("ps lookup failed for PID %d: process not found", pid)
 }
 
-// Kill sends SIGKILL to the process identified by pid. It performs no
-// safety or name verification — callers must confirm via LookupName that
-// pid still refers to the intended, non-protected process before calling Kill.
-func (p *Process) Kill(pid int) (bool, error) {
+// Pin returns a ProcessHandle to pid, obtained now rather than at kill
+// time, so the eventual Kill signals the exact process pinned here even if
+// pid is later recycled to a different process.
+func (p *process) Pin(pid int) (outbound.ProcessHandle, error) {
 	proc, err := os.FindProcess(pid)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	if err := proc.Signal(syscall.SIGKILL); err != nil {
-		if errors.Is(err, os.ErrProcessDone) {
-			return false, outbound.NotFoundError{}
-		}
-		return false, err
-	}
-	return true, nil
+	return &processHandle{proc: proc}, nil
 }
 
-func (p *Process) list() ([]outbound.ProcessInfo, error) {
+func (p *process) list() ([]outbound.ProcessInfo, error) {
 	output, err := p.run("-eo", processColumnNames())
 	if err != nil {
 		return nil, fmt.Errorf("ps command failed: %w", err)
@@ -100,7 +92,7 @@ func (p *Process) list() ([]outbound.ProcessInfo, error) {
 
 // run executes ps with args, bounded by p.timeout so a wedged ps can't hang
 // its caller indefinitely.
-func (p *Process) run(args ...string) ([]byte, error) {
+func (p *process) run(args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
 	return exec.CommandContext(ctx, p.psPath, args...).Output()

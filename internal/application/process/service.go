@@ -36,14 +36,18 @@ func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
 	return matches, nil
 }
 
-// Kill re-verifies the process identified by pid immediately before
-// terminating it, since the PID may have been recycled by the OS to a
-// different process, or have exited entirely, since name was last observed.
-// shouldReap reports whether the caller should treat the process as already
-// gone rather than as a failed kill.
+// Kill pins pid, re-verifies its name, then kills it through that same
+// pinned reference — so a PID recycled by the OS to a different process
+// between verification and kill cannot be silently signaled in the
+// original's place. shouldReap reports whether the caller should treat the
+// process as already gone rather than as a failed kill.
 func (s *Service) Kill(pid int, procName string, protected bool) (killed, shouldReap bool, err error) {
 	if protected {
 		return false, false, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("refusing to kill PID %d", pid), nil)
+	}
+	handle, err := s.processMgr.Pin(pid)
+	if err != nil {
+		return false, true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not pin PID %d", pid), err)
 	}
 	currentName, err := s.processMgr.LookupName(pid)
 	if err != nil {
@@ -53,7 +57,7 @@ func (s *Service) Kill(pid int, procName string, protected bool) (killed, should
 		return false, true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, "", err)
 	}
 
-	killed, err = s.processMgr.Kill(pid)
+	killed, err = handle.Kill()
 	if errors.As(err, &outbound.NotFoundError{}) {
 		return false, true, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, fmt.Sprintf("PID %d already exited", pid), err)
 	}

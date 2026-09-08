@@ -97,6 +97,22 @@ func TestKillReturnsErrorIfPIDIsProtected(t *testing.T) {
 	assert.Empty(t, fp.KilledPIDs)
 }
 
+func TestKillReturnsErrorAndShouldReapIfPinFails(t *testing.T) {
+	fp := &fake.Process{PinErr: errors.New("could not find process")}
+	svc := NewService(fp)
+
+	killed, shouldReap, err := svc.Kill(100, "target", false)
+
+	assert.False(t, killed)
+	assert.True(t, shouldReap)
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeProcessDiscoveryFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
+	assert.ErrorContains(t, err, "could not pin PID 100: could not find process")
+	assert.Empty(t, fp.KilledPIDs)
+}
+
 func TestKillReturnsErrorAndShouldReapIfProcessLookupByNameFails(t *testing.T) {
 	fp := &fake.Process{LookupNameErr: errors.New("ps lookup failed")}
 	svc := NewService(fp)

@@ -8,6 +8,16 @@ type ProcessInfo struct {
 	UID  int
 }
 
+// ProcessHandle references a specific process obtained via
+// ProcessManager.Pin, pinning its identity so a later Kill call cannot be
+// redirected to a different process that has since reused the same PID.
+type ProcessHandle interface {
+	// Kill terminates the process this ProcessHandle refers to, reporting
+	// whether it was killed. If the process no longer exists, Kill returns
+	// a NotFoundError instead of treating it as a failure.
+	Kill() (bool, error)
+}
+
 // ProcessManager is the outbound port for process discovery and termination on the host.
 type ProcessManager interface {
 	// List returns the processes currently running on the host.
@@ -19,11 +29,10 @@ type ProcessManager interface {
 	OwnUID() int
 	// LookupName returns the current name of the process with the given pid.
 	LookupName(pid int) (string, error)
-	// Kill terminates the process with the given pid, reporting whether it
-	// was killed. It performs no safety or name verification itself —
-	// callers must confirm via LookupName that pid still refers to the
-	// intended process before calling Kill. If no process with pid exists
-	// at signal time, Kill returns a NotFoundError instead of treating it
-	// as a failure.
-	Kill(pid int) (bool, error)
+	// Pin returns a ProcessHandle to the process with the given pid. Callers
+	// should Pin a pid before verifying it via LookupName and hold the
+	// resulting ProcessHandle through to Kill, rather than re-resolving pid
+	// at kill time, so identity is pinned across the verify-then-kill
+	// sequence.
+	Pin(pid int) (ProcessHandle, error)
 }
