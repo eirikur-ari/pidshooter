@@ -1,6 +1,7 @@
 package osprocess
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -9,12 +10,20 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
 // Process implements outbound.ProcessManager using the ps command.
-type Process struct{ psPath string }
+type Process struct {
+	psPath string
+	// timeout bounds how long a single ps invocation may run. A wedged ps
+	// (stalled /proc reader, hung container runtime) would otherwise hang
+	// List at startup with no feedback, or hang LookupName inside the game
+	// loop's killOrReap goroutine, which never reaches its done-channel select.
+	timeout time.Duration
+}
 
 // NewProcess returns an outbound.ProcessManager backed by the OS ps command.
 // It resolves the absolute path to ps at construction time so the
@@ -24,7 +33,7 @@ func NewProcess() (outbound.ProcessManager, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ps not found: %w", err)
 	}
-	return &Process{psPath: path}, nil
+	return &Process{psPath: path, timeout: 5 * time.Second}, nil
 }
 
 func (p *Process) List() ([]outbound.ProcessInfo, error) {
@@ -48,8 +57,7 @@ func (p *Process) OwnUID() int {
 // ps flags and parsing as List so truncation and whitespace handling are
 // identical between discovery and the kill-time safety recheck.
 func (p *Process) LookupName(pid int) (string, error) {
-	args := []string{"-p", strconv.Itoa(pid), "-o", processColumnNames()}
-	out, err := exec.Command(p.psPath, args...).Output()
+	out, err := p.run("-p", strconv.Itoa(pid), "-o", processColumnNames())
 	if err != nil {
 		return "", fmt.Errorf("ps lookup failed for PID %d: %w", pid, err)
 	}
@@ -83,12 +91,19 @@ func (p *Process) Kill(pid int) (bool, error) {
 }
 
 func (p *Process) list() ([]outbound.ProcessInfo, error) {
-	cmd := exec.Command(p.psPath, "-eo", processColumnNames())
-	output, err := cmd.Output()
+	output, err := p.run("-eo", processColumnNames())
 	if err != nil {
 		return nil, fmt.Errorf("ps command failed: %w", err)
 	}
 	return parseProcesses(output)
+}
+
+// run executes ps with args, bounded by p.timeout so a wedged ps can't hang
+// its caller indefinitely.
+func (p *Process) run(args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
+	defer cancel()
+	return exec.CommandContext(ctx, p.psPath, args...).Output()
 }
 
 // processColumnNames returns the comma-separated process attribute columns

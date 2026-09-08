@@ -3,7 +3,9 @@ package osprocess
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +17,7 @@ func newTestProcess(t *testing.T) *Process {
 	t.Helper()
 	path, err := exec.LookPath("ps")
 	require.NoError(t, err, "ps not found")
-	return &Process{psPath: path}
+	return &Process{psPath: path, timeout: 5 * time.Second}
 }
 
 func TestListReturnsResults(t *testing.T) {
@@ -91,6 +93,35 @@ func TestParseProcesses(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func writeHangingPS(t *testing.T) string {
+	t.Helper()
+	scriptPath := filepath.Join(t.TempDir(), "ps")
+	require.NoError(t, os.WriteFile(scriptPath, []byte("#!/bin/sh\nexec sleep 10\n"), 0o755))
+	return scriptPath
+}
+
+func TestListTimesOutWhenPsHangs(t *testing.T) {
+	p := &Process{psPath: writeHangingPS(t), timeout: 50 * time.Millisecond}
+
+	start := time.Now()
+	_, err := p.List()
+	elapsed := time.Since(start)
+
+	require.Error(t, err)
+	assert.Less(t, elapsed, 2*time.Second, "List should return once its timeout elapses, not hang for the full ps runtime")
+}
+
+func TestLookupNameTimesOutWhenPsHangs(t *testing.T) {
+	p := &Process{psPath: writeHangingPS(t), timeout: 50 * time.Millisecond}
+
+	start := time.Now()
+	_, err := p.LookupName(1)
+	elapsed := time.Since(start)
+
+	require.Error(t, err)
+	assert.Less(t, elapsed, 2*time.Second, "LookupName should return once its timeout elapses, not hang for the full ps runtime")
 }
 
 // Kill no longer guards pid or verifies name itself (see the doc
