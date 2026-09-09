@@ -11,22 +11,22 @@ import (
 
 // Service discovers and terminates OS processes.
 type Service struct {
-	processMgr outbound.ProcessManager
+	proc outbound.Process
 }
 
 // NewService constructs a Service with all required outbound ports injected.
-func NewService(processMgr outbound.ProcessManager) *Service {
-	return &Service{processMgr: processMgr}
+func NewService(proc outbound.Process) *Service {
+	return &Service{proc: proc}
 }
 
 // FindProcesses discovers running processes matching patterns.
 func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
-	processes, err := s.processMgr.Discover()
+	processes, err := s.proc.Discover()
 	if err != nil {
 		return nil, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityFatal, "process discovery failed", err)
 	}
 
-	matches := process.Find(toProcessInfos(processes), patterns, s.processMgr.OwnPID(), s.processMgr.OwnUID())
+	matches := process.Find(toProcessInfos(processes), patterns, s.proc.OwnPID(), s.proc.OwnUID())
 	if err := process.ValidateProcesses(matches); err != nil {
 		return nil, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "", err)
 	}
@@ -45,13 +45,13 @@ func (s *Service) Kill(pid int, procName string, protected bool) (shouldReap boo
 	if protected {
 		return false, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("refusing to kill PID %d", pid), nil)
 	}
-	handle, err := s.processMgr.Pin(pid)
+	handle, err := s.proc.Pin(pid)
 	if err != nil {
 		return true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not pin PID %d", pid), err)
 	}
 	defer func() { _ = handle.Release() }()
 
-	currentName, err := s.processMgr.LookupName(pid)
+	currentName, err := s.proc.LookupName(pid)
 	if err != nil {
 		return true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not verify PID %d", pid), err)
 	}

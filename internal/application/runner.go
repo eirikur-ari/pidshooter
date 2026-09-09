@@ -23,13 +23,13 @@ type Runner struct {
 
 // NewRunner constructs a Runner with all required outbound ports injected.
 func NewRunner(
-	processMgr outbound.ProcessManager,
+	proc outbound.Process,
 	store outbound.ScoreStore,
 	renderer outbound.Renderer,
 	events outbound.InputSource,
 	logger outbound.Logger,
 ) *Runner {
-	processSvc := process.NewService(processMgr)
+	processSvc := process.NewService(proc)
 	return &Runner{
 		processSvc: processSvc,
 		gameSvc:    game.NewService(processSvc, renderer, events),
