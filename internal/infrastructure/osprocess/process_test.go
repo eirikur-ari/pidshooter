@@ -48,6 +48,11 @@ func TestParseProcesses(t *testing.T) {
 	}
 }
 
+func TestParseProcessesRejectsMissingHeader(t *testing.T) {
+	_, err := parseProcesses([]byte(" 1000   123   4096 sleep\n"))
+	require.Error(t, err)
+}
+
 func TestListTimesOutWhenPsHangs(t *testing.T) {
 	p := &process{psPath: writeHangingPS(t), timeout: 50 * time.Millisecond}
 
@@ -137,9 +142,9 @@ func parseProcessesTestCase() []struct {
 			want:   nil,
 		},
 		{
-			name:   "defaults rss to zero on parse failure",
+			name:   "skips rows with a non-numeric rss",
 			output: "  UID   PID    RSS COMM\n 1000   123     ab sleep\n",
-			want:   []outbound.ProcessInfo{{PID: 123, Name: "sleep", Rss: 0, UID: 1000}},
+			want:   nil,
 		},
 		{
 			name:   "no data rows",

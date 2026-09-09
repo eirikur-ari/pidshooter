@@ -129,12 +129,16 @@ func processColumnNames() string {
 
 // parseProcesses parses uid/pid/rss/name-formatted ps output, shared by
 // list() and LookupName so both apply identical truncation and whitespace
-// handling to the same columns.
+// handling to the same columns. A row with an unparseable uid, pid, or rss
+// is skipped entirely.
 func parseProcesses(output []byte) ([]outbound.ProcessInfo, error) {
-	var processes []outbound.ProcessInfo
 	lines := strings.Split(string(output), "\n")
+	if !isProcessHeader(lines[0]) {
+		return nil, fmt.Errorf("unexpected ps output: missing or malformed header line")
+	}
 
-	for _, line := range lines[1:] { // skip header
+	var processes []outbound.ProcessInfo
+	for _, line := range lines[1:] {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
@@ -157,7 +161,7 @@ func parseProcesses(output []byte) ([]outbound.ProcessInfo, error) {
 
 		rssKB, err := strconv.ParseInt(fields[2], 10, 64)
 		if err != nil {
-			rssKB = 0
+			continue
 		}
 
 		name := strings.Join(fields[3:], " ")
@@ -171,4 +175,11 @@ func parseProcesses(output []byte) ([]outbound.ProcessInfo, error) {
 	}
 
 	return processes, nil
+}
+
+// isProcessHeader reports whether line is the header row ps prints for the
+// uid-led columns processColumnNames requests.
+func isProcessHeader(line string) bool {
+	fields := strings.Fields(line)
+	return len(fields) > 0 && strings.EqualFold(fields[0], "uid")
 }
