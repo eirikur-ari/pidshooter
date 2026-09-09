@@ -24,8 +24,8 @@ type ProcessHandle interface {
 
 // ProcessManager is the outbound port for process discovery and termination on the host.
 type ProcessManager interface {
-	// List returns the processes currently running on the host.
-	List() ([]ProcessInfo, error)
+	// Discover returns the processes currently running on the host.
+	Discover() ([]ProcessInfo, error)
 	// OwnPID returns the PID of the calling process.
 	OwnPID() int
 	// OwnUID returns the effective UID of the calling process, used to

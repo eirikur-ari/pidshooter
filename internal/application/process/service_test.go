@@ -16,7 +16,7 @@ import (
 // --- FindProcesses ---
 
 func TestFindProcessesReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
-	svc := NewService(&fake.Process{ListErr: errors.New("ps failed")})
+	svc := NewService(&fake.Process{DiscoverErr: errors.New("ps failed")})
 
 	_, err := svc.FindProcesses([]string{"foo"})
 

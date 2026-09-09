@@ -21,7 +21,7 @@ func NewService(processMgr outbound.ProcessManager) *Service {
 
 // FindProcesses discovers running processes matching patterns.
 func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
-	processes, err := s.processMgr.List()
+	processes, err := s.processMgr.Discover()
 	if err != nil {
 		return nil, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityFatal, "process discovery failed", err)
 	}

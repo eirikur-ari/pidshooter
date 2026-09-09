@@ -64,7 +64,7 @@ func TestRunnerRunConfigValidationReturnsErrorWhenPatternTooLong(t *testing.T) {
 
 func TestRunnerRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 	logger := &fake.Logger{}
-	r := NewRunner(&fake.Process{ListErr: errors.New("ps failed")}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource(), logger)
+	r := NewRunner(&fake.Process{DiscoverErr: errors.New("ps failed")}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource(), logger)
 
 	err := r.Run(inbound.Config{Patterns: []string{"proc"}, Speed: 2.0})
 

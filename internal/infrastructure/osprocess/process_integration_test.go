@@ -14,18 +14,18 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
 )
 
-func TestIntegrationListReturnsResults(t *testing.T) {
+func TestIntegrationDiscoverReturnsResults(t *testing.T) {
 	f, err := osprocess.NewProcess()
 	require.NoError(t, err)
-	processes, err := f.List()
+	processes, err := f.Discover()
 	require.NoError(t, err)
 	assert.NotEmpty(t, processes)
 }
 
-func TestIntegrationListValidFields(t *testing.T) {
+func TestIntegrationDiscoverValidFields(t *testing.T) {
 	f, err := osprocess.NewProcess()
 	require.NoError(t, err)
-	processes, err := f.List()
+	processes, err := f.Discover()
 	require.NoError(t, err)
 	for _, p := range processes {
 		assert.Greater(t, p.PID, 0, "invalid PID")
@@ -34,10 +34,10 @@ func TestIntegrationListValidFields(t *testing.T) {
 	}
 }
 
-func TestIntegrationListShortProcessNames(t *testing.T) {
+func TestIntegrationDiscoverShortProcessNames(t *testing.T) {
 	f, err := osprocess.NewProcess()
 	require.NoError(t, err)
-	processes, err := f.List()
+	processes, err := f.Discover()
 	require.NoError(t, err)
 	for _, p := range processes {
 		assert.False(t, strings.HasPrefix(p.Name, "/"), "PID %d has a full path in name: %q", p.PID, p.Name)
@@ -47,7 +47,7 @@ func TestIntegrationListShortProcessNames(t *testing.T) {
 func TestIntegrationFindExcludesOwnAndInitPID(t *testing.T) {
 	f, err := osprocess.NewProcess()
 	require.NoError(t, err)
-	raw, err := f.List()
+	raw, err := f.Discover()
 	require.NoError(t, err)
 
 	infos := make([]process.Info, len(raw))

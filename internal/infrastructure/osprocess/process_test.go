@@ -13,8 +13,8 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
-func TestListReturnsResults(t *testing.T) {
-	processes, err := newTestProcess(t).List()
+func TestDiscoverReturnsResults(t *testing.T) {
+	processes, err := newTestProcess(t).Discover()
 	require.NoError(t, err)
 	assert.NotEmpty(t, processes)
 }
@@ -53,15 +53,15 @@ func TestParseProcessesRejectsMissingHeader(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestListTimesOutWhenPsHangs(t *testing.T) {
+func TestDiscoverTimesOutWhenPsHangs(t *testing.T) {
 	p := &process{psPath: writeHangingPS(t), timeout: 50 * time.Millisecond}
 
 	start := time.Now()
-	_, err := p.List()
+	_, err := p.Discover()
 	elapsed := time.Since(start)
 
 	require.Error(t, err)
-	assert.Less(t, elapsed, 2*time.Second, "List should return once its timeout elapses, not hang for the full ps runtime")
+	assert.Less(t, elapsed, 2*time.Second, "Discover should return once its timeout elapses, not hang for the full ps runtime")
 }
 
 func TestLookupNameTimesOutWhenPsHangs(t *testing.T) {
@@ -75,10 +75,10 @@ func TestLookupNameTimesOutWhenPsHangs(t *testing.T) {
 	assert.Less(t, elapsed, 2*time.Second, "LookupName should return once its timeout elapses, not hang for the full ps runtime")
 }
 
-func TestListErrorIncludesPsStderr(t *testing.T) {
+func TestDiscoverErrorIncludesPsStderr(t *testing.T) {
 	p := &process{psPath: writeFailingPS(t), timeout: 5 * time.Second}
 
-	_, err := p.List()
+	_, err := p.Discover()
 
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "permission denied", "the error should surface ps's own stderr text, not just an opaque exit status")

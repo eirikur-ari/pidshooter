@@ -19,7 +19,7 @@ type process struct {
 	psPath string
 	// timeout bounds how long a single ps invocation may run. A wedged ps
 	// (stalled /proc reader, hung container runtime) would otherwise hang
-	// List at startup with no feedback, or hang LookupName inside the game
+	// Discovery at startup with no feedback, or hang LookupName inside the game
 	// loop's killOrReap goroutine, which never reaches its done-channel select.
 	timeout time.Duration
 }
@@ -35,8 +35,8 @@ func NewProcess() (outbound.ProcessManager, error) {
 	return &process{psPath: path, timeout: 5 * time.Second}, nil
 }
 
-func (p *process) List() ([]outbound.ProcessInfo, error) {
-	processes, err := p.list()
+func (p *process) Discover() ([]outbound.ProcessInfo, error) {
+	processes, err := p.discover()
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect processes: %w", err)
 	}
@@ -83,7 +83,7 @@ func (p *process) Pin(pid int) (outbound.ProcessHandle, error) {
 	return &processHandle{proc: proc}, nil
 }
 
-func (p *process) list() ([]outbound.ProcessInfo, error) {
+func (p *process) discover() ([]outbound.ProcessInfo, error) {
 	output, err := p.run("-eo", processColumnNames())
 	if err != nil {
 		return nil, fmt.Errorf("ps command failed: %w", err)
@@ -128,7 +128,7 @@ func processColumnNames() string {
 }
 
 // parseProcesses parses uid/pid/rss/name-formatted ps output, shared by
-// list() and LookupName so both apply identical truncation and whitespace
+// discover() and LookupName so both apply identical truncation and whitespace
 // handling to the same columns. A row with an unparseable uid, pid, or rss
 // is skipped entirely.
 func parseProcesses(output []byte) ([]outbound.ProcessInfo, error) {

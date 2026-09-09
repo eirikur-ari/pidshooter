@@ -7,7 +7,7 @@ import (
 // Process is a test double for outbound.ProcessManager.
 type Process struct {
 	Infos           []outbound.ProcessInfo
-	ListErr         error
+	DiscoverErr     error
 	OwnPIDValue     int
 	OwnUIDValue     int
 	LookupNameValue string
@@ -18,10 +18,10 @@ type Process struct {
 	ReleasedPIDs    []int
 }
 
-func (f *Process) List() ([]outbound.ProcessInfo, error) { return f.Infos, f.ListErr }
-func (f *Process) OwnPID() int                           { return f.OwnPIDValue }
-func (f *Process) OwnUID() int                           { return f.OwnUIDValue }
-func (f *Process) LookupName(_ int) (string, error)      { return f.LookupNameValue, f.LookupNameErr }
+func (f *Process) Discover() ([]outbound.ProcessInfo, error) { return f.Infos, f.DiscoverErr }
+func (f *Process) OwnPID() int                               { return f.OwnPIDValue }
+func (f *Process) OwnUID() int                               { return f.OwnUIDValue }
+func (f *Process) LookupName(_ int) (string, error)          { return f.LookupNameValue, f.LookupNameErr }
 
 func (f *Process) Pin(pid int) (outbound.ProcessHandle, error) {
 	if f.PinErr != nil {
