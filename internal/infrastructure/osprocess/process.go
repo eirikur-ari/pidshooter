@@ -55,7 +55,7 @@ func (p *process) OwnUID() int {
 // LookupName returns the current comm name of pid from the OS, using the same
 // ps flags and parsing as Discover so truncation and whitespace handling are
 // identical between discovery and the kill-time safety recheck. A pid with
-// no live row — because it no longer exists, or because it still holds a
+// no live info — because it no longer exists, or because it still holds a
 // PID slot but has become a zombie that can't be usefully signaled again —
 // is reported as NotFoundError rather than as a name.
 func (p *process) LookupName(pid int) (string, error) {
@@ -67,13 +67,13 @@ func (p *process) LookupName(pid int) (string, error) {
 	if err != nil {
 		return lookupFailed(err)
 	}
-	rows, err := parseProcesses(out)
+	processes, err := parseProcesses(out)
 	if err != nil {
 		return lookupFailed(err)
 	}
-	for _, row := range rows {
-		if row.PID == pid && !isZombie(row.State) {
-			return row.Name, nil
+	for _, proc := range processes {
+		if proc.PID == pid && !isZombie(proc.State) {
+			return proc.Name, nil
 		}
 	}
 	return lookupFailed(outbound.NotFoundError{})
