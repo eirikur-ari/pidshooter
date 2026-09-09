@@ -146,7 +146,7 @@ func TestServiceApplyKillsDeduplicatesRepeatedFailuresForSamePID(t *testing.T) {
 func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096, 0)
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
-	killer := fake.Killer(func(int, string, bool) (bool, error) {
+	killer := fake.ProcessKiller(func(int, string, bool) (bool, error) {
 		return false, errors.New("refusing to kill PID 100")
 	})
 	svc := NewService(killer, &fake.Renderer{}, fake.NewInputSource())
@@ -170,7 +170,7 @@ func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
 func TestKillOrReapReapWithoutErrorStaysSilent(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096, 0)
 	target := game.NewTarget(info, movement.NewBounds(80, 24))
-	killer := fake.Killer(func(int, string, bool) (bool, error) {
+	killer := fake.ProcessKiller(func(int, string, bool) (bool, error) {
 		return true, errors.New("could not verify PID 100: process not found")
 	})
 	svc := NewService(killer, &fake.Renderer{}, fake.NewInputSource())

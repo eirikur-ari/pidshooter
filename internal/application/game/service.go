@@ -19,7 +19,7 @@ const frameDuration = time.Second / 20
 
 // Service orchestrates core domain objects and outbound ports to play a single game session.
 type Service struct {
-	killer   killer
+	killer   processKiller
 	renderer outbound.Renderer
 	events   outbound.InputSource
 }
@@ -34,9 +34,9 @@ type PlayResult struct {
 	KillFailures []KillFailure
 }
 
-// killer verifies and terminates a target's backing OS process, reporting
+// processKiller verifies and terminates a target's backing OS process, reporting
 // whether the caller should reap the target because its process was already gone.
-type killer interface {
+type processKiller interface {
 	Kill(pid int, name string, protected bool) (shouldReap bool, err error)
 }
 
@@ -51,7 +51,7 @@ type killSignal struct {
 
 // NewService constructs a Service with all required outbound ports injected.
 func NewService(
-	killer killer,
+	killer processKiller,
 	renderer outbound.Renderer,
 	events outbound.InputSource,
 ) *Service {
