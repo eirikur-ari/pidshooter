@@ -53,23 +53,30 @@ func (p *process) OwnUID() int {
 }
 
 // LookupName returns the current comm name of pid from the OS, using the same
-// ps flags and parsing as List so truncation and whitespace handling are
-// identical between discovery and the kill-time safety recheck.
+// ps flags and parsing as Discover so truncation and whitespace handling are
+// identical between discovery and the kill-time safety recheck. A pid with
+// no live row — because it no longer exists, or because it still holds a
+// PID slot but has become a zombie that can't be usefully signaled again —
+// is reported as NotFoundError rather than as a name.
 func (p *process) LookupName(pid int) (string, error) {
+	lookupFailed := func(err error) (string, error) {
+		return "", fmt.Errorf("ps lookup for PID %d failed: %w", pid, err)
+	}
+
 	out, err := p.run("-p", strconv.Itoa(pid), "-o", processColumnNames())
 	if err != nil {
-		return "", fmt.Errorf("ps lookup failed for PID %d: %w", pid, err)
+		return lookupFailed(err)
 	}
-	processes, err := parseProcesses(out)
+	rows, err := parseProcesses(out)
 	if err != nil {
-		return "", fmt.Errorf("ps lookup failed for PID %d: %w", pid, err)
+		return lookupFailed(err)
 	}
-	for _, proc := range processes {
-		if proc.PID == pid {
-			return proc.Name, nil
+	for _, row := range rows {
+		if row.PID == pid && !isZombie(row.State) {
+			return row.Name, nil
 		}
 	}
-	return "", fmt.Errorf("ps lookup failed for PID %d: process not found", pid)
+	return lookupFailed(outbound.NotFoundError{})
 }
 
 // Pin returns a ProcessHandle to pid, obtained now rather than at kill
@@ -89,6 +96,15 @@ func (p *process) discover() ([]outbound.ProcessInfo, error) {
 		return nil, fmt.Errorf("ps command failed: %w", err)
 	}
 	return parseProcesses(output)
+}
+
+// isZombie reports whether row's process state is a zombie (a PID slot that
+// still exists but whose process has already exited and cannot usefully be
+// signaled again). ps's STAT/state column always leads with the state
+// letter and may carry additional single-letter flags after it (e.g. "ZN"),
+// so this checks the leading character rather than an exact match.
+func isZombie(state string) bool {
+	return strings.HasPrefix(state, "Z")
 }
 
 // run executes ps with args, bounded by p.timeout so a wedged ps can't hang
@@ -114,20 +130,20 @@ func withStderr(err error) error {
 }
 
 // processColumnNames returns the comma-separated process attribute columns
-// to query: uid, pid, rss, and a command name. On darwin the command name
-// column is ucomm — the kernel-owned name — rather than comm, which BSD ps
-// instead derives from the process's own, unbounded, spoofable argv[0];
-// using ucomm keeps the kill-time name recheck honest about which binary is
-// actually running. Elsewhere, comm is already kernel-owned, so no
-// substitution is needed.
+// to query: uid, pid, rss, stat, and a command name. On darwin the command
+// name column is ucomm — the kernel-owned name — rather than comm, which
+// BSD ps instead derives from the process's own, unbounded, spoofable
+// argv[0]; using ucomm keeps the kill-time name recheck honest about which
+// binary is actually running. Elsewhere, comm is already kernel-owned, so
+// no substitution is needed.
 func processColumnNames() string {
 	if runtime.GOOS == "darwin" {
-		return "uid,pid,rss,ucomm"
+		return "uid,pid,rss,stat,ucomm"
 	}
-	return "uid,pid,rss,comm"
+	return "uid,pid,rss,stat,comm"
 }
 
-// parseProcesses parses uid/pid/rss/name-formatted ps output, shared by
+// parseProcesses parses uid/pid/rss/stat/name-formatted ps output, shared by
 // discover() and LookupName so both apply identical truncation and whitespace
 // handling to the same columns. A row with an unparseable uid, pid, or rss
 // is skipped entirely.
@@ -145,7 +161,7 @@ func parseProcesses(output []byte) ([]outbound.ProcessInfo, error) {
 		}
 
 		fields := strings.Fields(line)
-		if len(fields) < 4 {
+		if len(fields) < 5 {
 			continue
 		}
 
@@ -164,13 +180,15 @@ func parseProcesses(output []byte) ([]outbound.ProcessInfo, error) {
 			continue
 		}
 
-		name := strings.Join(fields[3:], " ")
+		state := fields[3]
+		name := strings.Join(fields[4:], " ")
 
 		processes = append(processes, outbound.ProcessInfo{
-			PID:  pid,
-			Name: name,
-			Rss:  rssKB * 1024,
-			UID:  uid,
+			UID:   uid,
+			PID:   pid,
+			Rss:   rssKB * 1024,
+			State: state,
+			Name:  name,
 		})
 	}
 

@@ -2,10 +2,11 @@ package outbound
 
 // ProcessInfo describes a single process discovered on the host.
 type ProcessInfo struct {
-	PID  int
-	Name string
-	Rss  int64
-	UID  int
+	UID   int
+	PID   int
+	Rss   int64
+	State string
+	Name  string
 }
 
 // ProcessHandle references a specific process obtained via

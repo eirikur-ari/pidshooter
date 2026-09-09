@@ -1,6 +1,7 @@
 package osprocess
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -49,8 +50,48 @@ func TestParseProcesses(t *testing.T) {
 }
 
 func TestParseProcessesRejectsMissingHeader(t *testing.T) {
-	_, err := parseProcesses([]byte(" 1000   123   4096 sleep\n"))
+	_, err := parseProcesses([]byte(" 1000   123   4096 S    sleep\n"))
 	require.Error(t, err)
+}
+
+func TestIsZombie(t *testing.T) {
+	tests := []struct {
+		name  string
+		state string
+		want  bool
+	}{
+		{"running", "R", false},
+		{"running in foreground", "R+", false},
+		{"sleeping", "S", false},
+		{"zombie", "Z", true},
+		{"zombie with trailing modifier flags", "ZN", true},
+		{"empty", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isZombie(tt.state))
+		})
+	}
+}
+
+func TestLookupNameReportsNotFoundForZombie(t *testing.T) {
+	p := &process{psPath: writeZombiePS(t, 4242), timeout: 5 * time.Second}
+
+	_, err := p.LookupName(4242)
+
+	require.Error(t, err)
+	assert.ErrorAs(t, err, &outbound.NotFoundError{}, "a zombie's PID slot still exists but can't be usefully signaled again, so LookupName should report NotFoundError rather than its stale live name")
+	assert.ErrorContains(t, err, "ps lookup for PID 4242 failed: not found", "the error should include the PID and NotFoundError in its message")
+}
+
+func TestLookupNameReportsNotFoundWhenPIDIsMissing(t *testing.T) {
+	p := &process{psPath: writeEmptyResultPS(t), timeout: 5 * time.Second}
+
+	_, err := p.LookupName(4242)
+
+	require.Error(t, err)
+	assert.ErrorAs(t, err, &outbound.NotFoundError{}, "a PID absent from ps output entirely should report the same NotFoundError as a zombie, not a bespoke error")
+	assert.ErrorContains(t, err, "ps lookup for PID 4242 failed: not found", "the error should include the PID and NotFoundError in its message")
 }
 
 func TestDiscoverTimesOutWhenPsHangs(t *testing.T) {
@@ -106,6 +147,22 @@ func writeFailingPS(t *testing.T) string {
 	return scriptPath
 }
 
+func writeZombiePS(t *testing.T, pid int) string {
+	t.Helper()
+	scriptPath := filepath.Join(t.TempDir(), "ps")
+	script := fmt.Sprintf("#!/bin/sh\nprintf '  UID   PID    RSS STAT COMM\\n 1000   %d   4096 ZN   sleep\\n'\n", pid)
+	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0o755))
+	return scriptPath
+}
+
+func writeEmptyResultPS(t *testing.T) string {
+	t.Helper()
+	scriptPath := filepath.Join(t.TempDir(), "ps")
+	script := "#!/bin/sh\nprintf '  UID   PID    RSS STAT COMM\\n'\n"
+	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0o755))
+	return scriptPath
+}
+
 func parseProcessesTestCase() []struct {
 	name   string
 	output string
@@ -118,37 +175,42 @@ func parseProcessesTestCase() []struct {
 	}{
 		{
 			name:   "single process",
-			output: "  UID   PID    RSS COMM\n 1000   123   4096 sleep\n",
-			want:   []outbound.ProcessInfo{{PID: 123, Name: "sleep", Rss: 4096 * 1024, UID: 1000}},
+			output: "  UID   PID    RSS STAT COMM\n 1000   123   4096 S    sleep\n",
+			want:   []outbound.ProcessInfo{{PID: 123, Name: "sleep", Rss: 4096 * 1024, UID: 1000, State: "S"}},
 		},
 		{
 			name:   "collapses internal whitespace runs in the name",
-			output: "  UID   PID    RSS COMM\n 1000   123   4096 weird  double   spaces\n",
-			want:   []outbound.ProcessInfo{{PID: 123, Name: "weird double spaces", Rss: 4096 * 1024, UID: 1000}},
+			output: "  UID   PID    RSS STAT COMM\n 1000   123   4096 S    weird  double   spaces\n",
+			want:   []outbound.ProcessInfo{{PID: 123, Name: "weird double spaces", Rss: 4096 * 1024, UID: 1000, State: "S"}},
+		},
+		{
+			name:   "reports a zombie's multi-letter state verbatim",
+			output: "  UID   PID    RSS STAT COMM\n 1000   123   4096 ZN   sleep\n",
+			want:   []outbound.ProcessInfo{{PID: 123, Name: "sleep", Rss: 4096 * 1024, UID: 1000, State: "ZN"}},
 		},
 		{
 			name:   "skips rows with too few fields",
-			output: "  UID   PID    RSS COMM\n  123\n 1000   456   4096 sleep\n",
-			want:   []outbound.ProcessInfo{{PID: 456, Name: "sleep", Rss: 4096 * 1024, UID: 1000}},
+			output: "  UID   PID    RSS STAT COMM\n  123\n 1000   456   4096 S    sleep\n",
+			want:   []outbound.ProcessInfo{{PID: 456, Name: "sleep", Rss: 4096 * 1024, UID: 1000, State: "S"}},
 		},
 		{
 			name:   "skips rows with a non-numeric uid",
-			output: "  UID   PID    RSS COMM\n   ab   123   4096 sleep\n",
+			output: "  UID   PID    RSS STAT COMM\n   ab   123   4096 S    sleep\n",
 			want:   nil,
 		},
 		{
 			name:   "skips rows with a non-numeric pid",
-			output: "  UID   PID    RSS COMM\n 1000    ab   4096 sleep\n",
+			output: "  UID   PID    RSS STAT COMM\n 1000    ab   4096 S    sleep\n",
 			want:   nil,
 		},
 		{
 			name:   "skips rows with a non-numeric rss",
-			output: "  UID   PID    RSS COMM\n 1000   123     ab sleep\n",
+			output: "  UID   PID    RSS STAT COMM\n 1000   123     ab S    sleep\n",
 			want:   nil,
 		},
 		{
 			name:   "no data rows",
-			output: "  UID   PID    RSS COMM\n",
+			output: "  UID   PID    RSS STAT COMM\n",
 			want:   nil,
 		},
 	}
