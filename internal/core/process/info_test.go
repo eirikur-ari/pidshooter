@@ -15,12 +15,12 @@ func TestValidatePatternsNoPatterns(t *testing.T) {
 
 func TestValidatePatternsTooShort(t *testing.T) {
 	for _, p := range []string{"", "a", "ab"} {
-		assert.Error(t, ValidatePatterns([]string{p}), "expected error for pattern %q shorter than MinPatternLength", p)
+		assert.Error(t, ValidatePatterns([]string{p}), "expected error for pattern %q shorter than minPatternLength", p)
 	}
 }
 
 func TestValidatePatternsExactMinLength(t *testing.T) {
-	p := strings.Repeat("a", MinPatternLength)
+	p := strings.Repeat("a", minPatternLength)
 	assert.NoError(t, ValidatePatterns([]string{p}), "expected no error for min-length pattern")
 }
 
@@ -29,13 +29,13 @@ func TestValidatePatternsValid(t *testing.T) {
 }
 
 func TestValidatePatternsExactMaxLength(t *testing.T) {
-	p := strings.Repeat("a", MaxPatternLength)
+	p := strings.Repeat("a", maxPatternLength)
 	assert.NoError(t, ValidatePatterns([]string{p}), "expected no error for max-length pattern")
 }
 
 func TestValidatePatternsTooLong(t *testing.T) {
-	p := strings.Repeat("a", MaxPatternLength+1)
-	assert.Error(t, ValidatePatterns([]string{p}), "expected error for pattern exceeding MaxPatternLength")
+	p := strings.Repeat("a", maxPatternLength+1)
+	assert.Error(t, ValidatePatterns([]string{p}), "expected error for pattern exceeding maxPatternLength")
 }
 
 func TestValidateProcessesEmpty(t *testing.T) {

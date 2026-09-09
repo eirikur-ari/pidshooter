@@ -6,16 +6,15 @@ import (
 	"strings"
 )
 
-// MinPatternLength is the minimum allowed length for a process search pattern.
+// minPatternLength is the minimum allowed length for a process search pattern.
 // Single- or double-character patterns match too broadly (e.g. "a" matches
 // most system process names) and increase the risk of surfacing critical
 // system processes as kill targets.
-const MinPatternLength = 3
+const minPatternLength = 3
 
-// MaxPatternLength is the maximum allowed length for a process search pattern.
-const MaxPatternLength = 256
+// maxPatternLength is the maximum allowed length for a process search pattern.
+const maxPatternLength = 256
 
-// TODO: perhaps rename the source file to info.go, since it only contains the Info struct and related functions
 // Info is a snapshot of a single running process captured at discovery time.
 type Info struct {
 	PID  int
@@ -93,11 +92,11 @@ func validatePatterns(patterns []string) error {
 // Length is measured in bytes; process names are expected to be ASCII.
 func validatePatternLength(patterns []string) error {
 	for _, p := range patterns {
-		if len(p) < MinPatternLength {
-			return fmt.Errorf("search pattern %q must be at least %d characters", p, MinPatternLength)
+		if len(p) < minPatternLength {
+			return fmt.Errorf("search pattern %q must be at least %d characters", p, minPatternLength)
 		}
-		if len(p) > MaxPatternLength {
-			return fmt.Errorf("search pattern %q exceeds maximum length of %d characters", p, MaxPatternLength)
+		if len(p) > maxPatternLength {
+			return fmt.Errorf("search pattern %q exceeds maximum length of %d characters", p, maxPatternLength)
 		}
 	}
 	return nil

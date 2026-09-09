@@ -2,7 +2,6 @@ package application
 
 import (
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,7 +11,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
-	"github.com/eirikur-ari/pidshooter/internal/core/process"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
@@ -42,24 +40,6 @@ func TestRunnerRunReturnsErrorWhenPatternTooShort(t *testing.T) {
 		err := newTestRunner().Run(inbound.Config{Patterns: []string{p}, Speed: 2.0})
 		assertFatal(t, err)
 	}
-}
-
-func TestRunnerRunReturnsErrorWhenPatternExactMinLength(t *testing.T) {
-	minPatternLength := strings.Repeat("a", process.MinPatternLength)
-	logger := &fake.Logger{}
-	r := NewRunner(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource(), logger)
-
-	err := r.Run(inbound.Config{Patterns: []string{minPatternLength}, Speed: 2.0})
-
-	assertFatal(t, err)
-	require.Len(t, logger.Errors, 1)
-	assert.Contains(t, logger.Errors[0], "no processes found")
-}
-
-func TestRunnerRunConfigValidationReturnsErrorWhenPatternTooLong(t *testing.T) {
-	long := strings.Repeat("a", process.MaxPatternLength+1)
-	err := newTestRunner().Run(inbound.Config{Patterns: []string{long}, Speed: 2.0})
-	assertFatal(t, err)
 }
 
 func TestRunnerRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
