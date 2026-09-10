@@ -74,13 +74,21 @@ func TestWriteFileAtomicLeavesExistingFileUntouchedOnFailure(t *testing.T) {
 		t.Skip("root bypasses permission bits, making this test meaningless")
 	}
 
-	dir := t.TempDir()
+	// The failure has to be forced via the parent, not dir itself: dir's
+	// own permissions get unconditionally reset to 0700 on every call (see
+	// TestWriteFileAtomicTightensExistingDirectoryPermissions), so a
+	// restrictive mode on dir wouldn't survive long enough to block
+	// CreateTemp. Removing the parent's execute bit blocks traversal into
+	// dir entirely, which happens before WriteFileAtomic ever gets a
+	// chance to fix anything.
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "cfgdir")
 	path := filepath.Join(dir, "scores.json")
 	require.NoError(t, WriteFileAtomic(path, []byte("original"), 0600))
 
-	require.NoError(t, os.Chmod(dir, 0500))
+	require.NoError(t, os.Chmod(parent, 0600))
 	err := WriteFileAtomic(path, []byte("replacement"), 0600)
-	require.NoError(t, os.Chmod(dir, 0700))
+	require.NoError(t, os.Chmod(parent, 0700))
 
 	assert.Error(t, err)
 	data, readErr := os.ReadFile(path)
@@ -92,4 +100,21 @@ func TestWriteFileAtomicLeavesExistingFileUntouchedOnFailure(t *testing.T) {
 	for _, e := range entries {
 		assert.NotContains(t, e.Name(), ".tmp-", "no temp file should remain after a failed write")
 	}
+}
+
+func TestWriteFileAtomicTightensExistingDirectoryPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("directory permission bits are not enforced the same way on Windows")
+	}
+
+	parent := t.TempDir()
+	dir := filepath.Join(parent, "cfgdir")
+	require.NoError(t, os.Mkdir(dir, 0777))
+	path := filepath.Join(dir, "scores.json")
+
+	require.NoError(t, WriteFileAtomic(path, []byte("hello"), 0600))
+
+	info, err := os.Stat(dir)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0700), info.Mode().Perm())
 }

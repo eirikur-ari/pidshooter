@@ -3,7 +3,9 @@ package filescore
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -56,7 +58,7 @@ func NewStoreAt(path string) *Store {
 func (s *Store) Load() (outbound.ScoreBoard, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return outbound.ScoreBoard{}, outbound.NotFoundError{}
 		}
 		return outbound.ScoreBoard{}, err

@@ -23,11 +23,16 @@ func ConfigDir(appName string) (string, error) {
 // directory, syncs it, and renames it into place, so a crash or kill
 // during the write can never leave path holding truncated or partial
 // content. It creates path's parent directory (and any missing
-// ancestors, mode 0700) if it does not already exist.
+// ancestors) if it does not already exist, and sets it to mode 0700
+// either way — including tightening it down if it already existed with
+// looser permissions.
 func WriteFileAtomic(path string, data []byte, perm os.FileMode) (err error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("could not create directory %s: %w", dir, err)
+	}
+	if err := os.Chmod(dir, 0700); err != nil {
+		return fmt.Errorf("could not set permissions on %s: %w", dir, err)
 	}
 
 	tmp, err := os.CreateTemp(dir, ".tmp-*")
