@@ -82,6 +82,18 @@ func TestRecordScoreReturnsNilWhenBoardIsSavedSuccessfully(t *testing.T) {
 	assert.Equal(t, 12.5, entry.Duration)
 }
 
+func TestRecordScoreMergesWithConcurrentlyPersistedEntries(t *testing.T) {
+	concurrentEntry := outbound.ScoreEntry{Kills: 20, Date: time.Now()}
+	fakeStore := &fake.Store{Board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{concurrentEntry}}}
+	svc := NewService(fakeStore)
+	board := score.NewBoard(nil) // this session's board, loaded before concurrentEntry was saved by another process
+
+	require.Nil(t, svc.RecordScore(board, 5, 0, 0, 0, 1.0, nil))
+
+	require.NotNil(t, fakeStore.Saved)
+	assert.Len(t, fakeStore.Saved.Scores, 2, "an entry saved by another process after this session's Load must not be discarded")
+}
+
 func TestRecordScoreSavesWhenScoreBoardWasNotFound(t *testing.T) {
 	fakeStore := &fake.Store{}
 	svc := NewService(fakeStore)

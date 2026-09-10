@@ -48,24 +48,47 @@ func (s *Service) LoadScoreBoard() (*score.Board, int, error) {
 // a permission or I/O error), since the data may still be intact and
 // recoverable. A save failure is classified as CodeScoreSaveFailed and
 // SeverityWarning either way.
+//
+// Before saving, the new entry is applied to a freshly reloaded copy of
+// the persisted board rather than to board as loaded at session start, so
+// a concurrent save from another pidshooter process in the meantime isn't
+// silently discarded by this one overwriting the whole file.
 func (s *Service) RecordScore(board *score.Board, kills int, freedMem int64, speed float64, timeLimit int, duration float64, err error) error {
-	board.Add(score.Entry{
+	entry := score.Entry{
 		Kills:    kills,
 		FreedMem: freedMem,
 		Speed:    speed,
 		Time:     timeLimit,
 		Duration: duration,
 		Date:     time.Now(),
-	})
+	}
+	board.Add(entry)
 
 	if err == nil || errors.As(err, &outbound.NotFoundError{}) || errors.As(err, &outbound.CorruptedDataError{}) {
-		err = s.store.Save(toScoreBoard(board))
+		err = s.store.Save(toScoreBoard(s.mergeWithLatest(entry, board)))
 	}
 
 	if err != nil {
 		return apperror.NewError(apperror.CodeScoreSaveFailed, apperror.SeverityWarning, "score board not saved", err)
 	}
 	return nil
+}
+
+// mergeWithLatest re-loads the currently persisted board and applies entry
+// to that fresh copy, so a save from another process that landed after
+// this session started isn't overwritten. Falls back to board (already
+// updated with entry) if the reload itself fails for a reason other than
+// "nothing persisted yet" or "persisted data was unparseable" — both
+// treated the same as a fresh board, matching RecordScore's own
+// overwrite-safety gate above.
+func (s *Service) mergeWithLatest(entry score.Entry, board *score.Board) *score.Board {
+	sb, err := s.store.Load()
+	if err != nil && !errors.As(err, &outbound.NotFoundError{}) && !errors.As(err, &outbound.CorruptedDataError{}) {
+		return board
+	}
+	latest := toBoard(sb)
+	latest.Add(entry)
+	return latest
 }
 
 // PrintResults prints the end-of-game summary and the board's high scores.
