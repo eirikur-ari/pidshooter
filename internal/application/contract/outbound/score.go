@@ -23,6 +23,8 @@ type ScoreBoard struct {
 type ScoreStore interface {
 	// Load returns the persisted score board. If no board has been
 	// persisted yet, it returns an empty ScoreBoard and a NotFoundError.
+	// If the persisted data exists but cannot be parsed, it returns an
+	// empty ScoreBoard and a CorruptedDataError.
 	Load() (ScoreBoard, error)
 	// Save persists board, overwriting any previously persisted board.
 	Save(board ScoreBoard) error

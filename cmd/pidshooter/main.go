@@ -8,8 +8,8 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/eirikur-ari/pidshooter/internal/entrypoint/cli"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/filescore"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
-	"github.com/eirikur-ari/pidshooter/internal/infrastructure/scorefilestore"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/stderrlog"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
@@ -31,7 +31,11 @@ func run() error {
 		logger.Error(err.Error())
 		return err
 	}
-	store := scorefilestore.NewStore()
+	store, err := filescore.NewStore()
+	if err != nil {
+		logger.Error(err.Error())
+		return err
+	}
 
 	screen, err := tcell.NewScreen()
 	if err != nil {

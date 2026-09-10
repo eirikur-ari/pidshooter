@@ -95,6 +95,20 @@ func TestRecordScoreSavesWhenScoreBoardWasNotFound(t *testing.T) {
 	assert.ErrorContains(t, loadErr, "score board not loaded: not found", "should report the underlying NotFoundError as the reason for the load failure")
 }
 
+func TestRecordScoreSavesWhenScoreBoardWasCorrupted(t *testing.T) {
+	fakeStore := &fake.Store{}
+	svc := NewService(fakeStore)
+	board := score.NewBoard(nil)
+
+	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded",
+		outbound.CorruptedDataError{})
+	require.Nil(t, svc.RecordScore(board, 1, 0, 0, 0, 1.0, loadErr))
+
+	require.NotNil(t, fakeStore.Saved, "a corrupted (unrecoverable) board should still be saved")
+	assert.Len(t, fakeStore.Saved.Scores, 1)
+	assert.ErrorContains(t, loadErr, "score board not loaded: corrupted data")
+}
+
 func TestRecordScoreSkipsSaveAndReturnsWarningWhenLoadFailed(t *testing.T) {
 	fakeStore := &fake.Store{}
 	svc := NewService(fakeStore)

@@ -100,6 +100,9 @@ One directory per integration point. Adapters import libraries; the core domain 
 | `infrastructure/osprocess` | `ProcessManager` (`Lister` + `Killer`) | `os/exec ps`, `os.FindProcess`, `syscall.SIGKILL` |
 | `infrastructure/tcellui` | `Renderer`, `InputSource` | `github.com/gdamore/tcell/v2` |
 | `infrastructure/scorefilestore` | `ScoreStore` | `encoding/json`, `os.ReadFile/WriteFile` |
+| `infrastructure/stderrlog` | `Logger` | `os.Stderr` |
+
+`infrastructure` also holds `fsutil` — a leaf helper package, not an adapter: it implements no port, is never constructed in `main.go`, and is imported by adapters rather than wired at the composition root (`scorefilestore` uses it for config-directory resolution and atomic file writes). It's kept under `infrastructure/` rather than promoted to a top-level package like `internal/util`, specifically *because* it touches the filesystem — `internal/util` is safe for `core` to import (§3 names it explicitly) only because it's pure Go with no OS access; giving a filesystem-touching helper the same top-level standing would blur that signal and invite a future core→filesystem leak.
 
 **Entrypoint adapters** (driving — they call the application's inbound port):
 
@@ -203,10 +206,14 @@ pidshooter/
     │       └── cli.go                        # CLI · NewCLI() · Run() · buildCommand() (cobra) · play()
     │
     ├── infrastructure/                       # Driven adapters — implement outbound ports
+    │   ├── fsutil/
+    │   │   └── fsutil.go                     # ConfigDir() · WriteFileAtomic() — shared leaf helper, no port, no adapter
     │   ├── osprocess/
     │   │   └── osprocess.go                  # Process · NewProcess()  (implements ProcessManager)
     │   ├── scorefilestore/
-    │   │   └── score_file_store.go           # Store · NewStore()
+    │   │   └── score_file_store.go           # Store · NewStore() · NewStoreAt()  (implements ScoreStore)
+    │   ├── stderrlog/
+    │   │   └── stderrlog.go                  # Logger · NewLogger()  (implements Logger)
     │   └── tcellui/
     │       └── tcellui.go                    # UI · NewUI() (implements Renderer + InputSource)
     │

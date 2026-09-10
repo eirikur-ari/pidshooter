@@ -40,11 +40,14 @@ func (s *Service) LoadScoreBoard() (*score.Board, int, error) {
 
 // RecordScore appends a new entry for the given session results to board.
 // err is whatever LoadScoreBoard returned for this session: the board is
-// persisted when err is nil or wraps outbound.NotFoundError (a fresh
-// install, safe to write), and the save is skipped — reporting err as the
-// reason — for any other load failure, since overwriting the file then
-// could destroy recoverable data. A save failure is classified as
-// CodeScoreSaveFailed and SeverityWarning either way.
+// persisted when err is nil, wraps outbound.NotFoundError (a fresh
+// install), or wraps outbound.CorruptedDataError (the persisted data
+// could not be parsed, so there's nothing left to protect by refusing to
+// overwrite it) — safe to write in all three cases — and the save is
+// skipped, reporting err as the reason, for any other load failure (e.g.
+// a permission or I/O error), since the data may still be intact and
+// recoverable. A save failure is classified as CodeScoreSaveFailed and
+// SeverityWarning either way.
 func (s *Service) RecordScore(board *score.Board, kills int, freedMem int64, speed float64, timeLimit int, duration float64, err error) error {
 	board.Add(score.Entry{
 		Kills:    kills,
@@ -55,7 +58,7 @@ func (s *Service) RecordScore(board *score.Board, kills int, freedMem int64, spe
 		Date:     time.Now(),
 	})
 
-	if err == nil || errors.As(err, &outbound.NotFoundError{}) {
+	if err == nil || errors.As(err, &outbound.NotFoundError{}) || errors.As(err, &outbound.CorruptedDataError{}) {
 		err = s.store.Save(toScoreBoard(board))
 	}
 
