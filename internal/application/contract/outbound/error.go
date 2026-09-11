@@ -14,9 +14,15 @@ func (NotFoundError) Error() string {
 // but could not be parsed as valid data. Implementations must return it
 // by value (CorruptedDataError{}), not by pointer — callers detect it
 // with errors.As(err, &CorruptedDataError{}), which matches the value
-// form only.
-type CorruptedDataError struct{}
+// form only, regardless of Message. Message is optional and only adds
+// detail to Error()'s text — it plays no part in matching.
+type CorruptedDataError struct {
+	Message string
+}
 
-func (CorruptedDataError) Error() string {
-	return "corrupted data"
+func (e CorruptedDataError) Error() string {
+	if e.Message == "" {
+		return "corrupted data"
+	}
+	return e.Message + ": corrupted data"
 }

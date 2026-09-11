@@ -63,12 +63,18 @@ func NewStoreAt(path string) *Store {
 	return &Store{path: path}
 }
 
+// maxScoreFileSize bounds how large a score file Load will accept before
+// parsing. A legitimate file holds at most 10 entries (core/score.Board's
+// cap) and is a couple of KB; anything past this is treated the same as
+// unparseable JSON rather than handed to json.Unmarshal.
+const maxScoreFileSize = 1 << 20 // 1 MiB
+
 // Load reads and decodes the score board. A missing file is reported as
-// outbound.NotFoundError; a file that exists but fails to decode is
-// reported as outbound.CorruptedDataError. A file written by a newer,
-// unrecognized schema version (e.g. by a newer pidshooter build, on a
-// downgrade) is returned unwrapped rather than as
-// outbound.CorruptedDataError, since the data is valid, just not
+// outbound.NotFoundError; a file that exists but fails to decode, or
+// exceeds maxScoreFileSize, is reported as outbound.CorruptedDataError.
+// A file written by a newer, unrecognized schema version (e.g. by a
+// newer pidshooter build, on a downgrade) is returned unwrapped rather
+// than as outbound.CorruptedDataError, since the data is valid, just not
 // something this build knows how to merge without risking loss of
 // fields it doesn't recognize. Any other read failure (e.g. a permission
 // error) is also returned unwrapped.
@@ -80,10 +86,14 @@ func (s *Store) Load() (outbound.ScoreBoard, error) {
 		}
 		return outbound.ScoreBoard{}, err
 	}
+	if len(data) > maxScoreFileSize {
+		msg := fmt.Sprintf("score file is %d bytes, over the %d byte limit", len(data), maxScoreFileSize)
+		return outbound.ScoreBoard{}, outbound.CorruptedDataError{Message: msg}
+	}
 
 	var b board
 	if err := json.Unmarshal(data, &b); err != nil {
-		return outbound.ScoreBoard{}, outbound.CorruptedDataError{}
+		return outbound.ScoreBoard{}, outbound.CorruptedDataError{Message: err.Error()}
 	}
 	if b.Version > currentSchemaVersion {
 		return outbound.ScoreBoard{}, fmt.Errorf("score file schema version %d is newer than the %d this build supports", b.Version, currentSchemaVersion)

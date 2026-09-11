@@ -183,3 +183,15 @@ func TestLoadRejectsNewerSchemaVersion(t *testing.T) {
 	assert.False(t, errors.As(err, &outbound.NotFoundError{}), "a from-the-future schema version is not a missing file")
 	assert.False(t, errors.As(err, &outbound.CorruptedDataError{}), "a from-the-future schema version is valid data, not corrupt")
 }
+
+func TestLoadRejectsFileOverMaxSize(t *testing.T) {
+	s := newTempStore(t)
+	oversized := make([]byte, maxScoreFileSize+1)
+	require.NoError(t, os.WriteFile(s.path, oversized, 0600))
+
+	_, err := s.Load()
+
+	var corrupted outbound.CorruptedDataError
+	require.ErrorAs(t, err, &corrupted)
+	assert.Contains(t, corrupted.Error(), "over the")
+}
