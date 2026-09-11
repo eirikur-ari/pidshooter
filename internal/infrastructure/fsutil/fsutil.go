@@ -7,10 +7,14 @@ import (
 )
 
 // ConfigDir returns the per-user configuration directory for appName,
-// resolved as $HOME/.config/<appName>. It returns an error rather than
-// falling back to another location if the user's home directory cannot
-// be resolved.
+// resolved as $XDG_CONFIG_HOME/<appName> when $XDG_CONFIG_HOME is set to
+// an absolute path, falling back to $HOME/.config/<appName> otherwise.
+// It returns an error rather than falling back to another location if
+// the user's home directory cannot be resolved.
 func ConfigDir(appName string) (string, error) {
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); filepath.IsAbs(xdg) {
+		return filepath.Join(xdg, appName), nil
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("could not resolve user home directory: %w", err)

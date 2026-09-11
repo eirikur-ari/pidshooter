@@ -8,11 +8,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/eirikur-ari/pidshooter/internal/testutil/helper"
 )
 
 func TestConfigDirJoinsHomeAndAppName(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	helper.UnsetEnv(t, "XDG_CONFIG_HOME")
 
 	dir, err := ConfigDir("pidshooter")
 
@@ -22,10 +25,32 @@ func TestConfigDirJoinsHomeAndAppName(t *testing.T) {
 
 func TestConfigDirReturnsErrorWhenHomeUnset(t *testing.T) {
 	t.Setenv("HOME", "")
+	t.Setenv("XDG_CONFIG_HOME", "")
 
 	_, err := ConfigDir("pidshooter")
 
 	assert.Error(t, err)
+}
+
+func TestConfigDirPrefersXDGConfigHomeWhenSet(t *testing.T) {
+	xdg := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+
+	dir, err := ConfigDir("pidshooter")
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(xdg, "pidshooter"), dir)
+}
+
+func TestConfigDirIgnoresRelativeXDGConfigHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "relative/path")
+
+	dir, err := ConfigDir("pidshooter")
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(home, ".config", "pidshooter"), dir)
 }
 
 func TestWriteFileAtomicCreatesParentDirectory(t *testing.T) {
