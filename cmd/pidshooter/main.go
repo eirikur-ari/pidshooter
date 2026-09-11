@@ -31,7 +31,7 @@ func run() error {
 		logger.Error(err.Error())
 		return err
 	}
-	store, err := filescore.NewStore()
+	store, err := filescore.NewFileScore()
 	if err != nil {
 		logger.Error(err.Error())
 		return err

@@ -1,4 +1,3 @@
-// Package filescore implements outbound.ScoreStore backed by a file on disk.
 package filescore
 
 import (
@@ -14,13 +13,13 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/fsutil"
 )
 
-// Store implements outbound.ScoreStore by persisting to a JSON file.
-type Store struct {
+// fileScore implements outbound.ScoreStore by persisting to a JSON file.
+type fileScore struct {
 	path string
 }
 
-// entry is the on-disk JSON representation of a single high score record.
-type entry struct {
+// fileEntry is the on-disk JSON representation of a single high score record.
+type fileEntry struct {
 	Kills    int       `json:"kills"`
 	FreedMem int64     `json:"freed_mem"`
 	Speed    float64   `json:"speed"`
@@ -29,45 +28,47 @@ type entry struct {
 	Date     time.Time `json:"date"`
 }
 
-// board is the on-disk JSON representation of the high score table.
-type board struct {
-	// Version identifies the shape of entry above. Bump
+// fileContent is the on-disk JSON representation of the high score table.
+type fileContent struct {
+	// Version identifies the shape of fileEntry above. Bump
 	// currentSchemaVersion and add an explicit migration step in Load
 	// whenever a field is renamed or removed — without one,
 	// encoding/json would zero-fill or silently drop the old data the
 	// next time a legitimate Save re-encodes it. A missing/zero Version
 	// predates this field's introduction and is treated as version 1,
 	// the schema in place when versioning was added.
-	Version int     `json:"version"`
-	Scores  []entry `json:"scores"`
+	Version int         `json:"version"`
+	Scores  []fileEntry `json:"scores"`
 }
 
 // currentSchemaVersion is the schema version this build of pidshooter
-// reads and writes. See board.Version.
+// reads and writes. See fileContent.Version.
 const currentSchemaVersion = 1
 
-// NewStore constructs a *Store that persists to the default per-user
-// config path. It fails if the user's home directory cannot be resolved.
-func NewStore() (*Store, error) {
+// maxFileSize bounds how large a score file Load will accept before
+// parsing. A legitimate file holds at most 10 entries (core/score.Board's
+// cap) and is a couple of KB; anything past this is treated the same as
+// unparseable JSON rather than handed to json.Unmarshal.
+const maxFileSize = 1 << 20 // 1 MiB
+
+// NewFileScore constructs an outbound.ScoreStore that persists to the
+// default per-user config path. It fails if the user's home directory
+// cannot be resolved.
+func NewFileScore() (outbound.ScoreStore, error) {
 	path, err := defaultPath()
 	if err != nil {
 		return nil, err
 	}
-	return &Store{path: path}, nil
+	return &fileScore{path: path}, nil
 }
 
-// NewStoreAt constructs a *Store that persists to the given path, without
-// touching the user's default config location. Used by tests and any
-// future --scores-file flag.
-func NewStoreAt(path string) *Store {
-	return &Store{path: path}
+// newFileScoreAt constructs an outbound.ScoreStore that persists to the
+// given path, without touching the user's default config location. Used
+// by this package's own tests; export it if a --scores-file flag needs
+// it later.
+func newFileScoreAt(path string) outbound.ScoreStore {
+	return &fileScore{path: path}
 }
-
-// maxScoreFileSize bounds how large a score file Load will accept before
-// parsing. A legitimate file holds at most 10 entries (core/score.Board's
-// cap) and is a couple of KB; anything past this is treated the same as
-// unparseable JSON rather than handed to json.Unmarshal.
-const maxScoreFileSize = 1 << 20 // 1 MiB
 
 // Load reads and decodes the score board. A missing file is reported as
 // outbound.NotFoundError; a file that exists but fails to decode, or
@@ -78,46 +79,46 @@ const maxScoreFileSize = 1 << 20 // 1 MiB
 // something this build knows how to merge without risking loss of
 // fields it doesn't recognize. Any other read failure (e.g. a permission
 // error) is also returned unwrapped.
-func (s *Store) Load() (outbound.ScoreBoard, error) {
-	data, err := os.ReadFile(s.path)
+func (f *fileScore) Load() (outbound.ScoreBoard, error) {
+	data, err := os.ReadFile(f.path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return outbound.ScoreBoard{}, outbound.NotFoundError{}
 		}
 		return outbound.ScoreBoard{}, err
 	}
-	if len(data) > maxScoreFileSize {
-		msg := fmt.Sprintf("score file is %d bytes, over the %d byte limit", len(data), maxScoreFileSize)
+	if len(data) > maxFileSize {
+		msg := fmt.Sprintf("score file is %d bytes, over the %d byte limit", len(data), maxFileSize)
 		return outbound.ScoreBoard{}, outbound.CorruptedDataError{Message: msg}
 	}
 
-	var b board
-	if err := json.Unmarshal(data, &b); err != nil {
+	var content fileContent
+	if err := json.Unmarshal(data, &content); err != nil {
 		return outbound.ScoreBoard{}, outbound.CorruptedDataError{Message: err.Error()}
 	}
-	if b.Version > currentSchemaVersion {
-		return outbound.ScoreBoard{}, fmt.Errorf("score file schema version %d is newer than the %d this build supports", b.Version, currentSchemaVersion)
+	if content.Version > currentSchemaVersion {
+		return outbound.ScoreBoard{}, fmt.Errorf("score file schema version %d is newer than the %d this build supports", content.Version, currentSchemaVersion)
 	}
 
-	return toScoreBoard(b), nil
+	return toScoreBoard(content), nil
 }
 
 // Save encodes and persists the score board, replacing any previously
 // persisted board atomically (via a temp-file-then-rename in the same
 // directory) so a crash or kill mid-write can never leave a truncated or
 // partial file behind.
-func (s *Store) Save(sb outbound.ScoreBoard) error {
-	data, err := json.MarshalIndent(toBoard(sb), "", "  ")
+func (f *fileScore) Save(sb outbound.ScoreBoard) error {
+	data, err := json.MarshalIndent(toFileContent(sb), "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal scores: %w", err)
 	}
 
-	return fsutil.WriteFileAtomic(s.path, data, 0600)
+	return fsutil.WriteFileAtomic(f.path, data, 0600)
 }
 
-func toScoreBoard(b board) outbound.ScoreBoard {
-	entries := make([]outbound.ScoreEntry, len(b.Scores))
-	for i, e := range b.Scores {
+func toScoreBoard(fc fileContent) outbound.ScoreBoard {
+	entries := make([]outbound.ScoreEntry, len(fc.Scores))
+	for i, e := range fc.Scores {
 		entries[i] = outbound.ScoreEntry{
 			Kills:    e.Kills,
 			FreedMem: e.FreedMem,
@@ -130,10 +131,10 @@ func toScoreBoard(b board) outbound.ScoreBoard {
 	return outbound.ScoreBoard{Scores: entries}
 }
 
-func toBoard(sb outbound.ScoreBoard) board {
-	entries := make([]entry, len(sb.Scores))
+func toFileContent(sb outbound.ScoreBoard) fileContent {
+	entries := make([]fileEntry, len(sb.Scores))
 	for i, e := range sb.Scores {
-		entries[i] = entry{
+		entries[i] = fileEntry{
 			Kills:    e.Kills,
 			FreedMem: e.FreedMem,
 			Speed:    e.Speed,
@@ -142,7 +143,7 @@ func toBoard(sb outbound.ScoreBoard) board {
 			Date:     e.Date,
 		}
 	}
-	return board{Version: currentSchemaVersion, Scores: entries}
+	return fileContent{Version: currentSchemaVersion, Scores: entries}
 }
 
 func defaultPath() (string, error) {

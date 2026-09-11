@@ -1,4 +1,3 @@
-// Package helper provides small, reusable test helper functions.
 package helper
 
 import (
