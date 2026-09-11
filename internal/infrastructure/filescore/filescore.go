@@ -31,8 +31,20 @@ type entry struct {
 
 // board is the on-disk JSON representation of the high score table.
 type board struct {
-	Scores []entry `json:"scores"`
+	// Version identifies the shape of entry above. Bump
+	// currentSchemaVersion and add an explicit migration step in Load
+	// whenever a field is renamed or removed — without one,
+	// encoding/json would zero-fill or silently drop the old data the
+	// next time a legitimate Save re-encodes it. A missing/zero Version
+	// predates this field's introduction and is treated as version 1,
+	// the schema in place when versioning was added.
+	Version int     `json:"version"`
+	Scores  []entry `json:"scores"`
 }
+
+// currentSchemaVersion is the schema version this build of pidshooter
+// reads and writes. See board.Version.
+const currentSchemaVersion = 1
 
 // NewStore constructs a *Store that persists to the default per-user
 // config path. It fails if the user's home directory cannot be resolved.
@@ -53,8 +65,13 @@ func NewStoreAt(path string) *Store {
 
 // Load reads and decodes the score board. A missing file is reported as
 // outbound.NotFoundError; a file that exists but fails to decode is
-// reported as outbound.CorruptedDataError. Any other read failure (e.g. a
-// permission error) is returned unwrapped.
+// reported as outbound.CorruptedDataError. A file written by a newer,
+// unrecognized schema version (e.g. by a newer pidshooter build, on a
+// downgrade) is returned unwrapped rather than as
+// outbound.CorruptedDataError, since the data is valid, just not
+// something this build knows how to merge without risking loss of
+// fields it doesn't recognize. Any other read failure (e.g. a permission
+// error) is also returned unwrapped.
 func (s *Store) Load() (outbound.ScoreBoard, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
@@ -67,6 +84,9 @@ func (s *Store) Load() (outbound.ScoreBoard, error) {
 	var b board
 	if err := json.Unmarshal(data, &b); err != nil {
 		return outbound.ScoreBoard{}, outbound.CorruptedDataError{}
+	}
+	if b.Version > currentSchemaVersion {
+		return outbound.ScoreBoard{}, fmt.Errorf("score file schema version %d is newer than the %d this build supports", b.Version, currentSchemaVersion)
 	}
 
 	return toScoreBoard(b), nil
@@ -112,7 +132,7 @@ func toBoard(sb outbound.ScoreBoard) board {
 			Date:     e.Date,
 		}
 	}
-	return board{Scores: entries}
+	return board{Version: currentSchemaVersion, Scores: entries}
 }
 
 func defaultPath() (string, error) {

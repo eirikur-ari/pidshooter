@@ -2,6 +2,7 @@ package filescore
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -146,6 +147,7 @@ func TestSaveWritesJSONMatchingOnDiskSchema(t *testing.T) {
 
 	var onDisk map[string]any
 	require.NoError(t, json.Unmarshal(raw, &onDisk))
+	assert.Equal(t, float64(currentSchemaVersion), onDisk["version"])
 	scores, ok := onDisk["scores"].([]any)
 	require.True(t, ok)
 	require.Len(t, scores, 1)
@@ -158,4 +160,26 @@ func TestSaveWritesJSONMatchingOnDiskSchema(t *testing.T) {
 	assert.Equal(t, float64(60), first["time_limit"])
 	assert.Equal(t, 45.0, first["duration_secs"])
 	assert.Equal(t, date.Format(time.RFC3339Nano), first["date"])
+}
+
+func TestLoadAcceptsFileWithoutVersionField(t *testing.T) {
+	s := newTempStore(t)
+	require.NoError(t, os.WriteFile(s.path, []byte(`{"scores":[{"kills":5}]}`), 0600))
+
+	board, err := s.Load()
+
+	require.NoError(t, err)
+	require.Len(t, board.Scores, 1)
+	assert.Equal(t, 5, board.Scores[0].Kills)
+}
+
+func TestLoadRejectsNewerSchemaVersion(t *testing.T) {
+	s := newTempStore(t)
+	require.NoError(t, os.WriteFile(s.path, []byte(`{"version":999,"scores":[]}`), 0600))
+
+	_, err := s.Load()
+
+	require.Error(t, err)
+	assert.False(t, errors.As(err, &outbound.NotFoundError{}), "a from-the-future schema version is not a missing file")
+	assert.False(t, errors.As(err, &outbound.CorruptedDataError{}), "a from-the-future schema version is valid data, not corrupt")
 }
