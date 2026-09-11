@@ -25,6 +25,7 @@ type Runner struct {
 func NewRunner(
 	proc outbound.Process,
 	store outbound.ScoreStore,
+	reporter outbound.ScoreReporter,
 	renderer outbound.Renderer,
 	events outbound.InputSource,
 	logger outbound.Logger,
@@ -33,7 +34,7 @@ func NewRunner(
 	return &Runner{
 		processSvc: processSvc,
 		gameSvc:    game.NewService(processSvc, renderer, events),
-		scoreSvc:   score.NewService(store),
+		scoreSvc:   score.NewService(store, reporter),
 		errHandler: apperror.NewHandler(logger),
 	}
 }
@@ -70,7 +71,7 @@ func (r *Runner) Run(cfg inbound.Config) error {
 		return err
 	}
 
-	score.PrintResults(result.Duration, result.Kills, result.FreedMem, board)
+	r.scoreSvc.ReportResults(result.Duration, result.Kills, result.FreedMem, board)
 
 	return nil
 }

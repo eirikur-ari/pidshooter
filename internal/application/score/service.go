@@ -2,23 +2,24 @@ package score
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
-	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
-// Service loads and persists the score board via the injected outbound.ScoreStore.
+// Service loads and persists the score board via the injected
+// outbound.ScoreStore, and reports session results via the injected
+// outbound.ScoreReporter.
 type Service struct {
-	store outbound.ScoreStore
+	store    outbound.ScoreStore
+	reporter outbound.ScoreReporter
 }
 
-// NewService constructs a Service wrapping the given outbound.ScoreStore.
-func NewService(store outbound.ScoreStore) *Service {
-	return &Service{store: store}
+// NewService constructs a Service wrapping the given outbound.ScoreStore and outbound.ScoreReporter.
+func NewService(store outbound.ScoreStore, reporter outbound.ScoreReporter) *Service {
+	return &Service{store: store, reporter: reporter}
 }
 
 // LoadScoreBoard loads the persisted score board, falling back to an
@@ -74,6 +75,12 @@ func (s *Service) RecordScore(board *score.Board, kills int, freedMem int64, spe
 	return nil
 }
 
+// ReportResults reports the session's outcome and the board's current
+// high scores via the injected outbound.ScoreReporter.
+func (s *Service) ReportResults(duration float64, kills int, freedMem int64, board *score.Board) {
+	s.reporter.Report(toScoreSummary(duration, kills, freedMem, board))
+}
+
 // mergeWithLatest re-loads the currently persisted board and applies entry
 // to that fresh copy, so a save from another process that landed after
 // this session started isn't overwritten. Falls back to board (already
@@ -89,11 +96,4 @@ func (s *Service) mergeWithLatest(entry score.Entry, board *score.Board) *score.
 	latest := toBoard(sb)
 	latest.Add(entry)
 	return latest
-}
-
-// PrintResults prints the end-of-game summary and the board's high scores.
-func PrintResults(duration float64, kills int, freedMem int64, board *score.Board) {
-	fmt.Printf("\n  Game Over! Kills: %d | Freed: %s | Time: %.1fs\n",
-		kills, util.FormatBytes(freedMem), duration)
-	board.PrintHighScores(kills)
 }

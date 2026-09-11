@@ -29,3 +29,19 @@ type ScoreStore interface {
 	// Save persists board, overwriting any previously persisted board.
 	Save(board ScoreBoard) error
 }
+
+// ScoreSummary is the view representation of a session's outcome and the
+// board's current high scores, for reporting via ScoreReporter.
+type ScoreSummary struct {
+	Kills        int
+	FreedMem     int64
+	Duration     float64
+	NewHighScore bool
+	Entries      []ScoreEntry
+}
+
+// ScoreReporter is the outbound port for reporting session results and the high score table to the user.
+type ScoreReporter interface {
+	// Report displays summary to the user.
+	Report(summary ScoreSummary)
+}

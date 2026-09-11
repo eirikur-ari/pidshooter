@@ -1,4 +1,4 @@
-package stderrlog
+package stderr
 
 import (
 	"bytes"

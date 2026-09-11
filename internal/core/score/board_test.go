@@ -6,8 +6,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/eirikur-ari/pidshooter/internal/testutil/capture"
 )
 
 // --- Board.Add ---
@@ -81,69 +79,40 @@ func TestNewBoardEmptyEntriesSeedsZeroHighScore(t *testing.T) {
 	assert.Equal(t, 0, b.HighScore())
 }
 
-// --- Board.PrintHighScores ---
+// --- Board.IsNewHighScore ---
 
-func TestBoardPrintScoresPrintsTrophyWhenBeatsRecord(t *testing.T) {
+func TestBoardIsNewHighScoreTrueWhenBeatsRecord(t *testing.T) {
 	b := &Board{}
 	b.Add(Entry{Kills: 3, Date: time.Now()})
-	b.Add(Entry{Kills: 7, Date: time.Now()}) // b.killScore = 3
+	b.Add(Entry{Kills: 7, Date: time.Now()}) // b.highScore = 3
 
-	out := capture.Output(func() { b.PrintHighScores(7) })
-	assert.Contains(t, out, "New high score")
+	assert.True(t, b.IsNewHighScore(7))
 }
 
-func TestBoardPrintScoresNoTrophyWhenDoesNotBeatRecord(t *testing.T) {
+func TestBoardIsNewHighScoreFalseWhenDoesNotBeatRecord(t *testing.T) {
 	b := &Board{}
 	b.Add(Entry{Kills: 7, Date: time.Now()})
-	b.Add(Entry{Kills: 3, Date: time.Now()}) // b.killScore = 7
+	b.Add(Entry{Kills: 3, Date: time.Now()}) // b.highScore = 7
 
-	out := capture.Output(func() { b.PrintHighScores(3) })
-	assert.NotContains(t, out, "New high score")
+	assert.False(t, b.IsNewHighScore(3))
 }
 
-func TestBoardPrintScoresNoTrophyWhenZeroKills(t *testing.T) {
+func TestBoardIsNewHighScoreFalseWhenZeroKills(t *testing.T) {
 	b := &Board{}
-	out := capture.Output(func() { b.PrintHighScores(0) })
-	assert.NotContains(t, out, "New high score")
+	assert.False(t, b.IsNewHighScore(0))
 }
 
-func TestBoardPrintScoresPrintsTrophyWhenTiesRecord(t *testing.T) {
+func TestBoardIsNewHighScoreTrueWhenTiesRecord(t *testing.T) {
 	b := &Board{}
-	b.Add(Entry{Kills: 5, Date: time.Now()}) // b.killScore = 0 before append
-	b.Add(Entry{Kills: 3, Date: time.Now()}) // b.killScore = 5 before append
+	b.Add(Entry{Kills: 5, Date: time.Now()}) // b.highScore = 0 before append
+	b.Add(Entry{Kills: 3, Date: time.Now()}) // b.highScore = 5 before append
 
-	out := capture.Output(func() { b.PrintHighScores(5) })
-	assert.Contains(t, out, "New high score", "expected trophy message when tying the high score")
+	assert.True(t, b.IsNewHighScore(5), "expected true when tying the high score")
 }
 
-func TestBoardPrintScoresPrintsTrophyForFirstEntry(t *testing.T) {
+func TestBoardIsNewHighScoreTrueForFirstEntry(t *testing.T) {
 	b := &Board{}
-	b.Add(Entry{Kills: 5, Date: time.Now()}) // b.killScore = 0
+	b.Add(Entry{Kills: 5, Date: time.Now()}) // b.highScore = 0
 
-	out := capture.Output(func() { b.PrintHighScores(5) })
-	assert.Contains(t, out, "New high score", "expected trophy message for first entry")
-}
-
-func TestBoardPrintScoresPrintsNoScoresMessageWhenEmpty(t *testing.T) {
-	b := &Board{}
-	out := capture.Output(func() { b.PrintHighScores(0) })
-	assert.Contains(t, out, "No high scores yet!")
-}
-
-func TestBoardPrintScoresPrintsTable(t *testing.T) {
-	b := &Board{}
-	b.Add(Entry{Kills: 5, FreedMem: 100, Speed: 1.5, Date: time.Now()})
-
-	out := capture.Output(func() { b.PrintHighScores(0) })
-	assert.Contains(t, out, "Kills")
-	assert.Contains(t, out, "Freed")
-}
-
-func TestBoardPrintScoresPrintsDuration(t *testing.T) {
-	b := &Board{}
-	b.Add(Entry{Kills: 5, FreedMem: 100, Speed: 1.5, Duration: 12.3, Date: time.Now()})
-
-	out := capture.Output(func() { b.PrintHighScores(0) })
-	assert.Contains(t, out, "Time")
-	assert.Contains(t, out, "12.3s")
+	assert.True(t, b.IsNewHighScore(5), "expected true for first entry")
 }

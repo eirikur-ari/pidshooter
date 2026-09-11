@@ -18,7 +18,7 @@ import (
 )
 
 func newRunner(proc *fake.Process, store *fake.Store, events *fake.InputSource, logger *fake.Logger) *Runner {
-	return NewRunner(proc, store, &fake.Renderer{}, events, logger)
+	return NewRunner(proc, store, &fake.ScoreReporter{}, &fake.Renderer{}, events, logger)
 }
 
 func TestIntegrationRunnerRunIsSuccessful(t *testing.T) {
@@ -47,6 +47,7 @@ func TestIntegrationRunnerRunReturnsErrorWhenRendererInitFails(t *testing.T) {
 	r := NewRunner(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 204, Name: "target", Rss: 1024}}},
 		&fake.Store{},
+		&fake.ScoreReporter{},
 		&fake.Renderer{InitErr: errors.New("terminal not available")},
 		fake.NewInputSource(),
 		logger,
