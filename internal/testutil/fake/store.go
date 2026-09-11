@@ -11,10 +11,15 @@ type Store struct {
 }
 
 func (f *Store) Load() (outbound.ScoreBoard, error) {
-	return f.Board, f.LoadErr
+	if f.LoadErr != nil {
+		return outbound.ScoreBoard{}, f.LoadErr
+	}
+	return f.Board, nil
 }
 
 func (f *Store) Save(b outbound.ScoreBoard) error {
-	f.Saved = &b
+	scores := make([]outbound.ScoreEntry, len(b.Scores))
+	copy(scores, b.Scores)
+	f.Saved = &outbound.ScoreBoard{Scores: scores}
 	return f.SaveErr
 }
