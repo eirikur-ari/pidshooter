@@ -35,8 +35,18 @@ func TestBoundsBounceTop(t *testing.T) {
 
 	b.bounce(&pos, &vel, 5)
 
-	assert.Equal(t, 0.0, pos.Y)
+	assert.Equal(t, 1.0, pos.Y)
 	assert.Greater(t, vel.Y, 0.0)
+}
+
+func TestBoundsBounceBottomDoesNotUndoTopReservation(t *testing.T) {
+	b := NewBounds(80, 2)
+	pos := Vector{X: 5.0, Y: -1.0}
+	vel := Vector{X: 0, Y: -1.0}
+
+	b.bounce(&pos, &vel, 5)
+
+	assert.Equal(t, 1.0, pos.Y)
 }
 
 func TestBoundsBounceBottom(t *testing.T) {

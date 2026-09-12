@@ -142,6 +142,20 @@ func TestRenderMultiByteLabelColumnLayout(t *testing.T) {
 	assert.Equal(t, 'K', cells[2*w+2].Runes[0], "col 2 should be 'K' — byte-offset bug in render loop?")
 }
 
+// TestRenderClipsTargetAtHUDRow is a regression test for
+// docs/tcellui-findings.md Finding 1: a target must never be drawn on row 0,
+// since the HUD unconditionally overwrites it.
+func TestRenderClipsTargetAtHUDRow(t *testing.T) {
+	ui, screen := newUI(t)
+	ui.Render(outbound.FrameState{
+		Targets: []outbound.TargetViewState{{X: 2, Y: 0, Tag: "[1234 victim]"}},
+		HUD:     outbound.HUDState{Kills: 3},
+	})
+
+	got := rowContent(screen, 0)
+	assert.NotContains(t, got, "victim", "target tag must not be drawn on the HUD row")
+}
+
 // --- translateEvent (exercised via poll) ---
 
 func TestPollTranslatesEscapeToQuit(t *testing.T) {
@@ -264,6 +278,34 @@ func TestPollNonButton1DropsEvent(t *testing.T) {
 	assert.False(t, isClick, "Button2 should not produce a ClickEvent")
 	_, ok := ev.(outbound.QuitEvent)
 	require.True(t, ok, "expected QuitEvent after dropped Button2")
+}
+
+// TestPollDropsClickOnHUDRow is a regression test for docs/tcellui-findings.md
+// Finding 1: a click on the HUD row must never reach the game as a ClickEvent,
+// since no target is ever legitimately drawn there.
+func TestPollDropsClickOnHUDRow(t *testing.T) {
+	ui, screen := newUI(t)
+	screen.InjectMouse(5, 0, tcell.Button1, tcell.ModNone)
+	screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
+	ev := nextEvent(t, ui)
+	_, isClick := ev.(outbound.ClickEvent)
+	assert.False(t, isClick, "a click on row 0 (the HUD row) should not produce a ClickEvent")
+	_, ok := ev.(outbound.QuitEvent)
+	require.True(t, ok, "expected QuitEvent after the dropped HUD-row click")
+}
+
+// TestPollDropsClickOnStatusBarRow is a regression test for
+// docs/tcellui-findings.md Finding 1's status-bar-row counterpart.
+func TestPollDropsClickOnStatusBarRow(t *testing.T) {
+	ui, screen := newUI(t)
+	_, h := screen.Size()
+	screen.InjectMouse(5, h-1, tcell.Button1, tcell.ModNone)
+	screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
+	ev := nextEvent(t, ui)
+	_, isClick := ev.(outbound.ClickEvent)
+	assert.False(t, isClick, "a click on the status bar row should not produce a ClickEvent")
+	_, ok := ev.(outbound.QuitEvent)
+	require.True(t, ok, "expected QuitEvent after the dropped status-bar-row click")
 }
 
 // --- drawStatusBar ---

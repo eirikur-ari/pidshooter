@@ -42,8 +42,8 @@ func (b Bounds) bounceRight(pos, vel *Vector, tagWidth float64) {
 }
 
 func (b Bounds) bounceTop(pos, vel *Vector) {
-	if pos.Y < 0 {
-		pos.Y = 0
+	if pos.Y < 1 { // reserve top row for the HUD
+		pos.Y = 1
 		if vel.Y < 0 {
 			vel.Y = -vel.Y
 		}
@@ -52,8 +52,8 @@ func (b Bounds) bounceTop(pos, vel *Vector) {
 
 func (b Bounds) bounceBottom(pos, vel *Vector) {
 	bound := float64(b.height - 2) // reserve bottom row for status bar
-	if bound < 0 {
-		bound = 0
+	if bound < 1 {
+		bound = 1 // don't fight bounceTop's reserved row on very short terminals
 	}
 	if pos.Y > bound {
 		pos.Y = bound

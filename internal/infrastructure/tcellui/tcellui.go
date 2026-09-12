@@ -71,7 +71,7 @@ func (a *UI) Render(state outbound.FrameState) {
 		}
 		col := 0
 		for _, ch := range tv.Tag {
-			if tv.X+col < w && tv.Y < h-1 {
+			if tv.X+col < w && tv.Y > 0 && tv.Y < h-1 {
 				a.screen.SetContent(tv.X+col, tv.Y, ch, nil, style)
 			}
 			col++
@@ -165,6 +165,9 @@ func (a *UI) poll() {
 				continue
 			}
 			x, y := ev.Position()
+			if _, h := a.screen.Size(); y == 0 || y == h-1 {
+				continue // HUD and status bar rows never contain a target
+			}
 			inputEvent = outbound.ClickEvent{X: x, Y: y}
 		case *tcell.EventKey:
 			ie, ok := translateEvent(ev)
