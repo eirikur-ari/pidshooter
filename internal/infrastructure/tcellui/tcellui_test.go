@@ -43,7 +43,7 @@ func nextEvent(t *testing.T, ui *tcellui.UI) outbound.InputEvent {
 func rowContent(screen tcell.SimulationScreen, row int) string {
 	cells, w, _ := screen.GetContents()
 	var sb strings.Builder
-	for x := 0; x < w; x++ {
+	for x := range w {
 		if r := cells[row*w+x].Runes; len(r) > 0 {
 			sb.WriteRune(r[0])
 		}
@@ -59,7 +59,7 @@ func TestPollGoroutineExitsAfterCleanup(t *testing.T) {
 
 	require.NoError(t, ui.Init())
 
-	for i := 0; i < 15; i++ {
+	for range 15 {
 		screen.InjectKey(tcell.KeyRune, 'a', tcell.ModNone)
 	}
 	time.Sleep(50 * time.Millisecond)
@@ -89,7 +89,7 @@ func TestDrawHUDNarrowTerminalSuppressesCenter(t *testing.T) {
 
 	cells, w, _ := screen.GetContents()
 	var row0 strings.Builder
-	for x := 0; x < w; x++ {
+	for x := range w {
 		if r := cells[x].Runes; len(r) > 0 {
 			row0.WriteRune(r[0])
 		}
@@ -112,7 +112,7 @@ func TestDrawHUDWideTerminalDrawsAllThree(t *testing.T) {
 
 	cells, w, _ := screen.GetContents()
 	var row0 strings.Builder
-	for x := 0; x < w; x++ {
+	for x := range w {
 		if r := cells[x].Runes; len(r) > 0 {
 			row0.WriteRune(r[0])
 		}
@@ -334,6 +334,19 @@ func TestDrawStatusBarConfirming(t *testing.T) {
 	for _, want := range []string{"42", "myapp", "(Y)es", "(N)o"} {
 		assert.Contains(t, got, want, "confirm bar should contain %q", want)
 	}
+}
+
+func TestDrawStatusBarConfirmingMultiByteName(t *testing.T) {
+	ui, screen := newUI(t)
+	ui.Render(outbound.FrameState{
+		StatusBar: outbound.StatusState{
+			Confirming: &outbound.ConfirmViewState{PID: 42, Name: "café-server"},
+		},
+	})
+	_, _, h := screen.GetContents()
+	got := rowContent(screen, h-1)
+	assert.Contains(t, got, "café-server", "status bar should render the multi-byte name intact, with no byte-offset gap")
+	assert.Contains(t, got, "(Y)es", "status bar should still contain the confirm options after a multi-byte name")
 }
 
 func TestDrawStatusBarWithTimeLimit(t *testing.T) {

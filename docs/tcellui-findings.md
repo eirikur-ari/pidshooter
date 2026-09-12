@@ -60,6 +60,8 @@ One review additionally noted `tcell.SimulationScreen`'s own semantics diverge f
 
 ### Finding 2: `drawStatusBar` (and latently, `drawHUD`) still use the UTF-8 byte offset as the screen column — the exact bug class `docs/code-review.md` #13 fixed in the target loop was left in three other loops
 
+**Status: Fixed (2026-09-12).** Took the suggested fix: `drawStatusBar` and `drawHUD`'s three hand-rolled `for i, ch := range str { if i < w {...} }` loops were replaced with `tcell.Screen.PutStrStyled`, which walks by grapheme cluster and clips to the real screen dimensions internally — this closes the byte-offset bug at its root rather than patching each loop's index arithmetic. `drawHUD`'s centering math (`hiX`/`scoreX`) was also switched from `len()` (bytes) to `utf8.RuneCountInString` so the function is internally consistent, even though no currently-reachable HUD input is non-ASCII. Since `PutStrStyled` also advances by true display width rather than by rune count, this incidentally closes Finding 3's wide-rune column bug for these same three loops too — Finding 3 itself (the target-draw loop, plus the domain-side `core/game` width measurement) is unchanged by this fix and remains open. Regression test: `TestDrawStatusBarConfirmingMultiByteName`, verified against the pre-fix code to actually reproduce the byte-offset gap (`"café -server"`) before confirming it passes against the fix.
+
 **Evidence:** `tcellui.go:148-152`:
 ```go
 for i, ch := range statusStr {

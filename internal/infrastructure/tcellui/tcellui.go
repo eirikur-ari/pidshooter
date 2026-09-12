@@ -4,6 +4,7 @@ package tcellui
 import (
 	"fmt"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -91,36 +92,24 @@ func (a *UI) Events() <-chan outbound.InputEvent {
 func (a *UI) drawHUD(w int, hud outbound.HUDState) {
 	memStr := fmt.Sprintf(" FREED: %s ", util.FormatBytes(hud.FreedMem))
 	memStyle := tcell.StyleDefault.Foreground(tcell.ColorAqua).Bold(true)
-	for i, ch := range memStr {
-		if i < w {
-			a.screen.SetContent(i, 0, ch, nil, memStyle)
-		}
-	}
+	memWidth := utf8.RuneCountInString(memStr)
+	a.screen.PutStrStyled(0, 0, memStr, memStyle)
 
 	hiStr := fmt.Sprintf(" Highscore: %d ", hud.HighScore)
 	hiStyle := tcell.StyleDefault.Foreground(tcell.ColorPurple).Bold(true)
-	hiX := (w - len(hiStr)) / 2
+	hiWidth := utf8.RuneCountInString(hiStr)
+	hiX := (w - hiWidth) / 2
 
 	scoreStr := fmt.Sprintf(" KILLS: %d ", hud.Kills)
 	scoreStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Bold(true)
-	scoreX := w - len(scoreStr)
-	if scoreX < 0 {
-		scoreX = 0
+	scoreWidth := utf8.RuneCountInString(scoreStr)
+	scoreX := max(w-scoreWidth, 0)
+
+	if hiX >= memWidth && hiX+hiWidth <= scoreX {
+		a.screen.PutStrStyled(hiX, 0, hiStr, hiStyle)
 	}
 
-	if hiX >= len(memStr) && hiX+len(hiStr) <= scoreX {
-		for i, ch := range hiStr {
-			if hiX+i < w {
-				a.screen.SetContent(hiX+i, 0, ch, nil, hiStyle)
-			}
-		}
-	}
-
-	for i, ch := range scoreStr {
-		if scoreX+i < w {
-			a.screen.SetContent(scoreX+i, 0, ch, nil, scoreStyle)
-		}
-	}
+	a.screen.PutStrStyled(scoreX, 0, scoreStr, scoreStyle)
 }
 
 func (a *UI) drawStatusBar(w, h int, status outbound.StatusState) {
@@ -128,7 +117,7 @@ func (a *UI) drawStatusBar(w, h int, status outbound.StatusState) {
 		Foreground(tcell.ColorBlack).
 		Background(tcell.ColorWhite)
 
-	for x := 0; x < w; x++ {
+	for x := range w {
 		a.screen.SetContent(x, h-1, ' ', nil, statusStyle)
 	}
 
@@ -145,11 +134,7 @@ func (a *UI) drawStatusBar(w, h int, status outbound.StatusState) {
 			status.Alive, status.Speed, timerStr)
 	}
 
-	for i, ch := range statusStr {
-		if i < w {
-			a.screen.SetContent(i, h-1, ch, nil, statusStyle)
-		}
-	}
+	a.screen.PutStrStyled(0, h-1, statusStr, statusStyle)
 }
 
 func (a *UI) poll() {
