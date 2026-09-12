@@ -14,44 +14,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
-// newUI creates an initialised UI backed by a simulation screen and registers
-// Cleanup to call ui.Cleanup when the test ends.
-func newUI(t *testing.T) (*tcellui.UI, tcell.SimulationScreen) {
-	t.Helper()
-	screen := tcell.NewSimulationScreen("")
-	screen.SetSize(80, 25)
-	ui := tcellui.NewUI(screen)
-	require.NoError(t, ui.Init())
-	t.Cleanup(ui.Cleanup)
-	return ui, screen
-}
-
-// nextEvent reads one event from the UI with a timeout so tests fail fast
-// instead of blocking forever if the expected event is never produced.
-func nextEvent(t *testing.T, ui *tcellui.UI) outbound.InputEvent {
-	t.Helper()
-	select {
-	case ev := <-ui.Events():
-		return ev
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("timed out waiting for event from poll goroutine")
-		return nil
-	}
-}
-
-// rowContent reads the visible characters on the given screen row.
-func rowContent(screen tcell.SimulationScreen, row int) string {
-	cells, w, _ := screen.GetContents()
-	var sb strings.Builder
-	for x := range w {
-		if r := cells[row*w+x].Runes; len(r) > 0 {
-			sb.WriteRune(r[0])
-		}
-	}
-	return strings.TrimRight(sb.String(), " ")
-}
-
-// TestPollGoroutineExitsAfterCleanup is a regression test for issue #6.
 func TestPollGoroutineExitsAfterCleanup(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
 	ui := tcellui.NewUI(screen)
@@ -77,7 +39,6 @@ func TestPollGoroutineExitsAfterCleanup(t *testing.T) {
 		before, runtime.NumGoroutine())
 }
 
-// TestDrawHUD_NarrowTerminalSuppressesCenter is a regression test for issue #14.
 func TestDrawHUDNarrowTerminalSuppressesCenter(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
 	ui := tcellui.NewUI(screen)
@@ -101,7 +62,6 @@ func TestDrawHUDNarrowTerminalSuppressesCenter(t *testing.T) {
 	assert.NotContains(t, got, "Highscore", "row 0 should NOT contain Highscore on narrow terminal")
 }
 
-// TestDrawHUD_WideTerminalDrawsAllThree verifies all three HUD elements are visible on wide terminals.
 func TestDrawHUDWideTerminalDrawsAllThree(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
 	ui := tcellui.NewUI(screen)
@@ -124,7 +84,6 @@ func TestDrawHUDWideTerminalDrawsAllThree(t *testing.T) {
 	}
 }
 
-// TestRender_MultiByteLabel_ColumnLayout is a regression test for issue #13.
 func TestRenderMultiByteLabelColumnLayout(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
 	ui := tcellui.NewUI(screen)
@@ -142,9 +101,18 @@ func TestRenderMultiByteLabelColumnLayout(t *testing.T) {
 	assert.Equal(t, 'K', cells[2*w+2].Runes[0], "col 2 should be 'K' — byte-offset bug in render loop?")
 }
 
-// TestRenderClipsTargetAtHUDRow is a regression test for
-// docs/tcellui-findings.md Finding 1: a target must never be drawn on row 0,
-// since the HUD unconditionally overwrites it.
+func TestRenderWideRuneTagDoesNotDropCharacters(t *testing.T) {
+	ui, screen := newUI(t)
+	ui.Render(outbound.FrameState{
+		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Tag: "[9 日本語]"}},
+	})
+
+	got := rowContent(screen, 5)
+	for _, want := range []string{"[", "9", "日", "本", "語", "]"} {
+		assert.Contains(t, got, want, "wide-rune tag should render %q without dropping characters", want)
+	}
+}
+
 func TestRenderClipsTargetAtHUDRow(t *testing.T) {
 	ui, screen := newUI(t)
 	ui.Render(outbound.FrameState{
@@ -156,14 +124,14 @@ func TestRenderClipsTargetAtHUDRow(t *testing.T) {
 	assert.NotContains(t, got, "victim", "target tag must not be drawn on the HUD row")
 }
 
-// --- translateEvent (exercised via poll) ---
-
 func TestPollTranslatesEscapeToQuit(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyEscape, 0, tcell.ModNone)
 	_, ok := nextEvent(t, ui).(outbound.QuitEvent)
 	assert.True(t, ok, "expected QuitEvent")
 }
+
+// --- translateEvent (exercised via poll) ---
 
 func TestPollTranslatesCtrlCToQuit(t *testing.T) {
 	ui, screen := newUI(t)
@@ -258,8 +226,6 @@ func TestPollUnrecognizedRuneDropped(t *testing.T) {
 	assert.True(t, ok, "expected 'z' to be dropped and 'q' to translate to QuitEvent")
 }
 
-// --- poll: event-type routing ---
-
 func TestPollMouseButton1EmitsClickEvent(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectMouse(5, 10, tcell.Button1, tcell.ModNone)
@@ -268,6 +234,8 @@ func TestPollMouseButton1EmitsClickEvent(t *testing.T) {
 	assert.Equal(t, 5, ce.X)
 	assert.Equal(t, 10, ce.Y)
 }
+
+// --- poll: event-type routing ---
 
 func TestPollNonButton1DropsEvent(t *testing.T) {
 	ui, screen := newUI(t)
@@ -280,9 +248,6 @@ func TestPollNonButton1DropsEvent(t *testing.T) {
 	require.True(t, ok, "expected QuitEvent after dropped Button2")
 }
 
-// TestPollDropsClickOnHUDRow is a regression test for docs/tcellui-findings.md
-// Finding 1: a click on the HUD row must never reach the game as a ClickEvent,
-// since no target is ever legitimately drawn there.
 func TestPollDropsClickOnHUDRow(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectMouse(5, 0, tcell.Button1, tcell.ModNone)
@@ -294,8 +259,6 @@ func TestPollDropsClickOnHUDRow(t *testing.T) {
 	require.True(t, ok, "expected QuitEvent after the dropped HUD-row click")
 }
 
-// TestPollDropsClickOnStatusBarRow is a regression test for
-// docs/tcellui-findings.md Finding 1's status-bar-row counterpart.
 func TestPollDropsClickOnStatusBarRow(t *testing.T) {
 	ui, screen := newUI(t)
 	_, h := screen.Size()
@@ -308,8 +271,6 @@ func TestPollDropsClickOnStatusBarRow(t *testing.T) {
 	require.True(t, ok, "expected QuitEvent after the dropped status-bar-row click")
 }
 
-// --- drawStatusBar ---
-
 func TestDrawStatusBarNormal(t *testing.T) {
 	ui, screen := newUI(t)
 	ui.Render(outbound.FrameState{
@@ -321,6 +282,8 @@ func TestDrawStatusBarNormal(t *testing.T) {
 		assert.Contains(t, got, want, "status bar should contain %q", want)
 	}
 }
+
+// --- drawStatusBar ---
 
 func TestDrawStatusBarConfirming(t *testing.T) {
 	ui, screen := newUI(t)
@@ -368,4 +331,41 @@ func TestDrawStatusBarNoTimeLimit(t *testing.T) {
 	_, _, h := screen.GetContents()
 	got := rowContent(screen, h-1)
 	assert.NotContains(t, got, "Time:")
+}
+
+// newUI creates an initialised UI backed by a simulation screen and registers
+// Cleanup to call ui.Cleanup when the test ends.
+func newUI(t *testing.T) (*tcellui.UI, tcell.SimulationScreen) {
+	t.Helper()
+	screen := tcell.NewSimulationScreen("")
+	screen.SetSize(80, 25)
+	ui := tcellui.NewUI(screen)
+	require.NoError(t, ui.Init())
+	t.Cleanup(ui.Cleanup)
+	return ui, screen
+}
+
+// nextEvent reads one event from the UI with a timeout so tests fail fast
+// instead of blocking forever if the expected event is never produced.
+func nextEvent(t *testing.T, ui *tcellui.UI) outbound.InputEvent {
+	t.Helper()
+	select {
+	case ev := <-ui.Events():
+		return ev
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timed out waiting for event from poll goroutine")
+		return nil
+	}
+}
+
+// rowContent reads the visible characters on the given screen row.
+func rowContent(screen tcell.SimulationScreen, row int) string {
+	cells, w, _ := screen.GetContents()
+	var sb strings.Builder
+	for x := range w {
+		if r := cells[row*w+x].Runes; len(r) > 0 {
+			sb.WriteRune(r[0])
+		}
+	}
+	return strings.TrimRight(sb.String(), " ")
 }

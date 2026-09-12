@@ -70,12 +70,8 @@ func (a *UI) Render(state outbound.FrameState) {
 		if tv.Killing {
 			style = killStyle
 		}
-		col := 0
-		for _, ch := range tv.Tag {
-			if tv.X+col < w && tv.Y > 0 && tv.Y < h-1 {
-				a.screen.SetContent(tv.X+col, tv.Y, ch, nil, style)
-			}
-			col++
+		if tv.Y > 0 && tv.Y < h-1 {
+			a.screen.PutStrStyled(tv.X, tv.Y, tv.Tag, style)
 		}
 	}
 
