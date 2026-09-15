@@ -132,8 +132,10 @@ func (a *UI) drawStatusBar(w, h int, status outbound.StatusState) {
 
 	var statusStr string
 	if status.Confirming != nil {
-		statusStr = fmt.Sprintf(" Kill [%d %s]? (Y)es / (N)o / (Q)uit",
-			status.Confirming.PID, status.Confirming.Name)
+		prefix := fmt.Sprintf(" Kill [%d ", status.Confirming.PID)
+		const suffix = "]? (Y)es / (N)o / (Q)uit"
+		nameBudget := w - utf8.RuneCountInString(prefix) - utf8.RuneCountInString(suffix)
+		statusStr = prefix + truncateWithEllipsis(status.Confirming.Name, nameBudget) + suffix
 	} else {
 		timerStr := ""
 		if status.TimeLimit > 0 {
@@ -158,6 +160,23 @@ func truncateRunes(s string, n int) string {
 		return s
 	}
 	return string(runes[:n])
+}
+
+// truncateWithEllipsis is truncateRunes for text a player reads directly,
+// signaling with a trailing "…" that something was cut rather than
+// silently dropping it.
+func truncateWithEllipsis(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	if n == 1 {
+		return "…"
+	}
+	return string(runes[:n-1]) + "…"
 }
 
 func killAnimationFrame(progress float64) string {

@@ -378,6 +378,66 @@ func TestDrawStatusBarConfirmingMultiByteName(t *testing.T) {
 	assert.Contains(t, got, "(Y)es", "status bar should still contain the confirm options after a multi-byte name")
 }
 
+func TestDrawStatusBarConfirmingLongNameStillShowsAllOptions(t *testing.T) {
+	for _, w := range []int{40, 44, 50} {
+		t.Run(fmt.Sprintf("w=%d", w), func(t *testing.T) {
+			ui, screen := newUI(t)
+			screen.SetSize(w, 25)
+			ui.Render(outbound.FrameState{
+				StatusBar: outbound.StatusState{
+					Confirming: &outbound.ConfirmViewState{PID: 54321, Name: "com.apple.WebKit"},
+				},
+			})
+			_, _, h := screen.GetContents()
+			got := rowContent(screen, h-1)
+			for _, want := range []string{"(Y)es", "(N)o", "(Q)uit"} {
+				assert.Contains(t, got, want, "the confirm options must survive even with a long process name")
+			}
+		})
+	}
+}
+
+func TestDrawStatusBarConfirmingLongNameIsTruncatedWithEllipsis(t *testing.T) {
+	ui, screen := newUI(t)
+	screen.SetSize(44, 25)
+	ui.Render(outbound.FrameState{
+		StatusBar: outbound.StatusState{
+			Confirming: &outbound.ConfirmViewState{PID: 54321, Name: "com.apple.WebKit"},
+		},
+	})
+	_, _, h := screen.GetContents()
+	got := rowContent(screen, h-1)
+	assert.Contains(t, got, "…", "a truncated name should be signalled with an ellipsis")
+	assert.NotContains(t, got, "com.apple.WebKit", "the full name should not fit at this width")
+}
+
+func TestDrawStatusBarConfirmingNameBudgetOfOneIsJustEllipsis(t *testing.T) {
+	ui, screen := newUI(t)
+	screen.SetSize(38, 25)
+	ui.Render(outbound.FrameState{
+		StatusBar: outbound.StatusState{
+			Confirming: &outbound.ConfirmViewState{PID: 54321, Name: "com.apple.WebKit"},
+		},
+	})
+	_, _, h := screen.GetContents()
+	got := rowContent(screen, h-1)
+	assert.Contains(t, got, "[54321 …]", "with only one column of budget, the name should render as just the ellipsis")
+}
+
+func TestDrawStatusBarConfirmingNameOmittedWhenNoBudgetLeft(t *testing.T) {
+	ui, screen := newUI(t)
+	screen.SetSize(30, 25)
+	ui.Render(outbound.FrameState{
+		StatusBar: outbound.StatusState{
+			Confirming: &outbound.ConfirmViewState{PID: 54321, Name: "com.apple.WebKit"},
+		},
+	})
+	_, _, h := screen.GetContents()
+	got := rowContent(screen, h-1)
+	assert.Contains(t, got, "[54321 ]", "with no budget left, the name should be dropped rather than partially shown")
+	assert.NotContains(t, got, "com.apple.WebKit")
+}
+
 func TestDrawStatusBarWithTimeLimit(t *testing.T) {
 	ui, screen := newUI(t)
 	ui.Render(outbound.FrameState{
