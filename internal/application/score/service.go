@@ -54,9 +54,10 @@ func (s *Service) LoadScoreBoard() (*score.Board, int, error) {
 // the persisted board rather than to board as loaded at session start, so
 // a concurrent save from another pidshooter process in the meantime isn't
 // silently discarded by this one overwriting the whole file.
-func (s *Service) RecordScore(board *score.Board, kills int, freedMem int64, speed float64, timeLimit int, duration float64, err error) error {
+func (s *Service) RecordScore(board *score.Board, kills, duds int, freedMem int64, speed float64, timeLimit int, duration float64, err error) error {
 	entry := score.Entry{
 		Kills:    kills,
+		Duds:     duds,
 		FreedMem: freedMem,
 		Speed:    speed,
 		Time:     timeLimit,
@@ -77,8 +78,8 @@ func (s *Service) RecordScore(board *score.Board, kills int, freedMem int64, spe
 
 // ReportResults reports the session's outcome and the board's current
 // high scores via the injected outbound.ScoreReporter.
-func (s *Service) ReportResults(duration float64, kills int, freedMem int64, board *score.Board) {
-	s.reporter.Report(toScoreSummary(duration, kills, freedMem, board))
+func (s *Service) ReportResults(duration float64, kills, duds int, freedMem int64, board *score.Board) {
+	s.reporter.Report(toScoreSummary(duration, kills, duds, freedMem, board))
 }
 
 // mergeWithLatest re-loads the currently persisted board and applies entry

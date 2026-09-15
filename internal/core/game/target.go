@@ -16,6 +16,9 @@ const (
 	Alive State = iota
 	// Killing means the kill animation is playing.
 	Killing
+	// Fleeing means the flee animation is playing, for a target whose
+	// backing process was found already gone before a kill could land.
+	Fleeing
 	// Dead means the entity has been removed.
 	Dead
 )
@@ -23,14 +26,17 @@ const (
 // KillAnimationDuration is the number of game ticks the kill animation plays before the target disappears.
 const KillAnimationDuration = 12
 
+// FleeAnimationDuration is the number of game ticks the flee animation plays before the target disappears.
+const FleeAnimationDuration = 12
+
 // TODO: perhaps move target to process package, and have it implement a Target interface in the game package, so that the game package doesn't need to know about process.Info
 // Target represents a process displayed as a flying tag in the terminal.
 type Target struct {
 	process.Info
 	movement.Motion
-	State             State
-	KillAnimationTick int
-	shotFired         bool
+	State         State
+	AnimationTick int
+	shotFired     bool
 }
 
 // NewTarget creates a new entity at a random position with random velocity.
@@ -46,7 +52,9 @@ func NewTarget(info process.Info, bounds movement.Bounds) *Target {
 func (t *Target) Tag() string {
 	switch t.State {
 	case Killing:
-		return killAnimationTagFor(t.KillAnimationTick)
+		return killAnimationTagFor(t.AnimationTick)
+	case Fleeing:
+		return fleeAnimationTagFor(t.AnimationTick)
 	case Dead:
 		return ""
 	default:
@@ -54,11 +62,13 @@ func (t *Target) Tag() string {
 	}
 }
 
-// Update advances the kill animation or moves the entity and bounces off walls.
+// Update advances the kill or flee animation, or moves the entity and bounces off walls.
 func (t *Target) Update(bounds movement.Bounds, speed float64) {
 	switch t.State {
 	case Killing:
-		t.doomsdayTick()
+		t.doomsdayTick(KillAnimationDuration)
+	case Fleeing:
+		t.doomsdayTick(FleeAnimationDuration)
 	case Alive:
 		t.move(bounds, speed)
 	case Dead:
@@ -73,18 +83,21 @@ func (t *Target) Kill() bool {
 		return false
 	}
 	t.State = Killing
-	t.KillAnimationTick = 0
+	t.AnimationTick = 0
 	return true
 }
 
-// Reap transitions the target straight to Dead, skipping the kill animation,
-// for a target whose backing process already exited outside the game.
-// Returns false without changing state if the target is not alive.
+// Reap transitions the target to the fleeing state, skipping the kill
+// animation, for a target whose backing process already exited outside the
+// game. The target plays its flee animation before disappearing, the same
+// as a confirmed kill does. Returns false without changing state if the
+// target is not alive.
 func (t *Target) Reap() bool {
 	if !t.isAlive() {
 		return false
 	}
-	t.State = Dead
+	t.State = Fleeing
+	t.AnimationTick = 0
 	return true
 }
 
@@ -112,9 +125,9 @@ func (t *Target) isHitAt(x, y int) bool {
 	return y == int(t.Position.Y) && x >= int(t.Position.X) && x < int(t.Position.X)+width
 }
 
-func (t *Target) doomsdayTick() {
-	t.KillAnimationTick++
-	if t.KillAnimationTick >= KillAnimationDuration {
+func (t *Target) doomsdayTick(duration int) {
+	t.AnimationTick++
+	if t.AnimationTick >= duration {
 		t.State = Dead
 	}
 }
@@ -131,6 +144,15 @@ func tagFor(info process.Info) string {
 func killAnimationTagFor(tick int) string {
 	tags := []string{"💥", "✦ KILLED ✦", "· · ·", "  ·  ", "     "}
 	idx := tick * len(tags) / KillAnimationDuration
+	if idx >= len(tags) {
+		idx = len(tags) - 1
+	}
+	return tags[idx]
+}
+
+func fleeAnimationTagFor(tick int) string {
+	tags := []string{"🏃💨", "↝ RAN AWAY ↝", "· · ·", "  ·  ", "     "}
+	idx := tick * len(tags) / FleeAnimationDuration
 	if idx >= len(tags) {
 		idx = len(tags) - 1
 	}

@@ -90,8 +90,11 @@ func TestServiceApplyKillsReapsAlreadyKilledTarget(t *testing.T) {
 	tracker := newKillTracker(0)
 	svc.applyKillSignals(tracker, kills)
 
-	assert.Equal(t, game.Dead, target.State)
+	assert.Equal(t, game.Fleeing, target.State, "an already-gone target should flee rather than die outright")
 	assert.Equal(t, 0, tracker.score.kills, "reaping an already-gone target should not award a kill")
+	require.Len(t, tracker.duds, 1)
+	assert.Equal(t, "target", tracker.duds[0].Target)
+	assert.Equal(t, 100, tracker.duds[0].PID)
 }
 
 func TestServiceApplyKillsEmptyChannelNoOps(t *testing.T) {

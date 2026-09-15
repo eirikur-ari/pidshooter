@@ -20,6 +20,7 @@ func toTargetViewState(target *game.Target) outbound.TargetViewState {
 		Y:       int(math.Round(target.Position.Y)),
 		Tag:     target.Tag(),
 		Killing: target.State == game.Killing,
+		Fleeing: target.State == game.Fleeing,
 	}
 }
 

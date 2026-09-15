@@ -11,11 +11,19 @@ type KillFailure struct {
 	Err    error
 }
 
+// KillDud records a target whose backing process was already gone before a
+// kill could land on it.
+type KillDud struct {
+	Target string
+	PID    int
+}
+
 // killTracker accumulates state of a single game session: score progress,
-// and kill attempts that failed to kill their targets.
+// kill attempts that failed to kill their targets, and duds.
 type killTracker struct {
 	score   killScoreTracker
 	failure killFailureTracker
+	duds    []KillDud
 }
 
 type killScoreTracker struct {
@@ -54,4 +62,10 @@ func (t *killTracker) recordFailure(target *game.Target, err error) {
 	}
 	t.failure.pids[target.PID] = struct{}{}
 	t.failure.failures = append(t.failure.failures, KillFailure{Target: target.Name, PID: target.PID, Err: err})
+}
+
+// recordDud records a target whose backing process was already gone before
+// a kill could land on it.
+func (t *killTracker) recordDud(target *game.Target) {
+	t.duds = append(t.duds, KillDud{Target: target.Name, PID: target.PID})
 }

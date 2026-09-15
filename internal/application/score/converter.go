@@ -10,6 +10,7 @@ func toBoard(board outbound.ScoreBoard) *score.Board {
 	for i, entry := range board.Scores {
 		entries[i] = score.Entry{
 			Kills:    entry.Kills,
+			Duds:     entry.Duds,
 			FreedMem: entry.FreedMem,
 			Speed:    entry.Speed,
 			Time:     entry.Time,
@@ -24,9 +25,10 @@ func toScoreBoard(board *score.Board) outbound.ScoreBoard {
 	return outbound.ScoreBoard{Scores: toScoreEntries(board.Scores)}
 }
 
-func toScoreSummary(duration float64, kills int, freedMem int64, board *score.Board) outbound.ScoreSummary {
+func toScoreSummary(duration float64, kills, duds int, freedMem int64, board *score.Board) outbound.ScoreSummary {
 	return outbound.ScoreSummary{
 		Kills:        kills,
+		Duds:         duds,
 		FreedMem:     freedMem,
 		Duration:     duration,
 		NewHighScore: board.IsNewHighScore(kills),
@@ -39,6 +41,7 @@ func toScoreEntries(entries []score.Entry) []outbound.ScoreEntry {
 	for i, entry := range entries {
 		result[i] = outbound.ScoreEntry{
 			Kills:    entry.Kills,
+			Duds:     entry.Duds,
 			FreedMem: entry.FreedMem,
 			Speed:    entry.Speed,
 			Time:     entry.Time,

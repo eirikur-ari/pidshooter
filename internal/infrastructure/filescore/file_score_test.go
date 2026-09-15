@@ -17,6 +17,7 @@ import (
 func TestNewFileScoreResolvesDefaultPath(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "") // don't let the runner's own env override HOME here
 
 	s, err := NewFileScore()
 
@@ -28,6 +29,7 @@ func TestNewFileScoreResolvesDefaultPath(t *testing.T) {
 
 func TestNewFileScoreReturnsErrorWhenHomeUnset(t *testing.T) {
 	t.Setenv("HOME", "")
+	t.Setenv("XDG_CONFIG_HOME", "") // don't let the runner's own env mask the unset HOME
 
 	_, err := NewFileScore()
 
@@ -69,7 +71,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	s := newTempFileScore(t)
 	date := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
 	sb := outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
-		{Kills: 7, FreedMem: 4096, Speed: 2.5, Time: 60, Duration: 45.0, Date: date},
+		{Kills: 7, Duds: 2, FreedMem: 4096, Speed: 2.5, Time: 60, Duration: 45.0, Date: date},
 	}}
 
 	require.NoError(t, s.Save(sb))
@@ -135,7 +137,7 @@ func TestSaveWritesJSONMatchingOnDiskSchema(t *testing.T) {
 	s := newTempFileScore(t)
 	date := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
 	sb := outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
-		{Kills: 7, FreedMem: 4096, Speed: 2.5, Time: 60, Duration: 45.0, Date: date},
+		{Kills: 7, Duds: 2, FreedMem: 4096, Speed: 2.5, Time: 60, Duration: 45.0, Date: date},
 	}}
 	require.NoError(t, s.Save(sb))
 
@@ -152,6 +154,7 @@ func TestSaveWritesJSONMatchingOnDiskSchema(t *testing.T) {
 	require.True(t, ok)
 
 	assert.Equal(t, float64(7), first["kills"])
+	assert.Equal(t, float64(2), first["duds"])
 	assert.Equal(t, float64(4096), first["freed_mem"])
 	assert.Equal(t, 2.5, first["speed"])
 	assert.Equal(t, float64(60), first["time_limit"])

@@ -48,13 +48,18 @@ func TestToTargetViewStatesReturnsASliceOfMappedFields(t *testing.T) {
 	targets := []*game.Target{
 		{Info: process.NewInfo(1, "a", 0, 0), State: game.Alive},
 		{Info: process.NewInfo(2, "b", 0, 0), State: game.Killing},
+		{Info: process.NewInfo(3, "c", 0, 0), State: game.Fleeing},
 	}
 
 	views := toTargetViewStates(targets)
 
-	require.Len(t, views, 2)
+	require.Len(t, views, 3)
 	assert.False(t, views[0].Killing)
+	assert.False(t, views[0].Fleeing)
 	assert.True(t, views[1].Killing)
+	assert.False(t, views[1].Fleeing)
+	assert.False(t, views[2].Killing)
+	assert.True(t, views[2].Fleeing)
 }
 
 func TestToTargetViewStatesReturnsEmptySliceWhenInputIsNil(t *testing.T) {

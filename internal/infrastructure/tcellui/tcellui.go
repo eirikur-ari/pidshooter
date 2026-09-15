@@ -69,11 +69,15 @@ func (a *UI) Render(state outbound.FrameState) {
 
 	aliveStyle := tcell.StyleDefault.Foreground(tcell.ColorGreen).Bold(true)
 	killStyle := tcell.StyleDefault.Foreground(tcell.ColorRed).Bold(true)
+	fleeStyle := tcell.StyleDefault.Foreground(tcell.ColorOrange).Bold(true)
 
 	for _, tv := range state.Targets {
 		style := aliveStyle
-		if tv.Killing {
+		switch {
+		case tv.Killing:
 			style = killStyle
+		case tv.Fleeing:
+			style = fleeStyle
 		}
 		if tv.Y > 0 && tv.Y < h-1 {
 			a.screen.PutStrStyled(tv.X, tv.Y, tv.Tag, style)

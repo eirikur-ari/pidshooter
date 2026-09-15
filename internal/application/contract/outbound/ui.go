@@ -16,6 +16,8 @@ type TargetViewState struct {
 	Tag string
 	// Killing reports whether the target's kill animation is playing.
 	Killing bool
+	// Fleeing reports whether the target's flee animation is playing.
+	Fleeing bool
 }
 
 // HUDState carries the heads-up display values.

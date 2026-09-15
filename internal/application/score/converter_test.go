@@ -61,9 +61,10 @@ func TestToScoreSummaryMapsFields(t *testing.T) {
 		{Kills: 5, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
 	})
 
-	summary := toScoreSummary(7.5, 3, 4096, board)
+	summary := toScoreSummary(7.5, 3, 2, 4096, board)
 
 	assert.Equal(t, 3, summary.Kills)
+	assert.Equal(t, 2, summary.Duds)
 	assert.Equal(t, int64(4096), summary.FreedMem)
 	assert.Equal(t, 7.5, summary.Duration)
 	require.Len(t, summary.Entries, 1)
@@ -74,7 +75,7 @@ func TestToScoreSummaryNewHighScoreTrueWhenBeatsRecord(t *testing.T) {
 	board := score.NewBoard(nil)
 	board.Add(score.Entry{Kills: 3, Date: time.Now()})
 
-	summary := toScoreSummary(1.0, 5, 0, board)
+	summary := toScoreSummary(1.0, 5, 0, 0, board)
 
 	assert.True(t, summary.NewHighScore)
 }
@@ -84,7 +85,7 @@ func TestToScoreSummaryNewHighScoreFalseWhenDoesNotBeatRecord(t *testing.T) {
 	board.Add(score.Entry{Kills: 10, Date: time.Now()})
 	board.Add(score.Entry{Kills: 3, Date: time.Now()}) // board.highScore = 10
 
-	summary := toScoreSummary(1.0, 5, 0, board)
+	summary := toScoreSummary(1.0, 5, 0, 0, board)
 
 	assert.False(t, summary.NewHighScore)
 }

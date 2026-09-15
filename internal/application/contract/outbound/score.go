@@ -7,6 +7,7 @@ import (
 // ScoreEntry is the persistence representation of a single high score record.
 type ScoreEntry struct {
 	Kills    int
+	Duds     int
 	FreedMem int64
 	Speed    float64
 	Time     int
@@ -34,6 +35,7 @@ type ScoreStore interface {
 // board's current high scores, for reporting via ScoreReporter.
 type ScoreSummary struct {
 	Kills        int
+	Duds         int
 	FreedMem     int64
 	Duration     float64
 	NewHighScore bool

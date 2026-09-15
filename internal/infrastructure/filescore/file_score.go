@@ -21,6 +21,7 @@ type fileScore struct {
 // fileEntry is the on-disk JSON representation of a single high score record.
 type fileEntry struct {
 	Kills    int       `json:"kills"`
+	Duds     int       `json:"duds"`
 	FreedMem int64     `json:"freed_mem"`
 	Speed    float64   `json:"speed"`
 	Time     int       `json:"time_limit"`
@@ -121,6 +122,7 @@ func toScoreBoard(fc fileContent) outbound.ScoreBoard {
 	for i, e := range fc.Scores {
 		entries[i] = outbound.ScoreEntry{
 			Kills:    e.Kills,
+			Duds:     e.Duds,
 			FreedMem: e.FreedMem,
 			Speed:    e.Speed,
 			Time:     e.Time,
@@ -136,6 +138,7 @@ func toFileContent(sb outbound.ScoreBoard) fileContent {
 	for i, e := range sb.Scores {
 		entries[i] = fileEntry{
 			Kills:    e.Kills,
+			Duds:     e.Duds,
 			FreedMem: e.FreedMem,
 			Speed:    e.Speed,
 			Time:     e.Time,

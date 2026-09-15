@@ -32,6 +32,7 @@ type PlayResult struct {
 	Kills        int
 	FreedMem     int64
 	KillFailures []KillFailure
+	Duds         []KillDud
 }
 
 // processKiller verifies and terminates a target's backing OS process, reporting
@@ -84,6 +85,7 @@ func (s *Service) Play(cfg inbound.Config, processes []process.Info, highScore i
 		Kills:        tracker.score.kills,
 		FreedMem:     tracker.score.freedMem,
 		KillFailures: tracker.failure.failures,
+		Duds:         tracker.duds,
 	}, nil
 }
 
@@ -156,8 +158,8 @@ func (s *Service) applyKillSignals(tracker *killTracker, killSignals <-chan kill
 			switch {
 			case sig.err != nil:
 				tracker.recordFailure(sig.target, sig.err)
-			case sig.shouldReap:
-				sig.target.Reap()
+			case sig.shouldReap && sig.target.Reap():
+				tracker.recordDud(sig.target)
 			case sig.target.Kill():
 				tracker.recordKill(sig.target.Rss)
 			}

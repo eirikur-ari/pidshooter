@@ -47,15 +47,30 @@ func TestTargetTagDead(t *testing.T) {
 }
 
 func TestTargetTagKilling(t *testing.T) {
-	e := &Target{Info: process.NewInfo(42, "bash", 0, 0), State: Killing, KillAnimationTick: 0}
+	e := &Target{Info: process.NewInfo(42, "bash", 0, 0), State: Killing, AnimationTick: 0}
+	assert.NotEmpty(t, e.Tag())
+}
+
+func TestTargetTagFleeing(t *testing.T) {
+	e := &Target{Info: process.NewInfo(42, "bash", 0, 0), State: Fleeing, AnimationTick: 0}
 	assert.NotEmpty(t, e.Tag())
 }
 
 func TestTargetUpdateKillingState(t *testing.T) {
 	e := &Target{
-		Info:              process.NewInfo(1, "xxx", 0, 0),
-		State:             Killing,
-		KillAnimationTick: KillAnimationDuration - 1,
+		Info:          process.NewInfo(1, "xxx", 0, 0),
+		State:         Killing,
+		AnimationTick: KillAnimationDuration - 1,
+	}
+	e.Update(movement.NewBounds(80, 24), 1.0)
+	assert.Equal(t, Dead, e.State)
+}
+
+func TestTargetUpdateFleeingState(t *testing.T) {
+	e := &Target{
+		Info:          process.NewInfo(1, "xxx", 0, 0),
+		State:         Fleeing,
+		AnimationTick: FleeAnimationDuration - 1,
 	}
 	e.Update(movement.NewBounds(80, 24), 1.0)
 	assert.Equal(t, Dead, e.State)
@@ -225,6 +240,7 @@ func TestTargetHitAtWillReturnTrueAfterCeaseFire(t *testing.T) {
 func TestTargetIsAlive(t *testing.T) {
 	assert.True(t, (&Target{State: Alive}).isAlive())
 	assert.False(t, (&Target{State: Killing}).isAlive())
+	assert.False(t, (&Target{State: Fleeing}).isAlive())
 	assert.False(t, (&Target{State: Dead}).isAlive())
 }
 
@@ -232,13 +248,14 @@ func TestTargetIsDead(t *testing.T) {
 	assert.True(t, (&Target{State: Dead}).isDead())
 	assert.False(t, (&Target{State: Alive}).isDead())
 	assert.False(t, (&Target{State: Killing}).isDead())
+	assert.False(t, (&Target{State: Fleeing}).isDead())
 }
 
 func TestTargetKill(t *testing.T) {
-	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Alive, KillAnimationTick: 5}
+	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Alive, AnimationTick: 5}
 	assert.True(t, e.Kill())
 	assert.Equal(t, Killing, e.State)
-	assert.Equal(t, 0, e.KillAnimationTick)
+	assert.Equal(t, 0, e.AnimationTick)
 }
 
 func TestTargetKillNoOpWhenNotAlive(t *testing.T) {
@@ -248,13 +265,20 @@ func TestTargetKillNoOpWhenNotAlive(t *testing.T) {
 }
 
 func TestTargetReap(t *testing.T) {
-	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Alive}
+	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Alive, AnimationTick: 5}
 	assert.True(t, e.Reap())
-	assert.Equal(t, Dead, e.State)
+	assert.Equal(t, Fleeing, e.State)
+	assert.Equal(t, 0, e.AnimationTick)
 }
 
 func TestTargetReapNoOpWhenNotAlive(t *testing.T) {
 	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Killing}
 	assert.False(t, e.Reap())
 	assert.Equal(t, Killing, e.State)
+}
+
+func TestTargetKillNoOpWhenFleeing(t *testing.T) {
+	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Fleeing}
+	assert.False(t, e.Kill())
+	assert.Equal(t, Fleeing, e.State)
 }
