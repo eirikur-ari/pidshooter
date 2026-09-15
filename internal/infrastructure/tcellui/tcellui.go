@@ -19,6 +19,7 @@ type UI struct {
 	ch          chan outbound.InputEvent
 	done        chan struct{}
 	cleanupOnce sync.Once
+	initialized bool
 }
 
 // NewUI returns a tcellui.UI wrapping the given screen.
@@ -36,19 +37,23 @@ func (a *UI) Init() error {
 	if err := a.screen.Init(); err != nil {
 		return fmt.Errorf("failed to initialize screen: %w", err)
 	}
-	a.screen.EnableMouse()
+	a.screen.EnableMouse(tcell.MouseButtonEvents)
 	a.screen.SetStyle(tcell.StyleDefault)
 	a.screen.Clear()
+	a.initialized = true
 	go a.poll()
 	return nil
 }
 
 // Cleanup signals the poll goroutine to stop, then shuts down the screen.
-// Safe to call more than once; only the first call has any effect.
+// Safe to call more than once; only the first call has any effect. Safe to
+// call even if Init was never called or failed.
 func (a *UI) Cleanup() {
 	a.cleanupOnce.Do(func() {
 		close(a.done)
-		a.screen.Fini()
+		if a.initialized {
+			a.screen.Fini()
+		}
 	})
 }
 

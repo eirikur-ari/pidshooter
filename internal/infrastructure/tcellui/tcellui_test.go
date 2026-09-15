@@ -39,6 +39,20 @@ func TestPollGoroutineExitsAfterCleanup(t *testing.T) {
 		before, runtime.NumGoroutine())
 }
 
+// TestCleanupBeforeInitDoesNotPanicOnRealScreen is a regression test for
+// docs/tcellui-findings.md Finding 4. It deliberately uses a real
+// tcell.Screen rather than the simulation screen every other test in this
+// file uses: SimulationScreen.Fini nil-guards its internal quit channel,
+// which a real screen does not, so this bug is invisible to a suite that
+// only ever exercises the simulation double.
+func TestCleanupBeforeInitDoesNotPanicOnRealScreen(t *testing.T) {
+	screen, err := tcell.NewScreen()
+	require.NoError(t, err)
+	ui := tcellui.NewUI(screen)
+
+	assert.NotPanics(t, ui.Cleanup)
+}
+
 func TestDrawHUDNarrowTerminalSuppressesCenter(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
 	ui := tcellui.NewUI(screen)

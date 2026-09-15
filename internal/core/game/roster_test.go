@@ -61,7 +61,7 @@ func TestRosterAllDeadFalseWhenSomeAlive(t *testing.T) {
 	assert.False(t, r.allDead())
 }
 
-func TestRosterHitAtReturnsTargetAtCoordinates(t *testing.T) {
+func TestRosterHitAtReturnsTargetOnHit(t *testing.T) {
 	tgt := &Target{
 		Info:   process.NewInfo(1, "x", 0, 0),
 		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}},
@@ -72,7 +72,19 @@ func TestRosterHitAtReturnsTargetAtCoordinates(t *testing.T) {
 	assert.Equal(t, tgt, r.hitAt(10, 5))
 }
 
-func TestRosterHitAtMissReturnsNil(t *testing.T) {
+func TestRosterHitAtReturnsNilWhenShotAlreadyFired(t *testing.T) {
+	tgt := &Target{
+		Info:   process.NewInfo(1, "x", 0, 0),
+		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}},
+		State:  Alive,
+	}
+	tgt.FireShot()
+	r := roster{targets: []*Target{tgt}}
+
+	assert.Nil(t, r.hitAt(10, 5), "a repeat hit on a target with a shot already fired at it should be ignored")
+}
+
+func TestRosterHitAtReturnsNilOnMiss(t *testing.T) {
 	tgt := &Target{
 		Info:   process.NewInfo(1, "x", 0, 0),
 		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}},

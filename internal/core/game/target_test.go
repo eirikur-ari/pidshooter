@@ -149,7 +149,7 @@ func TestTargetUpdateMultiByteRightWall(t *testing.T) {
 		e.Position.X, e.Velocity.X)
 }
 
-func TestTargetContains(t *testing.T) {
+func TestTargetHitAtIsTrueWhenWithinTagBounds(t *testing.T) {
 	e := &Target{
 		Info:   process.NewInfo(42, "bash", 0, 0),
 		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
@@ -160,9 +160,20 @@ func TestTargetContains(t *testing.T) {
 
 	assert.True(t, e.isHitAt(10, 5))
 	assert.True(t, e.isHitAt(10+width-1, 5))
-	assert.False(t, e.isHitAt(9, 5))
-	assert.False(t, e.isHitAt(10+width, 5))
-	assert.False(t, e.isHitAt(10, 4))
+}
+
+func TestTargetHitAtIsFalseWhenOutsideBounds(t *testing.T) {
+	e := &Target{
+		Info:   process.NewInfo(42, "bash", 0, 0),
+		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
+		State:  Alive,
+	}
+	tag := e.Tag()
+	width := len(tag)
+
+	assert.False(t, e.isHitAt(9, 5), "one column before the tag's start should miss")
+	assert.False(t, e.isHitAt(10+width, 5), "one column past the tag's end should miss")
+	assert.False(t, e.isHitAt(10, 4), "the row above the tag should miss")
 }
 
 func TestTargetContainsMultiByteProcessName(t *testing.T) {
@@ -181,13 +192,34 @@ func TestTargetContainsMultiByteProcessName(t *testing.T) {
 		pastEnd, tag, runeCount)
 }
 
-func TestTargetContainsNotAlive(t *testing.T) {
+func TestTargetHitAtWillReturnFalseWhenInKillingState(t *testing.T) {
 	e := &Target{
 		Info:   process.NewInfo(42, "bash", 0, 0),
 		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
 		State:  Killing,
 	}
 	assert.False(t, e.isHitAt(10, 5), "non-alive entity should not be hit")
+}
+
+func TestTargetHitAtWillReturnFalseWhenShotAlreadyFired(t *testing.T) {
+	e := &Target{
+		Info:   process.NewInfo(42, "bash", 0, 0),
+		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
+		State:  Alive,
+	}
+	e.FireShot()
+	assert.False(t, e.isHitAt(10, 5), "a target with a shot already fired at it should not be hit again")
+}
+
+func TestTargetHitAtWillReturnTrueAfterCeaseFire(t *testing.T) {
+	e := &Target{
+		Info:   process.NewInfo(42, "bash", 0, 0),
+		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
+		State:  Alive,
+	}
+	e.FireShot()
+	e.CeaseFire()
+	assert.True(t, e.isHitAt(10, 5), "a target should be hittable again once fire has ceased")
 }
 
 func TestTargetIsAlive(t *testing.T) {

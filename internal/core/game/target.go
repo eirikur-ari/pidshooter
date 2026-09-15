@@ -30,6 +30,7 @@ type Target struct {
 	movement.Motion
 	State             State
 	KillAnimationTick int
+	shotFired         bool
 }
 
 // NewTarget creates a new entity at a random position with random velocity.
@@ -87,6 +88,13 @@ func (t *Target) Reap() bool {
 	return true
 }
 
+// FireShot marks that a kill attempt for this target is in flight, so it is
+// not returned as a hit again until fire has ceased.
+func (t *Target) FireShot() { t.shotFired = true }
+
+// CeaseFire clears the marker set by FireShot, regardless of how the shot resolved.
+func (t *Target) CeaseFire() { t.shotFired = false }
+
 // isAlive reports whether the target is flying around and can be shot.
 func (t *Target) isAlive() bool { return t.State == Alive }
 
@@ -94,9 +102,10 @@ func (t *Target) isAlive() bool { return t.State == Alive }
 func (t *Target) isDead() bool { return t.State == Dead }
 
 // isHitAt reports whether the given game-space coordinates (x=column, y=row)
-// fall within this target's tag.
+// fall within this target's tag. A target with a shot already fired at it
+// is not hit again until fire has ceased.
 func (t *Target) isHitAt(x, y int) bool {
-	if t.State != Alive {
+	if t.State != Alive || t.shotFired {
 		return false
 	}
 	width := utf8.RuneCountInString(t.Tag())

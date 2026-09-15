@@ -152,6 +152,7 @@ func (s *Service) applyKillSignals(tracker *killTracker, killSignals <-chan kill
 	for {
 		select {
 		case sig := <-killSignals:
+			sig.target.CeaseFire()
 			switch {
 			case sig.err != nil:
 				tracker.recordFailure(sig.target, sig.err)
@@ -172,6 +173,7 @@ func (s *Service) drainEventQueue(dispatcher *event.Dispatcher, killSignals chan
 		select {
 		case inputEvent := <-events:
 			if target := dispatcher.Dispatch(inputEvent); target != nil {
+				target.FireShot()
 				go s.killOrReap(target, killSignals, done)
 			}
 		default:

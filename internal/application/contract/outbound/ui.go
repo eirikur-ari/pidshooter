@@ -52,12 +52,14 @@ type ConfirmViewState struct {
 // Renderer is the outbound port for terminal rendering.
 //
 // Init must be called and succeed before Size or Render is used. Cleanup
-// releases what Init acquired and is safe to call more than once.
+// releases what Init acquired and is safe to call more than once, and safe
+// to call even if Init was never called or did not succeed.
 type Renderer interface {
 	// Init prepares the terminal for rendering and input.
 	Init() error
 	// Cleanup releases what Init acquired, restoring the terminal to its
-	// prior state. Idempotent: calls after the first are no-ops.
+	// prior state. Idempotent: calls after the first are no-ops. Safe to
+	// call even if Init was never called or failed.
 	Cleanup()
 	// Size returns the current terminal dimensions, in character cells.
 	// It may change between calls, e.g. if the terminal is resized.
