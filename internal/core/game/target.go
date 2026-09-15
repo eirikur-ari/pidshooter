@@ -23,11 +23,9 @@ const (
 	Dead
 )
 
-// KillAnimationDuration is the number of game ticks the kill animation plays before the target disappears.
-const KillAnimationDuration = 12
-
-// FleeAnimationDuration is the number of game ticks the flee animation plays before the target disappears.
-const FleeAnimationDuration = 12
+// AnimationDuration is the number of game ticks the kill or flee animation
+// plays before the target disappears.
+const AnimationDuration = 36
 
 // TODO: perhaps move target to process package, and have it implement a Target interface in the game package, so that the game package doesn't need to know about process.Info
 // Target represents a process displayed as a flying tag in the terminal.
@@ -48,27 +46,30 @@ func NewTarget(info process.Info, bounds movement.Bounds) *Target {
 	}
 }
 
-// Tag returns the display string for this target.
+// Tag returns the display label for this target while it is alive, and
+// empty otherwise.
 func (t *Target) Tag() string {
-	switch t.State {
-	case Killing:
-		return killAnimationTagFor(t.AnimationTick)
-	case Fleeing:
-		return fleeAnimationTagFor(t.AnimationTick)
-	case Dead:
+	if t.State != Alive {
 		return ""
-	default:
-		return tagFor(t.Info)
 	}
+	return tagFor(t.Info)
+}
+
+// AnimationProgress reports how far through its kill or flee animation this
+// target is, as a fraction from 0 to 1. Zero when neither Killing nor
+// Fleeing is true.
+func (t *Target) AnimationProgress() float64 {
+	if t.State != Killing && t.State != Fleeing {
+		return 0
+	}
+	return float64(t.AnimationTick) / float64(AnimationDuration)
 }
 
 // Update advances the kill or flee animation, or moves the entity and bounces off walls.
 func (t *Target) Update(bounds movement.Bounds, speed float64) {
 	switch t.State {
-	case Killing:
-		t.doomsdayTick(KillAnimationDuration)
-	case Fleeing:
-		t.doomsdayTick(FleeAnimationDuration)
+	case Killing, Fleeing:
+		t.doomsdayTick()
 	case Alive:
 		t.move(bounds, speed)
 	case Dead:
@@ -125,9 +126,9 @@ func (t *Target) isHitAt(x, y int) bool {
 	return y == int(t.Position.Y) && x >= int(t.Position.X) && x < int(t.Position.X)+width
 }
 
-func (t *Target) doomsdayTick(duration int) {
+func (t *Target) doomsdayTick() {
 	t.AnimationTick++
-	if t.AnimationTick >= duration {
+	if t.AnimationTick >= AnimationDuration {
 		t.State = Dead
 	}
 }
@@ -138,23 +139,4 @@ func (t *Target) move(bounds movement.Bounds, speed float64) {
 
 func tagFor(info process.Info) string {
 	return fmt.Sprintf("[%d %s]", info.PID, info.Name)
-}
-
-// TODO: perhaps move tag string etc to infrastructure / outbound adapter
-func killAnimationTagFor(tick int) string {
-	tags := []string{"💥", "✦ KILLED ✦", "· · ·", "  ·  ", "     "}
-	idx := tick * len(tags) / KillAnimationDuration
-	if idx >= len(tags) {
-		idx = len(tags) - 1
-	}
-	return tags[idx]
-}
-
-func fleeAnimationTagFor(tick int) string {
-	tags := []string{"🏃💨", "↝ RAN AWAY ↝", "· · ·", "  ·  ", "     "}
-	idx := tick * len(tags) / FleeAnimationDuration
-	if idx >= len(tags) {
-		idx = len(tags) - 1
-	}
-	return tags[idx]
 }

@@ -12,12 +12,17 @@ type TargetViewState struct {
 	// X, Y is the target's position, in the same character-cell coordinate
 	// space as Renderer.Size, with the origin at the top-left.
 	X, Y int
-	// Tag is the label drawn at X, Y, rightward.
+	// Tag is the label drawn at X, Y, rightward. Meaningful only when
+	// neither Killing nor Fleeing is true; the renderer draws its own
+	// animation frame instead of Tag while either is playing.
 	Tag string
 	// Killing reports whether the target's kill animation is playing.
 	Killing bool
 	// Fleeing reports whether the target's flee animation is playing.
 	Fleeing bool
+	// AnimationProgress is how far through its kill or flee animation the
+	// target is, from 0 to 1. Meaningful only when Killing or Fleeing is true.
+	AnimationProgress float64
 }
 
 // HUDState carries the heads-up display values.

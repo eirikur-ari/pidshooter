@@ -16,10 +16,10 @@ func TestEntryBeatsByKills(t *testing.T) {
 }
 
 func TestEntryBeatsTiebreakByDuds(t *testing.T) {
-	fewerDuds := Entry{Kills: 5, Duds: 1, Speed: 1.0, FreedMem: 1000}
-	moreDuds := Entry{Kills: 5, Duds: 3, Speed: 5.0, FreedMem: 9000}
-	assert.True(t, fewerDuds.beats(moreDuds), "expected fewer duds to win on kills tie, regardless of speed or freed mem")
-	assert.False(t, moreDuds.beats(fewerDuds), "expected more duds to lose on kills tie")
+	fewerDuds := Entry{Kills: 5, Duds: 1, Speed: 5.0, FreedMem: 9000}
+	moreDuds := Entry{Kills: 5, Duds: 3, Speed: 1.0, FreedMem: 1000}
+	assert.True(t, moreDuds.beats(fewerDuds), "expected more duds to win on kills tie, regardless of speed or freed mem")
+	assert.False(t, fewerDuds.beats(moreDuds), "expected fewer duds to lose on kills tie")
 }
 
 func TestEntryBeatsTiebreakBySpeed(t *testing.T) {

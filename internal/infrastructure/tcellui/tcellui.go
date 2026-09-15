@@ -73,14 +73,17 @@ func (a *UI) Render(state outbound.FrameState) {
 
 	for _, tv := range state.Targets {
 		style := aliveStyle
+		tag := tv.Tag
 		switch {
 		case tv.Killing:
 			style = killStyle
+			tag = killAnimationFrame(tv.AnimationProgress)
 		case tv.Fleeing:
 			style = fleeStyle
+			tag = fleeAnimationFrame(tv.AnimationProgress)
 		}
 		if tv.Y > 0 && tv.Y < h-1 {
-			a.screen.PutStrStyled(tv.X, tv.Y, tv.Tag, style)
+			a.screen.PutStrStyled(tv.X, tv.Y, tag, style)
 		}
 	}
 
@@ -140,6 +143,27 @@ func (a *UI) drawStatusBar(w, h int, status outbound.StatusState) {
 	}
 
 	a.screen.PutStrStyled(0, h-1, statusStr, statusStyle)
+}
+
+func killAnimationFrame(progress float64) string {
+	return animationFrame([]string{"💥", "✦ KILLED ✦", "· · ·", "  ·  ", "     "}, progress)
+}
+
+func fleeAnimationFrame(progress float64) string {
+	return animationFrame([]string{"🏃💨", "↝ RAN AWAY ↝", "· · ·", "  ·  ", "     "}, progress)
+}
+
+// animationFrame picks the frame from frames corresponding to progress, a
+// fraction from 0 to 1 through the animation.
+func animationFrame(frames []string, progress float64) string {
+	idx := int(progress * float64(len(frames)))
+	if idx >= len(frames) {
+		idx = len(frames) - 1
+	}
+	if idx < 0 {
+		idx = 0
+	}
+	return frames[idx]
 }
 
 func (a *UI) poll() {

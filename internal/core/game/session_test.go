@@ -101,7 +101,7 @@ func TestGameAvailableTargetsExcludesDeadTargets(t *testing.T) {
 	s := NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{Speed: 1.0})
 	s.Start(80, 24)
 	s.roster.targets[0].Kill()
-	for range KillAnimationDuration {
+	for range AnimationDuration {
 		s.Update(80, 24)
 	}
 

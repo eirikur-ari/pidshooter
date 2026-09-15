@@ -20,13 +20,14 @@ type Entry struct {
 	Date     time.Time
 }
 
-// beats ranks entries by kills, then duds, then speed, then duration, then freed memory.
+// beats ranks entries by kills, then duds (more duds wins a kills tie), then
+// speed, then duration, then freed memory.
 func (e Entry) beats(other Entry) bool {
 	if e.Kills != other.Kills {
 		return e.Kills > other.Kills
 	}
 	if e.Duds != other.Duds {
-		return e.Duds < other.Duds
+		return e.Duds > other.Duds
 	}
 	if e.Speed != other.Speed {
 		return e.Speed > other.Speed

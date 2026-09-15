@@ -39,12 +39,6 @@ func TestPollGoroutineExitsAfterCleanup(t *testing.T) {
 		before, runtime.NumGoroutine())
 }
 
-// TestCleanupBeforeInitDoesNotPanicOnRealScreen is a regression test for
-// docs/tcellui-findings.md Finding 4. It deliberately uses a real
-// tcell.Screen rather than the simulation screen every other test in this
-// file uses: SimulationScreen.Fini nil-guards its internal quit channel,
-// which a real screen does not, so this bug is invisible to a suite that
-// only ever exercises the simulation double.
 func TestCleanupBeforeInitDoesNotPanicOnRealScreen(t *testing.T) {
 	screen, err := tcell.NewScreen()
 	require.NoError(t, err)
@@ -106,13 +100,45 @@ func TestRenderMultiByteLabelColumnLayout(t *testing.T) {
 
 	ui.Render(outbound.FrameState{
 		Targets: []outbound.TargetViewState{
-			{X: 0, Y: 2, Tag: "✦ KILLED ✦", Killing: true},
+			{X: 0, Y: 2, Tag: "✦ KILLED ✦"},
 		},
 	})
 
 	cells, w, _ := screen.GetContents()
 	assert.Equal(t, ' ', cells[2*w+1].Runes[0], "col 1 should be space (rune after ✦) — byte-offset bug in render loop?")
 	assert.Equal(t, 'K', cells[2*w+2].Runes[0], "col 2 should be 'K' — byte-offset bug in render loop?")
+}
+
+func TestRenderKillingIgnoresTagAndShowsAnimationFrame(t *testing.T) {
+	ui, screen := newUI(t)
+	ui.Render(outbound.FrameState{
+		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Tag: "[1234 victim]", Killing: true, AnimationProgress: 0}},
+	})
+
+	got := rowContent(screen, 5)
+	assert.NotContains(t, got, "victim", "Killing should ignore Tag and draw its own animation frame")
+	assert.Contains(t, got, "💥", "the first kill-animation frame should render at progress 0")
+}
+
+func TestRenderKillingShowsTextFrameAtMidProgress(t *testing.T) {
+	ui, screen := newUI(t)
+	ui.Render(outbound.FrameState{
+		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Killing: true, AnimationProgress: 0.3}},
+	})
+
+	got := rowContent(screen, 5)
+	assert.Contains(t, got, "KILLED")
+}
+
+func TestRenderFleeingIgnoresTagAndShowsAnimationFrame(t *testing.T) {
+	ui, screen := newUI(t)
+	ui.Render(outbound.FrameState{
+		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Tag: "[1234 victim]", Fleeing: true, AnimationProgress: 0}},
+	})
+
+	got := rowContent(screen, 5)
+	assert.NotContains(t, got, "victim", "Fleeing should ignore Tag and draw its own animation frame")
+	assert.Contains(t, got, "🏃", "the first flee-animation frame should render at progress 0")
 }
 
 func TestRenderWideRuneTagDoesNotDropCharacters(t *testing.T) {

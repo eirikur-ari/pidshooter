@@ -40,9 +40,21 @@ func TestToTargetViewStateReturnsMappedFields(t *testing.T) {
 	assert.Equal(t, 5, view.Y)
 	assert.Equal(t, "[42 dummy]", view.Tag)
 	assert.False(t, view.Killing)
+	assert.Equal(t, 0.0, view.AnimationProgress)
 }
 
-// --- toTargetViewStates ---
+func TestToTargetViewStateIncludesAnimationProgressWhenKilling(t *testing.T) {
+	tgt := &game.Target{
+		Info:          process.NewInfo(42, "dummy", 0, 0),
+		State:         game.Killing,
+		AnimationTick: game.AnimationDuration / 2,
+	}
+
+	view := toTargetViewState(tgt)
+
+	assert.True(t, view.Killing)
+	assert.Equal(t, 0.5, view.AnimationProgress)
+}
 
 func TestToTargetViewStatesReturnsASliceOfMappedFields(t *testing.T) {
 	targets := []*game.Target{
@@ -65,6 +77,8 @@ func TestToTargetViewStatesReturnsASliceOfMappedFields(t *testing.T) {
 func TestToTargetViewStatesReturnsEmptySliceWhenInputIsNil(t *testing.T) {
 	assert.Empty(t, toTargetViewStates(nil))
 }
+
+// --- toTargetViewStates ---
 
 // --- toHUDState ---
 

@@ -48,19 +48,39 @@ func TestTargetTagDead(t *testing.T) {
 
 func TestTargetTagKilling(t *testing.T) {
 	e := &Target{Info: process.NewInfo(42, "bash", 0, 0), State: Killing, AnimationTick: 0}
-	assert.NotEmpty(t, e.Tag())
+	assert.Empty(t, e.Tag(), "the renderer draws its own animation frame, not Tag, while killing")
 }
 
 func TestTargetTagFleeing(t *testing.T) {
 	e := &Target{Info: process.NewInfo(42, "bash", 0, 0), State: Fleeing, AnimationTick: 0}
-	assert.NotEmpty(t, e.Tag())
+	assert.Empty(t, e.Tag(), "the renderer draws its own animation frame, not Tag, while fleeing")
+}
+
+func TestTargetAnimationProgressZeroWhenAlive(t *testing.T) {
+	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Alive, AnimationTick: 5}
+	assert.Equal(t, 0.0, e.AnimationProgress())
+}
+
+func TestTargetAnimationProgressZeroWhenDead(t *testing.T) {
+	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Dead, AnimationTick: 5}
+	assert.Equal(t, 0.0, e.AnimationProgress())
+}
+
+func TestTargetAnimationProgressReflectsTickWhenKilling(t *testing.T) {
+	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Killing, AnimationTick: AnimationDuration / 2}
+	assert.Equal(t, 0.5, e.AnimationProgress())
+}
+
+func TestTargetAnimationProgressReflectsTickWhenFleeing(t *testing.T) {
+	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Fleeing, AnimationTick: AnimationDuration / 2}
+	assert.Equal(t, 0.5, e.AnimationProgress())
 }
 
 func TestTargetUpdateKillingState(t *testing.T) {
 	e := &Target{
 		Info:          process.NewInfo(1, "xxx", 0, 0),
 		State:         Killing,
-		AnimationTick: KillAnimationDuration - 1,
+		AnimationTick: AnimationDuration - 1,
 	}
 	e.Update(movement.NewBounds(80, 24), 1.0)
 	assert.Equal(t, Dead, e.State)
@@ -70,7 +90,7 @@ func TestTargetUpdateFleeingState(t *testing.T) {
 	e := &Target{
 		Info:          process.NewInfo(1, "xxx", 0, 0),
 		State:         Fleeing,
-		AnimationTick: FleeAnimationDuration - 1,
+		AnimationTick: AnimationDuration - 1,
 	}
 	e.Update(movement.NewBounds(80, 24), 1.0)
 	assert.Equal(t, Dead, e.State)
