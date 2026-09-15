@@ -1,6 +1,7 @@
 package tcellui_test
 
 import (
+	"fmt"
 	"runtime"
 	"strings"
 	"testing"
@@ -89,6 +90,31 @@ func TestDrawHUDWideTerminalDrawsAllThree(t *testing.T) {
 
 	for _, want := range []string{"FREED", "Highscore", "KILLS"} {
 		assert.Contains(t, got, want, "row 0 should contain %q on wide terminal", want)
+	}
+}
+
+// TestDrawHUDFreedLabelBudgetedAgainstKillsColumn is a regression test for
+// docs/tcellui-findings.md Minor Finding 7: FREED must be truncated to the
+// KILLS column's budget rather than relying on KILLS's later draw call to
+// overwrite whatever runs past it.
+func TestDrawHUDFreedLabelBudgetedAgainstKillsColumn(t *testing.T) {
+	cases := []struct {
+		width int
+		want  string
+	}{
+		{10, " KILLS: 7"},
+		{14, " FRE KILLS: 7"},
+		{18, " FREED:  KILLS: 7"},
+		{24, " FREED: 0 B    KILLS: 7"},
+	}
+	for _, tc := range cases {
+		t.Run(fmt.Sprintf("w=%d", tc.width), func(t *testing.T) {
+			ui, screen := newUI(t)
+			screen.SetSize(tc.width, 25)
+			ui.Render(outbound.FrameState{HUD: outbound.HUDState{Kills: 7}})
+
+			assert.Equal(t, tc.want, rowContent(screen, 0))
+		})
 	}
 }
 

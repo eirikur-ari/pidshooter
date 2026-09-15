@@ -101,7 +101,6 @@ func (a *UI) drawHUD(w int, hud outbound.HUDState) {
 	memStr := fmt.Sprintf(" FREED: %s ", util.FormatBytes(hud.FreedMem))
 	memStyle := tcell.StyleDefault.Foreground(tcell.ColorAqua).Bold(true)
 	memWidth := utf8.RuneCountInString(memStr)
-	a.screen.PutStrStyled(0, 0, memStr, memStyle)
 
 	hiStr := fmt.Sprintf(" Highscore: %d ", hud.HighScore)
 	hiStyle := tcell.StyleDefault.Foreground(tcell.ColorPurple).Bold(true)
@@ -112,6 +111,8 @@ func (a *UI) drawHUD(w int, hud outbound.HUDState) {
 	scoreStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Bold(true)
 	scoreWidth := utf8.RuneCountInString(scoreStr)
 	scoreX := max(w-scoreWidth, 0)
+
+	a.screen.PutStrStyled(0, 0, truncateRunes(memStr, scoreX), memStyle)
 
 	if hiX >= memWidth && hiX+hiWidth <= scoreX {
 		a.screen.PutStrStyled(hiX, 0, hiStr, hiStyle)
@@ -143,6 +144,20 @@ func (a *UI) drawStatusBar(w, h int, status outbound.StatusState) {
 	}
 
 	a.screen.PutStrStyled(0, h-1, statusStr, statusStyle)
+}
+
+// truncateRunes returns s truncated to at most n runes, so a caller can give
+// PutStrStyled an explicit right-edge budget instead of relying on a
+// later draw call to overwrite whatever runs past it.
+func truncateRunes(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	return string(runes[:n])
 }
 
 func killAnimationFrame(progress float64) string {
