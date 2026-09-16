@@ -44,7 +44,7 @@ func run() error {
 		logger.Error(err.Error())
 		return err
 	}
-	ui := tcellui.NewUI(screen)
+	ui := tcellui.NewTUI(screen)
 	reporter := stdout.NewScoreReporter()
 
 	runner := application.NewRunner(proc, store, reporter, ui, ui, logger)

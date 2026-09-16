@@ -2,10 +2,8 @@ package tcellui_test
 
 import (
 	"fmt"
-	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
@@ -15,88 +13,9 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
-func TestPollGoroutineExitsAfterCleanup(t *testing.T) {
-	screen := tcell.NewSimulationScreen("")
-	ui := tcellui.NewUI(screen)
-	before := runtime.NumGoroutine()
-
-	require.NoError(t, ui.Init())
-
-	for range 15 {
-		screen.InjectKey(tcell.KeyRune, 'a', tcell.ModNone)
-	}
-	time.Sleep(50 * time.Millisecond)
-
-	ui.Cleanup()
-
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		if runtime.NumGoroutine() <= before {
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Errorf("poll goroutine did not exit after Cleanup: want ≤%d goroutines, got %d",
-		before, runtime.NumGoroutine())
-}
-
-func TestEventsChannelClosesAfterCleanup(t *testing.T) {
-	screen := tcell.NewSimulationScreen("")
-	ui := tcellui.NewUI(screen)
-	require.NoError(t, ui.Init())
-
-	ui.Cleanup()
-
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		select {
-		case _, ok := <-ui.Events():
-			if !ok {
-				return
-			}
-		default:
-			time.Sleep(5 * time.Millisecond)
-		}
-	}
-	t.Fatal("Events channel was not closed after Cleanup")
-}
-
-func TestNewUIPanicsOnNilScreen(t *testing.T) {
-	assert.Panics(t, func() { tcellui.NewUI(nil) })
-}
-
-func TestCleanupBeforeInitDoesNotPanicOnRealScreen(t *testing.T) {
-	screen, err := tcell.NewScreen()
-	require.NoError(t, err)
-	ui := tcellui.NewUI(screen)
-
-	assert.NotPanics(t, ui.Cleanup)
-}
-
-func TestInitSecondCallReturnsErrorAndDoesNotSpawnSecondPollGoroutine(t *testing.T) {
-	screen := tcell.NewSimulationScreen("")
-	ui := tcellui.NewUI(screen)
-	before := runtime.NumGoroutine()
-
-	require.NoError(t, ui.Init())
-	require.Error(t, ui.Init())
-
-	time.Sleep(50 * time.Millisecond)
-	assert.Equal(t, before+1, runtime.NumGoroutine(), "a second Init call must not spawn a second poll goroutine")
-
-	ui.Cleanup()
-}
-
-func TestChromeSizeReservesOneRowTopAndBottom(t *testing.T) {
-	ui, _ := newUI(t)
-	chrome := ui.ChromeSize()
-	assert.Equal(t, 1, chrome.Top)
-	assert.Equal(t, 1, chrome.Bottom)
-}
-
 func TestDrawHUDNarrowTerminalSuppressesCenter(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
-	ui := tcellui.NewUI(screen)
+	ui := tcellui.NewTUI(screen)
 	require.NoError(t, ui.Init())
 	defer ui.Cleanup()
 
@@ -119,7 +38,7 @@ func TestDrawHUDNarrowTerminalSuppressesCenter(t *testing.T) {
 
 func TestDrawHUDWideTerminalDrawsAllThree(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
-	ui := tcellui.NewUI(screen)
+	ui := tcellui.NewTUI(screen)
 	require.NoError(t, ui.Init())
 	defer ui.Cleanup()
 
@@ -155,7 +74,7 @@ func TestDrawHUDFreedLabelBudgetedAgainstKillsColumn(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(fmt.Sprintf("w=%d", tc.width), func(t *testing.T) {
-			ui, screen := newUI(t)
+			ui, screen := newTUI(t)
 			screen.SetSize(tc.width, 25)
 			ui.Render(outbound.FrameState{HUD: outbound.HUDState{Kills: 7}})
 
@@ -166,7 +85,7 @@ func TestDrawHUDFreedLabelBudgetedAgainstKillsColumn(t *testing.T) {
 
 func TestRenderMultiByteLabelColumnLayout(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
-	ui := tcellui.NewUI(screen)
+	ui := tcellui.NewTUI(screen)
 	require.NoError(t, ui.Init())
 	defer ui.Cleanup()
 
@@ -182,7 +101,7 @@ func TestRenderMultiByteLabelColumnLayout(t *testing.T) {
 }
 
 func TestRenderKillingIgnoresTagAndShowsAnimationFrame(t *testing.T) {
-	ui, screen := newUI(t)
+	ui, screen := newTUI(t)
 	ui.Render(outbound.FrameState{
 		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Tag: "[1234 victim]", Killing: true, AnimationProgress: 0}},
 	})
@@ -193,7 +112,7 @@ func TestRenderKillingIgnoresTagAndShowsAnimationFrame(t *testing.T) {
 }
 
 func TestRenderKillingShowsTextFrameAtMidProgress(t *testing.T) {
-	ui, screen := newUI(t)
+	ui, screen := newTUI(t)
 	ui.Render(outbound.FrameState{
 		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Killing: true, AnimationProgress: 0.3}},
 	})
@@ -203,7 +122,7 @@ func TestRenderKillingShowsTextFrameAtMidProgress(t *testing.T) {
 }
 
 func TestRenderFleeingIgnoresTagAndShowsAnimationFrame(t *testing.T) {
-	ui, screen := newUI(t)
+	ui, screen := newTUI(t)
 	ui.Render(outbound.FrameState{
 		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Tag: "[1234 victim]", Fleeing: true, AnimationProgress: 0}},
 	})
@@ -214,7 +133,7 @@ func TestRenderFleeingIgnoresTagAndShowsAnimationFrame(t *testing.T) {
 }
 
 func TestRenderWideRuneTagDoesNotDropCharacters(t *testing.T) {
-	ui, screen := newUI(t)
+	ui, screen := newTUI(t)
 	ui.Render(outbound.FrameState{
 		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Tag: "[9 日本語]"}},
 	})
@@ -226,7 +145,7 @@ func TestRenderWideRuneTagDoesNotDropCharacters(t *testing.T) {
 }
 
 func TestRenderClipsTargetAtHUDRow(t *testing.T) {
-	ui, screen := newUI(t)
+	ui, screen := newTUI(t)
 	ui.Render(outbound.FrameState{
 		Targets: []outbound.TargetViewState{{X: 2, Y: 0, Tag: "[1234 victim]"}},
 		HUD:     outbound.HUDState{Kills: 3},
@@ -236,162 +155,8 @@ func TestRenderClipsTargetAtHUDRow(t *testing.T) {
 	assert.NotContains(t, got, "victim", "target tag must not be drawn on the HUD row")
 }
 
-func TestPollTranslatesEscapeToQuit(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectKey(tcell.KeyEscape, 0, tcell.ModNone)
-	_, ok := nextEvent(t, ui).(outbound.QuitEvent)
-	assert.True(t, ok, "expected QuitEvent")
-}
-
-// --- translateEvent (exercised via poll) ---
-
-func TestPollTranslatesCtrlCToQuit(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectKey(tcell.KeyCtrlC, 0, tcell.ModNone)
-	_, ok := nextEvent(t, ui).(outbound.QuitEvent)
-	assert.True(t, ok, "expected QuitEvent")
-}
-
-func TestPollTranslatesCtrlZToQuit(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectKey(tcell.KeyCtrlZ, 0, tcell.ModNone)
-	_, ok := nextEvent(t, ui).(outbound.QuitEvent)
-	assert.True(t, ok, "expected QuitEvent")
-}
-
-func TestPollTranslatesQToQuit(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
-	_, ok := nextEvent(t, ui).(outbound.QuitEvent)
-	assert.True(t, ok, "expected QuitEvent")
-}
-
-func TestPollTranslatesUppercaseQToQuit(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectKey(tcell.KeyRune, 'Q', tcell.ModNone)
-	_, ok := nextEvent(t, ui).(outbound.QuitEvent)
-	assert.True(t, ok, "expected QuitEvent")
-}
-
-func TestPollTranslatesYToConfirmAccept(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectKey(tcell.KeyRune, 'y', tcell.ModNone)
-	ce, ok := nextEvent(t, ui).(outbound.ConfirmEvent)
-	require.True(t, ok, "expected ConfirmEvent")
-	assert.True(t, ce.Accept)
-}
-
-func TestPollTranslatesUppercaseYToConfirmAccept(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectKey(tcell.KeyRune, 'Y', tcell.ModNone)
-	ce, ok := nextEvent(t, ui).(outbound.ConfirmEvent)
-	require.True(t, ok, "expected ConfirmEvent")
-	assert.True(t, ce.Accept)
-}
-
-func TestPollTranslatesNToConfirmDecline(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectKey(tcell.KeyRune, 'n', tcell.ModNone)
-	ce, ok := nextEvent(t, ui).(outbound.ConfirmEvent)
-	require.True(t, ok, "expected ConfirmEvent")
-	assert.False(t, ce.Accept)
-}
-
-func TestPollTranslatesUppercaseNToConfirmDecline(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectKey(tcell.KeyRune, 'N', tcell.ModNone)
-	ce, ok := nextEvent(t, ui).(outbound.ConfirmEvent)
-	require.True(t, ok, "expected ConfirmEvent")
-	assert.False(t, ce.Accept)
-}
-
-func TestPollTranslatesPlusToSpeedFaster(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectKey(tcell.KeyRune, '+', tcell.ModNone)
-	se, ok := nextEvent(t, ui).(outbound.SpeedEvent)
-	require.True(t, ok, "expected SpeedEvent")
-	assert.True(t, se.Faster)
-}
-
-func TestPollTranslatesEqualsToSpeedFaster(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectKey(tcell.KeyRune, '=', tcell.ModNone)
-	se, ok := nextEvent(t, ui).(outbound.SpeedEvent)
-	require.True(t, ok, "expected SpeedEvent")
-	assert.True(t, se.Faster)
-}
-
-func TestPollTranslatesMinusToSpeedSlower(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectKey(tcell.KeyRune, '-', tcell.ModNone)
-	se, ok := nextEvent(t, ui).(outbound.SpeedEvent)
-	require.True(t, ok, "expected SpeedEvent")
-	assert.False(t, se.Faster)
-}
-
-func TestPollTranslatesUnderscoreToSpeedSlower(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectKey(tcell.KeyRune, '_', tcell.ModNone)
-	se, ok := nextEvent(t, ui).(outbound.SpeedEvent)
-	require.True(t, ok, "expected SpeedEvent")
-	assert.False(t, se.Faster)
-}
-
-func TestPollUnrecognizedRuneDropped(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectKey(tcell.KeyRune, 'z', tcell.ModNone)
-	screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
-	_, ok := nextEvent(t, ui).(outbound.QuitEvent)
-	assert.True(t, ok, "expected 'z' to be dropped and 'q' to translate to QuitEvent")
-}
-
-func TestPollMouseButton1EmitsClickEvent(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectMouse(5, 10, tcell.Button1, tcell.ModNone)
-	ce, ok := nextEvent(t, ui).(outbound.ClickEvent)
-	require.True(t, ok, "expected ClickEvent")
-	assert.Equal(t, 5, ce.X)
-	assert.Equal(t, 10, ce.Y)
-}
-
-// --- poll: event-type routing ---
-
-func TestPollNonButton1DropsEvent(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectMouse(5, 10, tcell.Button2, tcell.ModNone)
-	screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
-	ev := nextEvent(t, ui)
-	_, isClick := ev.(outbound.ClickEvent)
-	assert.False(t, isClick, "Button2 should not produce a ClickEvent")
-	_, ok := ev.(outbound.QuitEvent)
-	require.True(t, ok, "expected QuitEvent after dropped Button2")
-}
-
-func TestPollDropsClickOnHUDRow(t *testing.T) {
-	ui, screen := newUI(t)
-	screen.InjectMouse(5, 0, tcell.Button1, tcell.ModNone)
-	screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
-	ev := nextEvent(t, ui)
-	_, isClick := ev.(outbound.ClickEvent)
-	assert.False(t, isClick, "a click on row 0 (the HUD row) should not produce a ClickEvent")
-	_, ok := ev.(outbound.QuitEvent)
-	require.True(t, ok, "expected QuitEvent after the dropped HUD-row click")
-}
-
-func TestPollDropsClickOnStatusBarRow(t *testing.T) {
-	ui, screen := newUI(t)
-	_, h := screen.Size()
-	screen.InjectMouse(5, h-1, tcell.Button1, tcell.ModNone)
-	screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
-	ev := nextEvent(t, ui)
-	_, isClick := ev.(outbound.ClickEvent)
-	assert.False(t, isClick, "a click on the status bar row should not produce a ClickEvent")
-	_, ok := ev.(outbound.QuitEvent)
-	require.True(t, ok, "expected QuitEvent after the dropped status-bar-row click")
-}
-
 func TestDrawStatusBarNormal(t *testing.T) {
-	ui, screen := newUI(t)
+	ui, screen := newTUI(t)
 	ui.Render(outbound.FrameState{
 		StatusBar: outbound.StatusState{Alive: 3, Speed: 2.0},
 	})
@@ -402,10 +167,8 @@ func TestDrawStatusBarNormal(t *testing.T) {
 	}
 }
 
-// --- drawStatusBar ---
-
 func TestDrawStatusBarConfirming(t *testing.T) {
-	ui, screen := newUI(t)
+	ui, screen := newTUI(t)
 	ui.Render(outbound.FrameState{
 		StatusBar: outbound.StatusState{
 			Confirming: &outbound.ConfirmViewState{PID: 42, Name: "myapp"},
@@ -419,7 +182,7 @@ func TestDrawStatusBarConfirming(t *testing.T) {
 }
 
 func TestDrawStatusBarConfirmingMultiByteName(t *testing.T) {
-	ui, screen := newUI(t)
+	ui, screen := newTUI(t)
 	ui.Render(outbound.FrameState{
 		StatusBar: outbound.StatusState{
 			Confirming: &outbound.ConfirmViewState{PID: 42, Name: "café-server"},
@@ -434,7 +197,7 @@ func TestDrawStatusBarConfirmingMultiByteName(t *testing.T) {
 func TestDrawStatusBarConfirmingLongNameStillShowsAllOptions(t *testing.T) {
 	for _, w := range []int{40, 44, 50} {
 		t.Run(fmt.Sprintf("w=%d", w), func(t *testing.T) {
-			ui, screen := newUI(t)
+			ui, screen := newTUI(t)
 			screen.SetSize(w, 25)
 			ui.Render(outbound.FrameState{
 				StatusBar: outbound.StatusState{
@@ -451,7 +214,7 @@ func TestDrawStatusBarConfirmingLongNameStillShowsAllOptions(t *testing.T) {
 }
 
 func TestDrawStatusBarConfirmingLongNameIsTruncatedWithEllipsis(t *testing.T) {
-	ui, screen := newUI(t)
+	ui, screen := newTUI(t)
 	screen.SetSize(44, 25)
 	ui.Render(outbound.FrameState{
 		StatusBar: outbound.StatusState{
@@ -465,7 +228,7 @@ func TestDrawStatusBarConfirmingLongNameIsTruncatedWithEllipsis(t *testing.T) {
 }
 
 func TestDrawStatusBarConfirmingNameBudgetOfOneIsJustEllipsis(t *testing.T) {
-	ui, screen := newUI(t)
+	ui, screen := newTUI(t)
 	screen.SetSize(38, 25)
 	ui.Render(outbound.FrameState{
 		StatusBar: outbound.StatusState{
@@ -478,7 +241,7 @@ func TestDrawStatusBarConfirmingNameBudgetOfOneIsJustEllipsis(t *testing.T) {
 }
 
 func TestDrawStatusBarConfirmingNameOmittedWhenNoBudgetLeft(t *testing.T) {
-	ui, screen := newUI(t)
+	ui, screen := newTUI(t)
 	screen.SetSize(30, 25)
 	ui.Render(outbound.FrameState{
 		StatusBar: outbound.StatusState{
@@ -492,7 +255,7 @@ func TestDrawStatusBarConfirmingNameOmittedWhenNoBudgetLeft(t *testing.T) {
 }
 
 func TestDrawStatusBarWithTimeLimit(t *testing.T) {
-	ui, screen := newUI(t)
+	ui, screen := newTUI(t)
 	ui.Render(outbound.FrameState{
 		StatusBar: outbound.StatusState{Alive: 1, Speed: 1.0, TimeLimit: 30, TimeLeft: 15},
 	})
@@ -503,38 +266,13 @@ func TestDrawStatusBarWithTimeLimit(t *testing.T) {
 }
 
 func TestDrawStatusBarNoTimeLimit(t *testing.T) {
-	ui, screen := newUI(t)
+	ui, screen := newTUI(t)
 	ui.Render(outbound.FrameState{
 		StatusBar: outbound.StatusState{Alive: 1, Speed: 1.0, TimeLimit: 0},
 	})
 	_, _, h := screen.GetContents()
 	got := rowContent(screen, h-1)
 	assert.NotContains(t, got, "Time:")
-}
-
-// newUI creates an initialised UI backed by a simulation screen and registers
-// Cleanup to call ui.Cleanup when the test ends.
-func newUI(t *testing.T) (*tcellui.UI, tcell.SimulationScreen) {
-	t.Helper()
-	screen := tcell.NewSimulationScreen("")
-	screen.SetSize(80, 25)
-	ui := tcellui.NewUI(screen)
-	require.NoError(t, ui.Init())
-	t.Cleanup(ui.Cleanup)
-	return ui, screen
-}
-
-// nextEvent reads one event from the UI with a timeout so tests fail fast
-// instead of blocking forever if the expected event is never produced.
-func nextEvent(t *testing.T, ui *tcellui.UI) outbound.InputEvent {
-	t.Helper()
-	select {
-	case ev := <-ui.Events():
-		return ev
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("timed out waiting for event from poll goroutine")
-		return nil
-	}
 }
 
 // rowContent reads the visible characters on the given screen row.
