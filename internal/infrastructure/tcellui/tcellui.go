@@ -30,61 +30,69 @@ var (
 	_ outbound.InputSource = (*UI)(nil)
 )
 
+// eventQueueCapacity is the buffer size of the translated input event
+// channel, letting poll keep draining tcell events without blocking while
+// the consumer is busy for up to this many events.
+const eventQueueCapacity = 10
+
 // NewUI returns a tcellui.UI wrapping the given screen.
 // The caller must not call tcell.Screen.Init directly; use UI.Init() instead.
 func NewUI(screen tcell.Screen) *UI {
+	if screen == nil {
+		panic("tcellui: NewUI requires a non-nil tcell.Screen")
+	}
 	return &UI{
 		screen: screen,
-		ch:     make(chan outbound.InputEvent, 10),
+		ch:     make(chan outbound.InputEvent, eventQueueCapacity),
 		done:   make(chan struct{}),
 	}
 }
 
 // Init initialises the screen and starts the event polling goroutine.
-func (a *UI) Init() error {
-	if a.initialized {
+func (u *UI) Init() error {
+	if u.initialized {
 		return errors.New("tcellui: already initialized")
 	}
-	if err := a.screen.Init(); err != nil {
+	if err := u.screen.Init(); err != nil {
 		return fmt.Errorf("failed to initialize screen: %w", err)
 	}
-	a.screen.EnableMouse(tcell.MouseButtonEvents)
-	a.screen.SetStyle(tcell.StyleDefault)
-	a.screen.Clear()
-	a.initialized = true
-	go a.poll()
+	u.screen.EnableMouse(tcell.MouseButtonEvents)
+	u.screen.SetStyle(tcell.StyleDefault)
+	u.initialized = true
+	go u.poll()
 	return nil
 }
 
 // Cleanup signals the poll goroutine to stop, then shuts down the screen.
 // Safe to call more than once; only the first call has any effect. Safe to
 // call even if Init was never called or failed.
-func (a *UI) Cleanup() {
-	a.cleanupOnce.Do(func() {
-		close(a.done)
-		if a.initialized {
-			a.screen.Fini()
+func (u *UI) Cleanup() {
+	u.cleanupOnce.Do(func() {
+		close(u.done)
+		if u.initialized {
+			u.screen.Fini()
 		}
 	})
 }
 
 // WindowSize returns the current terminal dimensions.
-func (a *UI) WindowSize() outbound.WindowSize {
-	w, h := a.screen.Size()
+func (u *UI) WindowSize() outbound.WindowSize {
+	w, h := u.screen.Size()
 	return outbound.WindowSize{Width: w, Height: h}
 }
 
 // ChromeSize reports that tcellui reserves one row at the top for the
 // HUD and one row at the bottom for the status bar.
-func (a *UI) ChromeSize() outbound.ChromeSize {
+func (u *UI) ChromeSize() outbound.ChromeSize {
 	return outbound.ChromeSize{Top: 1, Bottom: 1}
 }
 
 // Render translates an outbound.FrameState into tcell draw calls.
-func (a *UI) Render(state outbound.FrameState) {
-	a.screen.Clear()
-	width, height := a.screen.Size()
-	chrome := a.ChromeSize()
+func (u *UI) Render(state outbound.FrameState) {
+	u.screen.Clear()
+	window := u.WindowSize()
+	width, height := window.Width, window.Height
+	chrome := u.ChromeSize()
 	top, bottom := chrome.Top, chrome.Bottom
 
 	aliveStyle := tcell.StyleDefault.Foreground(tcell.ColorGreen).Bold(true)
@@ -102,22 +110,22 @@ func (a *UI) Render(state outbound.FrameState) {
 			style = fleeStyle
 			tag = fleeAnimationFrame(target.AnimationProgress)
 		}
-		if target.Y >= top && target.Y < height-bottom {
-			a.screen.PutStrStyled(target.X, target.Y, tag, style)
+		if target.X >= 0 && target.X < width && target.Y >= top && target.Y < height-bottom {
+			u.screen.PutStrStyled(target.X, target.Y, tag, style)
 		}
 	}
 
-	a.drawHUD(width, state.HUD)
-	a.drawStatusBar(width, height, state.StatusBar)
-	a.screen.Show()
+	u.drawHUD(width, state.HUD)
+	u.drawStatusBar(width, height, state.StatusBar)
+	u.screen.Show()
 }
 
 // Events returns the channel of translated game input events.
-func (a *UI) Events() <-chan outbound.InputEvent {
-	return a.ch
+func (u *UI) Events() <-chan outbound.InputEvent {
+	return u.ch
 }
 
-func (a *UI) drawHUD(w int, hud outbound.HUDState) {
+func (u *UI) drawHUD(width int, hud outbound.HUDState) {
 	memStr := fmt.Sprintf(" FREED: %s ", util.FormatBytes(hud.FreedMem))
 	memStyle := tcell.StyleDefault.Foreground(tcell.ColorAqua).Bold(true)
 	memWidth := utf8.RuneCountInString(memStr)
@@ -125,36 +133,36 @@ func (a *UI) drawHUD(w int, hud outbound.HUDState) {
 	hiStr := fmt.Sprintf(" Highscore: %d ", hud.HighScore)
 	hiStyle := tcell.StyleDefault.Foreground(tcell.ColorPurple).Bold(true)
 	hiWidth := utf8.RuneCountInString(hiStr)
-	hiX := (w - hiWidth) / 2
+	hiX := (width - hiWidth) / 2
 
 	scoreStr := fmt.Sprintf(" KILLS: %d ", hud.Kills)
 	scoreStyle := tcell.StyleDefault.Foreground(tcell.ColorYellow).Bold(true)
 	scoreWidth := utf8.RuneCountInString(scoreStr)
-	scoreX := max(w-scoreWidth, 0)
+	scoreX := max(width-scoreWidth, 0)
 
-	a.screen.PutStrStyled(0, 0, truncateRunes(memStr, scoreX), memStyle)
+	u.screen.PutStrStyled(0, 0, truncateRunes(memStr, scoreX), memStyle)
 
 	if hiX >= memWidth && hiX+hiWidth <= scoreX {
-		a.screen.PutStrStyled(hiX, 0, hiStr, hiStyle)
+		u.screen.PutStrStyled(hiX, 0, hiStr, hiStyle)
 	}
 
-	a.screen.PutStrStyled(scoreX, 0, scoreStr, scoreStyle)
+	u.screen.PutStrStyled(scoreX, 0, scoreStr, scoreStyle)
 }
 
-func (a *UI) drawStatusBar(w, h int, status outbound.StatusState) {
+func (u *UI) drawStatusBar(width, height int, status outbound.StatusState) {
 	statusStyle := tcell.StyleDefault.
 		Foreground(tcell.ColorBlack).
 		Background(tcell.ColorWhite)
 
-	for x := range w {
-		a.screen.SetContent(x, h-1, ' ', nil, statusStyle)
+	for x := range width {
+		u.screen.SetContent(x, height-1, ' ', nil, statusStyle)
 	}
 
 	var statusStr string
 	if status.Confirming != nil {
 		prefix := fmt.Sprintf(" Kill [%d ", status.Confirming.PID)
 		const suffix = "]? (Y)es / (N)o / (Q)uit"
-		nameBudget := w - utf8.RuneCountInString(prefix) - utf8.RuneCountInString(suffix)
+		nameBudget := width - utf8.RuneCountInString(prefix) - utf8.RuneCountInString(suffix)
 		statusStr = prefix + truncateWithEllipsis(status.Confirming.Name, nameBudget) + suffix
 	} else {
 		timerStr := ""
@@ -165,7 +173,7 @@ func (a *UI) drawStatusBar(w, h int, status outbound.StatusState) {
 			status.Alive, status.Speed, timerStr)
 	}
 
-	a.screen.PutStrStyled(0, h-1, statusStr, statusStyle)
+	u.screen.PutStrStyled(0, height-1, statusStr, statusStyle)
 }
 
 // truncateRunes returns s truncated to at most n runes, so a caller can give
@@ -220,10 +228,10 @@ func animationFrame(frames []string, progress float64) string {
 	return frames[idx]
 }
 
-func (a *UI) poll() {
-	defer close(a.ch)
+func (u *UI) poll() {
+	defer close(u.ch)
 	for {
-		pollEvent := a.screen.PollEvent()
+		pollEvent := u.screen.PollEvent()
 		if pollEvent == nil {
 			return
 		}
@@ -236,8 +244,8 @@ func (a *UI) poll() {
 				continue
 			}
 			x, y := event.Position()
-			_, height := a.screen.Size()
-			chrome := a.ChromeSize()
+			height := u.WindowSize().Height
+			chrome := u.ChromeSize()
 			if y < chrome.Top || y >= height-chrome.Bottom {
 				continue // window chrome rows never contain a target
 			}
@@ -249,14 +257,14 @@ func (a *UI) poll() {
 			}
 			inputEvent = ie
 		case *tcell.EventResize:
-			a.screen.Sync()
+			u.screen.Sync()
 			continue
 		default:
 			continue
 		}
 		select {
-		case a.ch <- inputEvent:
-		case <-a.done:
+		case u.ch <- inputEvent:
+		case <-u.done:
 			return
 		}
 	}

@@ -61,6 +61,10 @@ func TestEventsChannelClosesAfterCleanup(t *testing.T) {
 	t.Fatal("Events channel was not closed after Cleanup")
 }
 
+func TestNewUIPanicsOnNilScreen(t *testing.T) {
+	assert.Panics(t, func() { tcellui.NewUI(nil) })
+}
+
 func TestCleanupBeforeInitDoesNotPanicOnRealScreen(t *testing.T) {
 	screen, err := tcell.NewScreen()
 	require.NoError(t, err)
