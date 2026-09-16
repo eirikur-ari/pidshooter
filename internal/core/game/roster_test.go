@@ -22,7 +22,7 @@ func TestRosterSpawnCreatesTargetForEachProcess(t *testing.T) {
 	}
 	r := newRoster(processes)
 
-	r.spawn(movement.NewBounds(80, 24))
+	r.spawn(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 
 	assert.Len(t, r.targets, 2)
 }
@@ -35,7 +35,7 @@ func TestRosterMoveAdvancesTargets(t *testing.T) {
 	}
 	r := roster{targets: []*Target{tgt}}
 
-	r.move(movement.NewBounds(80, 24), 1.0)
+	r.move(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}), 1.0)
 
 	assert.NotEqual(t, 10.0, tgt.Position.X)
 }

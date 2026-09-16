@@ -69,7 +69,7 @@ func TestServiceApplyKillsCompletesPendingKill(t *testing.T) {
 	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
 	kills := make(chan killSignal, 1)
 
-	target := game.NewTarget(info, movement.NewBounds(80, 24))
+	target := game.NewTarget(info, movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	kills <- killSignal{target: target}
 
 	tracker := newKillTracker(0)
@@ -84,7 +84,7 @@ func TestServiceApplyKillsReapsAlreadyKilledTarget(t *testing.T) {
 	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
 	kills := make(chan killSignal, 1)
 
-	target := game.NewTarget(info, movement.NewBounds(80, 24))
+	target := game.NewTarget(info, movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	kills <- killSignal{target: target, shouldReap: true}
 
 	tracker := newKillTracker(0)
@@ -112,7 +112,7 @@ func TestServiceApplyKillsRecordsFailureWithoutMutatingTarget(t *testing.T) {
 	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
 	kills := make(chan killSignal, 1)
 
-	target := game.NewTarget(info, movement.NewBounds(80, 24))
+	target := game.NewTarget(info, movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	kills <- killSignal{target: target, err: errors.New("operation not permitted")}
 
 	tracker := newKillTracker(0)
@@ -132,7 +132,7 @@ func TestServiceApplyKillsDeduplicatesRepeatedFailuresForSamePID(t *testing.T) {
 	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
 	kills := make(chan killSignal, 2)
 
-	target := game.NewTarget(info, movement.NewBounds(80, 24))
+	target := game.NewTarget(info, movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	kills <- killSignal{target: target, err: errors.New("operation not permitted")}
 	kills <- killSignal{target: target, err: errors.New("operation not permitted")}
 
@@ -148,7 +148,7 @@ func TestServiceApplyKillsDeduplicatesRepeatedFailuresForSamePID(t *testing.T) {
 // failure must be reported on killSignals rather than swallowed.
 func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096, 0)
-	target := game.NewTarget(info, movement.NewBounds(80, 24))
+	target := game.NewTarget(info, movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	killer := fake.ProcessKiller(func(int, string, bool) (bool, error) {
 		return false, errors.New("refusing to kill PID 100")
 	})
@@ -172,7 +172,7 @@ func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
 // signal must carry shouldReap and no err, exactly as before this change.
 func TestKillOrReapReapWithoutErrorStaysSilent(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096, 0)
-	target := game.NewTarget(info, movement.NewBounds(80, 24))
+	target := game.NewTarget(info, movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	killer := fake.ProcessKiller(func(int, string, bool) (bool, error) {
 		return true, errors.New("could not verify PID 100: process not found")
 	})

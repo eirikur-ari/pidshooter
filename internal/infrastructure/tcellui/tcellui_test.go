@@ -40,12 +40,54 @@ func TestPollGoroutineExitsAfterCleanup(t *testing.T) {
 		before, runtime.NumGoroutine())
 }
 
+func TestEventsChannelClosesAfterCleanup(t *testing.T) {
+	screen := tcell.NewSimulationScreen("")
+	ui := tcellui.NewUI(screen)
+	require.NoError(t, ui.Init())
+
+	ui.Cleanup()
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case _, ok := <-ui.Events():
+			if !ok {
+				return
+			}
+		default:
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	t.Fatal("Events channel was not closed after Cleanup")
+}
+
 func TestCleanupBeforeInitDoesNotPanicOnRealScreen(t *testing.T) {
 	screen, err := tcell.NewScreen()
 	require.NoError(t, err)
 	ui := tcellui.NewUI(screen)
 
 	assert.NotPanics(t, ui.Cleanup)
+}
+
+func TestInitSecondCallReturnsErrorAndDoesNotSpawnSecondPollGoroutine(t *testing.T) {
+	screen := tcell.NewSimulationScreen("")
+	ui := tcellui.NewUI(screen)
+	before := runtime.NumGoroutine()
+
+	require.NoError(t, ui.Init())
+	require.Error(t, ui.Init())
+
+	time.Sleep(50 * time.Millisecond)
+	assert.Equal(t, before+1, runtime.NumGoroutine(), "a second Init call must not spawn a second poll goroutine")
+
+	ui.Cleanup()
+}
+
+func TestChromeSizeReservesOneRowTopAndBottom(t *testing.T) {
+	ui, _ := newUI(t)
+	chrome := ui.ChromeSize()
+	assert.Equal(t, 1, chrome.Top)
+	assert.Equal(t, 1, chrome.Bottom)
 }
 
 func TestDrawHUDNarrowTerminalSuppressesCenter(t *testing.T) {
@@ -202,6 +244,13 @@ func TestPollTranslatesEscapeToQuit(t *testing.T) {
 func TestPollTranslatesCtrlCToQuit(t *testing.T) {
 	ui, screen := newUI(t)
 	screen.InjectKey(tcell.KeyCtrlC, 0, tcell.ModNone)
+	_, ok := nextEvent(t, ui).(outbound.QuitEvent)
+	assert.True(t, ok, "expected QuitEvent")
+}
+
+func TestPollTranslatesCtrlZToQuit(t *testing.T) {
+	ui, screen := newUI(t)
+	screen.InjectKey(tcell.KeyCtrlZ, 0, tcell.ModNone)
 	_, ok := nextEvent(t, ui).(outbound.QuitEvent)
 	assert.True(t, ok, "expected QuitEvent")
 }

@@ -24,6 +24,7 @@ type Session struct {
 	confirm  confirmation
 	throttle *movement.Throttle
 	roster   roster
+	bounds   movement.Bounds
 }
 
 // NewSession creates a new Session with the given configuration. Call Start before the first Step.
@@ -37,12 +38,15 @@ func NewSession(processes []process.Info, cfg Config) *Session {
 	}
 }
 
-// Start transitions the session from pending to running. Panics if called on
-// a session that is already running or stopped.
-func (s *Session) Start(width, height int) {
+// Start transitions the session from pending to running. bounds' chrome
+// rows are remembered for the rest of the session, reused by every later
+// Update call. Panics if called on a session that is already running or
+// stopped.
+func (s *Session) Start(bounds movement.Bounds) {
 	switch s.state.Load() {
 	case pending:
-		s.initialize(width, height)
+		s.bounds = bounds
+		s.initialize()
 	case running:
 		panic("Start called on a running game session")
 	case stopped:
@@ -50,15 +54,17 @@ func (s *Session) Start(width, height int) {
 	}
 }
 
-// Update advances the session state by one frame. w and h are the current terminal dimensions.
-// It moves every target and stops the session if the time limit has expired or all targets are dead.
-func (s *Session) Update(width, height int) {
+// Update advances the session state by one frame. window is the current
+// display dimensions. It moves every target and stops the session if the
+// time limit has expired or all targets are dead.
+func (s *Session) Update(window movement.WindowSize) {
 	if s.timer.Expired() {
 		s.Stop()
 		return
 	}
 
-	s.roster.move(movement.NewBounds(width, height), s.throttle.Speed())
+	s.bounds = s.bounds.Update(window)
+	s.roster.move(s.bounds, s.throttle.Speed())
 
 	if s.roster.allDead() {
 		s.Stop()
@@ -102,9 +108,9 @@ func (s *Session) PendingConfirm() *Target {
 // it immediately for killing (passthrough mode).
 func (s *Session) RequestConfirm(t *Target) *Target { return s.confirm.Request(t) }
 
-func (s *Session) initialize(width, height int) {
+func (s *Session) initialize() {
 	s.timer.Start()
-	s.roster.spawn(movement.NewBounds(width, height))
+	s.roster.spawn(s.bounds)
 	s.state.Store(running)
 }
 

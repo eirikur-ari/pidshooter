@@ -27,8 +27,6 @@ const (
 // plays before the target disappears.
 const AnimationDuration = 36
 
-// TODO: perhaps move target to process package, and have it implement a Target interface in the game package, so that the game package doesn't need to know about process.Info
-// Target represents a process displayed as a flying tag in the terminal.
 type Target struct {
 	process.Info
 	movement.Motion

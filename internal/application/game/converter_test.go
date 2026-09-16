@@ -18,7 +18,7 @@ func TestToConfirmViewStateReturnNilWhenInputIsNil(t *testing.T) {
 }
 
 func TestToConfirmViewStateReturnsMappedFields(t *testing.T) {
-	tgt := game.NewTarget(process.NewInfo(42, "dummy", 0, 0), movement.NewBounds(80, 24))
+	tgt := game.NewTarget(process.NewInfo(42, "dummy", 0, 0), movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	vs := toConfirmViewState(tgt)
 	require.NotNil(t, vs)
 	assert.Equal(t, 42, vs.PID)
@@ -98,7 +98,7 @@ func TestToHUDStateReturnsMappedFields(t *testing.T) {
 
 func TestToStatusStateReturnsMappedFieldsWithoutConfirmViewState(t *testing.T) {
 	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, game.Config{Speed: 2.0, TimeLimit: 30})
-	session.Start(80, 24)
+	session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 
 	status := toStatusState(session, 3)
 
@@ -110,7 +110,7 @@ func TestToStatusStateReturnsMappedFieldsWithoutConfirmViewState(t *testing.T) {
 
 func TestToStatusStateIncludesConfirmViewState(t *testing.T) {
 	session := game.NewSession([]process.Info{process.NewInfo(42, "suspect", 0, 0)}, game.Config{Confirm: true, Speed: 1.0})
-	session.Start(80, 24)
+	session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	session.RequestConfirm(session.Targets()[0])
 
 	status := toStatusState(session, 1)
@@ -123,7 +123,7 @@ func TestToStatusStateIncludesConfirmViewState(t *testing.T) {
 
 func TestToFrameStateReturnsMappedFields(t *testing.T) {
 	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, game.Config{Speed: 1.0})
-	session.Start(80, 24)
+	session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 
 	f := toFrameState(session, newKillTracker(0))
 

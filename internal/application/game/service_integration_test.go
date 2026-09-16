@@ -12,6 +12,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/event"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
+	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
@@ -19,7 +20,7 @@ import (
 func TestIntegrationServiceFrameLoopAppliesAsyncKillToResult(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096, 0)
 	session := game.NewSession([]process.Info{info}, game.Config{Speed: 1.0})
-	session.Start(80, 24)
+	session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 
 	target := session.Targets()[0]
 	x, y := int(target.Position.X), int(target.Position.Y)
@@ -57,7 +58,7 @@ func TestIntegrationServiceFrameLoopAppliesAsyncKillToResult(t *testing.T) {
 func TestIntegrationServiceDrainEventQueueIgnoresDuplicateClicksOnSameTarget(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096, 0)
 	session := game.NewSession([]process.Info{info}, game.Config{Speed: 1.0})
-	session.Start(80, 24)
+	session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 
 	target := session.Targets()[0]
 	x, y := int(target.Position.X), int(target.Position.Y)

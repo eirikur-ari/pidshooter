@@ -5,7 +5,17 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
+	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 )
+
+// toBounds converts the display dimensions and reserved chrome rows
+// reported by a Renderer into a movement.Bounds.
+func toBounds(window outbound.WindowSize, chrome outbound.ChromeSize) movement.Bounds {
+	return movement.NewBounds(
+		movement.WindowSize{Width: window.Width, Height: window.Height},
+		movement.ChromeSize{Top: chrome.Top, Bottom: chrome.Bottom},
+	)
+}
 
 func toConfirmViewState(target *game.Target) *outbound.ConfirmViewState {
 	if target == nil {

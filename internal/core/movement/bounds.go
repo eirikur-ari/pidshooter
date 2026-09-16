@@ -1,13 +1,34 @@
 package movement
 
-// Bounds holds the terminal dimensions that constrain target movement.
-type Bounds struct {
-	width, height int
+// WindowSize is a pair of dimensions bounding the area within which
+// movement is constrained.
+type WindowSize struct {
+	Width, Height int
 }
 
-// NewBounds returns a Bounds with the given terminal dimensions.
-func NewBounds(width, height int) Bounds {
-	return Bounds{width: width, height: height}
+// ChromeSize is the number of rows reserved at the top and bottom edges of
+// that area that movement must keep clear.
+type ChromeSize struct {
+	Top, Bottom int
+}
+
+// Bounds holds the dimensions that constrain movement, and the rows
+// reserved at the top and bottom edges that movement must keep clear.
+type Bounds struct {
+	window WindowSize
+	chrome ChromeSize
+}
+
+// NewBounds returns a Bounds with the given window dimensions and reserved
+// chrome rows.
+func NewBounds(window WindowSize, chrome ChromeSize) Bounds {
+	return Bounds{window: window, chrome: chrome}
+}
+
+// Update returns a copy of the bounds with its window dimensions replaced,
+// keeping the same reserved chrome rows.
+func (b Bounds) Update(window WindowSize) Bounds {
+	return Bounds{window: window, chrome: b.chrome}
 }
 
 // bounce adjusts position and velocity so the target stays within the frame,
@@ -29,7 +50,7 @@ func (b Bounds) bounceLeft(pos, vel *Vector) {
 }
 
 func (b Bounds) bounceRight(pos, vel *Vector, tagWidth float64) {
-	bound := float64(b.width) - tagWidth
+	bound := float64(b.window.Width) - tagWidth
 	if bound < 0 {
 		bound = 0
 	}
@@ -42,8 +63,9 @@ func (b Bounds) bounceRight(pos, vel *Vector, tagWidth float64) {
 }
 
 func (b Bounds) bounceTop(pos, vel *Vector) {
-	if pos.Y < 1 { // reserve top row for the HUD
-		pos.Y = 1
+	bound := float64(b.chrome.Top)
+	if pos.Y < bound {
+		pos.Y = bound
 		if vel.Y < 0 {
 			vel.Y = -vel.Y
 		}
@@ -51,9 +73,10 @@ func (b Bounds) bounceTop(pos, vel *Vector) {
 }
 
 func (b Bounds) bounceBottom(pos, vel *Vector) {
-	bound := float64(b.height - 2) // reserve bottom row for status bar
-	if bound < 1 {
-		bound = 1 // don't fight bounceTop's reserved row on very short terminals
+	const lastRowIndexOffset = 1 // b.window.Height is a row count; row indices are zero-based
+	bound := float64(b.window.Height - lastRowIndexOffset - b.chrome.Bottom)
+	if bound < float64(b.chrome.Top) {
+		bound = float64(b.chrome.Top) // don't fight bounceTop's reserved rows on very short windows
 	}
 	if pos.Y > bound {
 		pos.Y = bound

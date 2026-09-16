@@ -2,6 +2,7 @@
 package tcellui
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"unicode/utf8"
@@ -22,6 +23,13 @@ type UI struct {
 	initialized bool
 }
 
+// Compile-time assertions that *UI satisfies both ports, so a signature
+// drift fails the build here instead of at a distant call site.
+var (
+	_ outbound.Renderer    = (*UI)(nil)
+	_ outbound.InputSource = (*UI)(nil)
+)
+
 // NewUI returns a tcellui.UI wrapping the given screen.
 // The caller must not call tcell.Screen.Init directly; use UI.Init() instead.
 func NewUI(screen tcell.Screen) *UI {
@@ -34,6 +42,9 @@ func NewUI(screen tcell.Screen) *UI {
 
 // Init initialises the screen and starts the event polling goroutine.
 func (a *UI) Init() error {
+	if a.initialized {
+		return errors.New("tcellui: already initialized")
+	}
 	if err := a.screen.Init(); err != nil {
 		return fmt.Errorf("failed to initialize screen: %w", err)
 	}
@@ -57,38 +68,47 @@ func (a *UI) Cleanup() {
 	})
 }
 
-// Size returns the current terminal dimensions.
-func (a *UI) Size() (int, int) {
-	return a.screen.Size()
+// WindowSize returns the current terminal dimensions.
+func (a *UI) WindowSize() outbound.WindowSize {
+	w, h := a.screen.Size()
+	return outbound.WindowSize{Width: w, Height: h}
+}
+
+// ChromeSize reports that tcellui reserves one row at the top for the
+// HUD and one row at the bottom for the status bar.
+func (a *UI) ChromeSize() outbound.ChromeSize {
+	return outbound.ChromeSize{Top: 1, Bottom: 1}
 }
 
 // Render translates an outbound.FrameState into tcell draw calls.
 func (a *UI) Render(state outbound.FrameState) {
 	a.screen.Clear()
-	w, h := a.screen.Size()
+	width, height := a.screen.Size()
+	chrome := a.ChromeSize()
+	top, bottom := chrome.Top, chrome.Bottom
 
 	aliveStyle := tcell.StyleDefault.Foreground(tcell.ColorGreen).Bold(true)
 	killStyle := tcell.StyleDefault.Foreground(tcell.ColorRed).Bold(true)
 	fleeStyle := tcell.StyleDefault.Foreground(tcell.ColorOrange).Bold(true)
 
-	for _, tv := range state.Targets {
+	for _, target := range state.Targets {
 		style := aliveStyle
-		tag := tv.Tag
+		tag := target.Tag
 		switch {
-		case tv.Killing:
+		case target.Killing:
 			style = killStyle
-			tag = killAnimationFrame(tv.AnimationProgress)
-		case tv.Fleeing:
+			tag = killAnimationFrame(target.AnimationProgress)
+		case target.Fleeing:
 			style = fleeStyle
-			tag = fleeAnimationFrame(tv.AnimationProgress)
+			tag = fleeAnimationFrame(target.AnimationProgress)
 		}
-		if tv.Y > 0 && tv.Y < h-1 {
-			a.screen.PutStrStyled(tv.X, tv.Y, tag, style)
+		if target.Y >= top && target.Y < height-bottom {
+			a.screen.PutStrStyled(target.X, target.Y, tag, style)
 		}
 	}
 
-	a.drawHUD(w, state.HUD)
-	a.drawStatusBar(w, h, state.StatusBar)
+	a.drawHUD(width, state.HUD)
+	a.drawStatusBar(width, height, state.StatusBar)
 	a.screen.Show()
 }
 
@@ -201,24 +221,29 @@ func animationFrame(frames []string, progress float64) string {
 }
 
 func (a *UI) poll() {
+	defer close(a.ch)
 	for {
-		ev := a.screen.PollEvent()
-		if ev == nil {
+		pollEvent := a.screen.PollEvent()
+		if pollEvent == nil {
 			return
 		}
 		var inputEvent outbound.InputEvent
-		switch ev := ev.(type) {
+		switch event := pollEvent.(type) {
 		case *tcell.EventMouse:
-			if ev.Buttons() != tcell.Button1 {
+			// Strict equality: a chord (e.g. Button1+Button2 held together)
+			// is deliberately dropped rather than treated as a click.
+			if event.Buttons() != tcell.Button1 {
 				continue
 			}
-			x, y := ev.Position()
-			if _, h := a.screen.Size(); y == 0 || y == h-1 {
-				continue // HUD and status bar rows never contain a target
+			x, y := event.Position()
+			_, height := a.screen.Size()
+			chrome := a.ChromeSize()
+			if y < chrome.Top || y >= height-chrome.Bottom {
+				continue // window chrome rows never contain a target
 			}
 			inputEvent = outbound.ClickEvent{X: x, Y: y}
 		case *tcell.EventKey:
-			ie, ok := translateEvent(ev)
+			ie, ok := translateEvent(event)
 			if !ok {
 				continue
 			}
@@ -237,9 +262,12 @@ func (a *UI) poll() {
 	}
 }
 
+// translateEvent maps a recognized key press to a game input event. A key
+// matches by its rune or Key value alone; modifiers (e.g. Alt, Shift) are
+// not considered.
 func translateEvent(ev *tcell.EventKey) (outbound.InputEvent, bool) {
 	switch ev.Key() {
-	case tcell.KeyEscape, tcell.KeyCtrlC:
+	case tcell.KeyEscape, tcell.KeyCtrlC, tcell.KeyCtrlZ:
 		return outbound.QuitEvent{}, true
 	}
 	switch ev.Rune() {

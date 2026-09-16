@@ -12,6 +12,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/event"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
+	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
@@ -95,7 +96,7 @@ func (s *Service) runLoop(session *game.Session, tracker *killTracker) (time.Tim
 	}
 	defer s.renderer.Cleanup()
 
-	session.Start(s.renderer.Size())
+	session.Start(toBounds(s.renderer.WindowSize(), s.renderer.ChromeSize()))
 
 	termSignal, stopWatching := s.registerTermSignalWatcher()
 	defer stopWatching()
@@ -135,7 +136,8 @@ func (s *Service) frameLoop(session *game.Session, tracker *killTracker, dispatc
 	for session.IsRunning() {
 		s.applyKillSignals(tracker, killSignals)
 		s.drainEventQueue(dispatcher, killSignals, done)
-		session.Update(s.renderer.Size())
+		window := s.renderer.WindowSize()
+		session.Update(movement.WindowSize{Width: window.Width, Height: window.Height})
 		s.renderer.Render(toFrameState(session, tracker))
 
 		if !session.IsRunning() {

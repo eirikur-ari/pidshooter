@@ -36,6 +36,7 @@ func (SpeedEvent) isInputEvent() {
 
 // InputSource is the outbound port for user input events.
 type InputSource interface {
-	// Events returns the channel of input events produced by the adapter.
+	// Events returns the channel of input events.
+	// The channel is closed once no further events will be produced.
 	Events() <-chan InputEvent
 }
