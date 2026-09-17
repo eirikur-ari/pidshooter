@@ -27,7 +27,7 @@ func NewRunner(
 	store outbound.ScoreStore,
 	reporter outbound.ScoreReporter,
 	renderer outbound.Renderer,
-	events outbound.InputSource,
+	events outbound.InputEventSource,
 	logger outbound.Logger,
 ) *Runner {
 	processSvc := process.NewService(proc)

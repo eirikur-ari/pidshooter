@@ -2,6 +2,7 @@ package game
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/signal"
 	"syscall"
@@ -10,7 +11,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/application/event"
+	"github.com/eirikur-ari/pidshooter/internal/application/input"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
@@ -22,7 +23,7 @@ const frameDuration = time.Second / 20
 type Service struct {
 	killer   processKiller
 	renderer outbound.Renderer
-	events   outbound.InputSource
+	events   outbound.InputEventSource
 }
 
 // PlayResult carries the outcome of a completed play session, needed by the
@@ -55,7 +56,7 @@ type killSignal struct {
 func NewService(
 	killer processKiller,
 	renderer outbound.Renderer,
-	events outbound.InputSource,
+	events outbound.InputEventSource,
 ) *Service {
 	return &Service{
 		killer:   killer,
@@ -106,9 +107,11 @@ func (s *Service) runLoop(session *game.Session, tracker *killTracker) (time.Tim
 	done := make(chan struct{})
 	defer close(done)
 
-	dispatcher := event.NewDispatcher(game.NewInput(session))
+	dispatcher := input.NewDispatcher(game.NewInput(session))
 
-	s.frameLoop(session, tracker, dispatcher, termSignal, done)
+	if err := s.frameLoop(session, tracker, dispatcher, termSignal, done); err != nil {
+		return time.Time{}, err
+	}
 
 	// Capture end time before deferred cleanup runs.
 	return time.Now(), nil
@@ -127,7 +130,7 @@ func (s *Service) registerTermSignalWatcher() (termSignal <-chan struct{}, stopW
 // frameLoop drives the game at frameDuration cadence until session stops running.
 // It wakes immediately when session stops mid-frame or termSignal fires, instead of
 // waiting out the remainder of the current tick.
-func (s *Service) frameLoop(session *game.Session, tracker *killTracker, dispatcher *event.Dispatcher, termSignal <-chan struct{}, done <-chan struct{}) {
+func (s *Service) frameLoop(session *game.Session, tracker *killTracker, dispatcher *input.Dispatcher, termSignal <-chan struct{}, done <-chan struct{}) error {
 	ticker := time.NewTicker(frameDuration)
 	defer ticker.Stop()
 
@@ -135,7 +138,10 @@ func (s *Service) frameLoop(session *game.Session, tracker *killTracker, dispatc
 
 	for session.IsRunning() {
 		s.applyKillSignals(tracker, killSignals)
-		s.drainEventQueue(dispatcher, killSignals, done)
+		if err := s.drainEventQueue(dispatcher, killSignals, done); err != nil {
+			session.Stop()
+			return err
+		}
 		window := s.renderer.WindowSize()
 		session.Update(movement.WindowSize{Width: window.Width, Height: window.Height})
 		s.renderer.Render(toFrameState(session, tracker))
@@ -150,6 +156,7 @@ func (s *Service) frameLoop(session *game.Session, tracker *killTracker, dispatc
 			session.Stop()
 		}
 	}
+	return nil
 }
 
 func (s *Service) applyKillSignals(tracker *killTracker, killSignals <-chan killSignal) {
@@ -171,17 +178,25 @@ func (s *Service) applyKillSignals(tracker *killTracker, killSignals <-chan kill
 	}
 }
 
-func (s *Service) drainEventQueue(dispatcher *event.Dispatcher, killSignals chan<- killSignal, done <-chan struct{}) {
+// drainEventQueue dispatches every input event currently buffered, without
+// blocking if none are ready. It returns an error if the event channel has
+// closed, e.g. because the input adapter died unexpectedly — otherwise a
+// closed channel is always ready to receive, and the loop below would spin
+// forever redispatching its zero value instead of returning.
+func (s *Service) drainEventQueue(dispatcher *input.Dispatcher, killSignals chan<- killSignal, done <-chan struct{}) error {
 	events := s.events.Events()
 	for {
 		select {
-		case inputEvent := <-events:
+		case inputEvent, ok := <-events:
+			if !ok {
+				return errors.New("input event channel closed")
+			}
 			if target := dispatcher.Dispatch(inputEvent); target != nil {
 				target.FireShot()
 				go s.killOrReap(target, killSignals, done)
 			}
 		default:
-			return
+			return nil
 		}
 	}
 }

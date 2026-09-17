@@ -9,8 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/application/event"
+	"github.com/eirikur-ari/pidshooter/internal/application/input"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
@@ -25,14 +24,14 @@ func TestIntegrationServiceFrameLoopAppliesAsyncKillToResult(t *testing.T) {
 	target := session.Targets()[0]
 	x, y := int(target.Position.X), int(target.Position.Y)
 
-	events := fake.NewInputSource()
-	events.Ch <- outbound.ClickEvent{X: x, Y: y}
+	events := fake.NewInputEventSource()
+	events.Ch <- input.ClickEvent{X: x, Y: y}
 
 	killer := fake.ProcessKiller(func(int, string, bool) (bool, error) {
 		return false, nil
 	})
 	svc := NewService(killer, &fake.Renderer{}, events)
-	dispatcher := event.NewDispatcher(game.NewInput(session))
+	dispatcher := input.NewDispatcher(game.NewInput(session))
 
 	done := make(chan struct{})
 	defer close(done)
@@ -63,9 +62,9 @@ func TestIntegrationServiceDrainEventQueueIgnoresDuplicateClicksOnSameTarget(t *
 	target := session.Targets()[0]
 	x, y := int(target.Position.X), int(target.Position.Y)
 
-	events := fake.NewInputSource()
-	events.Ch <- outbound.ClickEvent{X: x, Y: y}
-	events.Ch <- outbound.ClickEvent{X: x, Y: y}
+	events := fake.NewInputEventSource()
+	events.Ch <- input.ClickEvent{X: x, Y: y}
+	events.Ch <- input.ClickEvent{X: x, Y: y}
 
 	var calls atomic.Int32
 	killer := fake.ProcessKiller(func(int, string, bool) (bool, error) {
@@ -73,7 +72,7 @@ func TestIntegrationServiceDrainEventQueueIgnoresDuplicateClicksOnSameTarget(t *
 		return false, nil
 	})
 	svc := NewService(killer, &fake.Renderer{}, events)
-	dispatcher := event.NewDispatcher(game.NewInput(session))
+	dispatcher := input.NewDispatcher(game.NewInput(session))
 
 	killSignals := make(chan killSignal, 10)
 	done := make(chan struct{})

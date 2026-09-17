@@ -1,4 +1,4 @@
-// Package tcellui implements the outbound.Renderer and outbound.InputSource ports using tcell.
+// Package tcellui implements the outbound.Renderer and outbound.InputEventSource ports using tcell.
 package tcellui
 
 import (
@@ -9,9 +9,10 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
+	"github.com/eirikur-ari/pidshooter/internal/application/input"
 )
 
-// TUI implements both outbound.Renderer and outbound.InputSource, composing a
+// TUI implements both outbound.Renderer and outbound.InputEventSource, composing a
 // renderer and a poller that share the same tcell.Screen.
 type TUI struct {
 	screen      tcell.Screen
@@ -24,8 +25,8 @@ type TUI struct {
 // Compile-time assertions that *TUI satisfies both ports, so a signature
 // drift fails the build here instead of at a distant call site.
 var (
-	_ outbound.Renderer    = (*TUI)(nil)
-	_ outbound.InputSource = (*TUI)(nil)
+	_ outbound.Renderer         = (*TUI)(nil)
+	_ outbound.InputEventSource = (*TUI)(nil)
 )
 
 // chromeSize is the space tcellui reserves at the top and bottom of the
@@ -88,7 +89,7 @@ func (t *TUI) Render(state outbound.FrameState) {
 }
 
 // Events returns the channel of translated game input events.
-func (t *TUI) Events() <-chan outbound.InputEvent {
+func (t *TUI) Events() <-chan input.Event {
 	return t.poller.events()
 }
 

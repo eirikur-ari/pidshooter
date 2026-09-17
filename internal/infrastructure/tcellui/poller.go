@@ -3,14 +3,14 @@ package tcellui
 import (
 	"github.com/gdamore/tcell/v2"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
+	"github.com/eirikur-ari/pidshooter/internal/application/input"
 )
 
 // poller reads tcell events from a screen and translates them into game
 // input events.
 type poller struct {
 	screen     tcell.Screen
-	eventQueue chan outbound.InputEvent
+	eventQueue chan input.Event
 	// Reads as poller is done, writes as poller is stopping.
 	done chan struct{}
 }
@@ -25,7 +25,7 @@ const eventQueueCapacity = 10
 func newPoller(screen tcell.Screen) poller {
 	return poller{
 		screen:     screen,
-		eventQueue: make(chan outbound.InputEvent, eventQueueCapacity),
+		eventQueue: make(chan input.Event, eventQueueCapacity),
 		done:       make(chan struct{}),
 	}
 }
@@ -53,12 +53,12 @@ func (p *poller) poll() {
 // The second return value is false for events with no corresponding input
 // event: an unrecognized key, a dropped mouse action, or a resize (handled
 // here by re-syncing the screen, not by producing an event).
-func (p *poller) translateInputEvent(pollEvent tcell.Event) (outbound.InputEvent, bool) {
-	switch event := pollEvent.(type) {
+func (p *poller) translateInputEvent(pollEvent tcell.Event) (input.Event, bool) {
+	switch pollEvent := pollEvent.(type) {
 	case *tcell.EventMouse:
-		return p.translateMouseEvent(event)
+		return p.translateMouseEvent(pollEvent)
 	case *tcell.EventKey:
-		return translateKeyEvent(event)
+		return translateKeyEvent(pollEvent)
 	case *tcell.EventResize:
 		p.screen.Sync()
 	}
@@ -69,16 +69,16 @@ func (p *poller) translateInputEvent(pollEvent tcell.Event) (outbound.InputEvent
 // a ClickEvent. Any other mouse activity — a different button, a chord
 // (e.g. Button1+Button2 held together), or a click on a chrome row — is
 // dropped.
-func (p *poller) translateMouseEvent(event *tcell.EventMouse) (outbound.InputEvent, bool) {
-	if event.Buttons() != tcell.Button1 {
+func (p *poller) translateMouseEvent(mouseEvent *tcell.EventMouse) (input.Event, bool) {
+	if mouseEvent.Buttons() != tcell.Button1 {
 		return nil, false
 	}
-	x, y := event.Position()
+	x, y := mouseEvent.Position()
 	_, height := p.screen.Size()
 	if isChromeRow(y, height, chromeSize) {
 		return nil, false
 	}
-	return outbound.ClickEvent{X: x, Y: y}, true
+	return input.ClickEvent{X: x, Y: y}, true
 }
 
 // stop signals poll to exit.
@@ -87,41 +87,41 @@ func (p *poller) stop() {
 }
 
 // events returns the channel of translated game input events.
-func (p *poller) events() <-chan outbound.InputEvent {
+func (p *poller) events() <-chan input.Event {
 	return p.eventQueue
 }
 
 // keyBindings maps a rune to the game input event it produces.
-type keyBindings map[rune]outbound.InputEvent
+type keyBindings map[rune]input.Event
 
 var runeBindings = keyBindings{
-	'q': outbound.QuitEvent{},
-	'Q': outbound.QuitEvent{},
-	'y': outbound.ConfirmEvent{Accept: true},
-	'Y': outbound.ConfirmEvent{Accept: true},
-	'n': outbound.ConfirmEvent{Accept: false},
-	'N': outbound.ConfirmEvent{Accept: false},
-	'+': outbound.SpeedEvent{Faster: true},
-	'=': outbound.SpeedEvent{Faster: true},
-	'-': outbound.SpeedEvent{Faster: false},
-	'_': outbound.SpeedEvent{Faster: false},
+	'q': input.QuitEvent{},
+	'Q': input.QuitEvent{},
+	'y': input.ConfirmEvent{Accept: true},
+	'Y': input.ConfirmEvent{Accept: true},
+	'n': input.ConfirmEvent{Accept: false},
+	'N': input.ConfirmEvent{Accept: false},
+	'+': input.SpeedEvent{Faster: true},
+	'=': input.SpeedEvent{Faster: true},
+	'-': input.SpeedEvent{Faster: false},
+	'_': input.SpeedEvent{Faster: false},
 }
 
 // controlKeyBindings maps a non-rune control key to the game input event it
 // produces.
-var controlKeyBindings = map[tcell.Key]outbound.InputEvent{
-	tcell.KeyEscape: outbound.QuitEvent{},
-	tcell.KeyCtrlC:  outbound.QuitEvent{},
-	tcell.KeyCtrlZ:  outbound.QuitEvent{},
+var controlKeyBindings = map[tcell.Key]input.Event{
+	tcell.KeyEscape: input.QuitEvent{},
+	tcell.KeyCtrlC:  input.QuitEvent{},
+	tcell.KeyCtrlZ:  input.QuitEvent{},
 }
 
 // translateKeyEvent maps a recognized key press to a game input event. A
 // key matches by its rune or Key value alone; modifiers (e.g. Alt, Shift)
 // are not considered.
-func translateKeyEvent(event *tcell.EventKey) (outbound.InputEvent, bool) {
-	if inputEvent, ok := controlKeyBindings[event.Key()]; ok {
+func translateKeyEvent(keyEvent *tcell.EventKey) (input.Event, bool) {
+	if inputEvent, ok := controlKeyBindings[keyEvent.Key()]; ok {
 		return inputEvent, true
 	}
-	inputEvent, ok := runeBindings[event.Rune()]
+	inputEvent, ok := runeBindings[keyEvent.Rune()]
 	return inputEvent, ok
 }
