@@ -2,6 +2,7 @@ package tcellui_test
 
 import (
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
@@ -53,6 +55,20 @@ func TestWindowSizeReturnsScreenDimensions(t *testing.T) {
 	assert.Equal(t, 17, window.Height)
 }
 
+func TestRenderClearsStaleContentFromPreviousFrame(t *testing.T) {
+	ui, screen := newTUI(t)
+
+	ui.Render(outbound.FrameState{
+		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Tag: "[1234 victim]"}},
+	})
+	require.Contains(t, rowContent(screen, 5), "victim")
+
+	ui.Render(outbound.FrameState{})
+
+	assert.NotContains(t, rowContent(screen, 5), "victim",
+		"a target drawn in a previous frame must not linger once it's no longer in the frame state")
+}
+
 // newTUI creates an initialised TUI backed by a simulation screen and registers
 // Cleanup to call ui.Cleanup when the test ends.
 func newTUI(t *testing.T) (*tcellui.TUI, tcell.SimulationScreen) {
@@ -63,4 +79,16 @@ func newTUI(t *testing.T) (*tcellui.TUI, tcell.SimulationScreen) {
 	require.NoError(t, ui.Init())
 	t.Cleanup(ui.Cleanup)
 	return ui, screen
+}
+
+// rowContent reads the visible characters on the given screen row.
+func rowContent(screen tcell.SimulationScreen, row int) string {
+	cells, w, _ := screen.GetContents()
+	var sb strings.Builder
+	for x := range w {
+		if r := cells[row*w+x].Runes; len(r) > 0 {
+			sb.WriteRune(r[0])
+		}
+	}
+	return strings.TrimRight(sb.String(), " ")
 }

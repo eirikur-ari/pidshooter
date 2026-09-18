@@ -12,16 +12,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/input"
 )
 
-// TUI implements both outbound.Renderer and outbound.InputEventSource, composing a
-// renderer and a poller that share the same tcell.Screen.
-type TUI struct {
-	screen      tcell.Screen
-	renderer    renderer
-	poller      poller
-	cleanupOnce sync.Once
-	initialized bool
-}
-
 // Compile-time assertions that *TUI satisfies both ports, so a signature
 // drift fails the build here instead of at a distant call site.
 var (
@@ -29,20 +19,28 @@ var (
 	_ outbound.InputEventSource = (*TUI)(nil)
 )
 
-// chromeSize is the space tcellui reserves at the top and bottom of the
-// display for its own fixed UI: one row for the HUD, one for the status bar.
-var chromeSize = outbound.ChromeSize{Top: 1, Bottom: 1}
+// TUI implements both outbound.Renderer and outbound.InputEventSource, composing a
+// poller that shares the same tcell.Screen.
+type TUI struct {
+	screen      tcell.Screen
+	chrome      outbound.ChromeSize
+	poller      poller
+	cleanupOnce sync.Once
+	initialized bool
+}
 
-// NewTUI returns a tcellui.TUI wrapping the given screen.
+// NewTUI returns a tcellui.TUI wrapping the given screen, reserving one row
+// at the top and one row at the bottom for its own fixed UI: the HUD and
+// the status bar.
 // The caller must not call tcell.Screen.Init directly; use TUI.Init() instead.
 func NewTUI(screen tcell.Screen) *TUI {
 	if screen == nil {
 		panic("NewTUI requires a non-nil tcell.Screen")
 	}
 	return &TUI{
-		screen:   screen,
-		renderer: newRenderer(screen),
-		poller:   newPoller(screen),
+		screen: screen,
+		chrome: outbound.ChromeSize{Top: 1, Bottom: 1},
+		poller: newPoller(screen),
 	}
 }
 
@@ -80,15 +78,16 @@ func (t *TUI) WindowSize() outbound.WindowSize {
 // ChromeSize reports that tcellui reserves one row at the top for the
 // HUD and one row at the bottom for the status bar.
 func (t *TUI) ChromeSize() outbound.ChromeSize {
-	return chromeSize
+	return t.chrome
 }
 
 // Render translates an outbound.FrameState into tcell draw calls.
 func (t *TUI) Render(state outbound.FrameState) {
-	t.renderer.render(state)
+	r := newRenderer(t.screen, t.chrome, state)
+	r.render()
 }
 
-// Events returns the channel of translated game input events.
+// Events returns the channel of translated input events.
 func (t *TUI) Events() <-chan input.Event {
 	return t.poller.events()
 }
@@ -98,10 +97,4 @@ func (t *TUI) cleanup() {
 	if t.initialized {
 		t.screen.Fini()
 	}
-}
-
-// isChromeRow reports whether row is one of the rows chrome reserves for the
-// renderer's own fixed UI, given a display height rows tall.
-func isChromeRow(row, height int, chrome outbound.ChromeSize) bool {
-	return row < chrome.Top || row >= height-chrome.Bottom
 }
