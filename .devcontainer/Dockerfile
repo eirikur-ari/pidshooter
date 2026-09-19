@@ -1,34 +1,34 @@
 FROM golang:1.26.5-trixie
 
-ARG TZ
-ARG CLAUDE_CODE_VERSION=2.1.212
+ARG TZ=UTC
+ARG CLAUDE_CODE_VERSION=2.1.236
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    nodejs \
-    npm \
-    less \
-    git \
-    procps \
-    sudo \
-    fzf \
-    zsh \
-    man-db \
-    unzip \
-    gnupg2 \
-    gh \
-    iptables \
-    ipset \
-    iproute2 \
-    dnsutils \
-    aggregate \
-    jq \
-    vim \
-    unzip \
-    curl \
-    wget \
-    ca-certificates \
-    fonts-firacode \
-    locales \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       nodejs \
+       npm \
+       less \
+       git \
+       procps \
+       sudo \
+       fzf \
+       zsh \
+       man-db \
+       unzip \
+       gnupg2 \
+       gh \
+       iptables \
+       ipset \
+       iproute2 \
+       dnsutils \
+       aggregate \
+       jq \
+       vim \
+       curl \
+       wget \
+       ca-certificates \
+       fonts-firacode \
+       locales \
     && rm -rf /var/lib/apt/lists/* \
     && sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen \
     && locale-gen en_US.UTF-8 \
@@ -36,66 +36,73 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get autoremove -y \
     && apt-get clean -y
 
-# Set environment variables
-ENV TZ="$TZ" \
-    LANG=en_US.UTF-8 \
-    LC_ALL=en_US.UTF-8 \
-    DEVCONTAINER=true
+ENV TZ="${TZ}" \
+    LANG="en_US.UTF-8" \
+    LC_ALL="en_US.UTF-8" \
+    DEVCONTAINER="true"
 
 ARG USERNAME=sandbox
 ARG USER_UID=1000
-ARG USER_GID=$USER_UID
-RUN groupadd --gid $USER_GID $USERNAME \
-    && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
-    && chsh -s /bin/zsh $USERNAME \
-    && mkdir -p /workspace \
-    /home/${USERNAME}/go/pkg/mod \
-    /home/${USERNAME}/.cache/go-build \
-    /home/${USERNAME}/.claude \
-    /home/${USERNAME}/.config \
-    && chown -R ${USERNAME}:${USERNAME} /workspace /go /home/${USERNAME} \
-    && mkdir -p /usr/local/share/npm-global \
-    && chown -R ${USERNAME}:${USERNAME} /usr/local/share
+ARG USER_GID=${USER_UID}
+
+RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
+    && useradd --uid "${USER_UID}" --gid "${USER_GID}" --create-home "${USERNAME}" \
+    && chsh --shell /bin/zsh "${USERNAME}" \
+    && mkdir -p  \
+       /workspace \
+       "/home/${USERNAME}/go/pkg/mod" \
+       "/home/${USERNAME}/.cache/go-build" \
+       "/home/${USERNAME}/.claude" \
+       "/home/${USERNAME}/.config" \
+       /usr/local/share/npm-global \
+    && chown -R "${USERNAME}:${USERNAME}" \
+       /workspace \
+       /go "/home/${USERNAME}" \
+       /usr/local/share/npm-global
 
 WORKDIR /workspace
 
-# Install Starship prompt
+# Install Starship
 COPY starship-install.sh /tmp/starship-install.sh
-RUN sh /tmp/starship-install.sh -y && rm /tmp/starship-install.sh
-COPY --chown=${USERNAME}:${USERNAME} starship.toml /home/${USERNAME}/.config/starship.toml
-RUN printf '#!/usr/bin/env zsh\neval "$(starship init zsh)"\n' > /home/${USERNAME}/.zshrc \
-    && chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.zshrc
 
-# Copy and set up firewall script
-COPY init-firewall.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/init-firewall.sh && \
-  echo "${USERNAME} ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/${USERNAME}-firewall && \
-  chmod 0440 /etc/sudoers.d/${USERNAME}-firewall
+RUN sh /tmp/starship-install.sh -y \
+    && rm -f /tmp/starship-install.sh
 
-# Set the default user for the container
-USER $USERNAME
+COPY --chown="${USERNAME}:${USERNAME}" \
+     starship.toml \
+     /home/${USERNAME}/.config/starship.toml
 
-# Install global packages
-ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
-ENV PATH=$PATH:/usr/local/share/npm-global/bin
+RUN printf '%s\n' \
+           '#!/usr/bin/env zsh' \
+           'eval "$(starship init zsh)"' \
+    > "/home/${USERNAME}/.zshrc" \
+    && chown "${USERNAME}:${USERNAME}" "/home/${USERNAME}/.zshrc"
 
-# Install Claude Code CLI and set up configuration
-RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
-    && echo '{"hasCompletedOnboarding": true}' > /home/${USERNAME}/.claude/.claude.json
-ENV CLAUDE_CONFIG_DIR=/home/${USERNAME}/.claude
-ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-ENV DISABLE_AUTOUPDATER=1
-ENV DO_NOT_TRACK=1
+# Firewall script
+COPY init-firewall.sh /usr/local/bin/init-firewall.sh
 
-# Set environment variables for Go
-ENV GOPATH=/home/${USERNAME}/go
-ENV GOROOT=/usr/local/go
-ENV PATH=$PATH:$GOPATH/bin:$GOROOT/bin
-ENV GOMODCACHE=/home/${USERNAME}/go/pkg/mod
+RUN chmod 0755 /usr/local/bin/init-firewall.sh \
+    && printf '%s\n' \
+              "${USERNAME} ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" \
+       > "/etc/sudoers.d/${USERNAME}-firewall" \
+    && chmod 0440 "/etc/sudoers.d/${USERNAME}-firewall"
 
-# Set the default shell to zsh rather than sh
-ENV SHELL=/bin/zsh
+USER ${USERNAME}
 
-# Set the default editor and visual
-ENV EDITOR=vim
-ENV VISUAL=vim
+ENV NPM_CONFIG_PREFIX="/usr/local/share/npm-global" \
+    GOPATH="/home/${USERNAME}/go" \
+    GOROOT="/usr/local/go" \
+    CLAUDE_CONFIG_DIR="/home/${USERNAME}/.claude" \
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC="1" \
+    DISABLE_AUTOUPDATER="1" \
+    DO_NOT_TRACK="1" \
+    SHELL="/bin/zsh" \
+    EDITOR="vim" \
+    VISUAL="vim" \
+    PATH="${PATH}:/usr/local/share/npm-global/bin:${GOPATH}/bin:${GOROOT}/bin" \
+    GOMODCACHE="/home/${USERNAME}/go/pkg/mod"
+
+# Install Claude Code CLI
+RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+    && printf '%s\n' '{"hasCompletedOnboarding": true}' \
+       > "/home/${USERNAME}/.claude/.claude.json"
