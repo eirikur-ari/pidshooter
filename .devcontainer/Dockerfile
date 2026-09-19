@@ -1,9 +1,7 @@
 FROM golang:1.26.5-trixie
 
 ARG TZ
-ENV TZ="$TZ"
-
-ARG CLAUDE_CODE_VERSION=latest
+ARG CLAUDE_CODE_VERSION=2.1.212
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nodejs \
@@ -38,35 +36,32 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get autoremove -y \
     && apt-get clean -y
 
-# Set locale environment variables
-ENV LANG=en_US.UTF-8 \
-    LC_ALL=en_US.UTF-8
-
-# Set `DEVCONTAINER` environment variable to help with orientation
-ENV DEVCONTAINER=true
+# Set environment variables
+ENV TZ="$TZ" \
+    LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8 \
+    DEVCONTAINER=true
 
 ARG USERNAME=sandbox
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 RUN groupadd --gid $USER_GID $USERNAME \
     && useradd --uid $USER_UID --gid $USER_GID -m $USERNAME \
-    && chsh -s /bin/zsh $USERNAME
-
-RUN mkdir -p /workspace \
+    && chsh -s /bin/zsh $USERNAME \
+    && mkdir -p /workspace \
     /home/${USERNAME}/go/pkg/mod \
     /home/${USERNAME}/.cache/go-build \
     /home/${USERNAME}/.claude \
     /home/${USERNAME}/.config \
-    && chown -R ${USERNAME}:${USERNAME}  /workspace /go /home/${USERNAME}
-
-# Ensure default sandbox user has access to /usr/local/share
-RUN mkdir -p /usr/local/share/npm-global \
+    && chown -R ${USERNAME}:${USERNAME} /workspace /go /home/${USERNAME} \
+    && mkdir -p /usr/local/share/npm-global \
     && chown -R ${USERNAME}:${USERNAME} /usr/local/share
 
 WORKDIR /workspace
 
 # Install Starship prompt
-RUN curl -sS https://starship.rs/install.sh | sh -s -- -y
+COPY starship-install.sh /tmp/starship-install.sh
+RUN sh /tmp/starship-install.sh -y && rm /tmp/starship-install.sh
 COPY --chown=${USERNAME}:${USERNAME} starship.toml /home/${USERNAME}/.config/starship.toml
 RUN printf '#!/usr/bin/env zsh\neval "$(starship init zsh)"\n' > /home/${USERNAME}/.zshrc \
     && chown ${USERNAME}:${USERNAME} /home/${USERNAME}/.zshrc
