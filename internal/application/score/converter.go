@@ -1,9 +1,24 @@
 package score
 
 import (
+	"time"
+
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
+	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
 )
+
+func ToEntry(result game.PlayResult, cfgTimeLimit int) score.Entry {
+	return score.Entry{
+		Kills:    result.Kills,
+		Duds:     len(result.Duds),
+		FreedMem: result.FreedMem,
+		Speed:    result.LowestSpeed,
+		Time:     cfgTimeLimit,
+		Duration: result.Duration,
+		Date:     time.Now(),
+	}
+}
 
 func toBoard(board outbound.ScoreBoard) *score.Board {
 	entries := make([]score.Entry, len(board.Scores))

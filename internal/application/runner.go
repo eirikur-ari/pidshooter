@@ -27,7 +27,7 @@ func NewRunner(
 	store outbound.ScoreStore,
 	reporter outbound.ScoreReporter,
 	renderer outbound.Renderer,
-	events outbound.InputEventSource,
+	events outbound.InputEventProvider,
 	logger outbound.Logger,
 ) *Runner {
 	processSvc := process.NewService(proc)
@@ -67,7 +67,8 @@ func (r *Runner) Run(cfg inbound.Config) error {
 	r.logKillFailures(result.KillFailures)
 	r.logDuds(result.Duds)
 
-	recErr := r.scoreSvc.RecordScore(board, result.Kills, len(result.Duds), result.FreedMem, result.LowestSpeed, cfg.TimeLimit, result.Duration, loadErr)
+	entry := score.ToEntry(result, cfg.TimeLimit)
+	recErr := r.scoreSvc.RecordScore(board, entry, loadErr)
 	if err := r.errHandler.Handle(recErr); err != nil {
 		return err
 	}

@@ -2,23 +2,23 @@ package input
 
 import "github.com/eirikur-ari/pidshooter/internal/core/game"
 
-// Event is implemented by all user input events.
-type Event interface {
-	// apply routes the event to the appropriate call on input.
-	apply(input *game.Input) *game.Target
+// EventDispatcher is implemented by all user input events.
+type EventDispatcher interface {
+	// dispatch routes the event to the appropriate call on input.
+	dispatch(input *game.Input) *game.Target
 }
 
 // ClickEvent represents a mouse click at terminal coordinates.
 type ClickEvent struct{ X, Y int }
 
-func (e ClickEvent) apply(input *game.Input) *game.Target {
+func (e ClickEvent) dispatch(input *game.Input) *game.Target {
 	return input.OnClickAt(e.X, e.Y)
 }
 
 // QuitEvent requests that the game stop running.
 type QuitEvent struct{}
 
-func (QuitEvent) apply(input *game.Input) *game.Target {
+func (QuitEvent) dispatch(input *game.Input) *game.Target {
 	input.OnQuit()
 	return nil
 }
@@ -26,7 +26,7 @@ func (QuitEvent) apply(input *game.Input) *game.Target {
 // ConfirmEvent answers a pending kill confirmation.
 type ConfirmEvent struct{ Accept bool }
 
-func (e ConfirmEvent) apply(input *game.Input) *game.Target {
+func (e ConfirmEvent) dispatch(input *game.Input) *game.Target {
 	if e.Accept {
 		return input.OnYes()
 	}
@@ -40,7 +40,7 @@ type SpeedEvent struct {
 	Faster bool
 }
 
-func (e SpeedEvent) apply(input *game.Input) *game.Target {
+func (e SpeedEvent) dispatch(input *game.Input) *game.Target {
 	if e.Faster {
 		input.OnSpeedUp()
 	} else {

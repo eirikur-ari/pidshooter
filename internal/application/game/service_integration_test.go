@@ -24,7 +24,7 @@ func TestIntegrationServiceFrameLoopAppliesAsyncKillToResult(t *testing.T) {
 	target := session.Targets()[0]
 	x, y := int(target.Position.X), int(target.Position.Y)
 
-	events := fake.NewInputEventSource()
+	events := fake.NewInputEventProvider()
 	events.Ch <- input.ClickEvent{X: x, Y: y}
 
 	killer := fake.ProcessKiller(func(int, string, bool) (bool, error) {
@@ -62,7 +62,7 @@ func TestIntegrationServiceDrainEventQueueIgnoresDuplicateClicksOnSameTarget(t *
 	target := session.Targets()[0]
 	x, y := int(target.Position.X), int(target.Position.Y)
 
-	events := fake.NewInputEventSource()
+	events := fake.NewInputEventProvider()
 	events.Ch <- input.ClickEvent{X: x, Y: y}
 	events.Ch <- input.ClickEvent{X: x, Y: y}
 

@@ -1,4 +1,4 @@
-// Package tcellui implements the outbound.Renderer and outbound.InputEventSource ports using tcell.
+// Package tcellui implements the outbound.Renderer and outbound.InputEventProvider ports using tcell.
 package tcellui
 
 import (
@@ -15,11 +15,11 @@ import (
 // Compile-time assertions that *TUI satisfies both ports, so a signature
 // drift fails the build here instead of at a distant call site.
 var (
-	_ outbound.Renderer         = (*TUI)(nil)
-	_ outbound.InputEventSource = (*TUI)(nil)
+	_ outbound.Renderer           = (*TUI)(nil)
+	_ outbound.InputEventProvider = (*TUI)(nil)
 )
 
-// TUI implements both outbound.Renderer and outbound.InputEventSource, composing a
+// TUI implements both outbound.Renderer and outbound.InputEventProvider, composing a
 // poller that shares the same tcell.Screen.
 type TUI struct {
 	screen      tcell.Screen
@@ -88,7 +88,7 @@ func (t *TUI) Render(state outbound.FrameState) {
 }
 
 // Events returns the channel of translated input events.
-func (t *TUI) Events() <-chan input.Event {
+func (t *TUI) Events() <-chan input.EventDispatcher {
 	return t.poller.events()
 }
 

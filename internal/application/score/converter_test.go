@@ -8,8 +8,30 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
+	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
 )
+
+// --- ToEntry ---
+
+func TestToEntryMapsFields(t *testing.T) {
+	result := game.PlayResult{
+		Duration:    12.5,
+		LowestSpeed: 2.5,
+		Kills:       5,
+		FreedMem:    2048,
+		Duds:        []game.KillDud{{}, {}},
+	}
+
+	entry := ToEntry(result, 30)
+
+	assert.Equal(t, 5, entry.Kills)
+	assert.Equal(t, 2, entry.Duds)
+	assert.Equal(t, int64(2048), entry.FreedMem)
+	assert.Equal(t, 2.5, entry.Speed)
+	assert.Equal(t, 30, entry.Time)
+	assert.Equal(t, 12.5, entry.Duration)
+}
 
 // --- toBoard ---
 

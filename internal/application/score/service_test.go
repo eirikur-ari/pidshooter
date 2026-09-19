@@ -68,7 +68,7 @@ func TestRecordScoreReturnsNilWhenBoardIsSavedSuccessfully(t *testing.T) {
 	svc := NewService(fakeStore, &fake.ScoreReporter{})
 	board := score.NewBoard(nil)
 
-	require.Nil(t, svc.RecordScore(board, 4, 1, 2048, 2.5, 30, 12.5, nil))
+	require.Nil(t, svc.RecordScore(board, score.Entry{Kills: 4, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5}, nil))
 
 	require.Len(t, board.Scores, 1)
 	require.NotNil(t, fakeStore.Saved)
@@ -88,7 +88,7 @@ func TestRecordScoreMergesWithConcurrentlyPersistedEntries(t *testing.T) {
 	svc := NewService(fakeStore, &fake.ScoreReporter{})
 	board := score.NewBoard(nil) // this session's board, loaded before concurrentEntry was saved by another process
 
-	require.Nil(t, svc.RecordScore(board, 5, 0, 0, 0, 0, 1.0, nil))
+	require.Nil(t, svc.RecordScore(board, score.Entry{Kills: 5, Duration: 1.0}, nil))
 
 	require.NotNil(t, fakeStore.Saved)
 	assert.Len(t, fakeStore.Saved.Scores, 2, "an entry saved by another process after this session's Load must not be discarded")
@@ -100,7 +100,7 @@ func TestRecordScoreSavesWhenScoreBoardWasNotFound(t *testing.T) {
 	board := score.NewBoard(nil)
 
 	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded", outbound.NotFoundError{})
-	require.Nil(t, svc.RecordScore(board, 1, 0, 0, 0, 0, 1.0, loadErr))
+	require.Nil(t, svc.RecordScore(board, score.Entry{Kills: 1, Duration: 1.0}, loadErr))
 
 	require.NotNil(t, fakeStore.Saved, "a fresh (never-persisted) board should still be saved")
 	assert.Len(t, fakeStore.Saved.Scores, 1)
@@ -114,7 +114,7 @@ func TestRecordScoreSavesWhenScoreBoardWasCorrupted(t *testing.T) {
 
 	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded",
 		outbound.CorruptedDataError{})
-	require.Nil(t, svc.RecordScore(board, 1, 0, 0, 0, 0, 1.0, loadErr))
+	require.Nil(t, svc.RecordScore(board, score.Entry{Kills: 1, Duration: 1.0}, loadErr))
 
 	require.NotNil(t, fakeStore.Saved, "a corrupted (unrecoverable) board should still be saved")
 	assert.Len(t, fakeStore.Saved.Scores, 1)
@@ -129,7 +129,7 @@ func TestRecordScoreSkipsSaveAndReturnsWarningWhenLoadFailed(t *testing.T) {
 	cause := errors.New("disk error")
 	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded", cause)
 
-	err := svc.RecordScore(board, 1, 0, 0, 0, 0, 1.0, loadErr)
+	err := svc.RecordScore(board, score.Entry{Kills: 1, Duration: 1.0}, loadErr)
 
 	assert.Nil(t, fakeStore.Saved, "should not overwrite a file that failed to load for a real reason")
 	var appErr *apperror.Error
@@ -145,7 +145,7 @@ func TestRecordScoreSaveErrorReturnsUnderlyingError(t *testing.T) {
 	svc := NewService(fakeStore, &fake.ScoreReporter{})
 	board := score.NewBoard(nil)
 
-	err := svc.RecordScore(board, 1, 0, 0, 0, 0, 1.0, nil)
+	err := svc.RecordScore(board, score.Entry{Kills: 1, Duration: 1.0}, nil)
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)

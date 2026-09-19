@@ -23,7 +23,7 @@ const frameDuration = time.Second / 20
 type Service struct {
 	killer   processKiller
 	renderer outbound.Renderer
-	events   outbound.InputEventSource
+	events   outbound.InputEventProvider
 }
 
 // PlayResult carries the outcome of a completed play session, needed by the
@@ -56,7 +56,7 @@ type killSignal struct {
 func NewService(
 	killer processKiller,
 	renderer outbound.Renderer,
-	events outbound.InputEventSource,
+	events outbound.InputEventProvider,
 ) *Service {
 	return &Service{
 		killer:   killer,
