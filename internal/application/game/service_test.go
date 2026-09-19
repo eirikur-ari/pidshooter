@@ -10,7 +10,7 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
+	"github.com/eirikur-ari/pidshooter/internal/application/input"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
@@ -26,16 +26,16 @@ func TestServicePlayNoProcessesReturnsClassifiedError(t *testing.T) {
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeNoProcessesFound, appErr.Code)
+	assert.Equal(t, apperror.CodeProcessNotFound, appErr.Code)
 	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
 	assert.Equal(t, "no processes found", err.Error(), "an empty wrapper Message should not change the displayed text")
 	require.Error(t, appErr.Unwrap(), "the underlying cause should still be reachable, not discarded")
 }
 
 func TestServicePlayRendererInitFailureReturnsClassifiedError(t *testing.T) {
-	processes := []process.Info{process.NewInfo(100, "target", 4096)}
+	processes := []process.Info{process.NewInfo(100, "target", 4096, 0)}
 	renderer := &fake.Renderer{InitErr: errors.New("terminal not available")}
-	svc := NewService(nil, renderer, fake.NewInputSource())
+	svc := NewService(nil, renderer, fake.NewInputEventSource())
 
 	_, err := svc.Play(inbound.Config{}, processes, 0)
 
@@ -47,9 +47,9 @@ func TestServicePlayRendererInitFailureReturnsClassifiedError(t *testing.T) {
 }
 
 func TestServicePlaySuccessReturnsPlayResult(t *testing.T) {
-	processes := []process.Info{process.NewInfo(100, "target", 4096)}
-	events := fake.NewInputSource()
-	events.Ch <- outbound.QuitEvent{}
+	processes := []process.Info{process.NewInfo(100, "target", 4096, 0)}
+	events := fake.NewInputEventSource()
+	events.Ch <- input.QuitEvent{}
 	svc := NewService(nil, &fake.Renderer{}, events)
 
 	result, err := svc.Play(inbound.Config{Speed: 2.0}, processes, 0)
@@ -62,14 +62,30 @@ func TestServicePlaySuccessReturnsPlayResult(t *testing.T) {
 	assert.Empty(t, result.KillFailures)
 }
 
+// --- drainEventQueue ---
+
+func TestDrainEventQueueReturnsErrorWhenEventChannelCloses(t *testing.T) {
+	events := fake.NewInputEventSource()
+	close(events.Ch)
+
+	svc := NewService(nil, &fake.Renderer{}, events)
+	killSignals := make(chan killSignal, 1)
+	done := make(chan struct{})
+	defer close(done)
+
+	err := svc.drainEventQueue(nil, killSignals, done)
+
+	assert.EqualError(t, err, "input event channel closed")
+}
+
 // --- applyKillSignals ---
 
 func TestServiceApplyKillsCompletesPendingKill(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096)
-	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
+	info := process.NewInfo(100, "target", 4096, 0)
+	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventSource())
 	kills := make(chan killSignal, 1)
 
-	target := game.NewTarget(info, movement.NewBounds(80, 24))
+	target := game.NewTarget(info, movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	kills <- killSignal{target: target}
 
 	tracker := newKillTracker(0)
@@ -80,22 +96,25 @@ func TestServiceApplyKillsCompletesPendingKill(t *testing.T) {
 }
 
 func TestServiceApplyKillsReapsAlreadyKilledTarget(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096)
-	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
+	info := process.NewInfo(100, "target", 4096, 0)
+	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventSource())
 	kills := make(chan killSignal, 1)
 
-	target := game.NewTarget(info, movement.NewBounds(80, 24))
+	target := game.NewTarget(info, movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	kills <- killSignal{target: target, shouldReap: true}
 
 	tracker := newKillTracker(0)
 	svc.applyKillSignals(tracker, kills)
 
-	assert.Equal(t, game.Dead, target.State)
+	assert.Equal(t, game.Fleeing, target.State, "an already-gone target should flee rather than die outright")
 	assert.Equal(t, 0, tracker.score.kills, "reaping an already-gone target should not award a kill")
+	require.Len(t, tracker.duds, 1)
+	assert.Equal(t, "target", tracker.duds[0].Target)
+	assert.Equal(t, 100, tracker.duds[0].PID)
 }
 
 func TestServiceApplyKillsEmptyChannelNoOps(t *testing.T) {
-	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
+	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventSource())
 	kills := make(chan killSignal, 1)
 
 	tracker := newKillTracker(0)
@@ -105,11 +124,11 @@ func TestServiceApplyKillsEmptyChannelNoOps(t *testing.T) {
 }
 
 func TestServiceApplyKillsRecordsFailureWithoutMutatingTarget(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096)
-	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
+	info := process.NewInfo(100, "target", 4096, 0)
+	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventSource())
 	kills := make(chan killSignal, 1)
 
-	target := game.NewTarget(info, movement.NewBounds(80, 24))
+	target := game.NewTarget(info, movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	kills <- killSignal{target: target, err: errors.New("operation not permitted")}
 
 	tracker := newKillTracker(0)
@@ -125,11 +144,11 @@ func TestServiceApplyKillsRecordsFailureWithoutMutatingTarget(t *testing.T) {
 }
 
 func TestServiceApplyKillsDeduplicatesRepeatedFailuresForSamePID(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096)
-	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
+	info := process.NewInfo(100, "target", 4096, 0)
+	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventSource())
 	kills := make(chan killSignal, 2)
 
-	target := game.NewTarget(info, movement.NewBounds(80, 24))
+	target := game.NewTarget(info, movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	kills <- killSignal{target: target, err: errors.New("operation not permitted")}
 	kills <- killSignal{target: target, err: errors.New("operation not permitted")}
 
@@ -144,12 +163,12 @@ func TestServiceApplyKillsDeduplicatesRepeatedFailuresForSamePID(t *testing.T) {
 // (both shouldReap=false, err!=nil). The target must stay unreaped and the
 // failure must be reported on killSignals rather than swallowed.
 func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096)
-	target := game.NewTarget(info, movement.NewBounds(80, 24))
-	killer := fake.Killer(func(*game.Target) (bool, bool, error) {
-		return false, false, errors.New("refusing to kill PID 100")
+	info := process.NewInfo(100, "target", 4096, 0)
+	target := game.NewTarget(info, movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
+	killer := fake.ProcessKiller(func(int, string, bool) (bool, error) {
+		return false, errors.New("refusing to kill PID 100")
 	})
-	svc := NewService(killer, &fake.Renderer{}, fake.NewInputSource())
+	svc := NewService(killer, &fake.Renderer{}, fake.NewInputEventSource())
 	killSignals := make(chan killSignal, 1)
 	done := make(chan struct{})
 	defer close(done)
@@ -163,39 +182,17 @@ func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
 
 // --- killOrReap ---
 
-// TestKillOrReapFalseKilledWithNilErrorReportsFallbackFailure covers a
-// combination the killer interface permits but osprocess never actually
-// returns (killed=false, shouldReap=false, err=nil): killOrReap must still
-// report a failure rather than silently treating it as success.
-func TestKillOrReapFalseKilledWithNilErrorReportsFallbackFailure(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096)
-	target := game.NewTarget(info, movement.NewBounds(80, 24))
-	killer := fake.Killer(func(*game.Target) (bool, bool, error) {
-		return false, false, nil
-	})
-	svc := NewService(killer, &fake.Renderer{}, fake.NewInputSource())
-	killSignals := make(chan killSignal, 1)
-	done := make(chan struct{})
-	defer close(done)
-
-	svc.killOrReap(target, killSignals, done)
-
-	sig := <-killSignals
-	assert.False(t, sig.shouldReap)
-	assert.Error(t, sig.err)
-}
-
 // TestKillOrReapReapWithoutErrorStaysSilent verifies the existing silent-reap
 // path (process already gone / PID recycled — shouldReap=true, err set) does
 // not start reporting a failure now that killOrReap also surfaces them: the
 // signal must carry shouldReap and no err, exactly as before this change.
 func TestKillOrReapReapWithoutErrorStaysSilent(t *testing.T) {
-	info := process.NewInfo(100, "target", 4096)
-	target := game.NewTarget(info, movement.NewBounds(80, 24))
-	killer := fake.Killer(func(*game.Target) (bool, bool, error) {
-		return false, true, errors.New("could not verify PID 100: process not found")
+	info := process.NewInfo(100, "target", 4096, 0)
+	target := game.NewTarget(info, movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
+	killer := fake.ProcessKiller(func(int, string, bool) (bool, error) {
+		return true, errors.New("could not verify PID 100: process not found")
 	})
-	svc := NewService(killer, &fake.Renderer{}, fake.NewInputSource())
+	svc := NewService(killer, &fake.Renderer{}, fake.NewInputEventSource())
 	killSignals := make(chan killSignal, 1)
 	done := make(chan struct{})
 	defer close(done)
@@ -208,7 +205,7 @@ func TestKillOrReapReapWithoutErrorStaysSilent(t *testing.T) {
 }
 
 func TestRegisterTermSignalWatcherTermSignalClosesOnStop(t *testing.T) {
-	svc := NewService(nil, &fake.Renderer{}, fake.NewInputSource())
+	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventSource())
 
 	termSignal, stop := svc.registerTermSignalWatcher()
 	stop()

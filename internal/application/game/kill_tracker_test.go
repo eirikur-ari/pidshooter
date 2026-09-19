@@ -84,5 +84,5 @@ func TestKillTrackerRecordFailureDeduplicatesSamePID(t *testing.T) {
 }
 
 func newTrackerTestTarget(pid int, name string) *game.Target {
-	return game.NewTarget(process.NewInfo(pid, name, 4096), movement.NewBounds(80, 24))
+	return game.NewTarget(process.NewInfo(pid, name, 4096, 0), movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 }

@@ -23,17 +23,18 @@ type Runner struct {
 
 // NewRunner constructs a Runner with all required outbound ports injected.
 func NewRunner(
-	processMgr outbound.ProcessManager,
+	proc outbound.Process,
 	store outbound.ScoreStore,
+	reporter outbound.ScoreReporter,
 	renderer outbound.Renderer,
-	events outbound.InputSource,
+	events outbound.InputEventSource,
 	logger outbound.Logger,
 ) *Runner {
-	processSvc := process.NewService(processMgr)
+	processSvc := process.NewService(proc)
 	return &Runner{
 		processSvc: processSvc,
 		gameSvc:    game.NewService(processSvc, renderer, events),
-		scoreSvc:   score.NewService(store),
+		scoreSvc:   score.NewService(store, reporter),
 		errHandler: apperror.NewHandler(logger),
 	}
 }
@@ -64,13 +65,14 @@ func (r *Runner) Run(cfg inbound.Config) error {
 	}
 
 	r.logKillFailures(result.KillFailures)
+	r.logDuds(result.Duds)
 
-	recErr := r.scoreSvc.RecordScore(board, result.Kills, result.FreedMem, result.LowestSpeed, cfg.TimeLimit, result.Duration, loadErr)
+	recErr := r.scoreSvc.RecordScore(board, result.Kills, len(result.Duds), result.FreedMem, result.LowestSpeed, cfg.TimeLimit, result.Duration, loadErr)
 	if err := r.errHandler.Handle(recErr); err != nil {
 		return err
 	}
 
-	score.PrintResults(result.Duration, result.Kills, result.FreedMem, board)
+	r.scoreSvc.ReportResults(result.Duration, result.Kills, len(result.Duds), result.FreedMem, board)
 
 	return nil
 }
@@ -80,5 +82,14 @@ func (r *Runner) logKillFailures(failures []game.KillFailure) {
 	for _, f := range failures {
 		msg := fmt.Sprintf("could not kill %s (PID %d)", f.Target, f.PID)
 		_ = r.errHandler.Handle(apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, msg, f.Err))
+	}
+}
+
+// logDuds reports each target whose backing process was already gone
+// before a kill could land on it.
+func (r *Runner) logDuds(duds []game.KillDud) {
+	for _, d := range duds {
+		msg := fmt.Sprintf("%s (PID %d) ran away before it could be killed", d.Target, d.PID)
+		_ = r.errHandler.Handle(apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, msg, nil))
 	}
 }

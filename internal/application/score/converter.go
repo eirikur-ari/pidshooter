@@ -10,6 +10,7 @@ func toBoard(board outbound.ScoreBoard) *score.Board {
 	for i, entry := range board.Scores {
 		entries[i] = score.Entry{
 			Kills:    entry.Kills,
+			Duds:     entry.Duds,
 			FreedMem: entry.FreedMem,
 			Speed:    entry.Speed,
 			Time:     entry.Time,
@@ -21,10 +22,26 @@ func toBoard(board outbound.ScoreBoard) *score.Board {
 }
 
 func toScoreBoard(board *score.Board) outbound.ScoreBoard {
-	entries := make([]outbound.ScoreEntry, len(board.Scores))
-	for i, entry := range board.Scores {
-		entries[i] = outbound.ScoreEntry{
+	return outbound.ScoreBoard{Scores: toScoreEntries(board.Scores)}
+}
+
+func toScoreSummary(duration float64, kills, duds int, freedMem int64, board *score.Board) outbound.ScoreSummary {
+	return outbound.ScoreSummary{
+		Kills:        kills,
+		Duds:         duds,
+		FreedMem:     freedMem,
+		Duration:     duration,
+		NewHighScore: board.IsNewHighScore(kills),
+		Entries:      toScoreEntries(board.Scores),
+	}
+}
+
+func toScoreEntries(entries []score.Entry) []outbound.ScoreEntry {
+	result := make([]outbound.ScoreEntry, len(entries))
+	for i, entry := range entries {
+		result[i] = outbound.ScoreEntry{
 			Kills:    entry.Kills,
+			Duds:     entry.Duds,
 			FreedMem: entry.FreedMem,
 			Speed:    entry.Speed,
 			Time:     entry.Time,
@@ -32,5 +49,5 @@ func toScoreBoard(board *score.Board) outbound.ScoreBoard {
 			Date:     entry.Date,
 		}
 	}
-	return outbound.ScoreBoard{Scores: entries}
+	return result
 }

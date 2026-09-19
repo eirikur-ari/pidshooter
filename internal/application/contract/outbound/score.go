@@ -4,19 +4,10 @@ import (
 	"time"
 )
 
-// NotFoundError is returned by ScoreStore.Load when no board has been
-// persisted yet. Implementations must return it by value (NotFoundError{}),
-// not by pointer — callers detect it with errors.As(err, &NotFoundError{}),
-// which matches the value form only.
-type NotFoundError struct{}
-
-func (NotFoundError) Error() string {
-	return "not found"
-}
-
 // ScoreEntry is the persistence representation of a single high score record.
 type ScoreEntry struct {
 	Kills    int
+	Duds     int
 	FreedMem int64
 	Speed    float64
 	Time     int
@@ -33,7 +24,26 @@ type ScoreBoard struct {
 type ScoreStore interface {
 	// Load returns the persisted score board. If no board has been
 	// persisted yet, it returns an empty ScoreBoard and a NotFoundError.
+	// If the persisted data exists but cannot be parsed, it returns an
+	// empty ScoreBoard and a CorruptedDataError.
 	Load() (ScoreBoard, error)
 	// Save persists board, overwriting any previously persisted board.
 	Save(board ScoreBoard) error
+}
+
+// ScoreSummary is the view representation of a session's outcome and the
+// board's current high scores, for reporting via ScoreReporter.
+type ScoreSummary struct {
+	Kills        int
+	Duds         int
+	FreedMem     int64
+	Duration     float64
+	NewHighScore bool
+	Entries      []ScoreEntry
+}
+
+// ScoreReporter is the outbound port for reporting session results and the high score table to the user.
+type ScoreReporter interface {
+	// Report displays summary to the user.
+	Report(summary ScoreSummary)
 }

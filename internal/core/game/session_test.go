@@ -13,8 +13,8 @@ import (
 
 func TestNewSession(t *testing.T) {
 	processes := []process.Info{
-		process.NewInfo(1, "a", 100),
-		process.NewInfo(2, "b", 200),
+		process.NewInfo(1, "a", 100, 0),
+		process.NewInfo(2, "b", 200, 0),
 	}
 
 	s := NewSession(processes, Config{Confirm: true, Speed: 3.5, TimeLimit: 60})
@@ -26,10 +26,10 @@ func TestNewSession(t *testing.T) {
 }
 
 func TestStartTransitionsToRunning(t *testing.T) {
-	processes := []process.Info{process.NewInfo(1, "a", 100)}
+	processes := []process.Info{process.NewInfo(1, "a", 100, 0)}
 	s := NewSession(processes, Config{})
 
-	s.Start(80, 24)
+	s.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 
 	assert.True(t, s.IsRunning())
 	assert.Len(t, s.roster.targets, 1)
@@ -37,7 +37,7 @@ func TestStartTransitionsToRunning(t *testing.T) {
 
 func TestStopTransitionsToStopped(t *testing.T) {
 	s := NewSession(nil, Config{})
-	s.Start(0, 0)
+	s.Start(movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1}))
 
 	s.Stop()
 
@@ -46,17 +46,21 @@ func TestStopTransitionsToStopped(t *testing.T) {
 
 func TestStartPanicsWhenRunning(t *testing.T) {
 	s := NewSession(nil, Config{})
-	s.Start(0, 0)
+	s.Start(movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1}))
 
-	assert.Panics(t, func() { s.Start(80, 24) })
+	assert.Panics(t, func() {
+		s.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
+	})
 }
 
 func TestStartPanicsWhenStopped(t *testing.T) {
 	s := NewSession(nil, Config{})
-	s.Start(0, 0)
+	s.Start(movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	s.Stop()
 
-	assert.Panics(t, func() { s.Start(80, 24) })
+	assert.Panics(t, func() {
+		s.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
+	})
 }
 
 func TestGameTimeLimit(t *testing.T) {
@@ -65,13 +69,13 @@ func TestGameTimeLimit(t *testing.T) {
 }
 
 func TestGameTargetsEmptyBeforeStart(t *testing.T) {
-	s := NewSession([]process.Info{process.NewInfo(1, "a", 0)}, Config{})
+	s := NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{})
 	assert.Empty(t, s.Targets())
 }
 
 func TestGameTargetsPopulatedAfterStart(t *testing.T) {
-	s := NewSession([]process.Info{process.NewInfo(1, "a", 0)}, Config{})
-	s.Start(80, 24)
+	s := NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{})
+	s.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	assert.Len(t, s.Targets(), 1)
 }
 
@@ -81,7 +85,7 @@ func TestGamePendingConfirmNilWhenNoPending(t *testing.T) {
 }
 
 func TestGamePendingConfirmReturnsPendingTarget(t *testing.T) {
-	tgt := &Target{Info: process.NewInfo(42, "suspect", 0)}
+	tgt := &Target{Info: process.NewInfo(42, "suspect", 0, 0)}
 	s := &Session{confirm: confirmation{target: tgt, confirm: true}}
 	assert.Equal(t, tgt, s.PendingConfirm())
 }
@@ -98,11 +102,11 @@ func TestGameThrottleMutationAffectsSpeed(t *testing.T) {
 }
 
 func TestGameAvailableTargetsExcludesDeadTargets(t *testing.T) {
-	s := NewSession([]process.Info{process.NewInfo(1, "a", 0)}, Config{Speed: 1.0})
-	s.Start(80, 24)
+	s := NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{Speed: 1.0})
+	s.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	s.roster.targets[0].Kill()
-	for range KillAnimationDuration {
-		s.Update(80, 24)
+	for range AnimationDuration {
+		s.Update(movement.WindowSize{Width: 80, Height: 24})
 	}
 
 	targets, alive := s.AvailableTargets()
@@ -113,11 +117,11 @@ func TestGameAvailableTargetsExcludesDeadTargets(t *testing.T) {
 
 func TestGameAvailableTargetsCountsAlive(t *testing.T) {
 	processes := []process.Info{
-		process.NewInfo(1, "a", 0),
-		process.NewInfo(2, "b", 0),
+		process.NewInfo(1, "a", 0, 0),
+		process.NewInfo(2, "b", 0, 0),
 	}
 	s := NewSession(processes, Config{Speed: 1.0})
-	s.Start(80, 24)
+	s.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	s.roster.targets[0].Kill()
 
 	targets, alive := s.AvailableTargets()
@@ -128,20 +132,20 @@ func TestGameAvailableTargetsCountsAlive(t *testing.T) {
 
 func TestUpdateStopsWhenTimeLimitExpired(t *testing.T) {
 	s := NewSession(nil, Config{TimeLimit: 1})
-	s.Start(0, 0)
+	s.Start(movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	s.timer.start = time.Now().Add(-2 * time.Second)
 
-	s.Update(80, 24)
+	s.Update(movement.WindowSize{Width: 80, Height: 24})
 
 	assert.False(t, s.IsRunning())
 }
 
 func TestUpdateStopsWhenAllTargetsDead(t *testing.T) {
-	tgt := &Target{Info: process.NewInfo(1, "target", 0), State: Dead}
+	tgt := &Target{Info: process.NewInfo(1, "target", 0, 0), State: Dead}
 	s := &Session{roster: roster{targets: []*Target{tgt}}, throttle: movement.NewThrottle(movement.MinSpeed)}
-	s.Start(0, 0)
+	s.Start(movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1}))
 
-	s.Update(80, 24)
+	s.Update(movement.WindowSize{Width: 80, Height: 24})
 
 	assert.False(t, s.IsRunning())
 }

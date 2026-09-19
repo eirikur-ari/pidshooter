@@ -31,9 +31,9 @@ func (m *Motion) Move(bounds Bounds, speed, tagWidth float64) {
 }
 
 func newRandomPosition(bounds Bounds, tagWidth int) Vector {
-	x := max(bounds.width-tagWidth-1, 1)
-	y := max(bounds.height-2, 1) // Leave room for status bar
-	return Vector{X: float64(rand.Intn(x) + 1), Y: float64(rand.Intn(y) + 1)}
+	x := max(bounds.window.Width-tagWidth-1, 1)
+	y := max(bounds.window.Height-bounds.chrome.Top-bounds.chrome.Bottom, 1)
+	return Vector{X: float64(rand.Intn(x) + 1), Y: float64(rand.Intn(y) + bounds.chrome.Top)}
 }
 
 func newRandomVelocity() Vector {

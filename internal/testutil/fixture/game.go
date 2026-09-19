@@ -2,13 +2,16 @@ package fixture
 
 import (
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
+	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-// Game returns a Session constructed with the given processes and config, started on an 80x24 board.
+// Game returns a Session constructed with the given processes and config,
+// started on an 80x24 board with a 1-row top/bottom chrome reservation,
+// matching tcellui.TUI.ChromeSize.
 func Game(processes []process.Info, cfg game.Config) *game.Session {
 	s := game.NewSession(processes, cfg)
-	s.Start(80, 24)
+	s.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	return s
 }
 

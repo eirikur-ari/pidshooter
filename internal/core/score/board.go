@@ -1,10 +1,7 @@
 package score
 
 import (
-	"fmt"
 	"sort"
-
-	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
 const maxScores = 10
@@ -35,31 +32,10 @@ func (b *Board) Add(entry Entry) {
 	}
 }
 
-// TODO: perhaps this should not be part of a domain layer, but rather a presentation layer concern, since it prints to stdout. Maybe move to a view package?
-// PrintHighScores prints a trophy message if kills beats the high score
-// recorded at the time of the last Add call, then displays the high score table.
-func (b *Board) PrintHighScores(kills int) {
-	if kills > 0 && kills >= b.highScore {
-		fmt.Println("  🏆 New high score!")
-	}
-
-	if len(b.Scores) == 0 {
-		fmt.Println("\n  No high scores yet!")
-		return
-	}
-
-	fmt.Println("\n  ╔════╦═══════╦═══════╦════════╦════════════╦════════════╗")
-	fmt.Println("  ║  # ║ Kills ║ Speed ║  Time  ║   Freed    ║    Date    ║")
-	fmt.Println("  ╠════╬═══════╬═══════╬════════╬════════════╬════════════╣")
-
-	for i, s := range b.Scores {
-		mem := util.FormatBytes(s.FreedMem)
-		date := s.Date.Format("2006-01-02")
-		fmt.Printf("  ║ %2d ║  %3d  ║ %4.1fx ║ %5.1fs ║ %8s   ║ %s ║\n",
-			i+1, s.Kills, s.Speed, s.Duration, mem, date)
-	}
-
-	fmt.Println("  ╚════╩═══════╩═══════╩════════╩════════════╩════════════╝")
+// IsNewHighScore reports whether kills would have beaten the board's
+// high score as of the last Add call.
+func (b *Board) IsNewHighScore(kills int) bool {
+	return kills > 0 && kills >= b.highScore
 }
 
 // killScore returns the current top score (kills), or 0 if none.

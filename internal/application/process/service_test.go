@@ -9,8 +9,6 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/core/game"
-	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
@@ -18,7 +16,7 @@ import (
 // --- FindProcesses ---
 
 func TestFindProcessesReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
-	svc := NewService(&fake.Process{ListErr: errors.New("ps failed")})
+	svc := NewService(&fake.Process{DiscoverErr: errors.New("ps failed")})
 
 	_, err := svc.FindProcesses([]string{"foo"})
 
@@ -36,7 +34,7 @@ func TestFindProcessesReturnsErrorWhenNoProcessIsFound(t *testing.T) {
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeNoProcessesFound, appErr.Code)
+	assert.Equal(t, apperror.CodeProcessNotFound, appErr.Code)
 	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
 	assert.Empty(t, processes)
 	assert.Equal(t, "no processes found", err.Error(), "an empty wrapper Message should not change the displayed text")
@@ -58,8 +56,26 @@ func TestFindProcessesReturnsMatchingProcesses(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []process.Info{
-		process.NewInfo(100, "target", 4096),
-		process.NewInfo(101, "another-target", 2048),
+		process.NewInfo(100, "target", 4096, 0),
+		process.NewInfo(101, "another-target", 2048, 0),
+	}, processes)
+}
+
+func TestFindProcessesExcludesProcessesNotOwnedByCaller(t *testing.T) {
+	fp := &fake.Process{
+		Infos: []outbound.ProcessInfo{
+			{PID: 100, Name: "target", Rss: 4096, UID: 1000},
+			{PID: 101, Name: "target-other-owner", Rss: 2048, UID: 2000},
+		},
+		OwnUIDValue: 1000,
+	}
+	svc := NewService(fp)
+
+	processes, err := svc.FindProcesses([]string{"target"})
+
+	require.NoError(t, err)
+	assert.Equal(t, []process.Info{
+		process.NewInfo(100, "target", 4096, 1000),
 	}, processes)
 }
 
@@ -68,53 +84,105 @@ func TestFindProcessesReturnsMatchingProcesses(t *testing.T) {
 func TestKillReturnsErrorIfPIDIsProtected(t *testing.T) {
 	fp := &fake.Process{}
 	svc := NewService(fp)
-	target := game.NewTarget(process.NewInfo(1, "init", 0), movement.NewBounds(80, 24))
 
-	killed, shouldReap, err := svc.Kill(target)
+	shouldReap, err := svc.Kill(1, "init", true)
 
-	assert.False(t, killed)
 	assert.False(t, shouldReap)
-	require.Error(t, err)
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeProcessDiscoveryFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorContains(t, err, "refusing to kill PID 1", "expected the service to refuse to kill protected PIDs")
 	assert.Empty(t, fp.KilledPIDs)
+	assert.Empty(t, fp.ReleasedPIDs, "a protected PID is refused before Pin is ever called")
+}
+
+func TestKillReturnsErrorAndShouldReapIfPinFails(t *testing.T) {
+	fp := &fake.Process{PinErr: errors.New("could not find process")}
+	svc := NewService(fp)
+
+	shouldReap, err := svc.Kill(100, "target", false)
+
+	assert.True(t, shouldReap)
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeProcessDiscoveryFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
+	assert.ErrorContains(t, err, "could not pin PID 100: could not find process")
+	assert.Empty(t, fp.KilledPIDs)
+	assert.Empty(t, fp.ReleasedPIDs, "there is no handle to release when Pin itself fails")
 }
 
 func TestKillReturnsErrorAndShouldReapIfProcessLookupByNameFails(t *testing.T) {
 	fp := &fake.Process{LookupNameErr: errors.New("ps lookup failed")}
 	svc := NewService(fp)
-	target := game.NewTarget(process.NewInfo(100, "target", 0), movement.NewBounds(80, 24))
 
-	killed, shouldReap, err := svc.Kill(target)
+	shouldReap, err := svc.Kill(100, "target", false)
 
-	assert.False(t, killed)
 	assert.True(t, shouldReap)
-	require.Error(t, err)
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeProcessDiscoveryFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorContains(t, err, "could not verify PID 100: ps lookup failed", "expected the underlying ps error to still be visible")
 	assert.Empty(t, fp.KilledPIDs)
+	assert.Equal(t, []int{100}, fp.ReleasedPIDs, "the pinned handle must be released even when LookupName fails afterward")
 }
 
 func TestKillReturnsErrorAndShouldReapIfNameValidationFails(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "somethingElse"}
 	svc := NewService(fp)
-	target := game.NewTarget(process.NewInfo(100, "target", 0), movement.NewBounds(80, 24))
 
-	killed, shouldReap, err := svc.Kill(target)
+	shouldReap, err := svc.Kill(100, "target", false)
 
-	assert.False(t, killed)
 	assert.True(t, shouldReap)
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeProcessDiscoveryFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorContains(t, err, "pid name mismatch: expected \"target\", got \"somethingElse\"", "expected the service to report a name mismatch")
 	assert.Empty(t, fp.KilledPIDs)
+	assert.Equal(t, []int{100}, fp.ReleasedPIDs, "the pinned handle must be released even when name validation fails afterward")
+}
+
+func TestKillReturnsShouldReapWhenProcessAlreadyExited(t *testing.T) {
+	fp := &fake.Process{LookupNameValue: "target", KillErr: outbound.NotFoundError{}}
+	svc := NewService(fp)
+
+	shouldReap, err := svc.Kill(100, "target", false)
+
+	assert.True(t, shouldReap)
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeProcessNotFound, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
+	assert.ErrorAs(t, err, &outbound.NotFoundError{})
+	assert.Equal(t, []int{100}, fp.ReleasedPIDs)
+}
+
+func TestKillReturnsErrorWhenKillFails(t *testing.T) {
+	fp := &fake.Process{LookupNameValue: "target", KillErr: errors.New("permission denied")}
+	svc := NewService(fp)
+
+	shouldReap, err := svc.Kill(100, "target", false)
+
+	assert.False(t, shouldReap)
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeKillFailed, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
+	assert.ErrorContains(t, err, "failed to kill PID 100: permission denied")
+	assert.Equal(t, []int{100}, fp.ReleasedPIDs)
 }
 
 func TestKillReturnsKillingProcessWasASuccess(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "target"}
 	svc := NewService(fp)
-	target := game.NewTarget(process.NewInfo(100, "target", 0), movement.NewBounds(80, 24))
 
-	killed, shouldReap, err := svc.Kill(target)
+	shouldReap, err := svc.Kill(100, "target", false)
 
-	assert.True(t, killed)
 	assert.False(t, shouldReap)
 	assert.NoError(t, err)
 	assert.Equal(t, []int{100}, fp.KilledPIDs)
+	assert.Equal(t, []int{100}, fp.ReleasedPIDs, "the pinned handle must be released after a successful kill too")
 }

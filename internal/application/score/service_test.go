@@ -11,7 +11,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/capture"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
@@ -21,7 +20,7 @@ func TestLoadScoreBoardReturnsMappedEntries(t *testing.T) {
 	date := time.Now()
 	svc := NewService(&fake.Store{Board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
 		{Kills: 8, FreedMem: 1024, Speed: 2.0, Time: 30, Duration: 5, Date: date},
-	}}})
+	}}}, &fake.ScoreReporter{})
 
 	board, highScore, err := svc.LoadScoreBoard()
 
@@ -31,7 +30,7 @@ func TestLoadScoreBoardReturnsMappedEntries(t *testing.T) {
 }
 
 func TestLoadScoreBoardReturnsNotFoundErrorWhenScoreBoardIsNotFound(t *testing.T) {
-	svc := NewService(&fake.Store{LoadErr: outbound.NotFoundError{}})
+	svc := NewService(&fake.Store{LoadErr: outbound.NotFoundError{}}, &fake.ScoreReporter{})
 
 	board, highScore, err := svc.LoadScoreBoard()
 
@@ -48,7 +47,7 @@ func TestLoadScoreBoardReturnsNotFoundErrorWhenScoreBoardIsNotFound(t *testing.T
 
 func TestLoadScoreBoardReturnsUnderlyingError(t *testing.T) {
 	cause := errors.New("disk error")
-	svc := NewService(&fake.Store{LoadErr: cause})
+	svc := NewService(&fake.Store{LoadErr: cause}, &fake.ScoreReporter{})
 
 	board, highScore, err := svc.LoadScoreBoard()
 
@@ -66,44 +65,71 @@ func TestLoadScoreBoardReturnsUnderlyingError(t *testing.T) {
 
 func TestRecordScoreReturnsNilWhenBoardIsSavedSuccessfully(t *testing.T) {
 	fakeStore := &fake.Store{}
-	svc := NewService(fakeStore)
+	svc := NewService(fakeStore, &fake.ScoreReporter{})
 	board := score.NewBoard(nil)
 
-	require.Nil(t, svc.RecordScore(board, 4, 2048, 2.5, 30, 12.5, nil))
+	require.Nil(t, svc.RecordScore(board, 4, 1, 2048, 2.5, 30, 12.5, nil))
 
 	require.Len(t, board.Scores, 1)
 	require.NotNil(t, fakeStore.Saved)
 	assert.Len(t, fakeStore.Saved.Scores, 1)
 	entry := board.Scores[0]
 	assert.Equal(t, 4, entry.Kills)
+	assert.Equal(t, 1, entry.Duds)
 	assert.Equal(t, int64(2048), entry.FreedMem)
 	assert.Equal(t, 2.5, entry.Speed)
 	assert.Equal(t, 30, entry.Time)
 	assert.Equal(t, 12.5, entry.Duration)
 }
 
+func TestRecordScoreMergesWithConcurrentlyPersistedEntries(t *testing.T) {
+	concurrentEntry := outbound.ScoreEntry{Kills: 20, Date: time.Now()}
+	fakeStore := &fake.Store{Board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{concurrentEntry}}}
+	svc := NewService(fakeStore, &fake.ScoreReporter{})
+	board := score.NewBoard(nil) // this session's board, loaded before concurrentEntry was saved by another process
+
+	require.Nil(t, svc.RecordScore(board, 5, 0, 0, 0, 0, 1.0, nil))
+
+	require.NotNil(t, fakeStore.Saved)
+	assert.Len(t, fakeStore.Saved.Scores, 2, "an entry saved by another process after this session's Load must not be discarded")
+}
+
 func TestRecordScoreSavesWhenScoreBoardWasNotFound(t *testing.T) {
 	fakeStore := &fake.Store{}
-	svc := NewService(fakeStore)
+	svc := NewService(fakeStore, &fake.ScoreReporter{})
 	board := score.NewBoard(nil)
 
 	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded", outbound.NotFoundError{})
-	require.Nil(t, svc.RecordScore(board, 1, 0, 0, 0, 1.0, loadErr))
+	require.Nil(t, svc.RecordScore(board, 1, 0, 0, 0, 0, 1.0, loadErr))
 
 	require.NotNil(t, fakeStore.Saved, "a fresh (never-persisted) board should still be saved")
 	assert.Len(t, fakeStore.Saved.Scores, 1)
 	assert.ErrorContains(t, loadErr, "score board not loaded: not found", "should report the underlying NotFoundError as the reason for the load failure")
 }
 
+func TestRecordScoreSavesWhenScoreBoardWasCorrupted(t *testing.T) {
+	fakeStore := &fake.Store{}
+	svc := NewService(fakeStore, &fake.ScoreReporter{})
+	board := score.NewBoard(nil)
+
+	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded",
+		outbound.CorruptedDataError{})
+	require.Nil(t, svc.RecordScore(board, 1, 0, 0, 0, 0, 1.0, loadErr))
+
+	require.NotNil(t, fakeStore.Saved, "a corrupted (unrecoverable) board should still be saved")
+	assert.Len(t, fakeStore.Saved.Scores, 1)
+	assert.ErrorContains(t, loadErr, "score board not loaded: corrupted data")
+}
+
 func TestRecordScoreSkipsSaveAndReturnsWarningWhenLoadFailed(t *testing.T) {
 	fakeStore := &fake.Store{}
-	svc := NewService(fakeStore)
+	svc := NewService(fakeStore, &fake.ScoreReporter{})
 	board := score.NewBoard(nil)
 
 	cause := errors.New("disk error")
 	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded", cause)
 
-	err := svc.RecordScore(board, 1, 0, 0, 0, 1.0, loadErr)
+	err := svc.RecordScore(board, 1, 0, 0, 0, 0, 1.0, loadErr)
 
 	assert.Nil(t, fakeStore.Saved, "should not overwrite a file that failed to load for a real reason")
 	var appErr *apperror.Error
@@ -116,10 +142,10 @@ func TestRecordScoreSkipsSaveAndReturnsWarningWhenLoadFailed(t *testing.T) {
 func TestRecordScoreSaveErrorReturnsUnderlyingError(t *testing.T) {
 	cause := errors.New("disk full")
 	fakeStore := &fake.Store{SaveErr: cause}
-	svc := NewService(fakeStore)
+	svc := NewService(fakeStore, &fake.ScoreReporter{})
 	board := score.NewBoard(nil)
 
-	err := svc.RecordScore(board, 1, 0, 0, 0, 1.0, nil)
+	err := svc.RecordScore(board, 1, 0, 0, 0, 0, 1.0, nil)
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -128,25 +154,21 @@ func TestRecordScoreSaveErrorReturnsUnderlyingError(t *testing.T) {
 	assert.ErrorIs(t, err, cause)
 }
 
-// --- PrintResults ---
+// --- Service.ReportResults ---
 
-func TestPrintResultsPrintsGameOverSummary(t *testing.T) {
+func TestReportResultsReportsSummaryViaReporter(t *testing.T) {
 	board := score.NewBoard(nil)
+	board.Add(score.Entry{Kills: 2, Date: time.Now()})
+	reporter := &fake.ScoreReporter{}
+	svc := NewService(&fake.Store{}, reporter)
 
-	out := capture.Output(func() {
-		PrintResults(7.5, 3, 4096, board)
-	})
+	svc.ReportResults(7.5, 3, 1, 4096, board)
 
-	assert.Contains(t, out, "Game Over!")
-	assert.Contains(t, out, "Kills: 3")
-}
-
-func TestPrintResultsDelegatesToBoardPrintScores(t *testing.T) {
-	board := score.NewBoard(nil)
-
-	out := capture.Output(func() {
-		PrintResults(0, 0, 0, board)
-	})
-
-	assert.Contains(t, out, "No high scores yet!")
+	require.NotNil(t, reporter.Reported)
+	assert.Equal(t, 3, reporter.Reported.Kills)
+	assert.Equal(t, 1, reporter.Reported.Duds)
+	assert.Equal(t, int64(4096), reporter.Reported.FreedMem)
+	assert.Equal(t, 7.5, reporter.Reported.Duration)
+	assert.True(t, reporter.Reported.NewHighScore)
+	assert.Len(t, reporter.Reported.Entries, 1)
 }

@@ -11,8 +11,9 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/application/event"
+	"github.com/eirikur-ari/pidshooter/internal/application/input"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
+	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
@@ -20,9 +21,9 @@ const frameDuration = time.Second / 20
 
 // Service orchestrates core domain objects and outbound ports to play a single game session.
 type Service struct {
-	killer   killer
+	killer   processKiller
 	renderer outbound.Renderer
-	events   outbound.InputSource
+	events   outbound.InputEventSource
 }
 
 // PlayResult carries the outcome of a completed play session, needed by the
@@ -33,12 +34,13 @@ type PlayResult struct {
 	Kills        int
 	FreedMem     int64
 	KillFailures []KillFailure
+	Duds         []KillDud
 }
 
-// killer verifies and terminates the target's backing OS process, reporting
+// processKiller verifies and terminates a target's backing OS process, reporting
 // whether the caller should reap the target because its process was already gone.
-type killer interface {
-	Kill(target *game.Target) (killed, shouldReap bool, err error)
+type processKiller interface {
+	Kill(pid int, name string, protected bool) (shouldReap bool, err error)
 }
 
 // killSignal reports the outcome of a verified kill attempt: a real kill, a
@@ -52,9 +54,9 @@ type killSignal struct {
 
 // NewService constructs a Service with all required outbound ports injected.
 func NewService(
-	killer killer,
+	killer processKiller,
 	renderer outbound.Renderer,
-	events outbound.InputSource,
+	events outbound.InputEventSource,
 ) *Service {
 	return &Service{
 		killer:   killer,
@@ -68,7 +70,7 @@ func NewService(
 // score for display during the session.
 func (s *Service) Play(cfg inbound.Config, processes []process.Info, highScore int) (PlayResult, error) {
 	if err := process.ValidateProcesses(processes); err != nil {
-		return PlayResult{}, apperror.NewError(apperror.CodeNoProcessesFound, apperror.SeverityFatal, "", err)
+		return PlayResult{}, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "", err)
 	}
 
 	session := game.NewSession(processes, game.Config{Confirm: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
@@ -85,6 +87,7 @@ func (s *Service) Play(cfg inbound.Config, processes []process.Info, highScore i
 		Kills:        tracker.score.kills,
 		FreedMem:     tracker.score.freedMem,
 		KillFailures: tracker.failure.failures,
+		Duds:         tracker.duds,
 	}, nil
 }
 
@@ -94,7 +97,7 @@ func (s *Service) runLoop(session *game.Session, tracker *killTracker) (time.Tim
 	}
 	defer s.renderer.Cleanup()
 
-	session.Start(s.renderer.Size())
+	session.Start(toBounds(s.renderer.WindowSize(), s.renderer.ChromeSize()))
 
 	termSignal, stopWatching := s.registerTermSignalWatcher()
 	defer stopWatching()
@@ -104,9 +107,11 @@ func (s *Service) runLoop(session *game.Session, tracker *killTracker) (time.Tim
 	done := make(chan struct{})
 	defer close(done)
 
-	dispatcher := event.NewDispatcher(game.NewInput(session))
+	dispatcher := input.NewDispatcher(game.NewInput(session))
 
-	s.frameLoop(session, tracker, dispatcher, termSignal, done)
+	if err := s.frameLoop(session, tracker, dispatcher, termSignal, done); err != nil {
+		return time.Time{}, err
+	}
 
 	// Capture end time before deferred cleanup runs.
 	return time.Now(), nil
@@ -125,7 +130,7 @@ func (s *Service) registerTermSignalWatcher() (termSignal <-chan struct{}, stopW
 // frameLoop drives the game at frameDuration cadence until session stops running.
 // It wakes immediately when session stops mid-frame or termSignal fires, instead of
 // waiting out the remainder of the current tick.
-func (s *Service) frameLoop(session *game.Session, tracker *killTracker, dispatcher *event.Dispatcher, termSignal <-chan struct{}, done <-chan struct{}) {
+func (s *Service) frameLoop(session *game.Session, tracker *killTracker, dispatcher *input.Dispatcher, termSignal <-chan struct{}, done <-chan struct{}) error {
 	ticker := time.NewTicker(frameDuration)
 	defer ticker.Stop()
 
@@ -133,8 +138,12 @@ func (s *Service) frameLoop(session *game.Session, tracker *killTracker, dispatc
 
 	for session.IsRunning() {
 		s.applyKillSignals(tracker, killSignals)
-		s.drainEventQueue(dispatcher, killSignals, done)
-		session.Update(s.renderer.Size())
+		if err := s.drainEventQueue(dispatcher, killSignals, done); err != nil {
+			session.Stop()
+			return err
+		}
+		window := s.renderer.WindowSize()
+		session.Update(movement.WindowSize{Width: window.Width, Height: window.Height})
 		s.renderer.Render(toFrameState(session, tracker))
 
 		if !session.IsRunning() {
@@ -147,17 +156,19 @@ func (s *Service) frameLoop(session *game.Session, tracker *killTracker, dispatc
 			session.Stop()
 		}
 	}
+	return nil
 }
 
 func (s *Service) applyKillSignals(tracker *killTracker, killSignals <-chan killSignal) {
 	for {
 		select {
 		case sig := <-killSignals:
+			sig.target.CeaseFire()
 			switch {
 			case sig.err != nil:
 				tracker.recordFailure(sig.target, sig.err)
-			case sig.shouldReap:
-				sig.target.Reap()
+			case sig.shouldReap && sig.target.Reap():
+				tracker.recordDud(sig.target)
 			case sig.target.Kill():
 				tracker.recordKill(sig.target.Rss)
 			}
@@ -167,16 +178,25 @@ func (s *Service) applyKillSignals(tracker *killTracker, killSignals <-chan kill
 	}
 }
 
-func (s *Service) drainEventQueue(dispatcher *event.Dispatcher, killSignals chan<- killSignal, done <-chan struct{}) {
+// drainEventQueue dispatches every input event currently buffered, without
+// blocking if none are ready. It returns an error if the event channel has
+// closed, e.g. because the input adapter died unexpectedly — otherwise a
+// closed channel is always ready to receive, and the loop below would spin
+// forever redispatching its zero value instead of returning.
+func (s *Service) drainEventQueue(dispatcher *input.Dispatcher, killSignals chan<- killSignal, done <-chan struct{}) error {
 	events := s.events.Events()
 	for {
 		select {
-		case inputEvent := <-events:
+		case inputEvent, ok := <-events:
+			if !ok {
+				return errors.New("input event channel closed")
+			}
 			if target := dispatcher.Dispatch(inputEvent); target != nil {
+				target.FireShot()
 				go s.killOrReap(target, killSignals, done)
 			}
 		default:
-			return
+			return nil
 		}
 	}
 }
@@ -189,7 +209,7 @@ func (s *Service) drainEventQueue(dispatcher *event.Dispatcher, killSignals chan
 // killOrReap must be invoked via a goroutine: Kill may shell out to verify
 // the target's backing process, and running it inline would stall the frame loop.
 func (s *Service) killOrReap(target *game.Target, killSignals chan<- killSignal, done <-chan struct{}) {
-	killed, shouldReap, err := s.killer.Kill(target)
+	shouldReap, err := s.killer.Kill(target.PID, target.Name, target.Info.IsProtected())
 
 	sig := killSignal{target: target}
 	switch {
@@ -197,8 +217,6 @@ func (s *Service) killOrReap(target *game.Target, killSignals chan<- killSignal,
 		sig.shouldReap = true
 	case err != nil:
 		sig.err = err
-	case !killed:
-		sig.err = errors.New("kill reported no error but target was not killed")
 	}
 
 	select {

@@ -2,7 +2,6 @@ package application
 
 import (
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,7 +11,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
-	"github.com/eirikur-ari/pidshooter/internal/core/process"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
@@ -44,27 +42,9 @@ func TestRunnerRunReturnsErrorWhenPatternTooShort(t *testing.T) {
 	}
 }
 
-func TestRunnerRunReturnsErrorWhenPatternExactMinLength(t *testing.T) {
-	minPatternLength := strings.Repeat("a", process.MinPatternLength)
-	logger := &fake.Logger{}
-	r := NewRunner(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource(), logger)
-
-	err := r.Run(inbound.Config{Patterns: []string{minPatternLength}, Speed: 2.0})
-
-	assertFatal(t, err)
-	require.Len(t, logger.Errors, 1)
-	assert.Contains(t, logger.Errors[0], "no processes found")
-}
-
-func TestRunnerRunConfigValidationReturnsErrorWhenPatternTooLong(t *testing.T) {
-	long := strings.Repeat("a", process.MaxPatternLength+1)
-	err := newTestRunner().Run(inbound.Config{Patterns: []string{long}, Speed: 2.0})
-	assertFatal(t, err)
-}
-
 func TestRunnerRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 	logger := &fake.Logger{}
-	r := NewRunner(&fake.Process{ListErr: errors.New("ps failed")}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource(), logger)
+	r := NewRunner(&fake.Process{DiscoverErr: errors.New("ps failed")}, &fake.Store{}, &fake.ScoreReporter{}, &fake.Renderer{}, fake.NewInputEventSource(), logger)
 
 	err := r.Run(inbound.Config{Patterns: []string{"proc"}, Speed: 2.0})
 
@@ -78,7 +58,7 @@ func TestRunnerRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 
 func TestRunnerLogKillFailuresLogsEachAsWarning(t *testing.T) {
 	logger := &fake.Logger{}
-	r := NewRunner(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource(), logger)
+	r := NewRunner(&fake.Process{}, &fake.Store{}, &fake.ScoreReporter{}, &fake.Renderer{}, fake.NewInputEventSource(), logger)
 
 	r.logKillFailures([]game.KillFailure{
 		{Target: "proc", PID: 123, Err: errors.New("boom")},
@@ -91,7 +71,7 @@ func TestRunnerLogKillFailuresLogsEachAsWarning(t *testing.T) {
 }
 
 func newTestRunner() *Runner {
-	return NewRunner(&fake.Process{}, &fake.Store{}, &fake.Renderer{}, fake.NewInputSource(), &fake.Logger{})
+	return NewRunner(&fake.Process{}, &fake.Store{}, &fake.ScoreReporter{}, &fake.Renderer{}, fake.NewInputEventSource(), &fake.Logger{})
 }
 
 func assertFatal(t *testing.T, err error) {

@@ -5,7 +5,7 @@ import "github.com/eirikur-ari/pidshooter/internal/core/process"
 
 // Process returns a process.Info with the given pid and name, and zero RSS.
 func Process(pid int, name string) process.Info {
-	return process.NewInfo(pid, name, 0)
+	return process.NewInfo(pid, name, 0, 0)
 }
 
 // Processes returns n process.Info fixtures with sequential PIDs starting at 1

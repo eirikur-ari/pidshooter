@@ -8,9 +8,10 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/eirikur-ari/pidshooter/internal/entrypoint/cli"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/filescore"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
-	"github.com/eirikur-ari/pidshooter/internal/infrastructure/scorefilestore"
-	"github.com/eirikur-ari/pidshooter/internal/infrastructure/stderrlog"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/stderr"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/stdout"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
@@ -21,7 +22,7 @@ func main() {
 }
 
 func run() error {
-	logger := stderrlog.NewLogger()
+	logger := stderr.NewLogger()
 
 	// These two adapters are constructed before application.NewRunner, so
 	// there's no apperror.Handler yet to route their failures through —
@@ -31,7 +32,11 @@ func run() error {
 		logger.Error(err.Error())
 		return err
 	}
-	store := scorefilestore.NewStore()
+	store, err := filescore.NewFileScore()
+	if err != nil {
+		logger.Error(err.Error())
+		return err
+	}
 
 	screen, err := tcell.NewScreen()
 	if err != nil {
@@ -39,8 +44,9 @@ func run() error {
 		logger.Error(err.Error())
 		return err
 	}
-	ui := tcellui.NewUI(screen)
+	ui := tcellui.NewTUI(screen)
+	reporter := stdout.NewScoreReporter()
 
-	runner := application.NewRunner(proc, store, ui, ui, logger)
+	runner := application.NewRunner(proc, store, reporter, ui, ui, logger)
 	return cli.NewCLI(runner, logger).Run(os.Args[1:])
 }

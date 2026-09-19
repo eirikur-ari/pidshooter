@@ -1,0 +1,103 @@
+// Package process defines the process domain value objects.
+package process
+
+import (
+	"fmt"
+	"strings"
+)
+
+// minPatternLength is the minimum allowed length for a process search pattern.
+// Single- or double-character patterns match too broadly (e.g. "a" matches
+// most system process names) and increase the risk of surfacing critical
+// system processes as kill targets.
+const minPatternLength = 3
+
+// maxPatternLength is the maximum allowed length for a process search pattern.
+const maxPatternLength = 256
+
+// Info is a snapshot of a single running process captured at discovery time.
+type Info struct {
+	PID  int
+	Name string
+	Rss  int64
+	UID  int
+}
+
+// NewInfo constructs an Info snapshot.
+func NewInfo(pid int, name string, rss int64, uid int) Info {
+	return Info{PID: pid, Name: name, Rss: rss, UID: uid}
+}
+
+// IsProtected reports whether this process must never be targeted —
+// any PID <= 1 (init, PID 0, or a negative PID), all of which are unsafe to kill.
+func (i Info) IsProtected() bool { return i.PID <= 1 }
+
+// IsKillableBy reports whether a caller with effective UID ownUID is
+// permitted to target this process: root (UID 0) may target any process;
+// everyone else may only target processes they themselves own.
+func (i Info) IsKillableBy(ownUID int) bool { return ownUID == 0 || i.UID == ownUID }
+
+// Find returns the subset of processes whose name matches any pattern
+// (case-insensitive substring match), excluding ownPID, protected PIDs, and
+// any process the caller (identified by ownUID) is not permitted to kill.
+func Find(processes []Info, patterns []string, ownPID, ownUID int) []Info {
+	var result []Info
+	for _, pr := range processes {
+		if pr.PID == ownPID || pr.IsProtected() || !pr.IsKillableBy(ownUID) {
+			continue
+		}
+		for _, pattern := range patterns {
+			if strings.Contains(strings.ToLower(pr.Name), strings.ToLower(pattern)) {
+				result = append(result, pr)
+				break
+			}
+		}
+	}
+	return result
+}
+
+// ValidateProcesses returns an error if processes is empty.
+func ValidateProcesses(processes []Info) error {
+	if len(processes) == 0 {
+		return fmt.Errorf("no processes found")
+	}
+	return nil
+}
+
+// ValidateName returns an error if actual does not match expected — used to
+// detect PID recycling between discovery and a later re-verification.
+func ValidateName(expected, actual string) error {
+	if actual != expected {
+		return fmt.Errorf("pid name mismatch: expected %q, got %q", expected, actual)
+	}
+	return nil
+}
+
+// ValidatePatterns returns an error if patterns is empty or any pattern violates the length constraints.
+func ValidatePatterns(patterns []string) error {
+	if err := validatePatterns(patterns); err != nil {
+		return err
+	}
+	return validatePatternLength(patterns)
+}
+
+func validatePatterns(patterns []string) error {
+	if len(patterns) == 0 {
+		return fmt.Errorf("at least one search pattern is required")
+	}
+	return nil
+}
+
+// validatePatternLength checks each pattern against the length constraints.
+// Length is measured in bytes; process names are expected to be ASCII.
+func validatePatternLength(patterns []string) error {
+	for _, p := range patterns {
+		if len(p) < minPatternLength {
+			return fmt.Errorf("search pattern %q must be at least %d characters", p, minPatternLength)
+		}
+		if len(p) > maxPatternLength {
+			return fmt.Errorf("search pattern %q exceeds maximum length of %d characters", p, maxPatternLength)
+		}
+	}
+	return nil
+}
