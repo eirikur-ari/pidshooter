@@ -18,12 +18,12 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
-func newRunner(proc *fake.Process, store *fake.Store, events *fake.InputEventSource, logger *fake.Logger) *Runner {
+func newRunner(proc *fake.Process, store *fake.Store, events *fake.InputEventProvider, logger *fake.Logger) *Runner {
 	return NewRunner(proc, store, &fake.ScoreReporter{}, &fake.Renderer{}, events, logger)
 }
 
 func TestIntegrationRunnerRunIsSuccessful(t *testing.T) {
-	events := fake.NewInputEventSource()
+	events := fake.NewInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
 	store := &fake.Store{}
@@ -50,7 +50,7 @@ func TestIntegrationRunnerRunReturnsErrorWhenRendererInitFails(t *testing.T) {
 		&fake.Store{},
 		&fake.ScoreReporter{},
 		&fake.Renderer{InitErr: errors.New("terminal not available")},
-		fake.NewInputEventSource(),
+		fake.NewInputEventProvider(),
 		logger,
 	)
 
@@ -65,7 +65,7 @@ func TestIntegrationRunnerRunReturnsErrorWhenRendererInitFails(t *testing.T) {
 }
 
 func TestIntegrationRunnerRunPrintsWarningAndSkipsSaveWhenLoadingScoreBoardFails(t *testing.T) {
-	events := fake.NewInputEventSource()
+	events := fake.NewInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
 	store := &fake.Store{LoadErr: errors.New("json: invalid character")}
@@ -88,7 +88,7 @@ func TestIntegrationRunnerRunPrintsWarningAndSkipsSaveWhenLoadingScoreBoardFails
 }
 
 func TestIntegrationRunnerRunPrintsWarningAndSkipsSaveWhenSavingScoreFails(t *testing.T) {
-	events := fake.NewInputEventSource()
+	events := fake.NewInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
 	logger := &fake.Logger{}
@@ -108,7 +108,7 @@ func TestIntegrationRunnerRunPrintsWarningAndSkipsSaveWhenSavingScoreFails(t *te
 }
 
 func TestIntegrationRunnerRunWillSaveScoreWhenScoreBoardWasNotFound(t *testing.T) {
-	events := fake.NewInputEventSource()
+	events := fake.NewInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
 	store := &fake.Store{LoadErr: outbound.NotFoundError{}}
@@ -129,7 +129,7 @@ func TestIntegrationRunnerRunWillSaveScoreWhenScoreBoardWasNotFound(t *testing.T
 }
 
 func TestIntegrationRunnerRunWillQuitOnQuitEvent(t *testing.T) {
-	events := fake.NewInputEventSource()
+	events := fake.NewInputEventProvider()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
 		events.Ch <- input.QuitEvent{}
@@ -153,7 +153,7 @@ func TestIntegrationRunnerRunWillQuitWhenTimeLimitExpires(t *testing.T) {
 	r := newRunner(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 102, Name: "target", Rss: 1024}}},
 		&fake.Store{},
-		fake.NewInputEventSource(),
+		fake.NewInputEventProvider(),
 		&fake.Logger{},
 	)
 
@@ -166,7 +166,7 @@ func TestIntegrationRunnerRunWillQuitWhenTimeLimitExpires(t *testing.T) {
 // started inside runLoop exits when Run returns, preventing goroutine leaks.
 func TestIntegrationRunnerRunSignalGoroutineDoesNotAccumulate(t *testing.T) {
 	runGame := func(pid int) {
-		events := fake.NewInputEventSource()
+		events := fake.NewInputEventProvider()
 		go func() {
 			time.Sleep(50 * time.Millisecond)
 			events.Ch <- input.QuitEvent{}

@@ -12,7 +12,7 @@ func NewDispatcher(input *game.Input) *Dispatcher {
 	return &Dispatcher{input: input}
 }
 
-// Dispatch routes an input event to the appropriate domain call.
-func (d *Dispatcher) Dispatch(inputEvent Event) *game.Target {
-	return inputEvent.apply(d.input)
+// Dispatch delegates the event to its own dispatch logic.
+func (d *Dispatcher) Dispatch(inputEvent EventDispatcher) *game.Target {
+	return inputEvent.dispatch(d.input)
 }

@@ -44,7 +44,7 @@ func TestRunnerRunReturnsErrorWhenPatternTooShort(t *testing.T) {
 
 func TestRunnerRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 	logger := &fake.Logger{}
-	r := NewRunner(&fake.Process{DiscoverErr: errors.New("ps failed")}, &fake.Store{}, &fake.ScoreReporter{}, &fake.Renderer{}, fake.NewInputEventSource(), logger)
+	r := NewRunner(&fake.Process{DiscoverErr: errors.New("ps failed")}, &fake.Store{}, &fake.ScoreReporter{}, &fake.Renderer{}, fake.NewInputEventProvider(), logger)
 
 	err := r.Run(inbound.Config{Patterns: []string{"proc"}, Speed: 2.0})
 
@@ -58,7 +58,7 @@ func TestRunnerRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 
 func TestRunnerLogKillFailuresLogsEachAsWarning(t *testing.T) {
 	logger := &fake.Logger{}
-	r := NewRunner(&fake.Process{}, &fake.Store{}, &fake.ScoreReporter{}, &fake.Renderer{}, fake.NewInputEventSource(), logger)
+	r := NewRunner(&fake.Process{}, &fake.Store{}, &fake.ScoreReporter{}, &fake.Renderer{}, fake.NewInputEventProvider(), logger)
 
 	r.logKillFailures([]game.KillFailure{
 		{Target: "proc", PID: 123, Err: errors.New("boom")},
@@ -71,7 +71,7 @@ func TestRunnerLogKillFailuresLogsEachAsWarning(t *testing.T) {
 }
 
 func newTestRunner() *Runner {
-	return NewRunner(&fake.Process{}, &fake.Store{}, &fake.ScoreReporter{}, &fake.Renderer{}, fake.NewInputEventSource(), &fake.Logger{})
+	return NewRunner(&fake.Process{}, &fake.Store{}, &fake.ScoreReporter{}, &fake.Renderer{}, fake.NewInputEventProvider(), &fake.Logger{})
 }
 
 func assertFatal(t *testing.T, err error) {

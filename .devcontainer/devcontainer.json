@@ -4,7 +4,7 @@
     "dockerfile": "Dockerfile",
     "args": {
       "TZ": "${localEnv:TZ:UTC}",
-      "CLAUDE_CODE_VERSION": "2.1.212"
+      "CLAUDE_CODE_VERSION": "2.1.236"
     }
   },
   "runArgs": [

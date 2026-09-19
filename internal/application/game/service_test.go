@@ -35,7 +35,7 @@ func TestServicePlayNoProcessesReturnsClassifiedError(t *testing.T) {
 func TestServicePlayRendererInitFailureReturnsClassifiedError(t *testing.T) {
 	processes := []process.Info{process.NewInfo(100, "target", 4096, 0)}
 	renderer := &fake.Renderer{InitErr: errors.New("terminal not available")}
-	svc := NewService(nil, renderer, fake.NewInputEventSource())
+	svc := NewService(nil, renderer, fake.NewInputEventProvider())
 
 	_, err := svc.Play(inbound.Config{}, processes, 0)
 
@@ -48,7 +48,7 @@ func TestServicePlayRendererInitFailureReturnsClassifiedError(t *testing.T) {
 
 func TestServicePlaySuccessReturnsPlayResult(t *testing.T) {
 	processes := []process.Info{process.NewInfo(100, "target", 4096, 0)}
-	events := fake.NewInputEventSource()
+	events := fake.NewInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 	svc := NewService(nil, &fake.Renderer{}, events)
 
@@ -65,7 +65,7 @@ func TestServicePlaySuccessReturnsPlayResult(t *testing.T) {
 // --- drainEventQueue ---
 
 func TestDrainEventQueueReturnsErrorWhenEventChannelCloses(t *testing.T) {
-	events := fake.NewInputEventSource()
+	events := fake.NewInputEventProvider()
 	close(events.Ch)
 
 	svc := NewService(nil, &fake.Renderer{}, events)
@@ -82,7 +82,7 @@ func TestDrainEventQueueReturnsErrorWhenEventChannelCloses(t *testing.T) {
 
 func TestServiceApplyKillsCompletesPendingKill(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096, 0)
-	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventSource())
+	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventProvider())
 	kills := make(chan killSignal, 1)
 
 	target := game.NewTarget(info, movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
@@ -97,7 +97,7 @@ func TestServiceApplyKillsCompletesPendingKill(t *testing.T) {
 
 func TestServiceApplyKillsReapsAlreadyKilledTarget(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096, 0)
-	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventSource())
+	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventProvider())
 	kills := make(chan killSignal, 1)
 
 	target := game.NewTarget(info, movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
@@ -114,7 +114,7 @@ func TestServiceApplyKillsReapsAlreadyKilledTarget(t *testing.T) {
 }
 
 func TestServiceApplyKillsEmptyChannelNoOps(t *testing.T) {
-	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventSource())
+	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventProvider())
 	kills := make(chan killSignal, 1)
 
 	tracker := newKillTracker(0)
@@ -125,7 +125,7 @@ func TestServiceApplyKillsEmptyChannelNoOps(t *testing.T) {
 
 func TestServiceApplyKillsRecordsFailureWithoutMutatingTarget(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096, 0)
-	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventSource())
+	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventProvider())
 	kills := make(chan killSignal, 1)
 
 	target := game.NewTarget(info, movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
@@ -145,7 +145,7 @@ func TestServiceApplyKillsRecordsFailureWithoutMutatingTarget(t *testing.T) {
 
 func TestServiceApplyKillsDeduplicatesRepeatedFailuresForSamePID(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096, 0)
-	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventSource())
+	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventProvider())
 	kills := make(chan killSignal, 2)
 
 	target := game.NewTarget(info, movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
@@ -168,7 +168,7 @@ func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
 	killer := fake.ProcessKiller(func(int, string, bool) (bool, error) {
 		return false, errors.New("refusing to kill PID 100")
 	})
-	svc := NewService(killer, &fake.Renderer{}, fake.NewInputEventSource())
+	svc := NewService(killer, &fake.Renderer{}, fake.NewInputEventProvider())
 	killSignals := make(chan killSignal, 1)
 	done := make(chan struct{})
 	defer close(done)
@@ -192,7 +192,7 @@ func TestKillOrReapReapWithoutErrorStaysSilent(t *testing.T) {
 	killer := fake.ProcessKiller(func(int, string, bool) (bool, error) {
 		return true, errors.New("could not verify PID 100: process not found")
 	})
-	svc := NewService(killer, &fake.Renderer{}, fake.NewInputEventSource())
+	svc := NewService(killer, &fake.Renderer{}, fake.NewInputEventProvider())
 	killSignals := make(chan killSignal, 1)
 	done := make(chan struct{})
 	defer close(done)
@@ -205,7 +205,7 @@ func TestKillOrReapReapWithoutErrorStaysSilent(t *testing.T) {
 }
 
 func TestRegisterTermSignalWatcherTermSignalClosesOnStop(t *testing.T) {
-	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventSource())
+	svc := NewService(nil, &fake.Renderer{}, fake.NewInputEventProvider())
 
 	termSignal, stop := svc.registerTermSignalWatcher()
 	stop()
