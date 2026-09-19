@@ -5,30 +5,30 @@ ARG CLAUDE_CODE_VERSION=2.1.236
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+       aggregate \
+       ca-certificates \
+       curl \
+       dnsutils \
+       fonts-firacode \
+       fzf \
+       gh \
+       git \
+       gnupg2 \
+       iproute2 \
+       ipset \
+       iptables \
+       jq \
+       less \
+       locales \
+       man-db \
        nodejs \
        npm \
-       less \
-       git \
        procps \
        sudo \
-       fzf \
-       zsh \
-       man-db \
        unzip \
-       gnupg2 \
-       gh \
-       iptables \
-       ipset \
-       iproute2 \
-       dnsutils \
-       aggregate \
-       jq \
        vim \
-       curl \
        wget \
-       ca-certificates \
-       fonts-firacode \
-       locales \
+       zsh \
     && rm -rf /var/lib/apt/lists/* \
     && sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen \
     && locale-gen en_US.UTF-8 \
