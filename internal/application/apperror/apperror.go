@@ -1,5 +1,11 @@
 package apperror
 
+import (
+	"errors"
+
+	"github.com/eirikur-ari/pidshooter/internal/util"
+)
+
 // Code categorizes an Error, letting callers branch on failure kind
 // without string-matching Error().
 type Code int
@@ -59,4 +65,39 @@ func (e *Error) Error() string {
 
 func (e *Error) Unwrap() error {
 	return e.Cause
+}
+
+// Handle logs err at the level its Severity calls for, then reports whether
+// the caller must still treat the operation as failed. A Warning-severity
+// error is absorbed here, so Handle reports success. A Fatal-severity error
+// is returned after being logged, so the caller can terminate the program.
+// An err that is not (and does not wrap) an *Error has SeverityUnknown,
+// which — like SeverityError — is logged at error level and absorbed.
+func Handle(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	logger := util.NewLogger()
+	switch severityOf(err) {
+	case SeverityFatal:
+		logger.Error(err.Error())
+		return err
+	case SeverityWarning:
+		logger.Warn(err.Error())
+	default:
+		logger.Error(err.Error())
+	}
+	return nil
+}
+
+// severityOf reports error Severity if it is (or wraps) an *Error, or
+// SeverityUnknown otherwise.
+func severityOf(err error) Severity {
+	var appErr *Error
+	errors.As(err, &appErr)
+	if appErr == nil {
+		return SeverityUnknown
+	}
+	return appErr.Severity
 }

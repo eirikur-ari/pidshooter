@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
+	"github.com/eirikur-ari/pidshooter/internal/application/config"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/input"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
@@ -68,7 +68,7 @@ func NewService(
 // Play runs the game loop for the given already-discovered processes.
 // highScore is the caller's persisted best, used to track a running high
 // score for display during the session.
-func (s *Service) Play(cfg inbound.Config, processes []process.Info, highScore int) (PlayResult, error) {
+func (s *Service) Play(cfg config.Config, processes []process.Info, highScore int) (PlayResult, error) {
 	if err := process.ValidateProcesses(processes); err != nil {
 		return PlayResult{}, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "", err)
 	}

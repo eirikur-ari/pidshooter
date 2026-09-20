@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
+	"github.com/eirikur-ari/pidshooter/internal/application/config"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
@@ -18,7 +18,6 @@ type Runner struct {
 	processSvc *process.Service
 	gameSvc    *game.Service
 	scoreSvc   *score.Service
-	errHandler apperror.Handler
 }
 
 // NewRunner constructs a Runner with all required outbound ports injected.
@@ -28,14 +27,12 @@ func NewRunner(
 	reporter outbound.ScoreReporter,
 	renderer outbound.Renderer,
 	events outbound.InputEventProvider,
-	logger outbound.Logger,
 ) *Runner {
 	processSvc := process.NewService(proc)
 	return &Runner{
 		processSvc: processSvc,
 		gameSvc:    game.NewService(processSvc, renderer, events),
 		scoreSvc:   score.NewService(store, reporter),
-		errHandler: apperror.NewHandler(logger),
 	}
 }
 
@@ -44,24 +41,24 @@ func NewRunner(
 // logged here, regardless of severity. Run returns nil unless the failure
 // was Fatal, in which case it's returned too so the caller can terminate
 // the program.
-func (r *Runner) Run(cfg inbound.Config) error {
-	if err := validateConfig(cfg); err != nil {
-		return r.errHandler.Handle(apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", err))
+func (r *Runner) Run(cfg config.Config) error {
+	if _, err := config.NewConfig(cfg.Patterns, cfg.ConfirmMode, cfg.Speed, cfg.TimeLimit); err != nil {
+		return err
 	}
 
 	processes, err := r.processSvc.FindProcesses(cfg.Patterns)
 	if err != nil {
-		return r.errHandler.Handle(err)
+		return apperror.Handle(err)
 	}
 
 	board, highScore, loadErr := r.scoreSvc.LoadScoreBoard()
-	if err := r.errHandler.Handle(loadErr); err != nil {
+	if err := apperror.Handle(loadErr); err != nil {
 		return err
 	}
 
 	result, err := r.gameSvc.Play(cfg, processes, highScore)
 	if err != nil {
-		return r.errHandler.Handle(err)
+		return apperror.Handle(err)
 	}
 
 	r.logKillFailures(result.KillFailures)
@@ -69,7 +66,7 @@ func (r *Runner) Run(cfg inbound.Config) error {
 
 	entry := score.ToEntry(result, cfg.TimeLimit)
 	recErr := r.scoreSvc.RecordScore(board, entry, loadErr)
-	if err := r.errHandler.Handle(recErr); err != nil {
+	if err := apperror.Handle(recErr); err != nil {
 		return err
 	}
 
@@ -82,7 +79,7 @@ func (r *Runner) Run(cfg inbound.Config) error {
 func (r *Runner) logKillFailures(failures []game.KillFailure) {
 	for _, f := range failures {
 		msg := fmt.Sprintf("could not kill %s (PID %d)", f.Target, f.PID)
-		_ = r.errHandler.Handle(apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, msg, f.Err))
+		_ = apperror.Handle(apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, msg, f.Err))
 	}
 }
 
@@ -91,6 +88,6 @@ func (r *Runner) logKillFailures(failures []game.KillFailure) {
 func (r *Runner) logDuds(duds []game.KillDud) {
 	for _, d := range duds {
 		msg := fmt.Sprintf("%s (PID %d) ran away before it could be killed", d.Target, d.PID)
-		_ = r.errHandler.Handle(apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, msg, nil))
+		_ = apperror.Handle(apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, msg, nil))
 	}
 }

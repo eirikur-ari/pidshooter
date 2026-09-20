@@ -31,13 +31,10 @@ type fileEntry struct {
 
 // fileContent is the on-disk JSON representation of the high score table.
 type fileContent struct {
-	// Version identifies the shape of fileEntry above. Bump
-	// currentSchemaVersion and add an explicit migration step in Load
-	// whenever a field is renamed or removed — without one,
-	// encoding/json would zero-fill or silently drop the old data the
-	// next time a legitimate Save re-encodes it. A missing/zero Version
-	// predates this field's introduction and is treated as version 1,
-	// the schema in place when versioning was added.
+	// Version identifies fileEntry's shape. Bump currentSchemaVersion and
+	// add a migration step in Load whenever a field is renamed or removed
+	// — otherwise encoding/json silently drops or zero-fills old data on
+	// the next Save.
 	Version int         `json:"version"`
 	Scores  []fileEntry `json:"scores"`
 }
@@ -47,9 +44,8 @@ type fileContent struct {
 const currentSchemaVersion = 1
 
 // maxFileSize bounds how large a score file Load will accept before
-// parsing. A legitimate file holds at most 10 entries (core/score.Board's
-// cap) and is a couple of KB; anything past this is treated the same as
-// unparseable JSON rather than handed to json.Unmarshal.
+// parsing; a legitimate file holds at most 10 entries (core/score.Board's
+// cap) and is a couple of KB.
 const maxFileSize = 1 << 20 // 1 MiB
 
 // NewFileScore constructs an outbound.ScoreStore that persists to the
@@ -64,21 +60,17 @@ func NewFileScore() (outbound.ScoreStore, error) {
 }
 
 // newFileScoreAt constructs an outbound.ScoreStore that persists to the
-// given path, without touching the user's default config location. Used
-// by this package's own tests; export it if a --scores-file flag needs
-// it later.
+// given path, without touching the user's default config location.
 func newFileScoreAt(path string) outbound.ScoreStore {
 	return &fileScore{path: path}
 }
 
 // Load reads and decodes the score board. A missing file is reported as
 // outbound.NotFoundError; a file that exists but fails to decode, or
-// exceeds maxScoreFileSize, is reported as outbound.CorruptedDataError.
+// exceeds maxFileSize, is reported as outbound.CorruptedDataError.
 // A file written by a newer, unrecognized schema version (e.g. by a
-// newer pidshooter build, on a downgrade) is returned unwrapped rather
-// than as outbound.CorruptedDataError, since the data is valid, just not
-// something this build knows how to merge without risking loss of
-// fields it doesn't recognize. Any other read failure (e.g. a permission
+// newer build, on a downgrade) is returned unwrapped rather than as
+// outbound.CorruptedDataError. Any other read failure (e.g. a permission
 // error) is also returned unwrapped.
 func (f *fileScore) Load() (outbound.ScoreBoard, error) {
 	data, err := os.ReadFile(f.path)
@@ -105,9 +97,8 @@ func (f *fileScore) Load() (outbound.ScoreBoard, error) {
 }
 
 // Save encodes and persists the score board, replacing any previously
-// persisted board atomically (via a temp-file-then-rename in the same
-// directory) so a crash or kill mid-write can never leave a truncated or
-// partial file behind.
+// persisted board atomically, so a crash or kill mid-write can never
+// leave a truncated or partial file behind.
 func (f *fileScore) Save(sb outbound.ScoreBoard) error {
 	data, err := json.MarshalIndent(toFileContent(sb), "", "  ")
 	if err != nil {

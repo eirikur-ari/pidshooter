@@ -1,5 +1,4 @@
-// Package stdout implements outbound ports by writing to os.Stdout.
-package stdout
+package console
 
 import (
 	"fmt"

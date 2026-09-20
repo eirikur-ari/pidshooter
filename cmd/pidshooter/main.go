@@ -8,11 +8,11 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/eirikur-ari/pidshooter/internal/entrypoint/cli"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/console"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/filescore"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
-	"github.com/eirikur-ari/pidshooter/internal/infrastructure/stderr"
-	"github.com/eirikur-ari/pidshooter/internal/infrastructure/stdout"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
+	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
 func main() {
@@ -22,11 +22,10 @@ func main() {
 }
 
 func run() error {
-	logger := stderr.NewLogger()
+	logger := util.NewLogger()
 
-	// These two adapters are constructed before application.NewRunner, so
-	// there's no apperror.Handler yet to route their failures through —
-	// they're the one place in the program that logs directly.
+	// A failure here means the program can't run at all, so it's logged
+	// and the program exits immediately rather than continuing on.
 	proc, err := osprocess.NewProcess()
 	if err != nil {
 		logger.Error(err.Error())
@@ -45,8 +44,8 @@ func run() error {
 		return err
 	}
 	ui := tcellui.NewTUI(screen)
-	reporter := stdout.NewScoreReporter()
+	reporter := console.NewScoreReporter()
 
-	runner := application.NewRunner(proc, store, reporter, ui, ui, logger)
-	return cli.NewCLI(runner, logger).Run(os.Args[1:])
+	runner := application.NewRunner(proc, store, reporter, ui, ui)
+	return cli.NewCLI(runner).Run(os.Args[1:])
 }

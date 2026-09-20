@@ -12,14 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
+	"github.com/eirikur-ari/pidshooter/internal/application/config"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/input"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
-func newRunner(proc *fake.Process, store *fake.Store, events *fake.InputEventProvider, logger *fake.Logger) *Runner {
-	return NewRunner(proc, store, &fake.ScoreReporter{}, &fake.Renderer{}, events, logger)
+func newRunner(proc *fake.Process, store *fake.Store, events *fake.InputEventProvider) *Runner {
+	return NewRunner(proc, store, &fake.ScoreReporter{}, &fake.Renderer{}, events)
 }
 
 func TestIntegrationRunnerRunIsSuccessful(t *testing.T) {
@@ -31,10 +31,9 @@ func TestIntegrationRunnerRunIsSuccessful(t *testing.T) {
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024}}},
 		store,
 		events,
-		&fake.Logger{},
 	)
 
-	err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 	require.NoError(t, err)
 	require.NotNil(t, store.Saved)
 	require.Len(t, store.Saved.Scores, 1)
@@ -44,67 +43,52 @@ func TestIntegrationRunnerRunIsSuccessful(t *testing.T) {
 }
 
 func TestIntegrationRunnerRunReturnsErrorWhenRendererInitFails(t *testing.T) {
-	logger := &fake.Logger{}
 	r := NewRunner(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 204, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		&fake.ScoreReporter{},
 		&fake.Renderer{InitErr: errors.New("terminal not available")},
 		fake.NewInputEventProvider(),
-		logger,
 	)
 
-	err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, apperror.CodeGameFailed, appErr.Code)
 	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
-	require.Len(t, logger.Errors, 1)
-	assert.Contains(t, logger.Errors[0], "terminal not available")
 }
 
-func TestIntegrationRunnerRunPrintsWarningAndSkipsSaveWhenLoadingScoreBoardFails(t *testing.T) {
+func TestIntegrationRunnerRunSkipsSaveWhenLoadingScoreBoardFails(t *testing.T) {
 	events := fake.NewInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
 	store := &fake.Store{LoadErr: errors.New("json: invalid character")}
-	logger := &fake.Logger{}
 	r := newRunner(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 201, Name: "target", Rss: 1024}}},
 		store,
 		events,
-		logger,
 	)
 
-	err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 
 	require.NoError(t, err)
-	require.Len(t, logger.Warnings, 2)
-	assert.Contains(t, logger.Warnings[0], "score board not loaded")
-	assert.Contains(t, logger.Warnings[1], "score board not saved")
-	assert.Contains(t, logger.Warnings[1], "score board not loaded", "should report the load failure as the reason the save was skipped")
 	assert.Nil(t, store.Saved)
 }
 
-func TestIntegrationRunnerRunPrintsWarningAndSkipsSaveWhenSavingScoreFails(t *testing.T) {
+func TestIntegrationRunnerRunDoesNotFailWhenSavingScoreFails(t *testing.T) {
 	events := fake.NewInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
-	logger := &fake.Logger{}
 	r := newRunner(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 202, Name: "target", Rss: 1024}}},
 		&fake.Store{SaveErr: errors.New("disk full")},
 		events,
-		logger,
 	)
 
-	err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 
 	require.NoError(t, err)
-	require.Len(t, logger.Warnings, 1)
-	assert.Contains(t, logger.Warnings[0], "score board not saved")
-	assert.Contains(t, logger.Warnings[0], "disk full")
 }
 
 func TestIntegrationRunnerRunWillSaveScoreWhenScoreBoardWasNotFound(t *testing.T) {
@@ -112,20 +96,16 @@ func TestIntegrationRunnerRunWillSaveScoreWhenScoreBoardWasNotFound(t *testing.T
 	events.Ch <- input.QuitEvent{}
 
 	store := &fake.Store{LoadErr: outbound.NotFoundError{}}
-	logger := &fake.Logger{}
 	r := newRunner(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 203, Name: "target", Rss: 1024}}},
 		store,
 		events,
-		logger,
 	)
 
-	err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 
 	require.NoError(t, err)
 	require.NotNil(t, store.Saved, "a fresh (never-persisted) board should still be saved")
-	require.Len(t, logger.Warnings, 1)
-	assert.Contains(t, logger.Warnings[0], "score board not loaded")
 }
 
 func TestIntegrationRunnerRunWillQuitOnQuitEvent(t *testing.T) {
@@ -139,11 +119,10 @@ func TestIntegrationRunnerRunWillQuitOnQuitEvent(t *testing.T) {
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 100, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
-		&fake.Logger{},
 	)
 
 	start := time.Now()
-	err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0})
+	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0})
 
 	require.NoError(t, err)
 	assert.Less(t, time.Since(start), time.Second, "Run should have quit shortly after the QuitEvent, not run indefinitely")
@@ -154,11 +133,10 @@ func TestIntegrationRunnerRunWillQuitWhenTimeLimitExpires(t *testing.T) {
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 102, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		fake.NewInputEventProvider(),
-		&fake.Logger{},
 	)
 
 	start := time.Now()
-	require.NoError(t, r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 1}))
+	require.NoError(t, r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 1}))
 	assert.LessOrEqual(t, time.Since(start), 3*time.Second, "game took too long to exit on time limit")
 }
 
@@ -175,9 +153,8 @@ func TestIntegrationRunnerRunSignalGoroutineDoesNotAccumulate(t *testing.T) {
 			&fake.Process{Infos: []outbound.ProcessInfo{{PID: pid, Name: "target", Rss: 1024}}},
 			&fake.Store{},
 			events,
-			&fake.Logger{},
 		)
-		if err := r.Run(inbound.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
+		if err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
 			t.Fatalf("pid %d: unexpected error: %v", pid, err)
 		}
 	}
