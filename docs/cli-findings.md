@@ -14,8 +14,8 @@ Both reviews agree: **the inbound boundary itself is clean.** `cli.go` imports o
 
 `main.go` is business-logic-free and matches the documented principle ("main.go is not logic — it is wiring"), with two real deviations both reviews converged on independently:
 
-- **`main.go` is the only file outside `infrastructure/tcellui` that imports `tcell` directly**, and it owns the knowledge that tcell's error needs domain-flavored wrapping (`fmt.Errorf("failed to create screen: %w", err)`). The other two adapters (`osprocess.NewProcess()`, `filescore.NewFileScore()`) are each self-contained factories that resolve their own dependency and wrap their own error — the UI adapter uniquely offloads both to the composition root, meaning swapping the terminal library requires editing `main.go`, not just its constructor call.
-- **The three early-adapter-construction failures are logged via three manual `logger.Error(...)` calls, entirely bypassing `apperror`** — the only place in the program's error handling that doesn't route through it (see Finding 9).
+- ~~`main.go` is the only file outside `infrastructure/tcellui` that imports `tcell` directly~~ — **resolved as a side effect of Finding 1's fix (2026-09-20):** all adapter construction, including the `tcell.NewScreen()` call and its error wrapping, moved into `internal/composition.RunnerFactory`. `main.go` itself now imports neither `tcell` nor any `infrastructure/*` package at all — it is exactly `cli.NewCLI(composition.NewRunnerFactory()).Run(os.Args[1:])` and nothing else.
+- ~~The three early-adapter-construction failures are logged via three manual `logger.Error(...)` calls, entirely bypassing `apperror`~~ — **resolved as the same side effect:** those three blocks no longer exist in `main.go`; a `composition.RunnerFactory.Create()` failure is now a plain returned error that flows through `cli.report()` like any other CLI-returned error. See Finding 9, now moot.
 
 **A third point, found only by Opus and worth treating as its own architecture-conformance item:** `cli.go` hardcodes `os.Stdout`/`os.Stderr` at five call sites and constructs a fresh `util.NewLogger()` inline inside `report`, rather than holding an injectable writer/logger field — unlike the sibling adapter `console.ScoreReporter` (`infrastructure/console/score_reporter.go`), which takes a `writer io.Writer` field specifically so its own tests can substitute a `bytes.Buffer` and assert on real output. See Finding 7 below — this is not a stray inconsistency, it's the direct cause of `cli_test.go` having zero assertions on anything the adapter actually prints.
 
@@ -25,7 +25,7 @@ Both reviews agree: **the inbound boundary itself is clean.** `cli.go` imports o
 
 ## 2. Moderate findings
 
-### Finding 1: Composition root builds every adapter before parsing any argument — `pidshooter --help` fails outright (exit 1, empty stdout) whenever `$TERM` is unset
+### Finding 1: Composition root builds every adapter before parsing any argument — `pidshooter --help` fails outright (exit 1, empty stdout) whenever `$TERM` is unset — ✅ FIXED 2026-09-20
 
 **Both reviews found this** (Fable as M4, Opus as Finding 1); this is `docs/fable-review.md`'s **D7**, confirmed still present and materially worse than D7 originally described — D7 said `--help` "pays for, and can fail on" the adapters; measured, it doesn't merely pay, it **cannot succeed at all** in a routine environment.
 
@@ -41,6 +41,10 @@ error: failed to create screen: terminal entry not found: term not set
 `$TERM` is routinely unset in CI runners, `docker build` `RUN` steps, systemd units, cron, and `ssh host 'cmd'`. A packaging/CI smoke test of the form `pidshooter --help >/dev/null` will fail in every one of those. Both reviews additionally confirmed the same failure mode with `$PATH` stripped (`osprocess.NewProcess()` fails first) and, less severely, `$HOME`/`$XDG_CONFIG_HOME` unset (`filescore.NewFileScore()` fails first, but only when *combined* with the other two being satisfied — checked and confirmed this is the one adapter that doesn't break `--help` on its own).
 
 **Recommended fix:** parse first, construct second. Give the CLI adapter lazily-constructed dependencies (e.g. `cli.NewCLI` takes a `func() (inbound.Runner, error)` factory that `play` invokes only after `help`/no-args/parse/validate have all passed), so the invariant becomes: *no adapter is constructed on any code path that doesn't reach `service.Run`.*
+
+**Implemented (2026-09-20):** `inbound.RunnerFactory` (`Create() (Runner, error)`) was added as a new inbound port alongside `Runner` — named `Create` rather than `NewRunner` specifically to avoid colliding, in both name and meaning, with the pre-existing `application.NewRunner` constructor it calls internally. A new package, `internal/composition` — the composition root's wiring logic, allowed to import both `application` and `infrastructure/*` so that `application` itself never has to — holds `composition.RunnerFactory`, the concrete implementation of `inbound.RunnerFactory` that constructs `osprocess.NewProcess()`, `filescore.NewFileScore()`, `tcell.NewScreen()`, and `application.NewRunner(...)`. `CLI` now holds a `RunnerFactory` (field `factory`) instead of a `Runner`, and `run()` calls `c.factory.Create()` only at its very last step — after `help`/no-args/parse-errors/`config.NewConfig` have all already had the chance to return first — so `main.go` shrinks to `cli.NewCLI(composition.NewRunnerFactory()).Run(os.Args[1:])` with zero adapter construction of its own. Verified against the real binary: `--help`, bare invocation, and `--help` with `$PATH` stripped all now exit 0 with full usage output regardless of `$TERM`/`$PATH`/`$HOME`, while an actual run still correctly fails when the terminal really can't be created. Covered by `TestRunNoArgsDoesNotConstructRunner`, `TestRunHelpDoesNotConstructRunner`, `TestRunInvalidFlagsDoesNotConstructRunner`, `TestRunInvalidConfigDoesNotConstructRunner`, and `TestRunReturnsErrorWhenRunnerFactoryFails` (all in `cli_test.go`, using a call-counting `fake.RunnerFactory`), directly pinning both the laziness invariant and the still-open Finding 7 gap (`cmd/pidshooter` itself still has no test file, since `composition.RunnerFactory`'s real adapter construction isn't separately covered here).
+
+This also incidentally simplifies Finding 9: `main.go` no longer has any error-handling logic of its own to bypass `apperror` with — the three former manual `logger.Error(...)` calls are gone along with the eager construction they guarded, and any factory failure now flows through the same single `cli.report()` path as every other CLI-returned error.
 
 ---
 
@@ -189,9 +193,9 @@ The assumption is also unenforced: any future `inbound.Runner` implementation th
 
 ---
 
-### Finding 9: `main.go`'s three early-failure blocks bypass `apperror` entirely, and their explanatory comment only covers the first of the three
+### Finding 9: `main.go`'s three early-failure blocks bypass `apperror` entirely, and their explanatory comment only covers the first of the three — MOOT as of 2026-09-20
 
-**Found by Opus (Finding 12).**
+**Found by Opus (Finding 12).** Overtaken by Finding 1's fix: the three blocks this finding describes (`osprocess.NewProcess`/`filescore.NewFileScore`/`tcell.NewScreen`, each followed by a manual `logger.Error(...)`) no longer exist in `main.go` — they moved into `internal/composition.RunnerFactory.Create()`, which returns plain errors with no logging of its own, letting `cli.report()` be the sole logging site for them like any other CLI-returned error. Recorded below for history; no action needed.
 
 ```go
 // A failure here means the program can't run at all, so it's logged
@@ -255,7 +259,7 @@ Both are "you gave me no pattern," yet one is success (shows usage, exit 0) and 
 | **F2** — `--speed=NaN` bypasses validation | 🔴 **Still present, unchanged mechanism**, now inherited by every caller of the centralized validator rather than just the CLI. See **Finding 2**. |
 | **F4** — `--time` has no upper bound, overflows to "unlimited" | 🔴 **Still present, unchanged mechanism**, same relocation pattern as F2. See **Finding 3**. |
 | **D3** — No inbound-port validation (only the CLI adapter validated) | ✅ **Fixed at the architecture level.** `application.Runner.Run` independently re-validates via `config.NewConfig`, verified by calling it directly with bad configs, bypassing the CLI entirely. **Caveat:** the port is now uniformly validated, but by the same buggy validators (F2/F4 above) — the architectural gap is closed, two of the specific holes it was meant to catch are not. |
-| **D7** — Composition root builds adapters that can fail/block before argument parsing | 🔴 **Still present, and measurably worse than originally described** — `--help` doesn't just risk paying the cost, it reliably fails in any environment without a `$TERM` (routine for CI/containers/cron). See **Finding 1**. |
+| **D7** — Composition root builds adapters that can fail/block before argument parsing | ✅ **Fixed 2026-09-20**, after being confirmed measurably worse than originally described — `--help` didn't just risk paying the cost, it reliably failed in any environment without a `$TERM` (routine for CI/containers/cron). See **Finding 1**. |
 | **S1** — No safeguard against running as root | ⚠️ **Partially mitigated, out of primary scope.** Non-root case closed one layer down (`IsKillableBy`); root case unchanged; not specific to `cli.go`/`main.go`. |
 | (implied by task brief) cobra / `buildCommand()` staleness in `docs/hexagonal-arc.md` | 🔴 **Confirmed, and found to extend much further** than those two mentions — see **Finding 14**. |
 

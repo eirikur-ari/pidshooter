@@ -116,6 +116,40 @@ func TestRunFlagsWithoutPatternsIsRejected(t *testing.T) {
 	assert.Error(t, newTestCLI(&fake.Runner{}).Run([]string{"--confirm"}))
 }
 
+func TestRunNoArgsDoesNotConstructRunner(t *testing.T) {
+	factory := &fake.RunnerFactory{}
+	require.NoError(t, NewCLI(factory).Run([]string{}))
+	assert.Zero(t, factory.Calls)
+}
+
+func TestRunHelpDoesNotConstructRunner(t *testing.T) {
+	factory := &fake.RunnerFactory{}
+	require.NoError(t, NewCLI(factory).Run([]string{"--help"}))
+	assert.Zero(t, factory.Calls)
+}
+
+func TestRunInvalidFlagsDoesNotConstructRunner(t *testing.T) {
+	factory := &fake.RunnerFactory{}
+	require.Error(t, NewCLI(factory).Run([]string{"proc", "--unknown"}))
+	assert.Zero(t, factory.Calls)
+}
+
+func TestRunInvalidConfigDoesNotConstructRunner(t *testing.T) {
+	factory := &fake.RunnerFactory{}
+	require.Error(t, NewCLI(factory).Run([]string{"--confirm"}))
+	assert.Zero(t, factory.Calls)
+}
+
+func TestRunReturnsErrorWhenRunnerFactoryFails(t *testing.T) {
+	factory := &fake.RunnerFactory{Err: errors.New("boom")}
+
+	err := NewCLI(factory).Run([]string{"proc"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
+	assert.Equal(t, 1, factory.Calls)
+}
+
 func TestRunReturnsErrorOnFatal(t *testing.T) {
 	fatal := apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "game session failed", errors.New("boom"))
 	runner := &fake.Runner{Err: fatal}
@@ -127,7 +161,7 @@ func TestRunReturnsErrorOnFatal(t *testing.T) {
 }
 
 func newTestCLI(runner inbound.Runner) *CLI {
-	return NewCLI(runner)
+	return NewCLI(&fake.RunnerFactory{Runner: runner})
 }
 
 // assertFlagResult runs the CLI with arg and asserts either a parse error, or

@@ -144,3 +144,39 @@ func TestHandleReturnsNilErrorWhenGivenNil(t *testing.T) {
 
 	assert.NoError(t, err)
 }
+
+func TestLogErrorReturnsNilWhenGivenNil(t *testing.T) {
+	assert.NoError(t, LogError(nil))
+}
+
+func TestLogErrorReturnsPlainErrorUnchanged(t *testing.T) {
+	input := errors.New("flag provided but not defined: -unknown")
+
+	err := LogError(input)
+
+	require.Error(t, err)
+	assert.Same(t, input, err)
+}
+
+func TestLogErrorNeverAbsorbsAnAppError(t *testing.T) {
+	for _, severity := range []Severity{SeverityFatal, SeverityError, SeverityWarning, SeverityUnknown} {
+		t.Run(fmt.Sprintf("severity %d", severity), func(t *testing.T) {
+			input := NewError(CodeGameFailed, severity, "game session failed", errors.New("boom"))
+
+			err := LogError(input)
+
+			require.Error(t, err)
+			assert.Same(t, input, err, "LogError must return err unchanged regardless of severity")
+		})
+	}
+}
+
+func TestLogErrorReturnsWrappedAppErrorUnchanged(t *testing.T) {
+	fatal := NewError(CodeGameFailed, SeverityFatal, "game session failed", errors.New("boom"))
+	wrapped := fmt.Errorf("during Run: %w", fatal)
+
+	err := LogError(wrapped)
+
+	require.Error(t, err)
+	assert.Same(t, wrapped, err)
+}

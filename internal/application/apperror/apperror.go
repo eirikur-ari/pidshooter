@@ -91,6 +91,17 @@ func Handle(err error) error {
 	return nil
 }
 
+// LogError logs err unless it is (or wraps) an *Error, which is assumed
+// to already be logged. Unlike Handle, it never absorbs err — the
+// returned value is always err, unchanged.
+func LogError(err error) error {
+	var appErr *Error
+	if err != nil && !errors.As(err, &appErr) {
+		util.NewLogger().Error(err.Error())
+	}
+	return err
+}
+
 // severityOf reports error Severity if it is (or wraps) an *Error, or
 // SeverityUnknown otherwise.
 func severityOf(err error) Severity {

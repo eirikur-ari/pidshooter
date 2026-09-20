@@ -1,0 +1,42 @@
+package composition
+
+import (
+	"fmt"
+
+	"github.com/gdamore/tcell/v2"
+
+	"github.com/eirikur-ari/pidshooter/internal/application"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/console"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/filescore"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
+)
+
+// RunnerFactory constructs the application.Runner and every outbound
+// adapter it needs. It implements inbound.RunnerFactory.
+type RunnerFactory struct{}
+
+// NewRunnerFactory returns a RunnerFactory.
+func NewRunnerFactory() RunnerFactory {
+	return RunnerFactory{}
+}
+
+// Create implements inbound.RunnerFactory.
+func (RunnerFactory) Create() (inbound.Runner, error) {
+	proc, err := osprocess.NewProcess()
+	if err != nil {
+		return nil, err
+	}
+	store, err := filescore.NewFileScore()
+	if err != nil {
+		return nil, err
+	}
+	screen, err := tcell.NewScreen()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create screen: %w", err)
+	}
+	ui := tcellui.NewTUI(screen)
+	reporter := console.NewScoreReporter()
+	return application.NewRunner(proc, store, reporter, ui, ui), nil
+}
