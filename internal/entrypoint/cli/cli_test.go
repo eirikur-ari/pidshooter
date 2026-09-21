@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"errors"
 	"strings"
 	"testing"
@@ -15,13 +16,13 @@ import (
 )
 
 func TestRunNoArgsPrintsUsageAndReturnsNil(t *testing.T) {
-	assert.NoError(t, newTestCLI(&fake.Runner{}).Run([]string{}))
+	assert.NoError(t, newTestProgram(&fake.Runner{}).Run([]string{}))
 }
 
 func TestRunHelpFlagPrintsUsageAndReturnsNil(t *testing.T) {
 	for _, flag := range []string{"--help", "-h"} {
 		t.Run(flag, func(t *testing.T) {
-			assert.NoError(t, newTestCLI(&fake.Runner{}).Run([]string{flag}))
+			assert.NoError(t, newTestProgram(&fake.Runner{}).Run([]string{flag}))
 		})
 	}
 }
@@ -35,12 +36,12 @@ func TestRunHelpWinsRegardlessOfPositionOrOtherErrors(t *testing.T) {
 	}
 	for _, args := range tests {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			assert.NoError(t, newTestCLI(&fake.Runner{}).Run(args))
+			assert.NoError(t, newTestProgram(&fake.Runner{}).Run(args))
 		})
 	}
 }
 
-func TestRunMalformedFlagReturnsError(t *testing.T) {
+func TestRunMalformedFlagReturnsArgumentError(t *testing.T) {
 	tests := [][]string{
 		{"proc", "--help=true"}, // not an exact -h/--help match; falls through as an unrecognized flag
 		{"proc", "--help=false"},
@@ -51,14 +52,16 @@ func TestRunMalformedFlagReturnsError(t *testing.T) {
 	}
 	for _, args := range tests {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			assert.Error(t, newTestCLI(&fake.Runner{}).Run(args))
+			err := newTestProgram(&fake.Runner{}).Run(args)
+			require.Error(t, err)
+			assert.True(t, errors.As(err, &ArgumentError{}))
 		})
 	}
 }
 
 func TestRunBasicPattern(t *testing.T) {
 	runner := &fake.Runner{}
-	require.NoError(t, newTestCLI(runner).Run([]string{"firefox"}))
+	require.NoError(t, newTestProgram(runner).Run([]string{"firefox"}))
 	require.Len(t, runner.Cfg.Patterns, 1)
 	assert.Equal(t, "firefox", runner.Cfg.Patterns[0])
 	assert.False(t, runner.Cfg.ConfirmMode)
@@ -68,7 +71,7 @@ func TestRunBasicPattern(t *testing.T) {
 
 func TestRunMultiplePatterns(t *testing.T) {
 	runner := &fake.Runner{}
-	require.NoError(t, newTestCLI(runner).Run([]string{"chrome", "firefox", "node"}))
+	require.NoError(t, newTestProgram(runner).Run([]string{"chrome", "firefox", "node"}))
 	require.Len(t, runner.Cfg.Patterns, 3)
 	for i, want := range []string{"chrome", "firefox", "node"} {
 		assert.Equal(t, want, runner.Cfg.Patterns[i])
@@ -77,7 +80,7 @@ func TestRunMultiplePatterns(t *testing.T) {
 
 func TestRunConfirmFlag(t *testing.T) {
 	runner := &fake.Runner{}
-	require.NoError(t, newTestCLI(runner).Run([]string{"sleep", "--confirm"}))
+	require.NoError(t, newTestProgram(runner).Run([]string{"sleep", "--confirm"}))
 	assert.True(t, runner.Cfg.ConfirmMode)
 }
 
@@ -122,77 +125,121 @@ func TestRunTimeFlag(t *testing.T) {
 
 func TestRunPatternAfterFlag(t *testing.T) {
 	runner := &fake.Runner{}
-	require.NoError(t, newTestCLI(runner).Run([]string{"chrome", "--confirm", "firefox"}))
+	require.NoError(t, newTestProgram(runner).Run([]string{"chrome", "--confirm", "firefox"}))
 	assert.Equal(t, []string{"chrome", "firefox"}, runner.Cfg.Patterns)
 	assert.True(t, runner.Cfg.ConfirmMode)
 }
 
 func TestRunFlagsSurroundingPatterns(t *testing.T) {
 	runner := &fake.Runner{}
-	require.NoError(t, newTestCLI(runner).Run([]string{"chrome", "--speed", "3.5", "firefox", "node", "--confirm"}))
+	require.NoError(t, newTestProgram(runner).Run([]string{"chrome", "--speed", "3.5", "firefox", "node", "--confirm"}))
 	assert.Equal(t, []string{"chrome", "firefox", "node"}, runner.Cfg.Patterns)
 	assert.Equal(t, 3.5, runner.Cfg.Speed)
 	assert.True(t, runner.Cfg.ConfirmMode)
 }
 
 func TestRunFlagsWithoutPatternsIsRejected(t *testing.T) {
-	assert.Error(t, newTestCLI(&fake.Runner{}).Run([]string{"--confirm"}))
+	assert.Error(t, newTestProgram(&fake.Runner{}).Run([]string{"--confirm"}))
 }
 
 func TestRunNoArgsDoesNotConstructRunner(t *testing.T) {
 	factory := &fake.RunnerFactory{}
-	require.NoError(t, NewCLI(factory).Run([]string{}))
+	require.NoError(t, NewProgram(factory).Run([]string{}))
 	assert.Zero(t, factory.Calls)
 }
 
 func TestRunHelpDoesNotConstructRunner(t *testing.T) {
 	factory := &fake.RunnerFactory{}
-	require.NoError(t, NewCLI(factory).Run([]string{"--help"}))
+	require.NoError(t, NewProgram(factory).Run([]string{"--help"}))
 	assert.Zero(t, factory.Calls)
 }
 
 func TestRunInvalidFlagsDoesNotConstructRunner(t *testing.T) {
 	factory := &fake.RunnerFactory{}
-	require.Error(t, NewCLI(factory).Run([]string{"proc", "--unknown"}))
+	require.Error(t, NewProgram(factory).Run([]string{"proc", "--unknown"}))
 	assert.Zero(t, factory.Calls)
 }
 
 func TestRunInvalidConfigDoesNotConstructRunner(t *testing.T) {
 	factory := &fake.RunnerFactory{}
-	require.Error(t, NewCLI(factory).Run([]string{"--confirm"}))
+	require.Error(t, NewProgram(factory).Run([]string{"--confirm"}))
 	assert.Zero(t, factory.Calls)
 }
 
 func TestRunReturnsErrorWhenRunnerFactoryFails(t *testing.T) {
 	factory := &fake.RunnerFactory{Err: errors.New("boom")}
 
-	err := NewCLI(factory).Run([]string{"proc"})
+	err := NewProgram(factory).Run([]string{"proc"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "boom")
 	assert.Equal(t, 1, factory.Calls)
 }
 
+func TestRunNoArgsPrintsUsageToStdout(t *testing.T) {
+	program, out, errOut := newCapturingTestProgram(&fake.Runner{})
+
+	require.NoError(t, program.Run([]string{}))
+
+	assert.Contains(t, out.String(), "Process ID Shooter")
+	assert.Empty(t, errOut.String())
+}
+
+func TestRunHelpPrintsUsageToStdout(t *testing.T) {
+	for _, flag := range []string{"--help", "-h"} {
+		t.Run(flag, func(t *testing.T) {
+			program, out, errOut := newCapturingTestProgram(&fake.Runner{})
+
+			require.NoError(t, program.Run([]string{flag}))
+
+			assert.Contains(t, out.String(), "Process ID Shooter")
+			assert.Empty(t, errOut.String())
+		})
+	}
+}
+
+func TestRunUnknownFlagPrintsUsageToStderr(t *testing.T) {
+	program, out, errOut := newCapturingTestProgram(&fake.Runner{})
+
+	require.Error(t, program.Run([]string{"proc", "--unknown"}))
+
+	assert.Empty(t, out.String())
+	assert.Contains(t, errOut.String(), "Process ID Shooter")
+}
+
+func TestRunInvalidConfigPrintsUsageToStderr(t *testing.T) {
+	program, out, errOut := newCapturingTestProgram(&fake.Runner{})
+
+	require.Error(t, program.Run([]string{"--confirm"}))
+
+	assert.Empty(t, out.String())
+	assert.Contains(t, errOut.String(), "Process ID Shooter")
+}
+
 func TestRunReturnsErrorOnFatal(t *testing.T) {
 	fatal := apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "game session failed", errors.New("boom"))
 	runner := &fake.Runner{Err: fatal}
 
-	err := newTestCLI(runner).Run([]string{"proc"})
+	err := newTestProgram(runner).Run([]string{"proc"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "game session failed")
 }
 
-func newTestCLI(runner inbound.Runner) *CLI {
-	return NewCLI(&fake.RunnerFactory{Runner: runner})
+func newTestProgram(runner inbound.Runner) *Program {
+	return NewProgram(&fake.RunnerFactory{Runner: runner})
 }
 
-// assertFlagResult runs the CLI with arg and asserts either a parse error, or
-// that get extracts want from the resulting Config.
+func newCapturingTestProgram(runner inbound.Runner) (program *Program, out, errOut *bytes.Buffer) {
+	out, errOut = &bytes.Buffer{}, &bytes.Buffer{}
+	program = &Program{factory: &fake.RunnerFactory{Runner: runner}, out: out, errOut: errOut}
+	return program, out, errOut
+}
+
 func assertFlagResult[T any](t *testing.T, arg string, wantErr bool, want T, get func(config.Config) T) {
 	t.Helper()
 	runner := &fake.Runner{}
-	err := newTestCLI(runner).Run([]string{"proc", arg})
+	err := newTestProgram(runner).Run([]string{"proc", arg})
 	if wantErr {
 		assert.Error(t, err)
 		return

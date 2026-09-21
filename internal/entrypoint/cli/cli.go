@@ -38,29 +38,31 @@ type runnerFactory interface {
 	Create() (inbound.Runner, error)
 }
 
-// CLI is the inbound adapter that translates command-line arguments to application calls.
-type CLI struct {
+// Program translates command-line arguments to application calls.
+type Program struct {
 	factory runnerFactory
+	out     io.Writer
+	errOut  io.Writer
 }
 
-// NewCLI returns a CLI adapter that builds its application service via
+// NewProgram returns a Program that builds its application service via
 // factory. factory is called only once argument parsing and configuration
 // validation have both succeeded, so a service that's expensive or
 // fallible to construct never affects --help, a parse error, or a
 // rejected configuration.
-func NewCLI(factory runnerFactory) *CLI {
-	return &CLI{factory: factory}
+func NewProgram(factory runnerFactory) *Program {
+	return &Program{factory: factory, out: os.Stdout, errOut: os.Stderr}
 }
 
 // Run parses args and calls the application service.
-func (c *CLI) Run(args []string) error {
-	showUsage, err := c.run(args)
+func (p *Program) Run(args []string) error {
+	showUsage, err := p.run(args)
 	err = apperror.Handle(err)
-	printUsageText(showUsage, err)
+	p.printUsageText(showUsage, err)
 	return err
 }
 
-func (c *CLI) run(args []string) (showUsage bool, err error) {
+func (p *Program) run(args []string) (showUsage bool, err error) {
 	if len(args) == 0 {
 		return true, nil
 	}
@@ -79,18 +81,18 @@ func (c *CLI) run(args []string) (showUsage bool, err error) {
 
 	patterns, flagArgs, err := newFlagSplitter(flagSet).split(args)
 	if err != nil {
-		return true, err
+		return true, ArgumentError{Cause: err}
 	}
 	if err := flagSet.Parse(flagArgs); err != nil {
-		return true, err
+		return true, ArgumentError{Cause: err}
 	}
 
 	cfg, err := config.NewConfig(patterns, confirm, speed, timeLimit)
 	if err != nil {
-		return true, err
+		return true, ArgumentError{Cause: err}
 	}
 
-	runner, err := c.factory.Create()
+	runner, err := p.factory.Create()
 	if err != nil {
 		return false, err
 	}
@@ -108,13 +110,13 @@ func help(args []string) bool {
 	return false
 }
 
-func printUsageText(printUsage bool, err error) {
+func (p *Program) printUsageText(printUsage bool, err error) {
 	if !printUsage {
 		return
 	}
-	out := os.Stdout
+	out := p.out
 	if err != nil {
-		out = os.Stderr
+		out = p.errOut
 		_, _ = fmt.Fprintln(out)
 	}
 	_, _ = fmt.Fprint(out, usageText)

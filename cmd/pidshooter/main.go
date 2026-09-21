@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 
 	"github.com/eirikur-ari/pidshooter/internal/composition"
@@ -8,11 +9,27 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
-		os.Exit(1)
-	}
+	err := run()
+	code := exitCode(err)
+	os.Exit(code)
 }
 
 func run() error {
-	return cli.NewCLI(composition.NewRunnerFactory()).Run(os.Args[1:])
+	factory := composition.NewRunnerFactory()
+	program := cli.NewProgram(factory)
+	return program.Run(os.Args[1:])
+}
+
+func exitCode(err error) int {
+	var argErr cli.ArgumentError
+
+	if errors.As(err, &argErr) {
+		return 2
+	}
+
+	if err != nil {
+		return 1
+	}
+
+	return 0
 }
