@@ -5,7 +5,12 @@ BUILD_DIR := bin
 
 LDFLAGS := -s -w
 
-.PHONY: all build test test-unit test-integration test-short test-race coverage vet fmt clean run help
+WORKSPACE_FOLDER := $(CURDIR)
+LABEL_FILTER      := label=devcontainer.local_folder=$(WORKSPACE_FOLDER)
+DC_SHELL          ?= zsh
+
+.PHONY: all build test test-unit test-integration test-short test-race coverage vet fmt clean run help \
+        dev-start dev-stop dev-shell dev-destroy dev-status dev-rebuild
 
 all: clean test build
 
@@ -56,6 +61,47 @@ clean:
 ARGS ?= sleep
 run: build
 	./$(BUILD_DIR)/$(BINARY_NAME) "$(ARGS)"
+
+### dev-start: Start the devcontainer
+dev-start:
+	devcontainer up --workspace-folder $(WORKSPACE_FOLDER)
+
+## dev-rebuild: Build the devcontainer
+dev-rebuild:
+	devcontainer up --workspace-folder $(WORKSPACE_FOLDER) --remove-existing-container --build-no-cache
+
+## dev-stop: Stop the devcontainer
+dev-stop:
+	@id=$$(docker ps -q --filter "$(LABEL_FILTER)"); \
+	if [ -n "$$id" ]; then \
+		docker stop $$id; \
+	else \
+		echo "No running devcontainer found."; \
+	fi
+
+## dev-shell: Open a shell in the devcontainer
+dev-shell:
+	devcontainer exec --workspace-folder $(WORKSPACE_FOLDER) $(DC_SHELL)
+
+## dev-destroy: Remove the devcontainer and its image
+dev-destroy:
+	@id=$$(docker ps -aq --filter "$(LABEL_FILTER)"); \
+	if [ -n "$$id" ]; then \
+		docker rm -f $$id; \
+		echo "Removed container $$id"; \
+	else \
+		echo "No devcontainer found."; \
+	fi
+	@img=$$(docker images -q --filter "$(LABEL_FILTER)"); \
+	if [ -n "$$img" ]; then \
+		docker rmi -f $$img; \
+		echo "Removed image $$img"; \
+	fi
+
+## dev-status: Show the status of the devcontainer
+dev-status:
+	@docker ps -a --filter "$(LABEL_FILTER)" \
+		--format 'table {{.ID}}\t{{.Status}}\t{{.Image}}'
 
 ## help: Show this help
 help:
