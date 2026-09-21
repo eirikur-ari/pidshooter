@@ -19,6 +19,14 @@ func TestValidateTimeLimitPositive(t *testing.T) {
 	assert.NoError(t, ValidateTimeLimit(30))
 }
 
+func TestValidateTimeLimitMaxBoundary(t *testing.T) {
+	assert.NoError(t, ValidateTimeLimit(maxTimeLimitSeconds))
+}
+
+func TestValidateTimeLimitExceedsMax(t *testing.T) {
+	assert.Error(t, ValidateTimeLimit(maxTimeLimitSeconds+1))
+}
+
 func TestTimerExpiredFalseBeforeLimit(t *testing.T) {
 	tr := newTimer(60)
 	tr.Start()

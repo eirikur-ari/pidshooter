@@ -5,6 +5,9 @@ import (
 	"time"
 )
 
+// maxTimeLimitSeconds is the highest non-zero limit ValidateTimeLimit accepts.
+const maxTimeLimitSeconds = 5 * 60 // 300 seconds = 5 minutes
+
 // timer tracks how much time remains in a timed game session.
 // A zero limit means no time limit; Expired always returns false.
 type timer struct {
@@ -65,10 +68,11 @@ func (t *timer) StartTime() time.Time {
 	return t.start
 }
 
-// ValidateTimeLimit reports an error if limit is negative. Zero means unlimited.
+// ValidateTimeLimit reports an error if limit is negative or exceeds
+// maxTimeLimitSeconds. Zero means unlimited.
 func ValidateTimeLimit(limit int) error {
-	if limit < 0 {
-		return fmt.Errorf("time must be 0 or positive, got: %d", limit)
+	if limit < 0 || limit > maxTimeLimitSeconds {
+		return fmt.Errorf("time must be 0 (no limit) or between 1 and %d seconds, got: %d seconds", maxTimeLimitSeconds, limit)
 	}
 	return nil
 }

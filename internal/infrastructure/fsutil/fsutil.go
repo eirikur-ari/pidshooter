@@ -22,14 +22,12 @@ func ConfigDir(appName string) (string, error) {
 	return filepath.Join(home, ".config", appName), nil
 }
 
-// WriteFileAtomic writes data to path with permissions perm, replacing any
-// existing file atomically. It writes to a temporary file in path's own
-// directory, syncs it, and renames it into place, so a crash or kill
-// during the write can never leave path holding truncated or partial
-// content. It creates path's parent directory (and any missing
-// ancestors) if it does not already exist, and sets it to mode 0700
-// either way — including tightening it down if it already existed with
-// looser permissions.
+// WriteFileAtomic writes data to path with permissions perm, atomically
+// replacing any existing file so a crash or kill during the write can
+// never leave path holding truncated or partial content. It creates
+// path's parent directory (and any missing ancestors) if it does not
+// already exist, and sets it to mode 0700 either way — including
+// tightening it down if it already existed with looser permissions.
 func WriteFileAtomic(path string, data []byte, perm os.FileMode) (err error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0700); err != nil {

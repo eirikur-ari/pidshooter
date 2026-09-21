@@ -22,6 +22,12 @@ Patterns are validated at startup:
 - Unknown flags (any `-` prefixed argument that is not a recognised flag) are rejected with a usage hint
 - The game itself and any process with PID ≤ 1 are always excluded from results
 
+A pattern that itself starts with `-` can't be written directly (it would be parsed as a flag); precede it with `--` to end flag processing, after which every remaining argument is treated as a pattern:
+
+```
+pidshooter -- -process-name
+```
+
 ### Confirm mode (`--confirm`)
 Before a kill is executed, the status bar prompts for confirmation with the target's PID and name. The player responds with `y`/`n` or cancels with `q`. Without this flag kills are immediate on click.
 
@@ -30,14 +36,14 @@ pidshooter sleep --confirm
 ```
 
 ### Speed (`--speed=N`)
-Sets the initial movement speed multiplier. Range: `0.5`–`5.0`, default `2.0`. Can also be adjusted live during the game with `+`/`-`.
+Sets the initial movement speed multiplier. Range: `0.5`–`5.0`, default `2.0`. Can also be adjusted live during the game with `+`/`-`. Expects a plain decimal number.
 
 ```
 pidshooter node --speed=1.5
 ```
 
 ### Time limit (`--time=N`)
-Ends the game automatically after N seconds. `--time=0` disables the limit. Default is 30 seconds. The remaining time is shown in the status bar during play.
+Ends the game automatically after N seconds. `--time=0` disables the limit. Range: `1`–`300` (5 minutes), default `30`. The remaining time is shown in the status bar during play. Expects a plain decimal number.
 
 ```
 pidshooter sleep --time=60

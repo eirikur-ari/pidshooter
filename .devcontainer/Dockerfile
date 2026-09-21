@@ -99,8 +99,10 @@ ENV NPM_CONFIG_PREFIX="/usr/local/share/npm-global" \
     SHELL="/bin/zsh" \
     EDITOR="vim" \
     VISUAL="vim" \
-    PATH="${PATH}:/usr/local/share/npm-global/bin:${GOPATH}/bin:${GOROOT}/bin" \
     GOMODCACHE="/home/${USERNAME}/go/pkg/mod"
+
+# Needs to be set seperately from the other ENV variables to ensure that it is expanded correctly
+ENV PATH="${PATH}:/usr/local/share/npm-global/bin:${GOPATH}/bin:${GOROOT}/bin"
 
 # Install Claude Code CLI
 RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \

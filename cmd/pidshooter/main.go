@@ -1,52 +1,35 @@
 package main
 
 import (
-	"fmt"
+	"errors"
 	"os"
 
-	"github.com/eirikur-ari/pidshooter/internal/application"
-	"github.com/gdamore/tcell/v2"
-
+	"github.com/eirikur-ari/pidshooter/internal/composition"
 	"github.com/eirikur-ari/pidshooter/internal/entrypoint/cli"
-	"github.com/eirikur-ari/pidshooter/internal/infrastructure/filescore"
-	"github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
-	"github.com/eirikur-ari/pidshooter/internal/infrastructure/stderr"
-	"github.com/eirikur-ari/pidshooter/internal/infrastructure/stdout"
-	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
 func main() {
-	if err := run(); err != nil {
-		os.Exit(1)
-	}
+	err := run()
+	code := exitCode(err)
+	os.Exit(code)
 }
 
 func run() error {
-	logger := stderr.NewLogger()
+	creator := composition.NewRunnerCreator()
+	program := cli.NewProgram(creator)
+	return program.Run(os.Args[1:])
+}
 
-	// These two adapters are constructed before application.NewRunner, so
-	// there's no apperror.Handler yet to route their failures through —
-	// they're the one place in the program that logs directly.
-	proc, err := osprocess.NewProcess()
-	if err != nil {
-		logger.Error(err.Error())
-		return err
-	}
-	store, err := filescore.NewFileScore()
-	if err != nil {
-		logger.Error(err.Error())
-		return err
+func exitCode(err error) int {
+	var argErr cli.ArgumentError
+
+	if errors.As(err, &argErr) {
+		return 2
 	}
 
-	screen, err := tcell.NewScreen()
 	if err != nil {
-		err = fmt.Errorf("failed to create screen: %w", err)
-		logger.Error(err.Error())
-		return err
+		return 1
 	}
-	ui := tcellui.NewTUI(screen)
-	reporter := stdout.NewScoreReporter()
 
-	runner := application.NewRunner(proc, store, reporter, ui, ui, logger)
-	return cli.NewCLI(runner, logger).Run(os.Args[1:])
+	return 0
 }
