@@ -40,10 +40,18 @@ func TestRunHelpWinsRegardlessOfPositionOrOtherErrors(t *testing.T) {
 	}
 }
 
-func TestRunHelpWithInlineValueIsNotAccepted(t *testing.T) {
-	for _, flag := range []string{"--help=true", "--help=false"} {
-		t.Run(flag, func(t *testing.T) {
-			assert.Error(t, newTestCLI(&fake.Runner{}).Run([]string{"proc", flag}))
+func TestRunMalformedFlagReturnsError(t *testing.T) {
+	tests := [][]string{
+		{"proc", "--help=true"}, // not an exact -h/--help match; falls through as an unrecognized flag
+		{"proc", "--help=false"},
+		{"proc", "--unknown"},
+		{"proc", "--speed"},     // missing its value
+		{"proc", "--speed=abc"}, // wrong type
+		{"proc", "--time=abc"},  // wrong type
+	}
+	for _, args := range tests {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			assert.Error(t, newTestCLI(&fake.Runner{}).Run(args))
 		})
 	}
 }
@@ -112,10 +120,6 @@ func TestRunTimeFlag(t *testing.T) {
 	}
 }
 
-func TestRunUnknownFlag(t *testing.T) {
-	assert.Error(t, newTestCLI(&fake.Runner{}).Run([]string{"proc", "--unknown"}))
-}
-
 func TestRunPatternAfterFlag(t *testing.T) {
 	runner := &fake.Runner{}
 	require.NoError(t, newTestCLI(runner).Run([]string{"chrome", "--confirm", "firefox"}))
@@ -129,10 +133,6 @@ func TestRunFlagsSurroundingPatterns(t *testing.T) {
 	assert.Equal(t, []string{"chrome", "firefox", "node"}, runner.Cfg.Patterns)
 	assert.Equal(t, 3.5, runner.Cfg.Speed)
 	assert.True(t, runner.Cfg.ConfirmMode)
-}
-
-func TestRunFlagMissingValue(t *testing.T) {
-	assert.Error(t, newTestCLI(&fake.Runner{}).Run([]string{"proc", "--speed"}))
 }
 
 func TestRunFlagsWithoutPatternsIsRejected(t *testing.T) {

@@ -54,18 +54,18 @@ func NewCLI(factory runnerFactory) *CLI {
 
 // Run parses args and calls the application service.
 func (c *CLI) Run(args []string) error {
-	err := c.run(args)
-	return apperror.Handle(err)
+	showUsage, err := c.run(args)
+	err = apperror.Handle(err)
+	printUsageText(showUsage, err)
+	return err
 }
 
-func (c *CLI) run(args []string) error {
+func (c *CLI) run(args []string) (showUsage bool, err error) {
 	if len(args) == 0 {
-		_, _ = fmt.Fprint(os.Stdout, usageText)
-		return nil
+		return true, nil
 	}
 	if help(args) {
-		_, _ = fmt.Fprint(os.Stdout, usageText)
-		return nil
+		return true, nil
 	}
 
 	var confirm bool
@@ -79,25 +79,22 @@ func (c *CLI) run(args []string) error {
 
 	patterns, flagArgs, err := newFlagSplitter(flagSet).split(args)
 	if err != nil {
-		_, _ = fmt.Fprint(os.Stderr, usageText)
-		return err
+		return true, err
 	}
 	if err := flagSet.Parse(flagArgs); err != nil {
-		_, _ = fmt.Fprint(os.Stderr, usageText)
-		return err
+		return true, err
 	}
 
 	cfg, err := config.NewConfig(patterns, confirm, speed, timeLimit)
 	if err != nil {
-		_, _ = fmt.Fprint(os.Stderr, usageText)
-		return err
+		return true, err
 	}
 
 	runner, err := c.factory.Create()
 	if err != nil {
-		return err
+		return false, err
 	}
-	return runner.Run(cfg)
+	return false, runner.Run(cfg)
 }
 
 // help reports whether args contains -h or --help, regardless of its
@@ -109,4 +106,16 @@ func help(args []string) bool {
 		}
 	}
 	return false
+}
+
+func printUsageText(printUsage bool, err error) {
+	if !printUsage {
+		return
+	}
+	out := os.Stdout
+	if err != nil {
+		out = os.Stderr
+		_, _ = fmt.Fprintln(out)
+	}
+	_, _ = fmt.Fprint(out, usageText)
 }
