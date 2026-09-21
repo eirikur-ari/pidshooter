@@ -17,10 +17,12 @@ No `os.Geteuid()` (or equivalent) check anywhere in the composition root or the 
 
 **Resolved differently than the original suggested fix (refuse to start as root):** rather than blocking root entirely, `IsKillableBy`/`Find` gained an `includeRoot` parameter, exposed as a new `--include-root` CLI flag threaded through `config.Config`. By default, root-owned processes are excluded from results for non-root players (not just refused at kill time, as before — now not even shown as targets). `--include-root` opts a non-root player in explicitly; running pidshooter itself as root continues to bypass the restriction entirely (`ownUID == 0` in `IsKillableBy`), matching normal Unix permission semantics. This directly addresses the original concern (accidental targeting of root-owned processes) by making it an explicit, deliberate choice rather than an automatic consequence of how pidshooter was launched. Documented in `docs/features.md` and `usageText`. Covered by `TestFindIncludeRootIncludesRootOwnedProcesses`/`TestFindWithoutIncludeRootExcludesRootOwnedProcesses` (`core/process`), `TestFindProcessesIncludeRootIncludesRootOwnedProcesses` (`application/process`), and `TestRunIncludeRootFlag`/`TestRunIncludeRootDefaultsToFalse` (`entrypoint/cli`).
 
-### 2. Residual TOCTOU window between name re-verification and SIGKILL
+### ~~2. Residual TOCTOU window between name re-verification and SIGKILL~~ ✓ Addressed 2026-09-21
 *Origin: `security-issues.md` SEC-08, `fable-review.md` S2*
 
-`LookupName` (a `ps` subprocess round-trip) and `Kill(pid)` are two separate calls; a PID recycle in between signals the wrong process. Inherent to signal-by-PID on macOS; a Linux `pidfd_open`/`pidfd_send_signal` implementation could close it on that platform only. Accepted residual risk, not currently planned.
+Already closed on Linux, for free: `process.Pin` calls `os.FindProcess(pid)`, and on Linux 5.3+ Go's stdlib (since Go 1.20; this project targets 1.26.5) transparently opens a pidfd for that call, which the kernel keeps bound to the exact process regardless of PID reuse. No code change was needed there.
+
+macOS has no pidfd equivalent, so `os.FindProcess` falls back to bare-PID signaling there, leaving a narrow window between `LookupName`'s re-verification and `Kill()`'s `SIGKILL`. Documented as an accepted residual risk directly on `osprocess.process.Pin` (`internal/infrastructure/osprocess/process.go`) rather than closed further — the window is syscall-latency-scale and a Darwin-specific mitigation wasn't judged worth the added complexity.
 
 ### 3. Mouse-drag fires a kill on every motion sample, not just on press
 *Origin: `security-issues.md` SEC-09, `fable-review.md` S3*
