@@ -15,8 +15,8 @@ func main() {
 }
 
 func run() error {
-	factory := composition.NewRunnerFactory()
-	program := cli.NewProgram(factory)
+	creator := composition.NewRunnerCreator()
+	program := cli.NewProgram(creator)
 	return program.Run(os.Args[1:])
 }
 

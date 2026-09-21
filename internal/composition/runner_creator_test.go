@@ -12,7 +12,7 @@ import (
 func TestCreateReturnsErrorWhenPSIsNotOnPath(t *testing.T) {
 	t.Setenv("PATH", "")
 
-	_, err := NewRunnerFactory().Create()
+	_, err := NewRunnerCreator().Create()
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ps not found")
@@ -21,7 +21,7 @@ func TestCreateReturnsErrorWhenPSIsNotOnPath(t *testing.T) {
 func TestCreateReturnsErrorWhenTerminalIsUnavailable(t *testing.T) {
 	helper.UnsetEnv(t, "TERM")
 
-	_, err := NewRunnerFactory().Create()
+	_, err := NewRunnerCreator().Create()
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create screen")

@@ -13,17 +13,17 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
-// RunnerFactory constructs the application.Runner and every outbound
+// RunnerCreator constructs the application.Runner and every outbound
 // adapter it needs.
-type RunnerFactory struct{}
+type RunnerCreator struct{}
 
-// NewRunnerFactory returns a RunnerFactory.
-func NewRunnerFactory() RunnerFactory {
-	return RunnerFactory{}
+// NewRunnerCreator returns a RunnerCreator.
+func NewRunnerCreator() RunnerCreator {
+	return RunnerCreator{}
 }
 
 // Create builds a Runner, along with every adapter it depends on.
-func (RunnerFactory) Create() (inbound.Runner, error) {
+func (RunnerCreator) Create() (inbound.Runner, error) {
 	proc, err := osprocess.NewProcess()
 	if err != nil {
 		return nil, err

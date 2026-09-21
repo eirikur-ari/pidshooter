@@ -34,24 +34,24 @@ Flags:
 
 // Program translates command-line arguments to application calls.
 type Program struct {
-	factory runnerFactory
+	creator runnerCreator
 	out     io.Writer
 	errOut  io.Writer
 }
 
-// runnerFactory constructs a Runner, deferring any expensive or fallible
+// runnerCreator constructs a Runner, deferring any expensive or fallible
 // setup until a Runner is actually needed.
-type runnerFactory interface {
+type runnerCreator interface {
 	Create() (inbound.Runner, error)
 }
 
 // NewProgram returns a Program that builds its application service via
-// factory. factory is called only once argument parsing and configuration
+// creator. creator is called only once argument parsing and configuration
 // validation have both succeeded, so a service that's expensive or
 // fallible to construct never affects --help, a parse error, or a
 // rejected configuration.
-func NewProgram(factory runnerFactory) *Program {
-	return &Program{factory: factory, out: os.Stdout, errOut: os.Stderr}
+func NewProgram(creator runnerCreator) *Program {
+	return &Program{creator: creator, out: os.Stdout, errOut: os.Stderr}
 }
 
 // Run parses args and calls the application service.
@@ -92,7 +92,7 @@ func (p *Program) run(args []string) (showUsage bool, err error) {
 	// flagArgs, so flagSet.Parse can never stop early on a leftover
 	// positional. This holds unconditionally today; guarded defensively
 	// in case a future change to split ever breaks it.
-	if n := flagSet.NArg(); n > 0 {
+	if flagSet.NArg() > 0 {
 		return true, ArgumentError{Cause: fmt.Errorf("unexpected argument: %s", flagSet.Arg(0))}
 	}
 
@@ -101,7 +101,7 @@ func (p *Program) run(args []string) (showUsage bool, err error) {
 		return true, ArgumentError{Cause: err}
 	}
 
-	runner, err := p.factory.Create()
+	runner, err := p.creator.Create()
 	if err != nil {
 		return false, err
 	}

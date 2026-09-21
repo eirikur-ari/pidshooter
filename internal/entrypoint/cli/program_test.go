@@ -143,37 +143,37 @@ func TestRunFlagsWithoutPatternsIsRejected(t *testing.T) {
 }
 
 func TestRunNoArgsDoesNotConstructRunner(t *testing.T) {
-	factory := &fake.RunnerFactory{}
-	require.NoError(t, NewProgram(factory).Run([]string{}))
-	assert.Zero(t, factory.Calls)
+	creator := &fake.RunnerCreator{}
+	require.NoError(t, NewProgram(creator).Run([]string{}))
+	assert.Zero(t, creator.Calls)
 }
 
 func TestRunHelpDoesNotConstructRunner(t *testing.T) {
-	factory := &fake.RunnerFactory{}
-	require.NoError(t, NewProgram(factory).Run([]string{"--help"}))
-	assert.Zero(t, factory.Calls)
+	creator := &fake.RunnerCreator{}
+	require.NoError(t, NewProgram(creator).Run([]string{"--help"}))
+	assert.Zero(t, creator.Calls)
 }
 
 func TestRunInvalidFlagsDoesNotConstructRunner(t *testing.T) {
-	factory := &fake.RunnerFactory{}
-	require.Error(t, NewProgram(factory).Run([]string{"proc", "--unknown"}))
-	assert.Zero(t, factory.Calls)
+	creator := &fake.RunnerCreator{}
+	require.Error(t, NewProgram(creator).Run([]string{"proc", "--unknown"}))
+	assert.Zero(t, creator.Calls)
 }
 
 func TestRunInvalidConfigDoesNotConstructRunner(t *testing.T) {
-	factory := &fake.RunnerFactory{}
-	require.Error(t, NewProgram(factory).Run([]string{"--confirm"}))
-	assert.Zero(t, factory.Calls)
+	creator := &fake.RunnerCreator{}
+	require.Error(t, NewProgram(creator).Run([]string{"--confirm"}))
+	assert.Zero(t, creator.Calls)
 }
 
-func TestRunReturnsErrorWhenRunnerFactoryFails(t *testing.T) {
-	factory := &fake.RunnerFactory{Err: errors.New("boom")}
+func TestRunReturnsErrorWhenRunnerCreatorFails(t *testing.T) {
+	creator := &fake.RunnerCreator{Err: errors.New("boom")}
 
-	err := NewProgram(factory).Run([]string{"proc"})
+	err := NewProgram(creator).Run([]string{"proc"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "boom")
-	assert.Equal(t, 1, factory.Calls)
+	assert.Equal(t, 1, creator.Calls)
 }
 
 func TestRunNoArgsPrintsUsageToStdout(t *testing.T) {
@@ -227,12 +227,12 @@ func TestRunReturnsErrorOnFatal(t *testing.T) {
 }
 
 func newTestProgram(runner inbound.Runner) *Program {
-	return NewProgram(&fake.RunnerFactory{Runner: runner})
+	return NewProgram(&fake.RunnerCreator{Runner: runner})
 }
 
 func newCapturingTestProgram(runner inbound.Runner) (program *Program, out, errOut *bytes.Buffer) {
 	out, errOut = &bytes.Buffer{}, &bytes.Buffer{}
-	program = &Program{factory: &fake.RunnerFactory{Runner: runner}, out: out, errOut: errOut}
+	program = &Program{creator: &fake.RunnerCreator{Runner: runner}, out: out, errOut: errOut}
 	return program, out, errOut
 }
 
