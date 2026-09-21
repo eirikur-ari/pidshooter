@@ -55,7 +55,7 @@ func NewCLI(factory runnerFactory) *CLI {
 // Run parses args and calls the application service.
 func (c *CLI) Run(args []string) error {
 	err := c.run(args)
-	return apperror.LogError(err)
+	return apperror.Handle(err)
 }
 
 func (c *CLI) run(args []string) error {
@@ -63,18 +63,19 @@ func (c *CLI) run(args []string) error {
 		_, _ = fmt.Fprint(os.Stdout, usageText)
 		return nil
 	}
+	if help(args) {
+		_, _ = fmt.Fprint(os.Stdout, usageText)
+		return nil
+	}
 
 	var confirm bool
 	var speed float64
 	var timeLimit int
-	var help bool
 	flagSet := flag.NewFlagSet("pidshooter", flag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
 	flagSet.BoolVar(&confirm, "confirm", false, "")
 	flagSet.Float64Var(&speed, "speed", 2.0, "")
 	flagSet.IntVar(&timeLimit, "time", 30, "")
-	flagSet.BoolVar(&help, "help", false, "")
-	flagSet.BoolVar(&help, "h", false, "")
 
 	patterns, flagArgs, err := newFlagSplitter(flagSet).split(args)
 	if err != nil {
@@ -84,10 +85,6 @@ func (c *CLI) run(args []string) error {
 	if err := flagSet.Parse(flagArgs); err != nil {
 		_, _ = fmt.Fprint(os.Stderr, usageText)
 		return err
-	}
-	if help {
-		_, _ = fmt.Fprint(os.Stdout, usageText)
-		return nil
 	}
 
 	cfg, err := config.NewConfig(patterns, confirm, speed, timeLimit)
@@ -101,4 +98,15 @@ func (c *CLI) run(args []string) error {
 		return err
 	}
 	return runner.Run(cfg)
+}
+
+// help reports whether args contains -h or --help, regardless of its
+// position among other arguments or any parse error elsewhere in args.
+func help(args []string) bool {
+	for _, arg := range args {
+		if arg == "-h" || arg == "--help" {
+			return true
+		}
+	}
+	return false
 }

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,9 +19,31 @@ func TestRunNoArgsPrintsUsageAndReturnsNil(t *testing.T) {
 }
 
 func TestRunHelpFlagPrintsUsageAndReturnsNil(t *testing.T) {
-	for _, flag := range []string{"--help", "-h", "--help=true"} {
+	for _, flag := range []string{"--help", "-h"} {
 		t.Run(flag, func(t *testing.T) {
 			assert.NoError(t, newTestCLI(&fake.Runner{}).Run([]string{flag}))
+		})
+	}
+}
+
+func TestRunHelpWinsRegardlessOfPositionOrOtherErrors(t *testing.T) {
+	tests := [][]string{
+		{"--help", "--unknown"},
+		{"--unknown", "--help"},
+		{"proc", "--speed", "--help"},
+		{"--help", "--speed"},
+	}
+	for _, args := range tests {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			assert.NoError(t, newTestCLI(&fake.Runner{}).Run(args))
+		})
+	}
+}
+
+func TestRunHelpWithInlineValueIsNotAccepted(t *testing.T) {
+	for _, flag := range []string{"--help=true", "--help=false"} {
+		t.Run(flag, func(t *testing.T) {
+			assert.Error(t, newTestCLI(&fake.Runner{}).Run([]string{"proc", flag}))
 		})
 	}
 }

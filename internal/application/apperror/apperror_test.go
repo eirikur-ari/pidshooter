@@ -112,12 +112,28 @@ func TestHandleReturnsFatalSeverityError(t *testing.T) {
 	assert.Same(t, input, err)
 }
 
-func TestHandleAbsorbsUnknownSeverity(t *testing.T) {
+func TestHandlePropagatesUnknownSeverity(t *testing.T) {
 	input := errors.New("plain error")
 
 	err := Handle(input)
 
-	assert.NoError(t, err)
+	require.Error(t, err)
+	assert.Same(t, input, err)
+}
+
+func TestHandleLogsFatalErrorOnlyOnce(t *testing.T) {
+	fatal := NewError(CodeGameFailed, SeverityFatal, "game session failed", errors.New("boom"))
+	assert.False(t, fatal.logged, "logged should start false")
+
+	first := Handle(fatal)
+	assert.True(t, fatal.logged, "logged should be set after the first Handle call")
+
+	second := Handle(fatal)
+
+	require.Error(t, first)
+	require.Error(t, second)
+	assert.Same(t, fatal, first)
+	assert.Same(t, fatal, second)
 }
 
 func TestHandleReturnsWrappedFatalError(t *testing.T) {
@@ -143,40 +159,4 @@ func TestHandleReturnsNilErrorWhenGivenNil(t *testing.T) {
 	err := Handle(nil)
 
 	assert.NoError(t, err)
-}
-
-func TestLogErrorReturnsNilWhenGivenNil(t *testing.T) {
-	assert.NoError(t, LogError(nil))
-}
-
-func TestLogErrorReturnsPlainErrorUnchanged(t *testing.T) {
-	input := errors.New("flag provided but not defined: -unknown")
-
-	err := LogError(input)
-
-	require.Error(t, err)
-	assert.Same(t, input, err)
-}
-
-func TestLogErrorNeverAbsorbsAnAppError(t *testing.T) {
-	for _, severity := range []Severity{SeverityFatal, SeverityError, SeverityWarning, SeverityUnknown} {
-		t.Run(fmt.Sprintf("severity %d", severity), func(t *testing.T) {
-			input := NewError(CodeGameFailed, severity, "game session failed", errors.New("boom"))
-
-			err := LogError(input)
-
-			require.Error(t, err)
-			assert.Same(t, input, err, "LogError must return err unchanged regardless of severity")
-		})
-	}
-}
-
-func TestLogErrorReturnsWrappedAppErrorUnchanged(t *testing.T) {
-	fatal := NewError(CodeGameFailed, SeverityFatal, "game session failed", errors.New("boom"))
-	wrapped := fmt.Errorf("during Run: %w", fatal)
-
-	err := LogError(wrapped)
-
-	require.Error(t, err)
-	assert.Same(t, wrapped, err)
 }

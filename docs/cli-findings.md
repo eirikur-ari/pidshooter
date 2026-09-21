@@ -117,7 +117,7 @@ So the `"Speed multiplier (range: 0.1-5.0)"` at `cli.go:66` can never be seen by
 
 ---
 
-### Finding 5: Error/usage print order is inconsistent across failure classes, and the mechanism is an ownership inversion, not a formatting choice
+### Finding 5: Error/usage print order is inconsistent across failure classes, and the mechanism is an ownership inversion, not a formatting choice — ✅ FIXED 2026-09-21
 
 **Both reviews found this** (Fable as M6, Opus as Finding 5, with a fuller verification table).
 
@@ -141,9 +141,11 @@ Config-class errors print error-then-usage; parse-class errors print usage-then-
 
 **Recommended fix (in order of preference):** (1) have `config.NewConfig` return the `*apperror.Error` *without* calling `Handle`, and let `cli.report` be the single place that decides both whether and when to log — this also removes `report`'s "assumed to already be logged" premise (see Finding 8) since there'd be nothing to assume; or (2) at minimum, make both branches print in the same order.
 
+**Implemented (2026-09-21):** by the time of this fix, `report()` no longer existed (it was folded into `CLI.Run` during an unrelated refactor: `return apperror.LogError(c.run(args))`), and `LogError` carried the exact same "assume an `*apperror.Error` is already logged" premise this finding's root cause describes. A first attempt at fix (1) — just removing `config.NewConfig`'s internal `Handle` call — was tried and immediately caught by re-running the real binary: it silently dropped the config-error message entirely, because `LogError` skipped it too, and nothing else logged it. The actual fix went further than either recommended option: `apperror.Error` gained an unexported `logged bool` field, and `Handle` was rewritten to be idempotent — it logs an error only the first time it sees it (checking/setting the flag), and is otherwise safe to call again later on the same error as it propagates through further layers. `LogError` was deleted outright (and its tests), `CLI.Run` now calls `apperror.Handle` directly, and `config.NewConfig` no longer calls `Handle` internally — its error is first logged only when it reaches `CLI.Run`'s boundary, at the exact same point split/parse errors already were. All three CLI-boundary failure classes (split, parse, config) now consistently print usage-then-error. Deeper runtime-fatal paths (`application/runner.go`'s `FindProcesses`/`gameSvc.Play` failures, already logged via their own `Handle` call at the point of origin) are unaffected — the boundary's later `Handle` call sees the flag already set and doesn't re-log. One behavior change ships with this: `Handle` given a plain (non-`*apperror.Error`) error now *propagates* it (needed for `CLI`'s plain split/parse errors), where it previously logged-and-absorbed it under `SeverityUnknown` — verified as safe since no existing call site ever passed a plain error to `Handle` before this fix. Covered by `TestHandlePropagatesUnknownSeverity` and `TestHandleLogsFatalErrorOnlyOnce` in `apperror_test.go`.
+
 ---
 
-### Finding 6: `--help` does not short-circuit other argument errors
+### Finding 6: `--help` does not short-circuit other argument errors — ✅ FIXED 2026-09-21
 
 **Found by Fable only (M5); independently verified by Sonnet this pass — confirmed.**
 
@@ -157,6 +159,8 @@ error: flag provided but not defined: -unknown
 The usage text does still get shown (as part of the error path), but the program exits 1 with an error instead of the clean "you asked for help, here it is" exit-0 a user would reasonably expect regardless of what else is on the line — most CLIs, including the cobra-based predecessor this repo used before the stdlib-`flag` rewrite, treat `--help` as an unconditional early exit.
 
 **Recommended fix:** scan `args` for `-h`/`--help` and short-circuit before `splitArgs`/`fs.Parse`'s strict validation ever runs, so `--help` always wins regardless of position or other errors on the line.
+
+**Implemented (2026-09-21):** added `help(args []string) bool` in `cli.go`, called first thing in `run()` (right after the no-args check, before the `flag.FlagSet` is even built), scanning every token in `args` for an exact `-h` or `--help` match regardless of position. `--help=true`/`--help=false` are deliberately *not* accepted as help requests — only the two bare forms are — so an inline value falls through to the ordinary "flag provided but not defined: -help" rejection like any other bad flag. Two design points settled along the way: (1) this couldn't live next to `flagNameAndValue` in `flag_splitter.go` — `flagSplitter` is deliberately agnostic about which specific flags exist (it just calls `flagSet.Lookup`), and hardcoding `"h"`/`"help"` there would break that; it belongs in `cli.go`, which already knows about every specific flag. (2) folding the scan into `split()`'s existing loop (to avoid a second pass over `args`) was considered and rejected: `split()` fails fast on the first bad flag, but `--help` must win even when an error occurs *earlier* in `args` than the `--help` token — supporting that would require `split()` to keep scanning to the end and stash its first error rather than returning immediately, a real change to a small, well-tested, fail-fast function, just to avoid a second pass over what's normally 2-5 tokens. Since the new `help()` func now catches every accepted help request before the `flag.FlagSet` is built, the old registered `help`/`h` `BoolVar`s and the post-`Parse` `if help` check on their variable became fully unreachable and were deleted. Covered by `TestRunHelpWinsRegardlessOfPositionOrOtherErrors` (4 cases, help in every position, mixed with unknown-flag and missing-value errors) and `TestRunHelpWithInlineValueIsNotAccepted` in `cli_test.go`.
 
 ---
 
@@ -184,7 +188,7 @@ Every line executes under test, but `cli_test.go` contains zero references to `o
 
 ---
 
-### Finding 8: `report`'s doc comment is now inaccurate, and states implementation rationale about a different package
+### Finding 8: `report`'s doc comment is now inaccurate, and states implementation rationale about a different package — MOOT as of 2026-09-21
 
 **Found by Opus (Finding 13).**
 
@@ -198,6 +202,8 @@ func (c *CLI) report(err error) error {
 The assumption is also unenforced: any future `inbound.Runner` implementation that returns an `*apperror.Error` without having passed it through `apperror.Handle` first gets silently swallowed here. Not reachable today (the sole implementer, `application.Runner`, routes every error through `Handle`), but invisible from the port's own doc comment, which says only "returning an error when something happens."
 
 **Recommended fix:** restate as behavior only — e.g. *"report writes err to standard error unless it is (or wraps) an `*apperror.Error`, and returns err unchanged."* Adopting Finding 5's fix #1 (move all logging decisions into `report`) would remove the assumption entirely rather than just rewording it.
+
+**Overtaken by events:** `report()` no longer existed even before this finding was acted on — an earlier, unrelated refactor this same session (runner-factory work) folded its job into `CLI.Run` calling `apperror.LogError` directly, which carried the exact same "assumed already logged" premise this finding flagged, just relocated. Finding 5's fix (2026-09-21) replaced that premise entirely: `apperror.Handle` is now idempotent (an unexported `logged` flag on `*apperror.Error`) and is the single function used both at error-origin call sites and at `CLI.Run`'s boundary — there is no separate "is this assumed logged" doc-comment claim left anywhere to be stale. No action needed.
 
 ---
 

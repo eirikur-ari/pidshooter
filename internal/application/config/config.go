@@ -21,8 +21,7 @@ type Config struct {
 func NewConfig(patterns []string, confirmMode bool, speed float64, timeLimit int) (Config, error) {
 	cfg := Config{Patterns: patterns, ConfirmMode: confirmMode, Speed: speed, TimeLimit: timeLimit}
 	if err := cfg.validate(); err != nil {
-		wrapped := apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", err)
-		return Config{}, apperror.Handle(wrapped)
+		return Config{}, apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", err)
 	}
 	return cfg, nil
 }
