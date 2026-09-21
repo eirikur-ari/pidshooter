@@ -32,17 +32,23 @@ Flags:
   -h, --help     Show this help
 `
 
+// runnerFactory constructs a Runner, deferring any expensive or fallible
+// setup until a Runner is actually needed.
+type runnerFactory interface {
+	Create() (inbound.Runner, error)
+}
+
 // CLI is the inbound adapter that translates command-line arguments to application calls.
 type CLI struct {
-	factory inbound.RunnerFactory
+	factory runnerFactory
 }
 
 // NewCLI returns a CLI adapter that builds its application service via
-// service. service is called only once argument parsing and configuration
+// factory. factory is called only once argument parsing and configuration
 // validation have both succeeded, so a service that's expensive or
 // fallible to construct never affects --help, a parse error, or a
 // rejected configuration.
-func NewCLI(factory inbound.RunnerFactory) *CLI {
+func NewCLI(factory runnerFactory) *CLI {
 	return &CLI{factory: factory}
 }
 

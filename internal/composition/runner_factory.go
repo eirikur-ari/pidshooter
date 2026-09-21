@@ -14,7 +14,7 @@ import (
 )
 
 // RunnerFactory constructs the application.Runner and every outbound
-// adapter it needs. It implements inbound.RunnerFactory.
+// adapter it needs.
 type RunnerFactory struct{}
 
 // NewRunnerFactory returns a RunnerFactory.
@@ -22,7 +22,7 @@ func NewRunnerFactory() RunnerFactory {
 	return RunnerFactory{}
 }
 
-// Create implements inbound.RunnerFactory.
+// Create builds a Runner, along with every adapter it depends on.
 func (RunnerFactory) Create() (inbound.Runner, error) {
 	proc, err := osprocess.NewProcess()
 	if err != nil {
