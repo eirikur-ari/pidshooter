@@ -9,7 +9,7 @@ WORKSPACE_FOLDER := $(CURDIR)
 LABEL_FILTER      := label=devcontainer.local_folder=$(WORKSPACE_FOLDER)
 DC_SHELL          ?= zsh
 
-.PHONY: all build test test-unit test-integration test-short test-race coverage vet fmt clean run help \
+.PHONY: all build test test-unit test-integration test-acceptance test-short test-race coverage vet fmt clean run help \
         dev-start dev-stop dev-shell dev-destroy dev-status dev-rebuild
 
 all: clean test build
@@ -30,6 +30,10 @@ test-unit:
 # test-integration: Run only integration tests
 test-integration:
 	go test -v -tags integration -run TestIntegration -count=1 ./...
+
+# test-acceptance: Run only acceptance tests
+test-acceptance:
+	go test -v -tags acceptance -run TestAcceptance -count=1 ./...
 
 ## test-short: Run tests without verbose output
 test-short:
