@@ -32,17 +32,17 @@ Flags:
   -h, --help     Show this help
 `
 
-// runnerFactory constructs a Runner, deferring any expensive or fallible
-// setup until a Runner is actually needed.
-type runnerFactory interface {
-	Create() (inbound.Runner, error)
-}
-
 // Program translates command-line arguments to application calls.
 type Program struct {
 	factory runnerFactory
 	out     io.Writer
 	errOut  io.Writer
+}
+
+// runnerFactory constructs a Runner, deferring any expensive or fallible
+// setup until a Runner is actually needed.
+type runnerFactory interface {
+	Create() (inbound.Runner, error)
 }
 
 // NewProgram returns a Program that builds its application service via
@@ -108,17 +108,6 @@ func (p *Program) run(args []string) (showUsage bool, err error) {
 	return false, runner.Run(cfg)
 }
 
-// help reports whether args contains -h or --help, regardless of its
-// position among other arguments or any parse error elsewhere in args.
-func help(args []string) bool {
-	for _, arg := range args {
-		if arg == "-h" || arg == "--help" {
-			return true
-		}
-	}
-	return false
-}
-
 func (p *Program) printUsageText(printUsage bool, err error) {
 	if !printUsage {
 		return
@@ -129,4 +118,15 @@ func (p *Program) printUsageText(printUsage bool, err error) {
 		_, _ = fmt.Fprintln(out)
 	}
 	_, _ = fmt.Fprint(out, usageText)
+}
+
+// help reports whether args contains -h or --help, regardless of its
+// position among other arguments or any parse error elsewhere in args.
+func help(args []string) bool {
+	for _, arg := range args {
+		if arg == "-h" || arg == "--help" {
+			return true
+		}
+	}
+	return false
 }
