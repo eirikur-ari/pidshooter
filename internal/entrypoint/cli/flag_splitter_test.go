@@ -81,6 +81,29 @@ func TestSplitLoneDashIsAPattern(t *testing.T) {
 	assert.Empty(t, flagArgs)
 }
 
+func TestSplitValueFlagFollowedByFlagLikeTokenReportsMissingValue(t *testing.T) {
+	_, _, err := newFlagSplitter(newTestFlagSet()).split([]string{"--speed", "--confirm"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "flag needs an argument: -speed")
+}
+
+func TestSplitDoubleDashTreatsRemainingArgsAsPatterns(t *testing.T) {
+	patterns, flagArgs, err := newFlagSplitter(newTestFlagSet()).split([]string{"chrome", "--", "--confirm", "-suspicious"})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"chrome", "--confirm", "-suspicious"}, patterns)
+	assert.Empty(t, flagArgs)
+}
+
+func TestSplitDoubleDashAsLastArg(t *testing.T) {
+	patterns, flagArgs, err := newFlagSplitter(newTestFlagSet()).split([]string{"chrome", "--"})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"chrome"}, patterns)
+	assert.Empty(t, flagArgs)
+}
+
 func TestSplitEmptyArgs(t *testing.T) {
 	patterns, flagArgs, err := newFlagSplitter(newTestFlagSet()).split(nil)
 

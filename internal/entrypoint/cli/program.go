@@ -73,6 +73,7 @@ func (p *Program) run(args []string) (showUsage bool, err error) {
 	var confirm bool
 	var speed float64
 	var timeLimit int
+
 	flagSet := flag.NewFlagSet("pidshooter", flag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
 	flagSet.BoolVar(&confirm, "confirm", false, "")
@@ -83,8 +84,16 @@ func (p *Program) run(args []string) (showUsage bool, err error) {
 	if err != nil {
 		return true, ArgumentError{Cause: err}
 	}
+
 	if err := flagSet.Parse(flagArgs); err != nil {
 		return true, ArgumentError{Cause: err}
+	}
+	// split has already classified every token as a pattern or as part of
+	// flagArgs, so flagSet.Parse can never stop early on a leftover
+	// positional. This holds unconditionally today; guarded defensively
+	// in case a future change to split ever breaks it.
+	if n := flagSet.NArg(); n > 0 {
+		return true, ArgumentError{Cause: fmt.Errorf("unexpected argument: %s", flagSet.Arg(0))}
 	}
 
 	cfg, err := config.NewConfig(patterns, confirm, speed, timeLimit)
