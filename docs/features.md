@@ -28,6 +28,13 @@ A pattern that itself starts with `-` can't be written directly (it would be par
 pidshooter -- -process-name
 ```
 
+### Target ownership and `--include-root`
+By default, only processes owned by the current user are valid targets — a matching process owned by another user (including root-owned processes) is silently excluded from results, not just refused at kill time. Pass `--include-root` to also include root-owned processes as targets. Running pidshooter itself as root always has full access regardless of this flag, matching normal Unix permission semantics — a non-root player has to opt in explicitly, and even then a kill attempt against a root-owned process is still subject to the OS's real permission check and can fail.
+
+```
+pidshooter sshd --include-root
+```
+
 ### Confirm mode (`--confirm`)
 Before a kill is executed, the status bar prompts for confirmation with the target's PID and name. The player responds with `y`/`n` or cancels with `q`. Without this flag kills are immediate on click.
 

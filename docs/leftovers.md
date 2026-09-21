@@ -8,12 +8,14 @@ Consolidated, deduplicated list of every finding still open across `docs/cli-fin
 
 ## Security
 
-### 1. No safeguard against running as root — partially mitigated
+### ~~1. No safeguard against running as root — partially mitigated~~ ✓ Addressed 2026-09-21
 *Origin: `security-issues.md` SEC-07, `fable-review.md` S1*
 
 No `os.Geteuid()` (or equivalent) check anywhere in the composition root or the process adapter. As root, every process on the machine (except `PID ≤ 1` and pidshooter's own PID) becomes a one-click `SIGKILL` target.
 
 **Mitigated:** `core/process.IsKillableBy` + `Find`'s UID filter now scope a non-root player's target list to processes they own. **Still open:** the root case itself — no `os.Geteuid()` check exists.
+
+**Resolved differently than the original suggested fix (refuse to start as root):** rather than blocking root entirely, `IsKillableBy`/`Find` gained an `includeRoot` parameter, exposed as a new `--include-root` CLI flag threaded through `config.Config`. By default, root-owned processes are excluded from results for non-root players (not just refused at kill time, as before — now not even shown as targets). `--include-root` opts a non-root player in explicitly; running pidshooter itself as root continues to bypass the restriction entirely (`ownUID == 0` in `IsKillableBy`), matching normal Unix permission semantics. This directly addresses the original concern (accidental targeting of root-owned processes) by making it an explicit, deliberate choice rather than an automatic consequence of how pidshooter was launched. Documented in `docs/features.md` and `usageText`. Covered by `TestFindIncludeRootIncludesRootOwnedProcesses`/`TestFindWithoutIncludeRootExcludesRootOwnedProcesses` (`core/process`), `TestFindProcessesIncludeRootIncludesRootOwnedProcesses` (`application/process`), and `TestRunIncludeRootFlag`/`TestRunIncludeRootDefaultsToFalse` (`entrypoint/cli`).
 
 ### 2. Residual TOCTOU window between name re-verification and SIGKILL
 *Origin: `security-issues.md` SEC-08, `fable-review.md` S2*

@@ -14,16 +14,17 @@ type Config struct {
 	ConfirmMode bool
 	Speed       float64
 	TimeLimit   int
+	// IncludeRoot additionally permits root-owned processes as targets,
+	// regardless of the caller's own effective UID.
+	IncludeRoot bool
 }
 
-// NewConfig constructs a Config from the given parameters, returning an
-// error if any parameter fails validation.
-func NewConfig(patterns []string, confirmMode bool, speed float64, timeLimit int) (Config, error) {
-	cfg := Config{Patterns: patterns, ConfirmMode: confirmMode, Speed: speed, TimeLimit: timeLimit}
-	if err := cfg.validate(); err != nil {
-		return Config{}, apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", err)
+// Validate returns an error if any field fails validation.
+func (c Config) Validate() error {
+	if err := c.validate(); err != nil {
+		return apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", err)
 	}
-	return cfg, nil
+	return nil
 }
 
 func (c Config) validate() error {

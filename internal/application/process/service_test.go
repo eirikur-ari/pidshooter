@@ -18,7 +18,7 @@ import (
 func TestFindProcessesReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 	svc := NewService(&fake.Process{DiscoverErr: errors.New("ps failed")})
 
-	_, err := svc.FindProcesses([]string{"foo"})
+	_, err := svc.FindProcesses([]string{"foo"}, false)
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -30,7 +30,7 @@ func TestFindProcessesReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 func TestFindProcessesReturnsErrorWhenNoProcessIsFound(t *testing.T) {
 	svc := NewService(&fake.Process{})
 
-	processes, err := svc.FindProcesses([]string{"nonexistent"})
+	processes, err := svc.FindProcesses([]string{"nonexistent"}, false)
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -52,7 +52,7 @@ func TestFindProcessesReturnsMatchingProcesses(t *testing.T) {
 	}
 	svc := NewService(fp)
 
-	processes, err := svc.FindProcesses([]string{"target"})
+	processes, err := svc.FindProcesses([]string{"target"}, false)
 
 	require.NoError(t, err)
 	assert.Equal(t, []process.Info{
@@ -71,11 +71,30 @@ func TestFindProcessesExcludesProcessesNotOwnedByCaller(t *testing.T) {
 	}
 	svc := NewService(fp)
 
-	processes, err := svc.FindProcesses([]string{"target"})
+	processes, err := svc.FindProcesses([]string{"target"}, false)
 
 	require.NoError(t, err)
 	assert.Equal(t, []process.Info{
 		process.NewInfo(100, "target", 4096, 1000),
+	}, processes)
+}
+
+func TestFindProcessesIncludeRootIncludesRootOwnedProcesses(t *testing.T) {
+	fp := &fake.Process{
+		Infos: []outbound.ProcessInfo{
+			{PID: 100, Name: "target", Rss: 4096, UID: 1000},
+			{PID: 101, Name: "target-root", Rss: 2048, UID: 0},
+		},
+		OwnUIDValue: 1000,
+	}
+	svc := NewService(fp)
+
+	processes, err := svc.FindProcesses([]string{"target"}, true)
+
+	require.NoError(t, err)
+	assert.Equal(t, []process.Info{
+		process.NewInfo(100, "target", 4096, 1000),
+		process.NewInfo(101, "target-root", 2048, 0),
 	}, processes)
 }
 

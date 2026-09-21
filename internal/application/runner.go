@@ -42,11 +42,11 @@ func NewRunner(
 // was Fatal, in which case it's returned too so the caller can terminate
 // the program.
 func (r *Runner) Run(cfg config.Config) error {
-	if _, err := config.NewConfig(cfg.Patterns, cfg.ConfirmMode, cfg.Speed, cfg.TimeLimit); err != nil {
+	if err := cfg.Validate(); err != nil {
 		return err
 	}
 
-	processes, err := r.processSvc.FindProcesses(cfg.Patterns)
+	processes, err := r.processSvc.FindProcesses(cfg.Patterns, cfg.IncludeRoot)
 	if err != nil {
 		return apperror.Handle(err)
 	}

@@ -19,14 +19,16 @@ func NewService(proc outbound.Process) *Service {
 	return &Service{proc: proc}
 }
 
-// FindProcesses discovers running processes matching patterns.
-func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
+// FindProcesses discovers running processes matching patterns. includeRoot
+// additionally permits root-owned processes as matches, regardless of the
+// caller's own effective UID.
+func (s *Service) FindProcesses(patterns []string, includeRoot bool) ([]process.Info, error) {
 	processes, err := s.proc.Discover()
 	if err != nil {
 		return nil, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityFatal, "process discovery failed", err)
 	}
 
-	matches := process.Find(toProcessInfos(processes), patterns, s.proc.OwnPID(), s.proc.OwnUID())
+	matches := process.Find(toProcessInfos(processes), patterns, s.proc.OwnPID(), s.proc.OwnUID(), includeRoot)
 	if err := process.ValidateProcesses(matches); err != nil {
 		return nil, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "", err)
 	}

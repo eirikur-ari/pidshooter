@@ -42,6 +42,41 @@ func TestIntegrationRunnerRunIsSuccessful(t *testing.T) {
 	assert.Greater(t, entry.Duration, 0.0)
 }
 
+func TestIntegrationRunnerIncludeRootFalseExcludesRootOwnedProcess(t *testing.T) {
+	r := newRunner(
+		&fake.Process{
+			Infos:       []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024, UID: 0}},
+			OwnUIDValue: 1000,
+		},
+		&fake.Store{},
+		fake.NewInputEventProvider(),
+	)
+
+	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeProcessNotFound, appErr.Code)
+}
+
+func TestIntegrationRunnerIncludeRootTrueIncludesRootOwnedProcess(t *testing.T) {
+	events := fake.NewInputEventProvider()
+	events.Ch <- input.QuitEvent{}
+
+	r := newRunner(
+		&fake.Process{
+			Infos:       []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024, UID: 0}},
+			OwnUIDValue: 1000,
+		},
+		&fake.Store{},
+		events,
+	)
+
+	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0, IncludeRoot: true})
+
+	require.NoError(t, err)
+}
+
 func TestIntegrationRunnerRunReturnsErrorWhenRendererInitFails(t *testing.T) {
 	r := NewRunner(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 204, Name: "target", Rss: 1024}}},

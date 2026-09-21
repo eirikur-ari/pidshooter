@@ -26,10 +26,11 @@ Examples:
   pidshooter node --time=0
 
 Flags:
-  --confirm      Ask for confirmation before killing
-  --speed float  Speed multiplier (range: 0.5-5.0) (default 2.0)
-  --time int     Time limit in seconds (0 = no limit, max 300) (default 30)
-  -h, --help     Show this help
+  --confirm        Ask for confirmation before killing
+  --speed float    Speed multiplier (range: 0.5-5.0) (default 2.0)
+  --time int       Time limit in seconds (0 = no limit, max 300) (default 30)
+  --include-root   Also target root-owned processes (always allowed when running as root)
+  -h, --help       Show this help
 `
 
 // Program translates command-line arguments to application calls.
@@ -73,12 +74,14 @@ func (p *Program) run(args []string) (showUsage bool, err error) {
 	var confirm bool
 	var speed float64
 	var timeLimit int
+	var includeRoot bool
 
 	flagSet := flag.NewFlagSet("pidshooter", flag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
 	flagSet.BoolVar(&confirm, "confirm", false, "")
 	flagSet.Float64Var(&speed, "speed", 2.0, "")
 	flagSet.IntVar(&timeLimit, "time", 30, "")
+	flagSet.BoolVar(&includeRoot, "include-root", false, "")
 
 	patterns, flagArgs, err := newFlagSplitter(flagSet).split(args)
 	if err != nil {
@@ -96,8 +99,8 @@ func (p *Program) run(args []string) (showUsage bool, err error) {
 		return true, ArgumentError{Cause: fmt.Errorf("unexpected argument: %s", flagSet.Arg(0))}
 	}
 
-	cfg, err := config.NewConfig(patterns, confirm, speed, timeLimit)
-	if err != nil {
+	cfg := config.Config{Patterns: patterns, ConfirmMode: confirm, Speed: speed, TimeLimit: timeLimit, IncludeRoot: includeRoot}
+	if err := cfg.Validate(); err != nil {
 		return true, ArgumentError{Cause: err}
 	}
 
