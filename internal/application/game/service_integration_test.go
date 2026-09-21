@@ -3,6 +3,7 @@
 package game
 
 import (
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -54,6 +55,53 @@ func TestIntegrationServiceFrameLoopAppliesAsyncKillToResult(t *testing.T) {
 	assert.Empty(t, tracker.failure.failures)
 }
 
+func TestIntegrationServiceFrameLoopWaitsForKillInFlightWhenSessionStops(t *testing.T) {
+	info := process.NewInfo(100, "target", 4096, 0)
+	session := game.NewSession([]process.Info{info}, game.Config{Speed: 1.0})
+	session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
+
+	target := session.Targets()[0]
+	x, y := int(target.Position.X), int(target.Position.Y)
+
+	events := fake.NewInputEventProvider()
+	events.Ch <- input.ClickEvent{X: x, Y: y}
+	events.Ch <- input.QuitEvent{}
+
+	const killDelay = 300 * time.Millisecond
+	killer := fake.ProcessKiller(func(int, string, bool) (bool, error) {
+		time.Sleep(killDelay)
+		return false, nil
+	})
+	svc := NewService(killer, &fake.Renderer{}, events)
+	dispatcher := input.NewDispatcher(game.NewInput(session))
+
+	done := make(chan struct{})
+	defer close(done)
+
+	tracker := newKillTracker(0)
+	start := time.Now()
+	svc.frameLoop(session, tracker, dispatcher, nil, done)
+
+	assert.GreaterOrEqual(t, time.Since(start), killDelay, "frameLoop must wait for an in-flight kill before returning")
+	assert.Equal(t, 1, tracker.score.kills, "a kill that lands after the session stops must still be counted")
+}
+
+func TestIntegrationAwaitOutstandingKillsReturnsOnceGracePeriodElapses(t *testing.T) {
+	svc := &Service{killGracePeriod: 20 * time.Millisecond}
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(1) // never Done() — simulates a permanently wedged killOrReap goroutine
+
+	killSignals := make(chan killSignal, 1)
+	tracker := newKillTracker(0)
+
+	start := time.Now()
+	svc.awaitOutstandingKills(&waitGroup, tracker, killSignals)
+	elapsed := time.Since(start)
+
+	assert.GreaterOrEqual(t, elapsed, 20*time.Millisecond)
+	assert.Less(t, elapsed, time.Second, "awaitOutstandingKills must give up once the grace period elapses, not hang indefinitely")
+}
+
 func TestIntegrationServiceDrainEventQueueIgnoresDuplicateClicksOnSameTarget(t *testing.T) {
 	info := process.NewInfo(100, "target", 4096, 0)
 	session := game.NewSession([]process.Info{info}, game.Config{Speed: 1.0})
@@ -78,7 +126,7 @@ func TestIntegrationServiceDrainEventQueueIgnoresDuplicateClicksOnSameTarget(t *
 	done := make(chan struct{})
 	defer close(done)
 
-	svc.drainEventQueue(dispatcher, killSignals, done)
+	svc.drainEventQueue(dispatcher, killSignals, done, &sync.WaitGroup{})
 
 	select {
 	case sig := <-killSignals:

@@ -50,10 +50,14 @@ The planned "kill all findings, no selection" CLI mode (see `project_planned_cli
 
 ## Functional bugs
 
-### 7. Kills completing at/after session end can be lost from the score
+### ~~7. Kills completing at/after session end can be lost from the score~~ ✓ Fixed 2026-09-21
 *Origin: `fable-review.md` F3*
 
-`runLoop` calls `frameLoop` then immediately returns and closes `done` via `defer`, with no final drain of `killSignals` and no `sync.WaitGroup` wait for in-flight `killOrReap` goroutines. A kill whose result arrives after the loop's last drain — including one landing in the buffered channel just as the session stops — is never applied: the process **is** killed, but the score never reflects it. Fix: drain once more after the loop exits, or wait on an explicit `WaitGroup` before returning.
+`frameLoop` (`internal/application/game/service.go`) now tracks every spawned `killOrReap` goroutine with a `sync.WaitGroup`. Once its main loop exits (whether by the natural `session.IsRunning()` condition or the internal `break`), a new `awaitOutstandingKills` step waits for all outstanding goroutines to finish — concurrently draining `killSignals` as results arrive to avoid deadlocking against the buffered channel — then does one final non-blocking drain to catch anything already buffered. Only after that does `frameLoop` return, so `runLoop`'s deferred `close(done)` can no longer race a still-executing kill into being silently dropped. The early error-return path (`drainEventQueue` failing) intentionally skips this wait, since `Play` discards the whole `PlayResult` on that path anyway.
+
+The wait is bounded by a `Service.killGracePeriod` (default 5s, set in `NewService`): if a `killOrReap` goroutine is still outstanding once the grace period elapses, `awaitOutstandingKills` gives up on it and returns rather than risking session shutdown hanging indefinitely on a wedged `processKiller`. Any outcome arriving after that is dropped, matching pre-fix behavior for that edge case.
+
+Covered by `TestIntegrationServiceFrameLoopWaitsForKillInFlightWhenSessionStops` (fires a click immediately followed by a quit event against a deliberately slow fake killer, asserts `frameLoop` doesn't return until the kill lands and is counted — verified to fail against the pre-fix code before being kept) and `TestIntegrationAwaitOutstandingKillsReturnsOnceGracePeriodElapses` (a permanently wedged `WaitGroup`, asserts `awaitOutstandingKills` still returns once the configured grace period elapses), both in `internal/application/game/service_integration_test.go`.
 
 ### 8. Hit-detection truncates while the rendered position rounds — clicks miss ~50% of the time
 *Origin: `code-review.md` #34, `fable-review.md` F6*
