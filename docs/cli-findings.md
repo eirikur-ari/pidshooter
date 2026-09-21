@@ -48,7 +48,7 @@ This also incidentally simplifies Finding 9: `main.go` no longer has any error-h
 
 ---
 
-### Finding 2: `--speed=NaN` still bypasses range validation
+### Finding 2: `--speed=NaN` still bypasses range validation — ✅ FIXED 2026-09-21
 
 **Both reviews found this identically**; this is `docs/fable-review.md`'s **F2**, still present, unchanged in mechanism despite validation having moved twice (out of `cli.go`, into `config.NewConfig`, and now also independently re-checked by `application.Runner.Run`).
 
@@ -65,9 +65,11 @@ error: no processes found
 
 **Recommended fix:** in `movement.ValidateSpeed`, explicitly reject non-finite values: `if math.IsNaN(speed) || speed < MinSpeed || speed > MaxSpeed`. Fixing it in `core/movement` closes it for the adapter and the port simultaneously — the whole point of having centralized validation there.
 
+**Implemented (2026-09-21):** `movement.ValidateSpeed` now rejects `math.IsNaN(speed)` in addition to the existing range check, exactly as recommended (`±Inf` was already correctly rejected by the pre-existing range comparisons). Covered by `TestValidateSpeedNaN`, `TestValidateSpeedPositiveInf`, and `TestValidateSpeedNegativeInf` in `throttle_test.go`.
+
 ---
 
-### Finding 3: `--time` has no upper bound; sufficiently large values silently become "no time limit"
+### Finding 3: `--time` has no upper bound; sufficiently large values silently become "no time limit" — ✅ FIXED 2026-09-21
 
 **Both reviews found this identically**; this is `docs/fable-review.md`'s **F4**, still present, same mechanism, now living in `core/game.ValidateTimeLimit` instead of `cli.go`.
 
@@ -83,9 +85,13 @@ The only value `flag` itself rejects is one that overflows `int64` at *parse* ti
 
 **Recommended fix:** add an explicit upper bound to `ValidateTimeLimit` — either a domain-meaningful cap (e.g. 24h) or the exact arithmetic cap (`math.MaxInt64 / int64(time.Second)` = 9223372036), and state it in the help text.
 
+**Implemented (2026-09-21):** rather than an arithmetic-overflow cap, a domain-meaningful one was chosen: `game.MaxTimeLimitSeconds = 300` (5 minutes) — the game is about quickly clearing processes, not hour-long sessions, so a short, deliberately restrictive cap fits the domain better than the widest value that avoids overflow. `ValidateTimeLimit` now rejects `limit > MaxTimeLimitSeconds`; `0` still means unlimited (unaffected — it's a distinct sentinel, not the bottom of the bounded range, so the error message reads "0 (no limit) or between 1 and 300" rather than "between 0 and 300"). Stated in `cli.go`'s `usageText` and in `docs/features.md`. Covered by `TestValidateTimeLimitMaxBoundary` and `TestValidateTimeLimitExceedsMax` in `timer_test.go`.
+
+**Related design question raised and resolved this session:** whether `Throttle`/`timer`/`confirmation` should each validate on their own construction (mirroring `config.NewConfig`), or even whether `ValidateSpeed`/`ValidateTimeLimit` belong in `config.go` instead of their domain packages. Decided against both: the range constants (`MinSpeed`/`MaxSpeed`, `MaxTimeLimitSeconds`) are load-bearing domain facts already used by the types' own runtime behavior (`Throttle.Increase`/`Decrease`'s clamping), so co-locating the validator with them keeps a single source of truth; moving the check into `config.go` would still need to reach into the domain package for those constants, just relocating the comparison away from the numbers it compares against — the same two-places-must-agree risk that caused Finding 4's staleness in the first place. `config.NewConfig` remains the sole orchestration point that calls each domain validator once, at the boundary where external input becomes a trusted `Config`; no additional self-validating constructors were added.
+
 ---
 
-### Finding 4: `--speed` help text still says `0.1-5.0` (enforced minimum is `0.5`) — and the mechanism guarantees this drifts again
+### Finding 4: `--speed` help text still says `0.1-5.0` (enforced minimum is `0.5`) — and the mechanism guarantees this drifts again — ✅ FIXED 2026-09-21
 
 **Both reviews found this**; this is `docs/fable-review.md`'s **F1**, half-fixed: `docs/features.md` was corrected to `0.5`–`5.0`, but the CLI's own `--help` output was never updated.
 
@@ -106,6 +112,8 @@ $ grep -n "PrintDefaults\|\.Usage(" internal/entrypoint/cli/cli.go
 So the `"Speed multiplier (range: 0.1-5.0)"` at `cli.go:66` can never be seen by a user; it exists only as a second place for a maintainer to forget to update, which is exactly what happened.
 
 **Recommended fix:** fix `0.1` → `0.5` in `usageText`. Then remove the duplication — either pass `""` for the now-provably-unused `*Var` description strings, or drop the hand-written `Flags:` block in favor of rendering `fs.PrintDefaults()` into a buffer, so there's exactly one source of truth per flag.
+
+**Implemented (2026-09-21):** `usageText` now reads `0.5-5.0` and also states the `--time` cap added in Finding 3 (`0 = no limit, max 300`). The dead `*Var` description strings were deleted (passed as `""`) rather than switching to `fs.PrintDefaults()` — that alternative was evaluated and rejected: `flag`'s renderer always uses a single dash (`-speed`, not `--speed`, inconsistent with the rest of `usageText`) and would render `-h`/`-help` as two separate, duplicated entries since they're two distinct `BoolVar` registrations. The hand-written `Flags:` block stays as the one place these are documented, with no second, unreachable copy of the same text to drift out of sync again.
 
 ---
 
@@ -255,9 +263,9 @@ Both are "you gave me no pattern," yet one is success (shows usage, exit 0) and 
 
 | Prior finding | Status now |
 |---|---|
-| **F1** — `--speed` help text / `docs/features.md` claim `0.1–5.0`; enforced minimum `0.5` | ⚠️ **Half-fixed.** `docs/features.md` corrected; `cli.go`'s own `--help` text was not. See **Finding 4**, which additionally identifies the dead-code mechanism guaranteeing this recurs. |
-| **F2** — `--speed=NaN` bypasses validation | 🔴 **Still present, unchanged mechanism**, now inherited by every caller of the centralized validator rather than just the CLI. See **Finding 2**. |
-| **F4** — `--time` has no upper bound, overflows to "unlimited" | 🔴 **Still present, unchanged mechanism**, same relocation pattern as F2. See **Finding 3**. |
+| **F1** — `--speed` help text / `docs/features.md` claim `0.1–5.0`; enforced minimum `0.5` | ✅ **Fully fixed 2026-09-21.** `docs/features.md` was already corrected; `cli.go`'s own `--help` text now reads `0.5-5.0` too, and the dead-code mechanism that let the two drift (unreachable `*Var` description strings) is removed. See **Finding 4**. |
+| **F2** — `--speed=NaN` bypasses validation | ✅ **Fixed 2026-09-21.** `movement.ValidateSpeed` now rejects `math.IsNaN`. See **Finding 2**. |
+| **F4** — `--time` has no upper bound, overflows to "unlimited" | ✅ **Fixed 2026-09-21**, via a domain-meaningful cap (`MaxTimeLimitSeconds = 300`) rather than the arithmetic-overflow boundary. See **Finding 3**. |
 | **D3** — No inbound-port validation (only the CLI adapter validated) | ✅ **Fixed at the architecture level.** `application.Runner.Run` independently re-validates via `config.NewConfig`, verified by calling it directly with bad configs, bypassing the CLI entirely. **Caveat:** the port is now uniformly validated, but by the same buggy validators (F2/F4 above) — the architectural gap is closed, two of the specific holes it was meant to catch are not. |
 | **D7** — Composition root builds adapters that can fail/block before argument parsing | ✅ **Fixed 2026-09-20**, after being confirmed measurably worse than originally described — `--help` didn't just risk paying the cost, it reliably failed in any environment without a `$TERM` (routine for CI/containers/cron). See **Finding 1**. |
 | **S1** — No safeguard against running as root | ⚠️ **Partially mitigated, out of primary scope.** Non-root case closed one layer down (`IsKillableBy`); root case unchanged; not specific to `cli.go`/`main.go`. |

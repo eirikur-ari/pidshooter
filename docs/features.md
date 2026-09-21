@@ -37,7 +37,7 @@ pidshooter node --speed=1.5
 ```
 
 ### Time limit (`--time=N`)
-Ends the game automatically after N seconds. `--time=0` disables the limit. Default is 30 seconds. The remaining time is shown in the status bar during play.
+Ends the game automatically after N seconds. `--time=0` disables the limit. Range: `1`–`300` (5 minutes), default `30`. The remaining time is shown in the status bar during play.
 
 ```
 pidshooter sleep --time=60

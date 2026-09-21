@@ -27,8 +27,8 @@ Examples:
 
 Flags:
   --confirm      Ask for confirmation before killing
-  --speed float  Speed multiplier (range: 0.1-5.0) (default 2.0)
-  --time int     Time limit in seconds (0 = no limit) (default 30)
+  --speed float  Speed multiplier (range: 0.5-5.0) (default 2.0)
+  --time int     Time limit in seconds (0 = no limit, max 300) (default 30)
   -h, --help     Show this help
 `
 
@@ -64,11 +64,11 @@ func (c *CLI) run(args []string) error {
 	var help bool
 	flagSet := flag.NewFlagSet("pidshooter", flag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
-	flagSet.BoolVar(&confirm, "confirm", false, "Ask for confirmation before killing")
-	flagSet.Float64Var(&speed, "speed", 2.0, "Speed multiplier (range: 0.1-5.0)")
-	flagSet.IntVar(&timeLimit, "time", 30, "Time limit in seconds (0 = no limit)")
-	flagSet.BoolVar(&help, "help", false, "Show this help")
-	flagSet.BoolVar(&help, "h", false, "Show this help")
+	flagSet.BoolVar(&confirm, "confirm", false, "")
+	flagSet.Float64Var(&speed, "speed", 2.0, "")
+	flagSet.IntVar(&timeLimit, "time", 30, "")
+	flagSet.BoolVar(&help, "help", false, "")
+	flagSet.BoolVar(&help, "h", false, "")
 
 	patterns, flagArgs, err := newFlagSplitter(flagSet).split(args)
 	if err != nil {

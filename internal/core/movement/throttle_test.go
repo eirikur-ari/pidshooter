@@ -1,6 +1,7 @@
 package movement
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +13,18 @@ func TestValidateSpeedTooLow(t *testing.T) {
 
 func TestValidateSpeedTooHigh(t *testing.T) {
 	assert.Error(t, ValidateSpeed(MaxSpeed+0.1))
+}
+
+func TestValidateSpeedNaN(t *testing.T) {
+	assert.Error(t, ValidateSpeed(math.NaN()))
+}
+
+func TestValidateSpeedPositiveInf(t *testing.T) {
+	assert.Error(t, ValidateSpeed(math.Inf(1)))
+}
+
+func TestValidateSpeedNegativeInf(t *testing.T) {
+	assert.Error(t, ValidateSpeed(math.Inf(-1)))
 }
 
 func TestValidateSpeedMinBoundary(t *testing.T) {
