@@ -59,10 +59,12 @@ The wait is bounded by a `Service.killGracePeriod` (default 5s, set in `NewServi
 
 Covered by `TestIntegrationServiceFrameLoopWaitsForKillInFlightWhenSessionStops` (fires a click immediately followed by a quit event against a deliberately slow fake killer, asserts `frameLoop` doesn't return until the kill lands and is counted — verified to fail against the pre-fix code before being kept) and `TestIntegrationAwaitOutstandingKillsReturnsOnceGracePeriodElapses` (a permanently wedged `WaitGroup`, asserts `awaitOutstandingKills` still returns once the configured grace period elapses), both in `internal/application/game/service_integration_test.go`.
 
-### 8. Hit-detection truncates while the rendered position rounds — clicks miss ~50% of the time
+### ~~8. Hit-detection truncates while the rendered position rounds — clicks miss ~50% of the time~~ ✓ Fixed 2026-09-21
 *Origin: `code-review.md` #34, `fable-review.md` F6*
 
-`isHitAt` (`core/game/target.go`) truncates with `int()`; `toTargetViewState` (`application/game/converter.go`) rounds with `math.Round`. Whenever a position's fractional part is `≥ 0.5`, the tag is drawn one row/column away from where a click actually registers. Fix: use `math.Round` in both places.
+`isHitAt` (`internal/core/game/target.go`) now rounds `Position.X`/`Position.Y` with `math.Round` before computing the hit box, matching `toTargetViewState` (`application/game/converter.go`), which already rounded the rendered position. Previously `isHitAt` truncated with `int()`, so whenever a position's fractional part was `≥ 0.5` the tag was drawn one row/column away from where a click actually registered.
+
+Covered by `TestTargetHitAtMatchesRoundedRenderPositionNotTruncated` (`internal/core/game/target_test.go`), using a position of `(10.6, 5.6)`: asserts a click at the rounded cell `(11, 6)` — where the tag is actually rendered — hits, and clicks at the truncated column/row (`10, 6` and `11, 5`) miss. Verified to fail against the pre-fix truncating code before being kept.
 
 ### 9. `LookupName` failures of any kind treated as "process already exited"
 *Origin: `fable-review.md` F7*

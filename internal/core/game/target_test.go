@@ -211,6 +211,21 @@ func TestTargetHitAtIsFalseWhenOutsideBounds(t *testing.T) {
 	assert.False(t, e.isHitAt(10, 4), "the row above the tag should miss")
 }
 
+func TestTargetHitAtMatchesRoundedRenderPositionNotTruncated(t *testing.T) {
+	e := &Target{
+		Info:   process.NewInfo(42, "bash", 0, 0),
+		Motion: movement.Motion{Position: movement.Vector{X: 10.6, Y: 5.6}, Velocity: movement.Vector{X: 0, Y: 0}},
+		State:  Alive,
+	}
+	tag := e.Tag()
+	width := len(tag)
+
+	assert.True(t, e.isHitAt(11, 6), "clicking at the rounded position, where the tag is actually rendered, should hit")
+	assert.True(t, e.isHitAt(11+width-1, 6))
+	assert.False(t, e.isHitAt(10, 6), "clicking at the truncated column, one left of where the tag is rendered, should miss")
+	assert.False(t, e.isHitAt(11, 5), "clicking at the truncated row, one above where the tag is rendered, should miss")
+}
+
 func TestTargetContainsMultiByteProcessName(t *testing.T) {
 	// "café" is 5 UTF-8 bytes but 4 runes → tag "[42 café]" is 10 bytes, 9 runes.
 	// With the byte-count bug, isHitAt over-counts by 1 and accepts column 19 as a hit.

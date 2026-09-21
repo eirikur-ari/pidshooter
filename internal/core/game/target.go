@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"math"
 	"unicode/utf8"
 
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
@@ -121,7 +122,9 @@ func (t *Target) isHitAt(x, y int) bool {
 		return false
 	}
 	width := utf8.RuneCountInString(t.Tag())
-	return y == int(t.Position.Y) && x >= int(t.Position.X) && x < int(t.Position.X)+width
+	row := int(math.Round(t.Position.Y))
+	col := int(math.Round(t.Position.X))
+	return y == row && x >= col && x < col+width
 }
 
 func (t *Target) doomsdayTick() {
