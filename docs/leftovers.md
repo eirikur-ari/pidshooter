@@ -24,25 +24,27 @@ Already closed on Linux, for free: `process.Pin` calls `os.FindProcess(pid)`, an
 
 macOS has no pidfd equivalent, so `os.FindProcess` falls back to bare-PID signaling there, leaving a narrow window between `LookupName`'s re-verification and `Kill()`'s `SIGKILL`. Documented as an accepted residual risk directly on `osprocess.process.Pin` (`internal/infrastructure/osprocess/process.go`) rather than closed further — the window is syscall-latency-scale and a Darwin-specific mitigation wasn't judged worth the added complexity.
 
-### 3. Mouse-drag fires a kill on every motion sample, not just on press
+### ~~3. Mouse-drag fires a kill on every motion sample, not just on press~~ ✓ Non-issue, confirmed 2026-09-21
 *Origin: `security-issues.md` SEC-09, `fable-review.md` S3*
 
-`translator.go`'s `translateMouseEvent` accepts any event reporting `Button1` down, with no press-vs-motion distinction. Sweeping the cursor with the button held triggers a kill attempt on every target the cursor passes over. Suggested fix: track previous button state, emit only on the press transition.
+`tui.go`'s `Init` calls `screen.EnableMouse(tcell.MouseButtonEvents)` — tcell's own doc for that flag is "click events only", as distinct from `MouseDragEvents`/`MouseMotionEvents`. Under this mode the terminal protocol (xterm mode 1000) reports only a press and a release event; no intermediate reports are sent while a button is held and the cursor moves. `translateMouseEvent` already fires a `ClickEvent` only when `Buttons() == Button1` exactly, so exactly one click is produced per press and a held drag produces nothing further before release. The originally-described scenario doesn't reproduce against the mouse mode actually enabled; no code change made.
 
-### 4. Unbounded concurrent kill goroutines
+### ~~4. Unbounded concurrent kill goroutines~~ ✓ Non-issue, confirmed 2026-09-21
 *Origin: `security-issues.md` SEC-10, `fable-review.md` S4*
 
-`application/game/service.go` spawns one goroutine (`ps` subprocess + signal syscall) per accepted kill target, no cap. Combined with #3 above, a single drag can spawn many concurrent `ps` invocations. Suggested fix: worker pool, or an in-flight-per-target dedup flag.
+`application/game/service.go`'s `drainEventQueue` spawns one `killOrReap` goroutine per dispatched target, but `game.Target.FireShot`/`shotFired` (`core/game/target.go`) already prevents a target from being dispatched a second time while its kill is in flight — so concurrency is capped at one in-flight kill per live target. With #3 confirmed a non-issue, the only trigger for a target is a discrete click or confirm keypress, so total concurrency is inherently rate-limited by interactive input speed. The suggested worker-pool fix doesn't apply to this code path.
 
-### 5. SIGKILL only — no graceful termination option
+The planned "kill all findings, no selection" CLI mode (see `project_planned_cli_modes` memory) will *not* route through `game.Service` — it bypasses game/target/session logic entirely, calling `process.Service.Kill` directly for every match at once with no interactive pacing. That mode will need its own concurrency design when it's built; it isn't an extension of this code, so it doesn't retroactively make this a live concern today.
+
+### ~~5. SIGKILL only — no graceful termination option~~ ✓ Settled, confirmed 2026-09-21
 *Origin: `security-issues.md` SEC-11, `fable-review.md` S5*
 
-`Kill` always sends `SIGKILL` — no flush, no cleanup handler for the target process. By design; a `SIGTERM`-first mode with escalation would be safer for real workloads.
+`Kill` always sends `SIGKILL` — no flush, no cleanup handler for the target process. Confirmed intentional: pidshooter's premise is a shooting game against processes with immediate, unambiguous kill feedback, not a production-safe process manager. A `SIGTERM`-first escalation mode is out of scope. No code change.
 
-### 6. `ps` output parsing trusts field structure
+### ~~6. `ps` output parsing trusts field structure~~ ✓ Settled, confirmed 2026-09-21
 *Origin: `security-issues.md` SEC-13, `fable-review.md` S7*
 
-Sanity check tightened from `len(fields) < 3` to `< 5` plus a header-row heuristic since these findings were written, but parsing still trusts positional field structure once that check passes. Exploitability substantially neutralized by the kill-time name re-verification (#2 above), so this is defense-in-depth, not a standalone exploit path.
+`parseProcesses` (`internal/infrastructure/osprocess/process.go`) validates each numeric column (uid/pid/rss) via `strconv`, skipping any row that fails to parse, and `isProcessHeader` confirms the header line's first column really is "uid" before trusting positional order at all. The name field is simply everything after column 4, so it can't desync the earlier fixed columns. Any parse failure degrades to skipping the row (fail-closed), never to misattributing one field's value to another. What theoretical gap remains is fully covered by kill-time name re-verification (#2 above), so this is confirmed defense-in-depth rather than a standalone exploit path. No code change.
 
 ---
 
