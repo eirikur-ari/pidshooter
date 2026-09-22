@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -19,11 +20,18 @@ import (
 
 const frameDuration = time.Second / 20
 
+// defaultKillGracePeriod is the Service.killGracePeriod set by NewService.
+const defaultKillGracePeriod = 5 * time.Second
+
 // Service orchestrates core domain objects and outbound ports to play a single game session.
 type Service struct {
 	killer   processKiller
 	renderer outbound.Renderer
 	events   outbound.InputEventProvider
+	// killGracePeriod bounds how long awaitOutstandingKills waits for
+	// in-flight kills to resolve before giving up on them, so a wedged
+	// processKiller can't hang session shutdown indefinitely.
+	killGracePeriod time.Duration
 }
 
 // PlayResult carries the outcome of a completed play session, needed by the
@@ -59,9 +67,10 @@ func NewService(
 	events outbound.InputEventProvider,
 ) *Service {
 	return &Service{
-		killer:   killer,
-		renderer: renderer,
-		events:   events,
+		killer:          killer,
+		renderer:        renderer,
+		events:          events,
+		killGracePeriod: defaultKillGracePeriod,
 	}
 }
 
@@ -135,16 +144,17 @@ func (s *Service) frameLoop(session *game.Session, tracker *killTracker, dispatc
 	defer ticker.Stop()
 
 	killSignals := make(chan killSignal, 10)
+	var waitGroup sync.WaitGroup
 
 	for session.IsRunning() {
 		s.applyKillSignals(tracker, killSignals)
-		if err := s.drainEventQueue(dispatcher, killSignals, done); err != nil {
+		if err := s.drainEventQueue(dispatcher, killSignals, done, &waitGroup); err != nil {
 			session.Stop()
 			return err
 		}
 		window := s.renderer.WindowSize()
 		session.Update(movement.WindowSize{Width: window.Width, Height: window.Height})
-		s.renderer.Render(toFrameState(session, tracker))
+		s.renderer.Render(toFrameViewState(session, tracker))
 
 		if !session.IsRunning() {
 			break
@@ -156,25 +166,67 @@ func (s *Service) frameLoop(session *game.Session, tracker *killTracker, dispatc
 			session.Stop()
 		}
 	}
+
+	s.awaitOutstandingKills(&waitGroup, tracker, killSignals)
 	return nil
+}
+
+// awaitOutstandingKills waits for every killOrReap goroutine spawned during
+// the frame loop to finish, applying each signal as it arrives, then drains
+// any signal already buffered by the time the last one completes. Without
+// this, a kill that lands at or after the loop's final drain — including one
+// still in flight when the session stops — would go missing from the score
+// even though the process was genuinely killed.
+//
+// Waiting is bounded by killGracePeriod: if a killOrReap goroutine is still
+// outstanding once the grace period elapses, awaitOutstandingKills gives up
+// on it and returns rather than hanging session shutdown indefinitely. Any
+// outcome that arrives after that is dropped, exactly as it would have been
+// before this method existed.
+func (s *Service) awaitOutstandingKills(waitGroup *sync.WaitGroup, tracker *killTracker, killSignals chan killSignal) {
+	awaited := make(chan struct{})
+	go func() {
+		waitGroup.Wait()
+		close(awaited)
+	}()
+
+	timer := time.NewTimer(s.killGracePeriod)
+	defer timer.Stop()
+
+	for {
+		select {
+		case sig := <-killSignals:
+			s.applyKillSignal(tracker, sig)
+		case <-awaited:
+			s.applyKillSignals(tracker, killSignals)
+			return
+		case <-timer.C:
+			s.applyKillSignals(tracker, killSignals)
+			return
+		}
+	}
 }
 
 func (s *Service) applyKillSignals(tracker *killTracker, killSignals <-chan killSignal) {
 	for {
 		select {
 		case sig := <-killSignals:
-			sig.target.CeaseFire()
-			switch {
-			case sig.err != nil:
-				tracker.recordFailure(sig.target, sig.err)
-			case sig.shouldReap && sig.target.Reap():
-				tracker.recordDud(sig.target)
-			case sig.target.Kill():
-				tracker.recordKill(sig.target.Rss)
-			}
+			s.applyKillSignal(tracker, sig)
 		default:
 			return
 		}
+	}
+}
+
+func (s *Service) applyKillSignal(tracker *killTracker, sig killSignal) {
+	sig.target.CeaseFire()
+	switch {
+	case sig.err != nil:
+		tracker.recordFailure(sig.target, sig.err)
+	case sig.shouldReap && sig.target.Reap():
+		tracker.recordDud(sig.target)
+	case sig.target.Kill():
+		tracker.recordKill(sig.target.Info.Rss)
 	}
 }
 
@@ -183,7 +235,7 @@ func (s *Service) applyKillSignals(tracker *killTracker, killSignals <-chan kill
 // closed, e.g. because the input adapter died unexpectedly — otherwise a
 // closed channel is always ready to receive, and the loop below would spin
 // forever redispatching its zero value instead of returning.
-func (s *Service) drainEventQueue(dispatcher *input.Dispatcher, killSignals chan<- killSignal, done <-chan struct{}) error {
+func (s *Service) drainEventQueue(dispatcher *input.Dispatcher, killSignals chan<- killSignal, done <-chan struct{}, waitGroup *sync.WaitGroup) error {
 	events := s.events.Events()
 	for {
 		select {
@@ -193,7 +245,8 @@ func (s *Service) drainEventQueue(dispatcher *input.Dispatcher, killSignals chan
 			}
 			if target := dispatcher.Dispatch(inputEvent); target != nil {
 				target.FireShot()
-				go s.killOrReap(target, killSignals, done)
+				waitGroup.Add(1)
+				go s.killOrReap(target, killSignals, done, waitGroup)
 			}
 		default:
 			return nil
@@ -208,8 +261,11 @@ func (s *Service) drainEventQueue(dispatcher *input.Dispatcher, killSignals chan
 // session, so the caller reports it only once the session has ended.
 // killOrReap must be invoked via a goroutine: Kill may shell out to verify
 // the target's backing process, and running it inline would stall the frame loop.
-func (s *Service) killOrReap(target *game.Target, killSignals chan<- killSignal, done <-chan struct{}) {
-	shouldReap, err := s.killer.Kill(target.PID, target.Name, target.Info.IsProtected())
+// The caller must waitGroup.Add(1) before spawning killOrReap; it calls waitGroup.Done() on return.
+func (s *Service) killOrReap(target *game.Target, killSignals chan<- killSignal, done <-chan struct{}, waitGroup *sync.WaitGroup) {
+	defer waitGroup.Done()
+
+	shouldReap, err := s.killer.Kill(target.Info.PID, target.Info.Name, target.Info.IsProtected())
 
 	sig := killSignal{target: target}
 	switch {

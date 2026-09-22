@@ -34,16 +34,20 @@ func (i Info) IsProtected() bool { return i.PID <= 1 }
 
 // IsKillableBy reports whether a caller with effective UID ownUID is
 // permitted to target this process: root (UID 0) may target any process;
-// everyone else may only target processes they themselves own.
-func (i Info) IsKillableBy(ownUID int) bool { return ownUID == 0 || i.UID == ownUID }
+// everyone else may only target processes they themselves own, unless
+// includeRoot is set, in which case a root-owned process is permitted too.
+func (i Info) IsKillableBy(ownUID int, includeRoot bool) bool {
+	return ownUID == 0 || i.UID == ownUID || (includeRoot && i.UID == 0)
+}
 
 // Find returns the subset of processes whose name matches any pattern
 // (case-insensitive substring match), excluding ownPID, protected PIDs, and
-// any process the caller (identified by ownUID) is not permitted to kill.
-func Find(processes []Info, patterns []string, ownPID, ownUID int) []Info {
+// any process the caller (identified by ownUID, with includeRoot as
+// described on IsKillableBy) is not permitted to kill.
+func Find(processes []Info, patterns []string, ownPID, ownUID int, includeRoot bool) []Info {
 	var result []Info
 	for _, pr := range processes {
-		if pr.PID == ownPID || pr.IsProtected() || !pr.IsKillableBy(ownUID) {
+		if pr.PID == ownPID || pr.IsProtected() || !pr.IsKillableBy(ownUID, includeRoot) {
 			continue
 		}
 		for _, pattern := range patterns {

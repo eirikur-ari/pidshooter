@@ -33,6 +33,8 @@ type Process interface {
 	// determine which discovered processes the caller is permitted to kill.
 	OwnUID() int
 	// LookupName returns the current name of the process with the given pid.
+	// If the process no longer exists, LookupName returns a NotFoundError
+	// instead of treating it as any other failure.
 	LookupName(pid int) (string, error)
 	// Pin returns a ProcessHandle to the process with the given pid. Callers
 	// should Pin a pid before verifying it via LookupName and hold the
@@ -40,4 +42,11 @@ type Process interface {
 	// at kill time, so identity is pinned across the verify-then-kill
 	// sequence.
 	Pin(pid int) (ProcessHandle, error)
+}
+
+// ProcessReporter is the outbound port for reporting how many processes
+// matched the requested search patterns.
+type ProcessReporter interface {
+	// Report displays how many processes matched patterns.
+	Report(count int, patterns []string)
 }

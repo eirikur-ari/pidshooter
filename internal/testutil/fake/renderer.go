@@ -12,7 +12,7 @@ type Renderer struct {
 	CleanupCalls int
 	// LastFrame captures the state passed to the most recent Render call,
 	// nil if Render was never called.
-	LastFrame *outbound.FrameState
+	LastFrame *outbound.FrameViewState
 }
 
 func (r *Renderer) Init() error { return r.InitErr }
@@ -30,4 +30,4 @@ func (r *Renderer) ChromeSize() outbound.ChromeSize {
 	return outbound.ChromeSize{Top: 1, Bottom: 1}
 }
 
-func (r *Renderer) Render(state outbound.FrameState) { r.LastFrame = &state }
+func (r *Renderer) Render(state outbound.FrameViewState) { r.LastFrame = &state }

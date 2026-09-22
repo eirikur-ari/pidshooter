@@ -20,7 +20,7 @@ func TestDrawHUDNarrowTerminalSuppressesCenter(t *testing.T) {
 	defer ui.Cleanup()
 
 	screen.SetSize(30, 25)
-	ui.Render(outbound.FrameState{HUD: outbound.HUDState{}})
+	ui.Render(outbound.FrameViewState{HUD: outbound.HUDViewState{}})
 
 	cells, w, _ := screen.GetContents()
 	var row0 strings.Builder
@@ -42,7 +42,7 @@ func TestDrawHUDWideTerminalDrawsAllThree(t *testing.T) {
 	require.NoError(t, ui.Init())
 	defer ui.Cleanup()
 
-	ui.Render(outbound.FrameState{HUD: outbound.HUDState{}})
+	ui.Render(outbound.FrameViewState{HUD: outbound.HUDViewState{}})
 
 	cells, w, _ := screen.GetContents()
 	var row0 strings.Builder
@@ -76,7 +76,7 @@ func TestDrawHUDFreedLabelBudgetedAgainstKillsColumn(t *testing.T) {
 		t.Run(fmt.Sprintf("w=%d", tc.width), func(t *testing.T) {
 			ui, screen := newTUI(t)
 			screen.SetSize(tc.width, 25)
-			ui.Render(outbound.FrameState{HUD: outbound.HUDState{Kills: 7}})
+			ui.Render(outbound.FrameViewState{HUD: outbound.HUDViewState{Kills: 7}})
 
 			assert.Equal(t, tc.want, rowContent(screen, 0))
 		})

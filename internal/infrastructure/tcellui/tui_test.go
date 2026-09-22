@@ -58,12 +58,12 @@ func TestWindowSizeReturnsScreenDimensions(t *testing.T) {
 func TestRenderClearsStaleContentFromPreviousFrame(t *testing.T) {
 	ui, screen := newTUI(t)
 
-	ui.Render(outbound.FrameState{
+	ui.Render(outbound.FrameViewState{
 		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Tag: "[1234 victim]"}},
 	})
 	require.Contains(t, rowContent(screen, 5), "victim")
 
-	ui.Render(outbound.FrameState{})
+	ui.Render(outbound.FrameViewState{})
 
 	assert.NotContains(t, rowContent(screen, 5), "victim",
 		"a target drawn in a previous frame must not linger once it's no longer in the frame state")

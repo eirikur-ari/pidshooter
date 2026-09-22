@@ -26,14 +26,26 @@ func (e Entry) beats(other Entry) bool {
 	if e.Kills != other.Kills {
 		return e.Kills > other.Kills
 	}
+
 	if e.Duds != other.Duds {
 		return e.Duds > other.Duds
 	}
+
 	if e.Speed != other.Speed {
 		return e.Speed > other.Speed
 	}
+
 	if e.Duration != other.Duration {
 		return e.Duration < other.Duration
 	}
+
 	return e.FreedMem > other.FreedMem
+}
+
+// isScore reports whether entry represents a genuine, storable score. A
+// session with no kills isn't a score, and FreedMem can never legitimately
+// be negative — either signals corrupted or hand-edited data rather than a
+// real session outcome.
+func (e Entry) isScore() bool {
+	return e.Kills > 0 && e.FreedMem >= 0
 }

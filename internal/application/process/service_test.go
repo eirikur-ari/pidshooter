@@ -16,9 +16,9 @@ import (
 // --- FindProcesses ---
 
 func TestFindProcessesReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
-	svc := NewService(&fake.Process{DiscoverErr: errors.New("ps failed")})
+	svc := NewService(&fake.Process{DiscoverErr: errors.New("ps failed")}, &fake.ProcessReporter{})
 
-	_, err := svc.FindProcesses([]string{"foo"})
+	_, err := svc.FindProcesses([]string{"foo"}, false)
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -28,9 +28,9 @@ func TestFindProcessesReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 }
 
 func TestFindProcessesReturnsErrorWhenNoProcessIsFound(t *testing.T) {
-	svc := NewService(&fake.Process{})
+	svc := NewService(&fake.Process{}, &fake.ProcessReporter{})
 
-	processes, err := svc.FindProcesses([]string{"nonexistent"})
+	processes, err := svc.FindProcesses([]string{"nonexistent"}, false)
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -39,6 +39,42 @@ func TestFindProcessesReturnsErrorWhenNoProcessIsFound(t *testing.T) {
 	assert.Empty(t, processes)
 	assert.Equal(t, "no processes found", err.Error(), "an empty wrapper Message should not change the displayed text")
 	require.Error(t, appErr.Unwrap(), "the underlying cause should still be reachable, not discarded")
+}
+
+func TestFindProcessesDoesNotReportWhenDiscoveryFails(t *testing.T) {
+	reporter := &fake.ProcessReporter{}
+	svc := NewService(&fake.Process{DiscoverErr: errors.New("ps failed")}, reporter)
+
+	_, _ = svc.FindProcesses([]string{"foo"}, false)
+
+	assert.Nil(t, reporter.Reported, "a failed discovery must not be reported as a match count")
+}
+
+func TestFindProcessesDoesNotReportWhenNoProcessIsFound(t *testing.T) {
+	reporter := &fake.ProcessReporter{}
+	svc := NewService(&fake.Process{}, reporter)
+
+	_, _ = svc.FindProcesses([]string{"nonexistent"}, false)
+
+	assert.Nil(t, reporter.Reported, "an empty match set fails validation before ever reaching the report call")
+}
+
+func TestFindProcessesReportsMatchCountAndPatterns(t *testing.T) {
+	fp := &fake.Process{
+		Infos: []outbound.ProcessInfo{
+			{PID: 100, Name: "target", Rss: 4096},
+			{PID: 101, Name: "another-target", Rss: 2048},
+		},
+	}
+	reporter := &fake.ProcessReporter{}
+	svc := NewService(fp, reporter)
+
+	_, err := svc.FindProcesses([]string{"target"}, false)
+
+	require.NoError(t, err)
+	require.NotNil(t, reporter.Reported)
+	assert.Equal(t, 2, reporter.Reported.Count)
+	assert.Equal(t, []string{"target"}, reporter.Reported.Patterns)
 }
 
 func TestFindProcessesReturnsMatchingProcesses(t *testing.T) {
@@ -50,9 +86,9 @@ func TestFindProcessesReturnsMatchingProcesses(t *testing.T) {
 		},
 		OwnPIDValue: 999,
 	}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
-	processes, err := svc.FindProcesses([]string{"target"})
+	processes, err := svc.FindProcesses([]string{"target"}, false)
 
 	require.NoError(t, err)
 	assert.Equal(t, []process.Info{
@@ -69,9 +105,9 @@ func TestFindProcessesExcludesProcessesNotOwnedByCaller(t *testing.T) {
 		},
 		OwnUIDValue: 1000,
 	}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
-	processes, err := svc.FindProcesses([]string{"target"})
+	processes, err := svc.FindProcesses([]string{"target"}, false)
 
 	require.NoError(t, err)
 	assert.Equal(t, []process.Info{
@@ -79,11 +115,30 @@ func TestFindProcessesExcludesProcessesNotOwnedByCaller(t *testing.T) {
 	}, processes)
 }
 
+func TestFindProcessesIncludeRootIncludesRootOwnedProcesses(t *testing.T) {
+	fp := &fake.Process{
+		Infos: []outbound.ProcessInfo{
+			{PID: 100, Name: "target", Rss: 4096, UID: 1000},
+			{PID: 101, Name: "target-root", Rss: 2048, UID: 0},
+		},
+		OwnUIDValue: 1000,
+	}
+	svc := NewService(fp, &fake.ProcessReporter{})
+
+	processes, err := svc.FindProcesses([]string{"target"}, true)
+
+	require.NoError(t, err)
+	assert.Equal(t, []process.Info{
+		process.NewInfo(100, "target", 4096, 1000),
+		process.NewInfo(101, "target-root", 2048, 0),
+	}, processes)
+}
+
 // --- Kill ---
 
 func TestKillReturnsErrorIfPIDIsProtected(t *testing.T) {
 	fp := &fake.Process{}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	shouldReap, err := svc.Kill(1, "init", true)
 
@@ -99,7 +154,7 @@ func TestKillReturnsErrorIfPIDIsProtected(t *testing.T) {
 
 func TestKillReturnsErrorAndShouldReapIfPinFails(t *testing.T) {
 	fp := &fake.Process{PinErr: errors.New("could not find process")}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	shouldReap, err := svc.Kill(100, "target", false)
 
@@ -113,13 +168,13 @@ func TestKillReturnsErrorAndShouldReapIfPinFails(t *testing.T) {
 	assert.Empty(t, fp.ReleasedPIDs, "there is no handle to release when Pin itself fails")
 }
 
-func TestKillReturnsErrorAndShouldReapIfProcessLookupByNameFails(t *testing.T) {
+func TestKillReturnsErrorWithoutReapingIfProcessLookupByNameFailsTransiently(t *testing.T) {
 	fp := &fake.Process{LookupNameErr: errors.New("ps lookup failed")}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	shouldReap, err := svc.Kill(100, "target", false)
 
-	assert.True(t, shouldReap)
+	assert.False(t, shouldReap, "a transient lookup failure must not be treated as the process already having exited")
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, apperror.CodeProcessDiscoveryFailed, appErr.Code)
@@ -129,9 +184,25 @@ func TestKillReturnsErrorAndShouldReapIfProcessLookupByNameFails(t *testing.T) {
 	assert.Equal(t, []int{100}, fp.ReleasedPIDs, "the pinned handle must be released even when LookupName fails afterward")
 }
 
+func TestKillReturnsShouldReapIfProcessLookupByNameReportsProcessNotFound(t *testing.T) {
+	fp := &fake.Process{LookupNameErr: outbound.NotFoundError{}}
+	svc := NewService(fp, &fake.ProcessReporter{})
+
+	shouldReap, err := svc.Kill(100, "target", false)
+
+	assert.True(t, shouldReap)
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeProcessNotFound, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
+	assert.ErrorAs(t, err, &outbound.NotFoundError{})
+	assert.Empty(t, fp.KilledPIDs)
+	assert.Equal(t, []int{100}, fp.ReleasedPIDs, "the pinned handle must be released even when LookupName reports the process gone")
+}
+
 func TestKillReturnsErrorAndShouldReapIfNameValidationFails(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "somethingElse"}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	shouldReap, err := svc.Kill(100, "target", false)
 
@@ -147,7 +218,7 @@ func TestKillReturnsErrorAndShouldReapIfNameValidationFails(t *testing.T) {
 
 func TestKillReturnsShouldReapWhenProcessAlreadyExited(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "target", KillErr: outbound.NotFoundError{}}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	shouldReap, err := svc.Kill(100, "target", false)
 
@@ -162,7 +233,7 @@ func TestKillReturnsShouldReapWhenProcessAlreadyExited(t *testing.T) {
 
 func TestKillReturnsErrorWhenKillFails(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "target", KillErr: errors.New("permission denied")}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	shouldReap, err := svc.Kill(100, "target", false)
 
@@ -177,7 +248,7 @@ func TestKillReturnsErrorWhenKillFails(t *testing.T) {
 
 func TestKillReturnsKillingProcessWasASuccess(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "target"}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	shouldReap, err := svc.Kill(100, "target", false)
 

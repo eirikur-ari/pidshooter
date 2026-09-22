@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/input"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
@@ -48,7 +49,7 @@ func TestEventsChannelClosesAfterCleanup(t *testing.T) {
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
 		select {
-		case _, ok := <-ui.Events():
+		case _, ok := <-ui.InputEvents().Events():
 			if !ok {
 				return
 			}
@@ -62,15 +63,15 @@ func TestEventsChannelClosesAfterCleanup(t *testing.T) {
 func TestPollForwardsTranslatedEventToChannel(t *testing.T) {
 	ui, screen := newTUI(t)
 	screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
-	assert.Equal(t, input.QuitEvent{}, nextEvent(t, ui))
+	assert.Equal(t, input.QuitEvent{}, nextEvent(t, ui.InputEvents()))
 }
 
-// nextEvent reads one event from the UI with a timeout so tests fail fast
+// nextEvent reads one event from events with a timeout so tests fail fast
 // instead of blocking forever if the expected event is never produced.
-func nextEvent(t *testing.T, ui *tcellui.TUI) input.EventDispatcher {
+func nextEvent(t *testing.T, events outbound.InputEventProvider) input.EventDispatcher {
 	t.Helper()
 	select {
-	case ev := <-ui.Events():
+	case ev := <-events.Events():
 		return ev
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("timed out waiting for event from poll goroutine")

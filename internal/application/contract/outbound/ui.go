@@ -1,10 +1,10 @@
 package outbound
 
-// FrameState is the data snapshot passed to the Renderer each tick.
-type FrameState struct {
+// FrameViewState is the data snapshot passed to the Renderer each tick.
+type FrameViewState struct {
 	Targets   []TargetViewState
-	HUD       HUDState
-	StatusBar StatusState
+	HUD       HUDViewState
+	StatusBar StatusViewState
 }
 
 // TargetViewState is the render representation of a single target.
@@ -25,26 +25,23 @@ type TargetViewState struct {
 	AnimationProgress float64
 }
 
-// HUDState carries the heads-up display values.
-type HUDState struct {
+// HUDViewState carries the heads-up display values.
+type HUDViewState struct {
 	// FreedMem is the cumulative memory freed by kills, in bytes.
 	FreedMem  int64
 	Kills     int
 	HighScore int
 }
 
-// StatusState carries the status bar values.
-type StatusState struct {
+// StatusViewState carries the status bar values.
+type StatusViewState struct {
 	// Alive is the number of targets not yet killed.
 	Alive int
 	// Speed is the current target movement speed, as a multiplier of the
 	// base speed.
 	Speed float64
-	// TimeLimit is the session's time limit in seconds, or 0 if untimed.
-	TimeLimit int
-	// TimeLeft is the seconds remaining in the session. Meaningful only
-	// when TimeLimit > 0.
-	TimeLeft int
+	// TimeLeft is the seconds remaining in the session, or nil if untimed.
+	TimeLeft *int
 	// Confirming holds the kill-confirmation prompt values, or nil when no
 	// confirmation is pending.
 	Confirming *ConfirmViewState
@@ -85,5 +82,5 @@ type Renderer interface {
 	ChromeSize() ChromeSize
 	// Render draws state to the display, replacing whatever was
 	// previously rendered.
-	Render(state FrameState)
+	Render(state FrameViewState)
 }

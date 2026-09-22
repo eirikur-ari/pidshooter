@@ -84,6 +84,18 @@ func TestRunConfirmFlag(t *testing.T) {
 	assert.True(t, runner.Cfg.ConfirmMode)
 }
 
+func TestRunIncludeRootFlag(t *testing.T) {
+	runner := &fake.Runner{}
+	require.NoError(t, newTestProgram(runner).Run([]string{"sleep", "--include-root"}))
+	assert.True(t, runner.Cfg.IncludeRoot)
+}
+
+func TestRunIncludeRootDefaultsToFalse(t *testing.T) {
+	runner := &fake.Runner{}
+	require.NoError(t, newTestProgram(runner).Run([]string{"sleep"}))
+	assert.False(t, runner.Cfg.IncludeRoot)
+}
+
 func TestRunSpeedFlag(t *testing.T) {
 	tests := []struct {
 		name    string

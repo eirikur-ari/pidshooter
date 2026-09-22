@@ -17,7 +17,7 @@ func TestRenderMultiByteLabelColumnLayout(t *testing.T) {
 	require.NoError(t, ui.Init())
 	defer ui.Cleanup()
 
-	ui.Render(outbound.FrameState{
+	ui.Render(outbound.FrameViewState{
 		Targets: []outbound.TargetViewState{
 			{X: 0, Y: 2, Tag: "✦ KILLED ✦"},
 		},
@@ -30,7 +30,7 @@ func TestRenderMultiByteLabelColumnLayout(t *testing.T) {
 
 func TestRenderKillingIgnoresTagAndShowsAnimationFrame(t *testing.T) {
 	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameState{
+	ui.Render(outbound.FrameViewState{
 		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Tag: "[1234 victim]", Killing: true, AnimationProgress: 0}},
 	})
 
@@ -41,7 +41,7 @@ func TestRenderKillingIgnoresTagAndShowsAnimationFrame(t *testing.T) {
 
 func TestRenderKillingShowsTextFrameAtMidProgress(t *testing.T) {
 	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameState{
+	ui.Render(outbound.FrameViewState{
 		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Killing: true, AnimationProgress: 0.3}},
 	})
 
@@ -51,7 +51,7 @@ func TestRenderKillingShowsTextFrameAtMidProgress(t *testing.T) {
 
 func TestRenderFleeingIgnoresTagAndShowsAnimationFrame(t *testing.T) {
 	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameState{
+	ui.Render(outbound.FrameViewState{
 		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Tag: "[1234 victim]", Fleeing: true, AnimationProgress: 0}},
 	})
 
@@ -62,7 +62,7 @@ func TestRenderFleeingIgnoresTagAndShowsAnimationFrame(t *testing.T) {
 
 func TestRenderWideRuneTagDoesNotDropCharacters(t *testing.T) {
 	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameState{
+	ui.Render(outbound.FrameViewState{
 		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Tag: "[9 日本語]"}},
 	})
 
@@ -74,7 +74,7 @@ func TestRenderWideRuneTagDoesNotDropCharacters(t *testing.T) {
 
 func TestRenderDrawsMultipleTargets(t *testing.T) {
 	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameState{
+	ui.Render(outbound.FrameViewState{
 		Targets: []outbound.TargetViewState{
 			{X: 0, Y: 5, Tag: "[1111 first]"},
 			{X: 0, Y: 8, Tag: "[2222 second]"},
@@ -87,9 +87,9 @@ func TestRenderDrawsMultipleTargets(t *testing.T) {
 
 func TestRenderClipsTargetAtHUDRow(t *testing.T) {
 	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameState{
+	ui.Render(outbound.FrameViewState{
 		Targets: []outbound.TargetViewState{{X: 2, Y: 0, Tag: "[1234 victim]"}},
-		HUD:     outbound.HUDState{Kills: 3},
+		HUD:     outbound.HUDViewState{Kills: 3},
 	})
 
 	got := rowContent(screen, 0)

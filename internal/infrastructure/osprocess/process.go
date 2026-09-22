@@ -82,6 +82,14 @@ func (p *process) LookupName(pid int) (string, error) {
 // Pin returns a ProcessHandle to pid, obtained now rather than at kill
 // time, so the eventual Kill signals the exact process pinned here even if
 // pid is later recycled to a different process.
+//
+// On Linux 5.3+, os.FindProcess opens a pidfd for pid, which the kernel
+// guarantees stays bound to that exact process for the handle's lifetime,
+// closing the PID-reuse window entirely. Platforms without a pidfd
+// equivalent (notably macOS) fall back to signaling by bare PID, leaving a
+// narrow window between the caller's LookupName re-verification and the
+// eventual Kill in which pid could theoretically be recycled; this residual
+// risk is accepted given how small the window is.
 func (p *process) Pin(pid int) (outbound.ProcessHandle, error) {
 	proc, err := os.FindProcess(pid)
 	if err != nil {

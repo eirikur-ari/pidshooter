@@ -80,52 +80,62 @@ func TestToTargetViewStatesReturnsEmptySliceWhenInputIsNil(t *testing.T) {
 
 // --- toTargetViewStates ---
 
-// --- toHUDState ---
+// --- toHUDViewState ---
 
-func TestToHUDStateReturnsMappedFields(t *testing.T) {
+func TestToHUDViewStateReturnsMappedFields(t *testing.T) {
 	tracker := newKillTracker(5)
 	tracker.recordKill(2048)
 	tracker.recordKill(2048)
 
-	hud := toHUDState(tracker)
+	hud := toHUDViewState(tracker)
 
 	assert.Equal(t, int64(4096), hud.FreedMem)
 	assert.Equal(t, 2, hud.Kills)
 	assert.Equal(t, 5, hud.HighScore)
 }
 
-// --- toStatusState ---
+// --- toStatusViewState ---
 
-func TestToStatusStateReturnsMappedFieldsWithoutConfirmViewState(t *testing.T) {
+func TestToStatusViewStateReturnsMappedFieldsWithoutConfirmViewState(t *testing.T) {
 	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, game.Config{Speed: 2.0, TimeLimit: 30})
 	session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 
-	status := toStatusState(session, 3)
+	status := toStatusViewState(session, 3)
 
 	assert.Equal(t, 3, status.Alive)
 	assert.Equal(t, 2.0, status.Speed)
-	assert.Equal(t, 30, status.TimeLimit)
+	require.NotNil(t, status.TimeLeft)
+	assert.Equal(t, 30, *status.TimeLeft)
 	assert.Nil(t, status.Confirming)
 }
 
-func TestToStatusStateIncludesConfirmViewState(t *testing.T) {
+func TestToStatusViewStateTimeLeftNilWhenUntimed(t *testing.T) {
+	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, game.Config{Speed: 2.0})
+	session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
+
+	status := toStatusViewState(session, 1)
+
+	assert.Nil(t, status.TimeLeft)
+}
+
+func TestToStatusViewStateIncludesConfirmViewState(t *testing.T) {
 	session := game.NewSession([]process.Info{process.NewInfo(42, "suspect", 0, 0)}, game.Config{Confirm: true, Speed: 1.0})
 	session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	session.RequestConfirm(session.Targets()[0])
 
-	status := toStatusState(session, 1)
+	status := toStatusViewState(session, 1)
 
 	require.NotNil(t, status.Confirming)
 	assert.Equal(t, 42, status.Confirming.PID)
 }
 
-// --- toFrameState ---
+// --- toFrameViewState ---
 
-func TestToFrameStateReturnsMappedFields(t *testing.T) {
+func TestToFrameViewStateReturnsMappedFields(t *testing.T) {
 	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, game.Config{Speed: 1.0})
 	session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 
-	f := toFrameState(session, newKillTracker(0))
+	f := toFrameViewState(session, newKillTracker(0))
 
 	require.Len(t, f.Targets, 1)
 	assert.False(t, f.Targets[0].Killing)

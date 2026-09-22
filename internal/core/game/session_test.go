@@ -131,9 +131,10 @@ func TestGameAvailableTargetsCountsAlive(t *testing.T) {
 }
 
 func TestUpdateStopsWhenTimeLimitExpired(t *testing.T) {
-	s := NewSession(nil, Config{TimeLimit: 1})
+	clock := &fakeClock{t: time.Now()}
+	s := &Session{timer: newTimer(1, clock.now)}
 	s.Start(movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1}))
-	s.timer.start = time.Now().Add(-2 * time.Second)
+	clock.advance(2 * time.Second)
 
 	s.Update(movement.WindowSize{Width: 80, Height: 24})
 
@@ -142,7 +143,7 @@ func TestUpdateStopsWhenTimeLimitExpired(t *testing.T) {
 
 func TestUpdateStopsWhenAllTargetsDead(t *testing.T) {
 	tgt := &Target{Info: process.NewInfo(1, "target", 0, 0), State: Dead}
-	s := &Session{roster: roster{targets: []*Target{tgt}}, throttle: movement.NewThrottle(movement.MinSpeed)}
+	s := &Session{roster: roster{targets: []*Target{tgt}}, timer: newTimer(0, time.Now), throttle: movement.NewThrottle(movement.MinSpeed)}
 	s.Start(movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1}))
 
 	s.Update(movement.WindowSize{Width: 80, Height: 24})

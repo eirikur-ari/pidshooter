@@ -9,6 +9,9 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
+	"github.com/eirikur-ari/pidshooter/internal/application/game"
+	"github.com/eirikur-ari/pidshooter/internal/application/process"
+	"github.com/eirikur-ari/pidshooter/internal/application/score"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
@@ -42,7 +45,7 @@ func TestRunnerRunReturnsErrorWhenPatternTooShort(t *testing.T) {
 }
 
 func TestRunnerRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
-	r := NewRunner(&fake.Process{DiscoverErr: errors.New("ps failed")}, &fake.Store{}, &fake.ScoreReporter{}, &fake.Renderer{}, fake.NewInputEventProvider())
+	r := newTestRunnerWithProcess(&fake.Process{DiscoverErr: errors.New("ps failed")})
 
 	err := r.Run(config.Config{Patterns: []string{"proc"}, Speed: 2.0})
 
@@ -53,7 +56,14 @@ func TestRunnerRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 }
 
 func newTestRunner() *Runner {
-	return NewRunner(&fake.Process{}, &fake.Store{}, &fake.ScoreReporter{}, &fake.Renderer{}, fake.NewInputEventProvider())
+	return newTestRunnerWithProcess(&fake.Process{})
+}
+
+func newTestRunnerWithProcess(proc *fake.Process) *Runner {
+	processSvc := process.NewService(proc, &fake.ProcessReporter{})
+	scoreSvc := score.NewService(&fake.Store{}, &fake.ScoreReporter{})
+	gameSvc := game.NewService(processSvc, &fake.Renderer{}, fake.NewInputEventProvider())
+	return NewRunner(processSvc, scoreSvc, gameSvc)
 }
 
 func assertFatal(t *testing.T, err error) {

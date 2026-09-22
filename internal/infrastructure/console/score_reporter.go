@@ -23,28 +23,28 @@ func NewScoreReporter() *ScoreReporter {
 // and the high-score table (or a "no high scores yet" message) to the
 // underlying writer.
 func (r *ScoreReporter) Report(summary outbound.ScoreSummary) {
-	fmt.Fprintf(r.writer, "\n  Game Over! Kills: %d | Duds: %d | Freed: %s | Time: %.1fs\n",
+	_, _ = fmt.Fprintf(r.writer, "\n  Game Over! Kills: %d | Duds: %d | Freed: %s | Time: %.1fs\n",
 		summary.Kills, summary.Duds, util.FormatBytes(summary.FreedMem), summary.Duration)
 
 	if summary.NewHighScore {
-		fmt.Fprintln(r.writer, "  🏆 New high score!")
+		_, _ = fmt.Fprintln(r.writer, "  🏆 New high score!")
 	}
 
 	if len(summary.Entries) == 0 {
-		fmt.Fprintln(r.writer, "\n  No high scores yet!")
+		_, _ = fmt.Fprintln(r.writer, "\n  No high scores yet!")
 		return
 	}
 
-	fmt.Fprintln(r.writer, "\n  ╔════╦═══════╦═══════╦═══════╦════════╦════════════╦════════════╗")
-	fmt.Fprintln(r.writer, "  ║  # ║ Kills ║ Duds  ║ Speed ║  Time  ║   Freed    ║    Date    ║")
-	fmt.Fprintln(r.writer, "  ╠════╬═══════╬═══════╬═══════╬════════╬════════════╬════════════╣")
+	_, _ = fmt.Fprintln(r.writer, "\n  ╔════╦═══════╦═══════╦═══════╦════════╦════════════╦════════════╗")
+	_, _ = fmt.Fprintln(r.writer, "  ║  # ║ Kills ║ Duds  ║ Speed ║  Time  ║   Freed    ║    Date    ║")
+	_, _ = fmt.Fprintln(r.writer, "  ╠════╬═══════╬═══════╬═══════╬════════╬════════════╬════════════╣")
 
 	for i, entry := range summary.Entries {
 		mem := util.FormatBytes(entry.FreedMem)
 		date := entry.Date.Format("2006-01-02")
-		fmt.Fprintf(r.writer, "  ║ %2d ║  %3d  ║  %3d  ║ %4.1fx ║ %5.1fs ║ %8s   ║ %s ║\n",
+		_, _ = fmt.Fprintf(r.writer, "  ║ %2d ║  %3d  ║  %3d  ║ %4.1fx ║ %5.1fs ║ %8s   ║ %s ║\n",
 			i+1, entry.Kills, entry.Duds, entry.Speed, entry.Duration, mem, date)
 	}
 
-	fmt.Fprintln(r.writer, "  ╚════╩═══════╩═══════╩═══════╩════════╩════════════╩════════════╝")
+	_, _ = fmt.Fprintln(r.writer, "  ╚════╩═══════╩═══════╩═══════╩════════╩════════════╩════════════╝")
 }

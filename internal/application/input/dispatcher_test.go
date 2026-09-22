@@ -21,7 +21,7 @@ func TestDispatcherClickReturnsHitTarget(t *testing.T) {
 	d := newDispatcher(s)
 	tgt := s.Targets()[0]
 
-	result := d.Dispatch(ClickEvent{X: int(math.Round(tgt.Position.X)), Y: int(math.Round(tgt.Position.Y))})
+	result := d.Dispatch(ClickEvent{X: int(math.Round(tgt.Motion.Position.X)), Y: int(math.Round(tgt.Motion.Position.Y))})
 
 	assert.Equal(t, tgt, result)
 }

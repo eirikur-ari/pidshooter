@@ -2,6 +2,8 @@
 
 *Updated 2026-08-20. Reflects current package layout: `core/` domain (`game`, `movement`, `process`, `score`), an `application` layer split into `game`/`process`/`score` services composed by a top-level `Runner` (`internal/application/runner.go`), `contract/inbound` and `contract/outbound` port packages, `entrypoint/cli` delivery adapter, `infrastructure/osprocess`/`tcellui`/`scorefilestore` driven adapters. This pass re-verified every open finding against current source (file paths below reflect where each issue now actually lives) and found three previously-open issues already resolved as a side effect of later refactoring — noted inline where that happened. Historical entries describing already-resolved issues keep the file/type names that were accurate at the time of the fix and are not rewritten to current names.*
 
+*Re-verified 2026-09-21 against current source (package renames since: `scorefilestore`→`filescore`, `application/service`→`application/{game,process,score}`, cobra removed from `entrypoint/cli`). Five more findings resolved since the 2026-08-20 pass, noted inline below; all remaining open findings were re-checked against current file paths and confirmed still accurate as described.*
+
 ---
 
 ## Bugs
@@ -40,7 +42,7 @@ The old code computed elapsed time inside the loop before cleanup. The saved `En
 
 `runLoop` now returns `(time.Time, error)`, capturing `time.Now()` as the last statement before the deferred `Cleanup()` fires. `Play` computes `duration := endTime.Sub(g.StartTime()).Seconds()` from that snapshot.
 
-### 32. `--speed=NaN` bypasses range validation — `entrypoint/cli/cli.go` (`validate`)
+### ~~32. `--speed=NaN` bypasses range validation — `entrypoint/cli/cli.go` (`validate`)~~ ✓ Resolved
 
 Cobra's `Float64Var` calls `strconv.ParseFloat`, which accepts the string `"NaN"`. The existing guard:
 
@@ -58,7 +60,9 @@ if !(speed >= movement.MinSpeed && speed <= movement.MaxSpeed) {
 
 or add an explicit `math.IsNaN(speed)` check before the range test.
 
-### 33. `--time` with a large value overflows to "no time limit" — `entrypoint/cli/cli.go` (`validate`), `core/game/timer.go` (`newTimer`)
+**Resolved 2026-09-21:** `movement.ValidateSpeed` (`core/movement/throttle.go`) now explicitly rejects `math.IsNaN(speed)` in addition to the existing range check. Validation itself moved out of the CLI adapter entirely at some point between this finding and the fix — it's now centralized in `core/movement`/`core/game` validators called by `application/config.NewConfig`, so the fix closes the gap for every caller, not just the CLI. Covered by `TestValidateSpeedNaN`/`TestValidateSpeedPositiveInf`/`TestValidateSpeedNegativeInf` in `throttle_test.go`. See `docs/cli-findings.md` Finding 2 for the fuller writeup.
+
+### ~~33. `--time` with a large value overflows to "no time limit" — `entrypoint/cli/cli.go` (`validate`), `core/game/timer.go` (`newTimer`)~~ ✓ Resolved
 
 Only negative values are rejected (`timeLimit < 0`). `NewTimer` multiplies the value by `time.Second`:
 
@@ -76,6 +80,8 @@ if timeLimit < 0 || timeLimit > maxTimeLimit {
     return fmt.Errorf("time must be between 0 and %d seconds, got: %d", maxTimeLimit, timeLimit)
 }
 ```
+
+**Resolved 2026-09-21:** `core/game/timer.go`'s `ValidateTimeLimit` now rejects `limit > maxTimeLimitSeconds`. Rather than the arithmetic-overflow boundary this finding suggested (86400s), a domain-meaningful cap was chosen instead — 300 seconds (5 minutes), since the game is about quickly clearing processes, not hour-long sessions. Either cap closes the actual bug (silent overflow to "unlimited"); 300 is far enough below the ~9.2-billion-second overflow threshold that overflow can no longer occur at all. See `docs/cli-findings.md` Finding 3.
 
 ### 34. Hit detection truncates while rendering rounds — `core/game/target.go` (`isHitAt`) vs. `application/game/converter.go` (`toTargetViewState`)
 
@@ -98,6 +104,8 @@ Fix: use the same conversion in both places:
 py, px := int(math.Round(t.Position.Y)), int(math.Round(t.Position.X))
 return y == py && x >= px && x < px+width
 ```
+
+**Still open, confirmed 2026-09-21** — `isHitAt` (`core/game/target.go:124`) still truncates with `int(t.Position.Y)`/`int(t.Position.X)`; `toTargetViewState` (`application/game/converter.go:29-30`) still rounds with `math.Round`. Both file paths and the mismatch itself are unchanged from the original finding.
 
 ---
 
@@ -135,9 +143,11 @@ return y == py && x >= px && x < px+width
 
 `s.store.Save(board)` error is now checked; on failure a `warning: score not saved: <err>` line is printed to stderr. `Play` still returns `nil` — a save failure is not fatal. `fake.Store` now has separate `LoadErr`/`SaveErr` fields so the two paths can be controlled independently. `TestGameService_SaveError_PrintsWarning` (integration) verifies the warning appears and `Play` returns `nil`.
 
-### 11. `PrintHighScores()` couples the domain to stdout — `core/score/board.go`
+### ~~11. `PrintHighScores()` couples the domain to stdout — `core/score/board.go`~~ ✓ Resolved
 
 `Board.PrintHighScores()` calls `fmt.Println` and `fmt.Printf` directly, making the core domain package responsible for terminal output. This violates the layering used everywhere else in the codebase (where output goes through the `Renderer` port or the application layer). Some of this has already moved out — `application/score.PrintResults(duration, board)` now owns the "Game Over!" summary line — but `Board.PrintHighScores()` itself still does the trophy line and the score table directly via `fmt.Println`/`fmt.Printf`. The display logic belongs entirely in `application/score`, which already receives `*score.Board` as an argument; the domain should only provide the data (e.g. a `Board.Rank() []Entry` plus the trophy boolean).
+
+**Resolved, confirmed 2026-09-21:** `core/score/board.go` has no `fmt` import and no printing method at all anymore — it's pure ranking/data logic (`NewBoard`, `Add`, `HighScore`, `IsNewHighScore`, `sortByRank`). All score-table/trophy output now goes through `infrastructure/console.ScoreReporter` (an `outbound.ScoreReporter` port implementation), invoked from `application/score/service.go`. Exactly the separation this finding asked for.
 
 ### ~~12. `NewKiller()` returns a concrete type~~ ✓ Resolved
 
@@ -196,11 +206,13 @@ Speeding up now requires holding Shift on the main keyboard. The usage string (`
 
 `FrameState`, `TargetViewState`, `HUDState`, `StatusState`, and `ConfirmState` were defined in `internal/core/game/frame.go` — the rendering contract inside the domain. Resolved together with #43: the file was moved to `application/contract/outbound/ui.go` (alongside the `Renderer` interface it serves), the package declaration changed from `frame` to `outbound`, and `outbound/ui.go` now owns all frame types. The `core/game` import is gone from the outbound package. `ConfirmState` was renamed `ConfirmViewState` to distinguish the view model from the domain type `ConfirmTarget` (see #43).
 
-### 35. Inbound port `Run()` performs no validation — `application/runner.go` (`Runner.Run`)
+### ~~35. Inbound port `Run()` performs no validation — `application/runner.go` (`Runner.Run`)~~ ✓ Resolved
 
 All input validation lives exclusively in the CLI adapter (`entrypoint/cli/cli.go`'s `validate()`). `Runner.Run`, `game.Service.Play`, `game.NewSession`, `movement.NewThrottle`, and `core/game.newTimer` all accept any `inbound.Config` without checking it. Any second delivery adapter (a future TUI, a test, a daemon entrypoint) that calls `Runner.Run` with `Speed: 0`, a NaN speed, or a negative `TimeLimit` gets silent NaN positions or an infinite game with no error.
 
 The inbound port is the architectural boundary in a hexagonal layout — the defence should live there, not only in one delivery adapter. Fix: add the same range checks at the top of `Runner.Run` (or enforce them in `game.NewSession`), returning an error when `!(cfg.Speed >= movement.MinSpeed && cfg.Speed <= movement.MaxSpeed) || cfg.TimeLimit < 0`.
+
+**Resolved:** `application.Runner.Run(cfg config.Config)` now independently re-validates by calling `config.NewConfig(cfg.Patterns, cfg.ConfirmMode, cfg.Speed, cfg.TimeLimit)` itself before doing anything else, returning its error if validation fails — confirmed by calling `Runner.Run` directly with invalid configs, bypassing the CLI adapter entirely. Any second delivery adapter now gets the same guard for free. Caveat carried forward: the port is uniformly validated, but by the same validators that Findings 32/33 above were about — those are now separately fixed too, so this caveat no longer applies either.
 
 ### ~~37. Keybinding policy split across core and application — `core/game/event_handler.go:22–36`~~ ✓ Resolved
 
@@ -243,6 +255,8 @@ Fix: the domain should bounce within whatever bounds it is given. Have the appli
 `timer` reads `time.Now` directly — an environmental side effect that makes the "pure state machine" non-deterministic and untestable without the `now func() time.Time` hook (which is itself an admission that the dependency doesn't belong there; tests reach in and overwrite `timer.start`/`timer.now` directly since they're unexported fields in the same package). The application layer already owns time: `application/game.Service.runLoop` runs the ticker and captures `endTime := time.Now()` right before the deferred `renderer.Cleanup()` fires, then `Play` computes `PlayResult.Duration` from it.
 
 Fix: (a) inject the clock as an explicit dependency — `NewTimer(limitSeconds int, now func() time.Time)` — threaded from the application layer; or (b) make the timer tick-driven — `Update` receives elapsed time or counts ticks × `frameDuration` — so core is fully deterministic and the clock never enters the domain.
+
+**Still open, confirmed 2026-09-21** — `timer` (`core/game/timer.go`) still has a `now func() time.Time` field, still defaults to `time.Now` lazily in both `Start()` and `Remaining()`, and tests still reach in and overwrite `tr.start`/`tr.now` directly as unexported same-package fields. Unchanged from the original finding.
 
 ---
 
@@ -345,7 +359,7 @@ None appear in the replacement `internal/core/game/target.go`. The godoc lines w
 | 8 | `application/service/game.go` (`drainEvents`) | ✓ Resolved | Kill score recorded even if SIGKILL fails |
 | 9 | `core/game/loop.go` | ✓ Resolved | High score display stale mid-game |
 | 10 | `application/service/game.go` | ✓ Resolved | Save error silently discarded |
-| 11 | `core/score/board.go` | Design | `PrintHighScores()` on domain type — stdout I/O belongs in app layer |
+| 11 | `core/score/board.go` | ✓ Resolved | `PrintHighScores()` on domain type — stdout I/O belongs in app layer |
 | 12 | `infrastructure/osprocess/osprocess.go` | ✓ Resolved | `NewKiller()` returns `*Killer` not the port interface |
 | 13 | `core/game/target.go`; `infrastructure/tcellui/tcellui.go` | ✓ Resolved | Byte count/offset used for bounds, hit-detection, and rendering — breaks for multi-byte chars |
 | 14 | `infrastructure/tcellui/tcellui.go` | ✓ Resolved | HUD elements overlap on narrow terminals |
@@ -366,11 +380,11 @@ None appear in the replacement `internal/core/game/target.go`. The godoc lines w
 | 29 | `infrastructure/tcellui/tcellui.go:169` | ✓ Resolved | `ResizeEvent` emitted but never consumed — dead abstraction |
 | 30 | `entrypoint/cli/cli.go:76-108` | ✓ Resolved | `--help` hint inconsistently appended to some cli error messages but not others |
 | 31 | `core/game/frame.go` | ✓ Resolved | Frame snapshot types moved to `application/contract/outbound/ui.go`; `core/game` import removed from outbound port |
-| 32 | `entrypoint/cli/cli.go` (`validate`) | High | `--speed=NaN` bypasses range guard — NaN propagates into all target positions, game unwinnable |
-| 33 | `entrypoint/cli/cli.go` (`validate`), `core/game/timer.go` (`newTimer`) | Medium | `--time` with value > ~292 years overflows `time.Duration` to negative, silently becomes no time limit |
+| 32 | `entrypoint/cli/cli.go` (`validate`) | ✓ Resolved | `--speed=NaN` bypasses range guard — NaN propagates into all target positions, game unwinnable |
+| 33 | `entrypoint/cli/cli.go` (`validate`), `core/game/timer.go` (`newTimer`) | ✓ Resolved | `--time` with value > ~292 years overflows `time.Duration` to negative, silently becomes no time limit |
 | 34 | `core/game/target.go` (`isHitAt`), `application/game/converter.go` (`toTargetViewState`) | Medium | `isHitAt` truncates float position (`int()`) while the view-state converter rounds (`math.Round`) — clicks on visible target miss ~50% of the time |
-| 35 | `application/runner.go` (`Runner.Run`) | Medium | `Runner.Run` performs no input validation — only the CLI adapter validates; any second delivery adapter bypasses all guards |
-| 36 | `infrastructure/scorefilestore/score_file_store.go` | Low | Score file contents trusted after unmarshal — unsorted, oversized, or negative-valued entries corrupt the high score and get re-saved |
+| 35 | `application/runner.go` (`Runner.Run`) | ✓ Resolved | `Runner.Run` performs no input validation — only the CLI adapter validates; any second delivery adapter bypasses all guards |
+| 36 | `infrastructure/filescore/file_score.go` | Low | Score file contents trusted after unmarshal — unsorted, oversized, or negative-valued entries corrupt the high score and get re-saved |
 | 37 | `core/game/event_handler.go:22–36` | ✓ Resolved | Keybinding policy (rune→action map) in the domain; control-key translation already lives in the app layer — binding logic split across three layers |
 | 38 | `core/movement/bounds.go` (`bounceBottom`), `core/movement/motion.go` (`newRandomPosition`) | Design | ~~Bounce physics and spawn logic hardcode `-2` for the tcellui status bar~~ ✓ Resolved (2026-09-15) — `outbound.Renderer.ChromeSize()` now supplies typed `top`/`bottom` values, threaded through as a `movement.Bounds`, not a caller-side subtraction |
 | 39 | `core/game/target.go`, `internal/infrastructure/tcellui/tcellui.go` | Design | ~~Kill/flee-animation glyphs owned by domain~~ ✓ Resolved (2026-09-15) — moved to `tcellui`, `Target` exposes `AnimationProgress()` instead. `AnimationDuration` in ticks still silently couples to the app-layer ticker rate — open |
@@ -456,11 +470,15 @@ func (e *Target) Label() string {
 
 Fix: normalize in `Store.Load` after unmarshal: drop entries with negative `Kills`/`FreedMem`, call `sortByRank()`, and truncate to `maxScores`.
 
+**Still open, confirmed 2026-09-21** — `scorefilestore` was renamed `internal/infrastructure/filescore` (`file_score.go`); `Load()` there handles a missing file, an oversized file, a malformed-JSON file, and a too-new schema version, each with a distinct error — but still does not re-validate field values, sort order, or entry count after a successful unmarshal. `core/score.NewBoard(entries []Entry)` also just stores whatever it's given as-is; `sortByRank()`/truncation only run inside `Add()`, i.e. only after a new score is recorded this session, not at load time. A hand-edited or corrupted-but-valid-JSON file would still produce the wrong high score and an unsorted/oversized table until the next `Add()` — and even then, negative-valued entries are never dropped. The bug itself is unchanged from the original finding.
+
 ### 42. `sync/atomic` in core driven by application threading model — `core/game/lifecycle.go`
 
 `atomicLifecycle` wraps an `atomic.Int32` solely so the application layer's signal-handling goroutine (`application/game/service.go`'s `runLoop`, `go func() { select { case <-sigCh: gs.Stop() ...`) can call `Session.Stop()` concurrently with the game loop's own `Session.IsRunning()`/`Update()` calls. A pure state machine needs a plain field. The atomicity is app-layer concurrency complexity leaked into the domain. The dead-code half of this finding (`CompareAndSwap` with no production callers) is gone — `atomicLifecycle` now only has `Store`/`Load` — but the core design point stands: the domain type is atomic only because of how the application layer happens to call into it.
 
 Fix: if the application layer instead funnels the signal into the loop (e.g., select on `sigCh` inside the loop iteration so `Session.Stop()` is always called from the loop goroutine), core can drop `sync/atomic` entirely and use a plain `int` or typed constant.
+
+**Still open, confirmed 2026-09-21** — `core/game/lifecycle.go`'s `atomicLifecycle` is unchanged: still wraps `atomic.Int32`, still only for `application/game/service.go`'s signal-handling goroutine to call `Session.Stop()` concurrently with the loop's own `IsRunning()`/`Update()` calls. Same design tension as originally described.
 
 ### ~~43. `Frame()` view-model assembly and frame types in core — `core/game/frame.go` (whole file), `core/game/loop.go:18–37`~~ ✓ Resolved
 
@@ -481,18 +499,26 @@ This is the tightened form the original finding asked for — it would now catch
 
 `TestHandleKeyPress_ConfirmYes_ReturnsKillRequest` verifies the returned `*KillRequest` carries the target. The kill-error path is now an application-layer concern tested by `TestGameService_*` integration tests. `TestHandleMouseClick_ReturnsKillRequest` verifies click-to-kill returns a `*KillRequest`.
 
-### Undocumented confirm-cancel-with-q behaviour
+### ~~Undocumented confirm-cancel-with-q behaviour~~ ✓ Resolved
 
 `TestInputOnQuitCancelsConfirmWhenPending` (`core/game/input_test.go`) and `TestDispatcherQStopsGame`-adjacent coverage confirm that pressing `q` during a confirmation dialog cancels the confirm without quitting (`Input.OnQuit`: if a confirmation is pending, cancel it; otherwise stop the session). This intentional UX decision is still not reflected anywhere in `entrypoint/cli/cli.go`'s cobra `Long`/`Example` usage text. A one-line addition (`q  Cancel confirmation / Quit`) would prevent future maintainers from treating it as a bug.
+
+**Resolved, confirmed 2026-09-21:** `docs/features.md`'s "Quit" section now states this explicitly: *"During a confirm prompt, `q` cancels the prompt instead of quitting — a second `q` (outside a prompt) exits."* Not in `--help`'s own usage text, but documented somewhere a maintainer would find it, which was the finding's actual ask.
 
 ### 44. Renderer view-state type names don't share a consistent suffix — `application/contract/outbound/ui.go`
 
 `FrameState`, `HUDState`, and `StatusState` use a `State` suffix; `TargetViewState` and `ConfirmViewState` use `ViewState` instead. `FrameState.StatusBar` is typed `StatusState`, which reads oddly next to `Targets []TargetViewState`. Purely cosmetic, no functional impact — worth a single consistent rename the next time this file is touched rather than as a standalone change.
 
+**Still open, confirmed 2026-09-21** — `application/contract/outbound/ui.go` still has exactly this split: `FrameState`/`HUDState`/`StatusState` vs. `TargetViewState`/`ConfirmViewState`. Unchanged.
+
 ### 45. `StatusState.TimeLimit`/`TimeLeft` encode an optional value as two ints — `application/contract/outbound/ui.go`
 
 `TimeLimit int` (0 means untimed) and `TimeLeft int`, documented as "meaningful only when `TimeLimit > 0`", spend two fields plus a precondition on what is really one optional value. The same struct already has the idiomatic Go shape for this — `Confirming *ConfirmViewState`, nil when absent. A single `TimeLeft *int` (nil = untimed) would drop the precondition: `tcellui.go`'s `if status.TimeLimit > 0` becomes `if status.TimeLeft != nil`. Deferred because, unlike a doc-only change, it touches both the sole producer (`application/game/converter.go`) and the sole consumer (`infrastructure/tcellui/tcellui.go`) together.
 
+**Still open, confirmed 2026-09-21** — `StatusState` (`application/contract/outbound/ui.go`) still has both `TimeLimit int` and `TimeLeft int`, still with the "meaningful only when TimeLimit > 0" precondition, sitting right next to `Confirming *ConfirmViewState`'s nilable-pointer idiom in the same struct. Unchanged.
+
 ### 46. `Renderer`'s Init/Cleanup ordering contract exists only because the service owns both calls — `application/game/service.go` (`runLoop`), `application/contract/outbound/ui.go`
 
 `Renderer.Init` must be called and succeed before `Size`/`Render` are used, and `Cleanup` runs after — a lifecycle now documented on the port (and made safe to call `Cleanup` more than once, since `tcellui.UI` previously panicked on a second call). The ordering requirement exists at all only because `game.Service.runLoop` calls `Init` and defers `Cleanup` itself, deep inside the application layer. If the composition root called `Init` before constructing the service and `Cleanup` after it returns — handing the service an already-initialized `Renderer` — the ordering question would disappear instead of needing to be documented. A real architectural improvement, but one that touches `runner.go`, `game/service.go`, and `main.go` together, so deferred rather than folded into a doc-comment pass.
+
+**Still open, confirmed 2026-09-21** — `application/game/service.go`'s `runLoop` still calls `s.renderer.Init()` and `defer s.renderer.Cleanup()` itself; the composition root (now `internal/composition/runner_creator.go`, renamed from the wiring this finding refers to) still doesn't own that lifecycle. `Renderer`'s doc comment (`application/contract/outbound/ui.go`) still states the ordering contract explicitly, which is only necessary because the service — not the composition root — owns both calls. Unchanged design, still deferred.

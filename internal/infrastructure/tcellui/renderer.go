@@ -6,16 +6,16 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
-// renderer draws one outbound.FrameState onto a tcell.Screen.
+// renderer draws one outbound.FrameViewState onto a tcell.Screen.
 type renderer struct {
 	screen tcell.Screen
 	chrome outbound.ChromeSize
-	state  outbound.FrameState
+	state  outbound.FrameViewState
 }
 
 // newRenderer returns a renderer that will draw state onto screen,
 // treating chrome's rows as reserved for the caller's own fixed UI.
-func newRenderer(screen tcell.Screen, chrome outbound.ChromeSize, state outbound.FrameState) renderer {
+func newRenderer(screen tcell.Screen, chrome outbound.ChromeSize, state outbound.FrameViewState) renderer {
 	return renderer{screen: screen, chrome: chrome, state: state}
 }
 

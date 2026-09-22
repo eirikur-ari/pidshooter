@@ -2,6 +2,7 @@ package game
 
 import (
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -73,7 +74,7 @@ func TestDrainEventQueueReturnsErrorWhenEventChannelCloses(t *testing.T) {
 	done := make(chan struct{})
 	defer close(done)
 
-	err := svc.drainEventQueue(nil, killSignals, done)
+	err := svc.drainEventQueue(nil, killSignals, done, &sync.WaitGroup{})
 
 	assert.EqualError(t, err, "input event channel closed")
 }
@@ -173,7 +174,9 @@ func TestKillOrReapReportsFailureWithoutReaping(t *testing.T) {
 	done := make(chan struct{})
 	defer close(done)
 
-	svc.killOrReap(target, killSignals, done)
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	svc.killOrReap(target, killSignals, done, wg)
 
 	sig := <-killSignals
 	assert.False(t, sig.shouldReap)
@@ -197,7 +200,9 @@ func TestKillOrReapReapWithoutErrorStaysSilent(t *testing.T) {
 	done := make(chan struct{})
 	defer close(done)
 
-	svc.killOrReap(target, killSignals, done)
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	svc.killOrReap(target, killSignals, done, wg)
 
 	sig := <-killSignals
 	assert.True(t, sig.shouldReap)

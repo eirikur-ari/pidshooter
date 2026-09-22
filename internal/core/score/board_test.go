@@ -32,6 +32,48 @@ func TestBoardAddTiebreakByMemory(t *testing.T) {
 	assert.Equal(t, int64(500), b.Scores[0].FreedMem, "expected higher memory first")
 }
 
+func TestBoardAddIgnoresZeroKillEntry(t *testing.T) {
+	b := &Board{}
+
+	b.Add(Entry{Kills: 0, Date: time.Now()})
+
+	assert.Empty(t, b.Scores, "a zero-kill session is not a score and should not be recorded")
+}
+
+func TestBoardAddIgnoresNegativeKillEntry(t *testing.T) {
+	b := &Board{}
+
+	b.Add(Entry{Kills: -1, Date: time.Now()})
+
+	assert.Empty(t, b.Scores)
+}
+
+func TestBoardAddIgnoresNegativeFreedMemEntry(t *testing.T) {
+	b := &Board{}
+
+	b.Add(Entry{Kills: 5, FreedMem: -1, Date: time.Now()})
+
+	assert.Empty(t, b.Scores, "negative freed memory cannot come from a real session and should not be recorded")
+}
+
+func TestBoardAddFullTieKeepsInsertionOrder(t *testing.T) {
+	b := &Board{}
+	// Date isn't one of beats's ranked dimensions, so it's a safe marker for
+	// telling otherwise-identical entries apart without affecting rank.
+	tied := func(marker int) Entry {
+		return Entry{Kills: 5, Duds: 1, Speed: 2.0, Duration: 10.0, FreedMem: 1024, Date: time.Unix(int64(marker), 0)}
+	}
+
+	for i := 1; i <= 5; i++ {
+		b.Add(tied(i))
+	}
+
+	require.Len(t, b.Scores, 5)
+	for i, entry := range b.Scores {
+		assert.Equal(t, i+1, int(entry.Date.Unix()), "a full tie across every ranked field must deterministically preserve insertion order, not depend on sort.Slice's unspecified tie-breaking")
+	}
+}
+
 func TestBoardAddCapsAtMax(t *testing.T) {
 	b := &Board{}
 
@@ -77,6 +119,33 @@ func TestNewBoardEmptyEntriesSeedsZeroHighScore(t *testing.T) {
 
 	assert.Empty(t, b.Scores)
 	assert.Equal(t, 0, b.HighScore())
+}
+
+func TestNewBoardDropsEntriesThatAreNotGenuineScores(t *testing.T) {
+	entries := []Entry{
+		{Kills: 5, FreedMem: 100, Date: time.Now()},
+		{Kills: 0, FreedMem: 100, Date: time.Now()},  // no kills
+		{Kills: -1, FreedMem: 100, Date: time.Now()}, // negative kills
+		{Kills: 5, FreedMem: -1, Date: time.Now()},   // negative freed mem
+	}
+
+	b := NewBoard(entries)
+
+	require.Len(t, b.Scores, 1, "a hand-edited or corrupted file must not durably persist bogus entries")
+	assert.Equal(t, 100, int(b.Scores[0].FreedMem))
+}
+
+func TestNewBoardSortsAndCapsOversizedUnsortedInput(t *testing.T) {
+	entries := make([]Entry, 0, maxScores+5)
+	for i := maxScores + 4; i >= 0; i-- { // deliberately unsorted: ascending Kills
+		entries = append(entries, Entry{Kills: i, Date: time.Now()})
+	}
+
+	b := NewBoard(entries)
+
+	require.Len(t, b.Scores, maxScores, "a persisted file longer than maxScores must be truncated on load, not just on the next Add")
+	assert.Equal(t, maxScores+4, b.Scores[0].Kills, "entries must be ranked on load, not trusted to already be in on-disk order")
+	assert.Equal(t, 5, b.Scores[len(b.Scores)-1].Kills)
 }
 
 // --- Board.IsNewHighScore ---

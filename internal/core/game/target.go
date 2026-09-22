@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"math"
 	"unicode/utf8"
 
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
@@ -28,8 +29,8 @@ const (
 const AnimationDuration = 36
 
 type Target struct {
-	process.Info
-	movement.Motion
+	Info          process.Info
+	Motion        movement.Motion
 	State         State
 	AnimationTick int
 	shotFired     bool
@@ -50,6 +51,7 @@ func (t *Target) Tag() string {
 	if t.State != Alive {
 		return ""
 	}
+
 	return tagFor(t.Info)
 }
 
@@ -60,6 +62,7 @@ func (t *Target) AnimationProgress() float64 {
 	if t.State != Killing && t.State != Fleeing {
 		return 0
 	}
+
 	return float64(t.AnimationTick) / float64(AnimationDuration)
 }
 
@@ -81,6 +84,7 @@ func (t *Target) Kill() bool {
 	if !t.isAlive() {
 		return false
 	}
+
 	t.State = Killing
 	t.AnimationTick = 0
 	return true
@@ -95,8 +99,10 @@ func (t *Target) Reap() bool {
 	if !t.isAlive() {
 		return false
 	}
+
 	t.State = Fleeing
 	t.AnimationTick = 0
+
 	return true
 }
 
@@ -120,8 +126,12 @@ func (t *Target) isHitAt(x, y int) bool {
 	if t.State != Alive || t.shotFired {
 		return false
 	}
+
 	width := utf8.RuneCountInString(t.Tag())
-	return y == int(t.Position.Y) && x >= int(t.Position.X) && x < int(t.Position.X)+width
+	row := int(math.Round(t.Motion.Position.Y))
+	col := int(math.Round(t.Motion.Position.X))
+
+	return y == row && x >= col && x < col+width
 }
 
 func (t *Target) doomsdayTick() {
@@ -131,7 +141,13 @@ func (t *Target) doomsdayTick() {
 	}
 }
 
+// move advances the target's position and bounces off walls, but only
+// while the target is Alive; a no-op otherwise.
 func (t *Target) move(bounds movement.Bounds, speed float64) {
+	if t.State != Alive {
+		return
+	}
+
 	t.Motion.Move(bounds, speed, float64(utf8.RuneCountInString(tagFor(t.Info))))
 }
 

@@ -11,27 +11,30 @@ import (
 
 // Service discovers and terminates OS processes.
 type Service struct {
-	proc outbound.Process
+	proc     outbound.Process
+	reporter outbound.ProcessReporter
 }
 
 // NewService constructs a Service with all required outbound ports injected.
-func NewService(proc outbound.Process) *Service {
-	return &Service{proc: proc}
+func NewService(proc outbound.Process, reporter outbound.ProcessReporter) *Service {
+	return &Service{proc: proc, reporter: reporter}
 }
 
-// FindProcesses discovers running processes matching patterns.
-func (s *Service) FindProcesses(patterns []string) ([]process.Info, error) {
+// FindProcesses discovers running processes matching patterns. includeRoot
+// additionally permits root-owned processes as matches, regardless of the
+// caller's own effective UID.
+func (s *Service) FindProcesses(patterns []string, includeRoot bool) ([]process.Info, error) {
 	processes, err := s.proc.Discover()
 	if err != nil {
 		return nil, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityFatal, "process discovery failed", err)
 	}
 
-	matches := process.Find(toProcessInfos(processes), patterns, s.proc.OwnPID(), s.proc.OwnUID())
+	matches := process.Find(toProcessInfos(processes), patterns, s.proc.OwnPID(), s.proc.OwnUID(), includeRoot)
 	if err := process.ValidateProcesses(matches); err != nil {
 		return nil, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "", err)
 	}
 
-	fmt.Printf("Found %d process(es) matching %v. Starting game...\n", len(matches), patterns)
+	s.reporter.Report(len(matches), patterns)
 
 	return matches, nil
 }
@@ -53,7 +56,10 @@ func (s *Service) Kill(pid int, procName string, protected bool) (shouldReap boo
 
 	currentName, err := s.proc.LookupName(pid)
 	if err != nil {
-		return true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not verify PID %d", pid), err)
+		if errors.As(err, &outbound.NotFoundError{}) {
+			return true, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, fmt.Sprintf("PID %d already exited", pid), err)
+		}
+		return false, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not verify PID %d", pid), err)
 	}
 	if err := process.ValidateName(procName, currentName); err != nil {
 		return true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, "", err)

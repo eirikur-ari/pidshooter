@@ -8,43 +8,43 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 )
 
-func TestNewConfigNoPatterns(t *testing.T) {
-	_, err := NewConfig(nil, false, 2.0, 30)
+func TestValidateNoPatterns(t *testing.T) {
+	err := Config{Speed: 2.0, TimeLimit: 30}.Validate()
 	assert.Error(t, err)
 }
 
-func TestNewConfigSpeedTooLow(t *testing.T) {
-	_, err := NewConfig([]string{"proc"}, false, movement.MinSpeed-0.1, 30)
+func TestValidateSpeedTooLow(t *testing.T) {
+	err := Config{Patterns: []string{"proc"}, Speed: movement.MinSpeed - 0.1, TimeLimit: 30}.Validate()
 	assert.Error(t, err)
 }
 
-func TestNewConfigSpeedTooHigh(t *testing.T) {
-	_, err := NewConfig([]string{"proc"}, false, movement.MaxSpeed+0.1, 30)
+func TestValidateSpeedTooHigh(t *testing.T) {
+	err := Config{Patterns: []string{"proc"}, Speed: movement.MaxSpeed + 0.1, TimeLimit: 30}.Validate()
 	assert.Error(t, err)
 }
 
-func TestNewConfigSpeedMinBoundary(t *testing.T) {
-	_, err := NewConfig([]string{"proc"}, false, movement.MinSpeed, 30)
+func TestValidateSpeedMinBoundary(t *testing.T) {
+	err := Config{Patterns: []string{"proc"}, Speed: movement.MinSpeed, TimeLimit: 30}.Validate()
 	assert.NoError(t, err)
 }
 
-func TestNewConfigSpeedMaxBoundary(t *testing.T) {
-	_, err := NewConfig([]string{"proc"}, false, movement.MaxSpeed, 30)
+func TestValidateSpeedMaxBoundary(t *testing.T) {
+	err := Config{Patterns: []string{"proc"}, Speed: movement.MaxSpeed, TimeLimit: 30}.Validate()
 	assert.NoError(t, err)
 }
 
-func TestNewConfigNegativeTimeLimit(t *testing.T) {
-	_, err := NewConfig([]string{"proc"}, false, 2.0, -1)
+func TestValidateNegativeTimeLimit(t *testing.T) {
+	err := Config{Patterns: []string{"proc"}, Speed: 2.0, TimeLimit: -1}.Validate()
 	assert.Error(t, err)
 }
 
-func TestNewConfigZeroTimeLimitIsUnlimited(t *testing.T) {
-	_, err := NewConfig([]string{"proc"}, false, 2.0, 0)
+func TestValidateZeroTimeLimitIsUnlimited(t *testing.T) {
+	err := Config{Patterns: []string{"proc"}, Speed: 2.0, TimeLimit: 0}.Validate()
 	assert.NoError(t, err)
 }
 
-func TestNewConfigValid(t *testing.T) {
-	cfg, err := NewConfig([]string{"proc"}, false, 2.0, 30)
-	assert.NoError(t, err)
+func TestValidateValid(t *testing.T) {
+	cfg := Config{Patterns: []string{"proc"}, Speed: 2.0, TimeLimit: 30}
+	assert.NoError(t, cfg.Validate())
 	assert.Equal(t, []string{"proc"}, cfg.Patterns)
 }

@@ -14,7 +14,7 @@ var statusBarStyle = tcell.StyleDefault.Foreground(tcell.ColorBlack).Background(
 // statusBar is the status bar row: the play status or, while a kill is
 // pending confirmation, the confirmation prompt.
 type statusBar struct {
-	state  outbound.StatusState
+	state  outbound.StatusViewState
 	window outbound.WindowSize
 }
 
@@ -57,8 +57,8 @@ func (s *statusBar) confirmPromptText() string {
 // playStatusText returns the normal (non-confirming) status line.
 func (s *statusBar) playStatusText() string {
 	timerStr := ""
-	if s.state.TimeLimit > 0 {
-		timerStr = fmt.Sprintf(" | Time: %ds", s.state.TimeLeft)
+	if s.state.TimeLeft != nil {
+		timerStr = fmt.Sprintf(" | Time: %ds", *s.state.TimeLeft)
 	}
 	return fmt.Sprintf(" Targets: %d | Speed: %.1fx%s | Click to kill | +/- speed | 'q' quit",
 		s.state.Alive, s.state.Speed, timerStr)

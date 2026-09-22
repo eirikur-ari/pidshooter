@@ -9,18 +9,12 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/application/input"
 )
 
-// Compile-time assertions that *TUI satisfies both ports, so a signature
-// drift fails the build here instead of at a distant call site.
-var (
-	_ outbound.Renderer           = (*TUI)(nil)
-	_ outbound.InputEventProvider = (*TUI)(nil)
-)
+// Compile-time assertion that *TUI satisfies outbound.Renderer.
+var _ outbound.Renderer = (*TUI)(nil)
 
-// TUI implements both outbound.Renderer and outbound.InputEventProvider, composing a
-// poller that shares the same tcell.Screen.
+// TUI implements outbound.Renderer using a tcell.Screen.
 type TUI struct {
 	screen      tcell.Screen
 	chrome      outbound.ChromeSize
@@ -81,15 +75,15 @@ func (t *TUI) ChromeSize() outbound.ChromeSize {
 	return t.chrome
 }
 
-// Render translates an outbound.FrameState into tcell draw calls.
-func (t *TUI) Render(state outbound.FrameState) {
+// Render translates an outbound.FrameViewState into tcell draw calls.
+func (t *TUI) Render(state outbound.FrameViewState) {
 	r := newRenderer(t.screen, t.chrome, state)
 	r.render()
 }
 
-// Events returns the channel of translated input events.
-func (t *TUI) Events() <-chan input.EventDispatcher {
-	return t.poller.events()
+// InputEvents returns the outbound.InputEventProvider for this TUI.
+func (t *TUI) InputEvents() outbound.InputEventProvider {
+	return &inputEvents{poller: &t.poller}
 }
 
 func (t *TUI) cleanup() {
