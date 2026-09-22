@@ -123,10 +123,16 @@ Fixed instead by removing the embedding outright: `Target.Info` and `Target.Moti
 
 Regression tests in `internal/core/game/target_test.go`: `TestTargetMoveNoOpWhenKilling`/`WhenFleeing`/`WhenDead` (each constructs a target in that state, calls the private `move` directly, asserts `Motion.Position` unchanged) and `TestTargetMoveAdvancesPositionWhenAlive` (control case). Verified by temporarily removing `move`'s internal guard that these tests fail exactly as expected before confirming they pass against the real code.
 
-### 16. `sync/atomic` in core exists only for app-layer signal concurrency
+### ~~16. `sync/atomic` in core exists only for app-layer signal concurrency~~ ✓ Fixed 2026-09-22
 *Origin: `code-review.md` #42, `fable-review.md` D6*
 
-`atomicLifecycle` (`core/game/lifecycle.go`) wraps `atomic.Int32` solely so `application/game/service.go`'s signal-handling goroutine can call `Session.Stop()` concurrently with the loop's own reads. If the application layer instead funneled the signal into the loop's own `select`, core could drop `sync/atomic` entirely.
+The premise of the app-layer half was already stale by the time this pass reached it: `application/game/service.go`'s `frameLoop` doesn't have a separate signal-handling goroutine calling `Session.Stop()` concurrently — `registerTermSignalWatcher` just returns the `<-chan struct{}` from `signal.NotifyContext(...).Done()`, and `frameLoop`'s own `select` (inside its own single goroutine, the same one that calls `session.IsRunning()`/`Update()`) reads that channel and calls `session.Stop()` itself, synchronously. That's exactly the "funnel the signal into the loop's own select" fix this finding's own suggestion described — it must have landed in an earlier, unrelated refactor, and neither `code-review.md` nor `fable-review.md`'s re-verification caught that it made `atomicLifecycle` redundant. Confirmed by tracing every call site: `Session.Stop`/`IsRunning`/`Update` are only ever invoked from `frameLoop`'s single goroutine; the two goroutines this service does spawn (`killOrReap`, and `awaitOutstandingKills`'s internal `waitGroup.Wait()` watcher) never touch `Session` at all.
+
+With no concurrent access left to guard against, `core/game/lifecycle.go`'s `atomicLifecycle` (`atomic.Int32` wrapper) was replaced with a plain `lifecycle` field on `Session`, dropping `sync/atomic` from `core/game` entirely. `lifecycle_test.go` (which only tested the now-deleted wrapper's `Store`/`Load`) was removed — `session_test.go` already independently covers the `pending`/`running`/`stopped` transitions through `Session`'s own public API.
+
+Verified with `make test-race` both before and after the change: clean either way, confirming there was no latent race being masked and none introduced.
+
+Follow-up cleanup: `lifecycle.go` no longer had a reason to exist as its own file once the wrapper was gone — the `lifecycle` type and its `pending`/`running`/`stopped` consts were only ever used by `Session`. Moved both into `session.go` (deleting `lifecycle.go`), placed at the very top of the file with the type immediately followed by its const block — matching `core/game/target.go`'s existing `State` enum, which uses the same adjacent type-then-const shape rather than splitting them across the file's separate const/type sections. `Config` and `Session` follow.
 
 ### 17. `timer.now` clock side effect in core domain
 *Origin: `code-review.md` #41*
