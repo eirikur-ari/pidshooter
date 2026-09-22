@@ -57,15 +57,15 @@ func (t *killTracker) recordKill(freedMemory int64) {
 
 // recordFailure records a kill attempt that left the target alive, deduplicated by PID.
 func (t *killTracker) recordFailure(target *game.Target, err error) {
-	if _, ok := t.failure.pids[target.PID]; ok {
+	if _, ok := t.failure.pids[target.Info.PID]; ok {
 		return
 	}
-	t.failure.pids[target.PID] = struct{}{}
-	t.failure.failures = append(t.failure.failures, KillFailure{Target: target.Name, PID: target.PID, Err: err})
+	t.failure.pids[target.Info.PID] = struct{}{}
+	t.failure.failures = append(t.failure.failures, KillFailure{Target: target.Info.Name, PID: target.Info.PID, Err: err})
 }
 
 // recordDud records a target whose backing process was already gone before
 // a kill could land on it.
 func (t *killTracker) recordDud(target *game.Target) {
-	t.duds = append(t.duds, KillDud{Target: target.Name, PID: target.PID})
+	t.duds = append(t.duds, KillDud{Target: target.Info.Name, PID: target.Info.PID})
 }

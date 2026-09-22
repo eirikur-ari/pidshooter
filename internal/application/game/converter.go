@@ -21,13 +21,13 @@ func toConfirmViewState(target *game.Target) *outbound.ConfirmViewState {
 	if target == nil {
 		return nil
 	}
-	return &outbound.ConfirmViewState{PID: target.PID, Name: target.Name}
+	return &outbound.ConfirmViewState{PID: target.Info.PID, Name: target.Info.Name}
 }
 
 func toTargetViewState(target *game.Target) outbound.TargetViewState {
 	return outbound.TargetViewState{
-		X:                 int(math.Round(target.Position.X)),
-		Y:                 int(math.Round(target.Position.Y)),
+		X:                 int(math.Round(target.Motion.Position.X)),
+		Y:                 int(math.Round(target.Motion.Position.Y)),
 		Tag:               target.Tag(),
 		Killing:           target.State == game.Killing,
 		Fleeing:           target.State == game.Fleeing,

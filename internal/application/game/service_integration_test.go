@@ -23,7 +23,7 @@ func TestIntegrationServiceFrameLoopAppliesAsyncKillToResult(t *testing.T) {
 	session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 
 	target := session.Targets()[0]
-	x, y := int(target.Position.X), int(target.Position.Y)
+	x, y := int(target.Motion.Position.X), int(target.Motion.Position.Y)
 
 	events := fake.NewInputEventProvider()
 	events.Ch <- input.ClickEvent{X: x, Y: y}
@@ -61,7 +61,7 @@ func TestIntegrationServiceFrameLoopWaitsForKillInFlightWhenSessionStops(t *test
 	session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 
 	target := session.Targets()[0]
-	x, y := int(target.Position.X), int(target.Position.Y)
+	x, y := int(target.Motion.Position.X), int(target.Motion.Position.Y)
 
 	events := fake.NewInputEventProvider()
 	events.Ch <- input.ClickEvent{X: x, Y: y}
@@ -108,7 +108,7 @@ func TestIntegrationServiceDrainEventQueueIgnoresDuplicateClicksOnSameTarget(t *
 	session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 
 	target := session.Targets()[0]
-	x, y := int(target.Position.X), int(target.Position.Y)
+	x, y := int(target.Motion.Position.X), int(target.Motion.Position.Y)
 
 	events := fake.NewInputEventProvider()
 	events.Ch <- input.ClickEvent{X: x, Y: y}

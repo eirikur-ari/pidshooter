@@ -83,7 +83,7 @@ func TestInputOnClickAtReturnsTarget(t *testing.T) {
 	s := fixture.Game(fixture.Processes(1), game.Config{Speed: 1.0})
 	tgt := s.Targets()[0]
 
-	result := newInput(s).OnClickAt(int(math.Round(tgt.Position.X)), int(math.Round(tgt.Position.Y)))
+	result := newInput(s).OnClickAt(int(math.Round(tgt.Motion.Position.X)), int(math.Round(tgt.Motion.Position.Y)))
 
 	require.NotNil(t, result)
 }
@@ -102,7 +102,7 @@ func TestInputOnClickAtNoOpWhenAlreadyConfirming(t *testing.T) {
 	pending := s.PendingConfirm()
 
 	second := s.Targets()[1]
-	result := in.OnClickAt(int(math.Round(second.Position.X)), int(math.Round(second.Position.Y)))
+	result := in.OnClickAt(int(math.Round(second.Motion.Position.X)), int(math.Round(second.Motion.Position.Y)))
 
 	assert.Nil(t, result, "expected no result when already confirming")
 	assert.Equal(t, pending, s.PendingConfirm(), "expected pending confirmation unchanged")

@@ -37,7 +37,7 @@ func TestRosterMoveAdvancesTargets(t *testing.T) {
 
 	r.move(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}), 1.0)
 
-	assert.NotEqual(t, 10.0, tgt.Position.X)
+	assert.NotEqual(t, 10.0, tgt.Motion.Position.X)
 }
 
 func TestRosterAllDeadFalseWhenEmpty(t *testing.T) {

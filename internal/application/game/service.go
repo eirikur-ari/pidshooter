@@ -226,7 +226,7 @@ func (s *Service) applyKillSignal(tracker *killTracker, sig killSignal) {
 	case sig.shouldReap && sig.target.Reap():
 		tracker.recordDud(sig.target)
 	case sig.target.Kill():
-		tracker.recordKill(sig.target.Rss)
+		tracker.recordKill(sig.target.Info.Rss)
 	}
 }
 
@@ -265,7 +265,7 @@ func (s *Service) drainEventQueue(dispatcher *input.Dispatcher, killSignals chan
 func (s *Service) killOrReap(target *game.Target, killSignals chan<- killSignal, done <-chan struct{}, waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
 
-	shouldReap, err := s.killer.Kill(target.PID, target.Name, target.Info.IsProtected())
+	shouldReap, err := s.killer.Kill(target.Info.PID, target.Info.Name, target.Info.IsProtected())
 
 	sig := killSignal{target: target}
 	switch {
