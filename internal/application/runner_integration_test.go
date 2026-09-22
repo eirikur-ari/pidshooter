@@ -14,13 +14,12 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
+	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/application/input"
+	"github.com/eirikur-ari/pidshooter/internal/application/process"
+	"github.com/eirikur-ari/pidshooter/internal/application/score"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
-
-func newRunner(proc *fake.Process, store *fake.Store, events *fake.InputEventProvider) *Runner {
-	return NewRunner(proc, store, &fake.ScoreReporter{}, &fake.Renderer{}, events)
-}
 
 func TestIntegrationRunnerRunIsSuccessful(t *testing.T) {
 	events := fake.NewInputEventProvider()
@@ -75,12 +74,11 @@ func TestIntegrationRunnerIncludeRootTrueIncludesRootOwnedProcess(t *testing.T) 
 }
 
 func TestIntegrationRunnerRunReturnsErrorWhenRendererInitFails(t *testing.T) {
-	r := NewRunner(
+	r := newRunnerWithRenderer(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 204, Name: "target", Rss: 1024}}},
 		&fake.Store{},
-		&fake.ScoreReporter{},
-		&fake.Renderer{InitErr: errors.New("terminal not available")},
 		fake.NewInputEventProvider(),
+		&fake.Renderer{InitErr: errors.New("terminal not available")},
 	)
 
 	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
@@ -210,4 +208,15 @@ func TestIntegrationRunnerRunSignalGoroutineDoesNotAccumulate(t *testing.T) {
 	}
 	t.Errorf("signal goroutines accumulated: want ≤%d goroutines after 3 games, got %d",
 		before, runtime.NumGoroutine())
+}
+
+func newRunner(proc *fake.Process, store *fake.Store, events *fake.InputEventProvider) *Runner {
+	return newRunnerWithRenderer(proc, store, events, &fake.Renderer{})
+}
+
+func newRunnerWithRenderer(proc *fake.Process, store *fake.Store, events *fake.InputEventProvider, renderer *fake.Renderer) *Runner {
+	processSvc := process.NewService(proc, &fake.ProcessReporter{})
+	scoreSvc := score.NewService(store, &fake.ScoreReporter{})
+	gameSvc := game.NewService(processSvc, renderer, events)
+	return NewRunner(processSvc, scoreSvc, gameSvc)
 }

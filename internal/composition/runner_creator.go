@@ -7,6 +7,9 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
+	"github.com/eirikur-ari/pidshooter/internal/application/game"
+	"github.com/eirikur-ari/pidshooter/internal/application/process"
+	"github.com/eirikur-ari/pidshooter/internal/application/score"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/console"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/filescore"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
@@ -28,15 +31,22 @@ func (RunnerCreator) Create() (inbound.Runner, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	store, err := filescore.NewFileScore()
 	if err != nil {
 		return nil, err
 	}
+
 	screen, err := tcell.NewScreen()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create screen: %w", err)
 	}
+
 	ui := tcellui.NewTUI(screen)
-	reporter := console.NewScoreReporter()
-	return application.NewRunner(proc, store, reporter, ui, ui), nil
+
+	processSvc := process.NewService(proc, console.NewProcessReporter())
+	scoreSvc := score.NewService(store, console.NewScoreReporter())
+	gameSvc := game.NewService(processSvc, ui, ui)
+
+	return application.NewRunner(processSvc, scoreSvc, gameSvc), nil
 }

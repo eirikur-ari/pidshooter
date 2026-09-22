@@ -7,7 +7,6 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
@@ -20,19 +19,16 @@ type Runner struct {
 	scoreSvc   *score.Service
 }
 
-// NewRunner constructs a Runner with all required outbound ports injected.
+// NewRunner constructs a Runner from its already-assembled collaborators.
 func NewRunner(
-	proc outbound.Process,
-	store outbound.ScoreStore,
-	reporter outbound.ScoreReporter,
-	renderer outbound.Renderer,
-	events outbound.InputEventProvider,
+	processSvc *process.Service,
+	scoreSvc *score.Service,
+	gameSvc *game.Service,
 ) *Runner {
-	processSvc := process.NewService(proc)
 	return &Runner{
 		processSvc: processSvc,
-		gameSvc:    game.NewService(processSvc, renderer, events),
-		scoreSvc:   score.NewService(store, reporter),
+		gameSvc:    gameSvc,
+		scoreSvc:   scoreSvc,
 	}
 }
 

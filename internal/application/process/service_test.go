@@ -16,7 +16,7 @@ import (
 // --- FindProcesses ---
 
 func TestFindProcessesReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
-	svc := NewService(&fake.Process{DiscoverErr: errors.New("ps failed")})
+	svc := NewService(&fake.Process{DiscoverErr: errors.New("ps failed")}, &fake.ProcessReporter{})
 
 	_, err := svc.FindProcesses([]string{"foo"}, false)
 
@@ -28,7 +28,7 @@ func TestFindProcessesReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 }
 
 func TestFindProcessesReturnsErrorWhenNoProcessIsFound(t *testing.T) {
-	svc := NewService(&fake.Process{})
+	svc := NewService(&fake.Process{}, &fake.ProcessReporter{})
 
 	processes, err := svc.FindProcesses([]string{"nonexistent"}, false)
 
@@ -41,6 +41,42 @@ func TestFindProcessesReturnsErrorWhenNoProcessIsFound(t *testing.T) {
 	require.Error(t, appErr.Unwrap(), "the underlying cause should still be reachable, not discarded")
 }
 
+func TestFindProcessesDoesNotReportWhenDiscoveryFails(t *testing.T) {
+	reporter := &fake.ProcessReporter{}
+	svc := NewService(&fake.Process{DiscoverErr: errors.New("ps failed")}, reporter)
+
+	_, _ = svc.FindProcesses([]string{"foo"}, false)
+
+	assert.Nil(t, reporter.Reported, "a failed discovery must not be reported as a match count")
+}
+
+func TestFindProcessesDoesNotReportWhenNoProcessIsFound(t *testing.T) {
+	reporter := &fake.ProcessReporter{}
+	svc := NewService(&fake.Process{}, reporter)
+
+	_, _ = svc.FindProcesses([]string{"nonexistent"}, false)
+
+	assert.Nil(t, reporter.Reported, "an empty match set fails validation before ever reaching the report call")
+}
+
+func TestFindProcessesReportsMatchCountAndPatterns(t *testing.T) {
+	fp := &fake.Process{
+		Infos: []outbound.ProcessInfo{
+			{PID: 100, Name: "target", Rss: 4096},
+			{PID: 101, Name: "another-target", Rss: 2048},
+		},
+	}
+	reporter := &fake.ProcessReporter{}
+	svc := NewService(fp, reporter)
+
+	_, err := svc.FindProcesses([]string{"target"}, false)
+
+	require.NoError(t, err)
+	require.NotNil(t, reporter.Reported)
+	assert.Equal(t, 2, reporter.Reported.Count)
+	assert.Equal(t, []string{"target"}, reporter.Reported.Patterns)
+}
+
 func TestFindProcessesReturnsMatchingProcesses(t *testing.T) {
 	fp := &fake.Process{
 		Infos: []outbound.ProcessInfo{
@@ -50,7 +86,7 @@ func TestFindProcessesReturnsMatchingProcesses(t *testing.T) {
 		},
 		OwnPIDValue: 999,
 	}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	processes, err := svc.FindProcesses([]string{"target"}, false)
 
@@ -69,7 +105,7 @@ func TestFindProcessesExcludesProcessesNotOwnedByCaller(t *testing.T) {
 		},
 		OwnUIDValue: 1000,
 	}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	processes, err := svc.FindProcesses([]string{"target"}, false)
 
@@ -87,7 +123,7 @@ func TestFindProcessesIncludeRootIncludesRootOwnedProcesses(t *testing.T) {
 		},
 		OwnUIDValue: 1000,
 	}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	processes, err := svc.FindProcesses([]string{"target"}, true)
 
@@ -102,7 +138,7 @@ func TestFindProcessesIncludeRootIncludesRootOwnedProcesses(t *testing.T) {
 
 func TestKillReturnsErrorIfPIDIsProtected(t *testing.T) {
 	fp := &fake.Process{}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	shouldReap, err := svc.Kill(1, "init", true)
 
@@ -118,7 +154,7 @@ func TestKillReturnsErrorIfPIDIsProtected(t *testing.T) {
 
 func TestKillReturnsErrorAndShouldReapIfPinFails(t *testing.T) {
 	fp := &fake.Process{PinErr: errors.New("could not find process")}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	shouldReap, err := svc.Kill(100, "target", false)
 
@@ -134,7 +170,7 @@ func TestKillReturnsErrorAndShouldReapIfPinFails(t *testing.T) {
 
 func TestKillReturnsErrorWithoutReapingIfProcessLookupByNameFailsTransiently(t *testing.T) {
 	fp := &fake.Process{LookupNameErr: errors.New("ps lookup failed")}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	shouldReap, err := svc.Kill(100, "target", false)
 
@@ -150,7 +186,7 @@ func TestKillReturnsErrorWithoutReapingIfProcessLookupByNameFailsTransiently(t *
 
 func TestKillReturnsShouldReapIfProcessLookupByNameReportsProcessNotFound(t *testing.T) {
 	fp := &fake.Process{LookupNameErr: outbound.NotFoundError{}}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	shouldReap, err := svc.Kill(100, "target", false)
 
@@ -166,7 +202,7 @@ func TestKillReturnsShouldReapIfProcessLookupByNameReportsProcessNotFound(t *tes
 
 func TestKillReturnsErrorAndShouldReapIfNameValidationFails(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "somethingElse"}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	shouldReap, err := svc.Kill(100, "target", false)
 
@@ -182,7 +218,7 @@ func TestKillReturnsErrorAndShouldReapIfNameValidationFails(t *testing.T) {
 
 func TestKillReturnsShouldReapWhenProcessAlreadyExited(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "target", KillErr: outbound.NotFoundError{}}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	shouldReap, err := svc.Kill(100, "target", false)
 
@@ -197,7 +233,7 @@ func TestKillReturnsShouldReapWhenProcessAlreadyExited(t *testing.T) {
 
 func TestKillReturnsErrorWhenKillFails(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "target", KillErr: errors.New("permission denied")}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	shouldReap, err := svc.Kill(100, "target", false)
 
@@ -212,7 +248,7 @@ func TestKillReturnsErrorWhenKillFails(t *testing.T) {
 
 func TestKillReturnsKillingProcessWasASuccess(t *testing.T) {
 	fp := &fake.Process{LookupNameValue: "target"}
-	svc := NewService(fp)
+	svc := NewService(fp, &fake.ProcessReporter{})
 
 	shouldReap, err := svc.Kill(100, "target", false)
 

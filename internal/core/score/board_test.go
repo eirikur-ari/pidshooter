@@ -124,9 +124,9 @@ func TestNewBoardEmptyEntriesSeedsZeroHighScore(t *testing.T) {
 func TestNewBoardDropsEntriesThatAreNotGenuineScores(t *testing.T) {
 	entries := []Entry{
 		{Kills: 5, FreedMem: 100, Date: time.Now()},
-		{Kills: 0, FreedMem: 100, Date: time.Now()},   // no kills
-		{Kills: -1, FreedMem: 100, Date: time.Now()},  // negative kills
-		{Kills: 5, FreedMem: -1, Date: time.Now()},    // negative freed mem
+		{Kills: 0, FreedMem: 100, Date: time.Now()},  // no kills
+		{Kills: -1, FreedMem: 100, Date: time.Now()}, // negative kills
+		{Kills: 5, FreedMem: -1, Date: time.Now()},   // negative freed mem
 	}
 
 	b := NewBoard(entries)

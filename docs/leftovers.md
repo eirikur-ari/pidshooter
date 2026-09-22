@@ -105,10 +105,14 @@ Regression tests: `TestEntryIsScoreFalseForZeroKills`/`ForNegativeKills`/`ForNeg
 
 ## Design issues
 
-### 14. `application/process/service.go`'s match-count message bypasses every port
+### ~~14. `application/process/service.go`'s match-count message bypasses every port~~ ✓ Fixed 2026-09-22
 *Origin: `fable-review.md` D2 (half — the `application/score` half is already resolved)*
 
-`fmt.Printf("Found %d process(es) matching %v. Starting game...\n", ...)` is a direct, unrouted print — no `outbound` port involved. Also blocks a planned `--list`/`--dry-run` feature (#22 below), since a list-only invocation would need this message to not say "Starting game...".
+Fixed with a real port, mirroring the already-resolved `ScoreReporter` half of this same finding — considered and rejected routing this through `util.Logger` (which `apperror` already calls directly, unported, for `Warn`/`Error`) instead: that pattern is a deliberate, accepted exception to the port-boundary rule specifically because diagnostic output is cross-cutting and nobody swaps or asserts on it, whereas this message — like the score summary — is core, business-meaningful program output a test can reasonably want to assert on. New `outbound.ProcessReporter` port (`Report(count int, patterns []string)`), implemented by `console.ProcessReporter` (same shape as `console.ScoreReporter`: an injectable `io.Writer`, defaulting to `os.Stdout`), wired in via the composition root.
+
+The fix also relocated the call site, not just its plumbing: `process.Service.FindProcesses` is now pure — no printing, no reporter dependency — since "Starting game..." was never really its business to assert (that's `Runner`'s decision, made by calling `gameSvc.Play` next). `Runner` gained the injected `processReporter` and now calls `Report` itself right after a successful `FindProcesses`, before proceeding to load the score board and play. This also happens to unblock #22 below for free: a future dry-run/list mode just becomes a different branch in `Runner.Run` after `FindProcesses`, with no rework needed in `process.Service`.
+
+Regression tests: `TestProcessReporterReportPrintsCountAndPatterns` (`internal/infrastructure/console/process_reporter_test.go`), and two `Runner`-level tests in `internal/application/runner_integration_test.go` — `TestIntegrationRunnerRunReportsMatchCountAndPatternsOnSuccess` (asserts the exact count and patterns reported) and `TestIntegrationRunnerRunDoesNotReportMatchCountWhenDiscoveryFails` (asserts nothing is reported when discovery errors out before ever reaching the report call).
 
 ### 15. `Target` embeds `movement.Motion`, promoting `Move()` and bypassing the `State`-gated `Update()`
 *Origin: `fable-review.md` D5*

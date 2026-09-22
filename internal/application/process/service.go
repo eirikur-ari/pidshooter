@@ -11,12 +11,13 @@ import (
 
 // Service discovers and terminates OS processes.
 type Service struct {
-	proc outbound.Process
+	proc     outbound.Process
+	reporter outbound.ProcessReporter
 }
 
 // NewService constructs a Service with all required outbound ports injected.
-func NewService(proc outbound.Process) *Service {
-	return &Service{proc: proc}
+func NewService(proc outbound.Process, reporter outbound.ProcessReporter) *Service {
+	return &Service{proc: proc, reporter: reporter}
 }
 
 // FindProcesses discovers running processes matching patterns. includeRoot
@@ -33,7 +34,7 @@ func (s *Service) FindProcesses(patterns []string, includeRoot bool) ([]process.
 		return nil, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "", err)
 	}
 
-	fmt.Printf("Found %d process(es) matching %v. Starting game...\n", len(matches), patterns)
+	s.reporter.Report(len(matches), patterns)
 
 	return matches, nil
 }

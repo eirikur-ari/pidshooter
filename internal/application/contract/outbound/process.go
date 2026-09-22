@@ -43,3 +43,10 @@ type Process interface {
 	// sequence.
 	Pin(pid int) (ProcessHandle, error)
 }
+
+// ProcessReporter is the outbound port for reporting how many processes
+// matched the requested search patterns.
+type ProcessReporter interface {
+	// Report displays how many processes matched patterns.
+	Report(count int, patterns []string)
+}
