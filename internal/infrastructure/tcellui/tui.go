@@ -75,8 +75,8 @@ func (t *TUI) ChromeSize() outbound.ChromeSize {
 	return t.chrome
 }
 
-// Render translates an outbound.FrameState into tcell draw calls.
-func (t *TUI) Render(state outbound.FrameState) {
+// Render translates an outbound.FrameViewState into tcell draw calls.
+func (t *TUI) Render(state outbound.FrameViewState) {
 	r := newRenderer(t.screen, t.chrome, state)
 	r.render()
 }

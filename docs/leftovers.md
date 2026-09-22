@@ -143,12 +143,12 @@ This closes the finding's actual complaint — tests no longer reach in and over
 
 One regression surfaced by removing the lazy-default fallback: `TestUpdateStopsWhenAllTargetsDead` constructed a `Session` via raw literal without ever setting `timer`, relying on `Start()`'s old nil-safe defaulting to avoid a nil-func-call panic on the zero-value `timer.now`. Caught immediately by `make test` (a real panic, not a subtle miss) and fixed by giving that literal an explicit `timer: newTimer(0, time.Now)` too. Verified with `make test-race` that no concurrency assumption was disturbed.
 
-### 18. Renderer view-state type names mix `State`/`ViewState` suffixes inconsistently
+### ~~18. Renderer view-state type names mix `State`/`ViewState` suffixes inconsistently~~ ✓ Fixed 2026-09-22
 *Origin: `code-review.md` #44*
 
-`FrameState`/`HUDState`/`StatusState` use `State`; `TargetViewState`/`ConfirmViewState` use `ViewState`. Purely cosmetic.
+Converged on `ViewState` (not the majority `State`): `core/game` already has its own domain `State` type (`Alive`/`Killing`/`Fleeing`/`Dead`), and bare `*State` on these outbound view models risked reading as a reference to that unrelated domain concept, whereas `ViewState` is unambiguous about being a presentation-layer value. Renamed `outbound.FrameState`→`FrameViewState`, `HUDState`→`HUDViewState`, `StatusState`→`StatusViewState` (`TargetViewState`/`ConfirmViewState` were already correctly named). Followed through to the sibling private converter functions in `application/game/converter.go` that build these values (`toFrameState`→`toFrameViewState`, `toHUDState`→`toHUDViewState`, `toStatusState`→`toStatusViewState`), which sit right next to already-consistently-named `toTargetViewState`/`toConfirmViewState` — and to the test names exercising them, so nothing in the codebase still says bare `*State` for a rendering value. Purely mechanical rename; no behavior change. `go build`/`go vet`/`make test`/`gofmt` all clean across every touched file.
 
-### 19. `StatusState.TimeLimit`/`TimeLeft` encode one optional value as two ints
+### 19. `StatusViewState.TimeLimit`/`TimeLeft` encode one optional value as two ints
 *Origin: `code-review.md` #45*
 
 Two fields plus a "meaningful only when `TimeLimit > 0`" precondition, sitting right next to `Confirming *ConfirmViewState`'s nilable-pointer idiom in the same struct. A single `TimeLeft *int` (nil = untimed) would be more idiomatic and drop the precondition.

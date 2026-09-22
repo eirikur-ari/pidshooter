@@ -1,10 +1,10 @@
 package outbound
 
-// FrameState is the data snapshot passed to the Renderer each tick.
-type FrameState struct {
+// FrameViewState is the data snapshot passed to the Renderer each tick.
+type FrameViewState struct {
 	Targets   []TargetViewState
-	HUD       HUDState
-	StatusBar StatusState
+	HUD       HUDViewState
+	StatusBar StatusViewState
 }
 
 // TargetViewState is the render representation of a single target.
@@ -25,16 +25,16 @@ type TargetViewState struct {
 	AnimationProgress float64
 }
 
-// HUDState carries the heads-up display values.
-type HUDState struct {
+// HUDViewState carries the heads-up display values.
+type HUDViewState struct {
 	// FreedMem is the cumulative memory freed by kills, in bytes.
 	FreedMem  int64
 	Kills     int
 	HighScore int
 }
 
-// StatusState carries the status bar values.
-type StatusState struct {
+// StatusViewState carries the status bar values.
+type StatusViewState struct {
 	// Alive is the number of targets not yet killed.
 	Alive int
 	// Speed is the current target movement speed, as a multiplier of the
@@ -85,5 +85,5 @@ type Renderer interface {
 	ChromeSize() ChromeSize
 	// Render draws state to the display, replacing whatever was
 	// previously rendered.
-	Render(state FrameState)
+	Render(state FrameViewState)
 }

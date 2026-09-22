@@ -43,16 +43,16 @@ func toTargetViewStates(targets []*game.Target) []outbound.TargetViewState {
 	return views
 }
 
-func toHUDState(tracker *killTracker) outbound.HUDState {
-	return outbound.HUDState{
+func toHUDViewState(tracker *killTracker) outbound.HUDViewState {
+	return outbound.HUDViewState{
 		FreedMem:  tracker.score.freedMem,
 		Kills:     tracker.score.kills,
 		HighScore: tracker.score.highScore,
 	}
 }
 
-func toStatusState(session *game.Session, alive int) outbound.StatusState {
-	return outbound.StatusState{
+func toStatusViewState(session *game.Session, alive int) outbound.StatusViewState {
+	return outbound.StatusViewState{
 		Alive:      alive,
 		Speed:      session.Throttle().Speed(),
 		TimeLimit:  session.TimeLimit(),
@@ -61,12 +61,12 @@ func toStatusState(session *game.Session, alive int) outbound.StatusState {
 	}
 }
 
-func toFrameState(session *game.Session, tracker *killTracker) outbound.FrameState {
+func toFrameViewState(session *game.Session, tracker *killTracker) outbound.FrameViewState {
 	targets, alive := session.AvailableTargets()
 
-	return outbound.FrameState{
+	return outbound.FrameViewState{
 		Targets:   toTargetViewStates(targets),
-		HUD:       toHUDState(tracker),
-		StatusBar: toStatusState(session, alive),
+		HUD:       toHUDViewState(tracker),
+		StatusBar: toStatusViewState(session, alive),
 	}
 }

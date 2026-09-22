@@ -154,7 +154,7 @@ func (s *Service) frameLoop(session *game.Session, tracker *killTracker, dispatc
 		}
 		window := s.renderer.WindowSize()
 		session.Update(movement.WindowSize{Width: window.Width, Height: window.Height})
-		s.renderer.Render(toFrameState(session, tracker))
+		s.renderer.Render(toFrameViewState(session, tracker))
 
 		if !session.IsRunning() {
 			break

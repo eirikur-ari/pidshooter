@@ -11,8 +11,8 @@ import (
 
 func TestDrawStatusBarNormal(t *testing.T) {
 	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameState{
-		StatusBar: outbound.StatusState{Alive: 3, Speed: 2.0},
+	ui.Render(outbound.FrameViewState{
+		StatusBar: outbound.StatusViewState{Alive: 3, Speed: 2.0},
 	})
 	_, _, h := screen.GetContents()
 	got := rowContent(screen, h-1)
@@ -23,8 +23,8 @@ func TestDrawStatusBarNormal(t *testing.T) {
 
 func TestDrawStatusBarConfirming(t *testing.T) {
 	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameState{
-		StatusBar: outbound.StatusState{
+	ui.Render(outbound.FrameViewState{
+		StatusBar: outbound.StatusViewState{
 			Confirming: &outbound.ConfirmViewState{PID: 42, Name: "myapp"},
 		},
 	})
@@ -37,8 +37,8 @@ func TestDrawStatusBarConfirming(t *testing.T) {
 
 func TestDrawStatusBarConfirmingMultiByteName(t *testing.T) {
 	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameState{
-		StatusBar: outbound.StatusState{
+	ui.Render(outbound.FrameViewState{
+		StatusBar: outbound.StatusViewState{
 			Confirming: &outbound.ConfirmViewState{PID: 42, Name: "café-server"},
 		},
 	})
@@ -53,8 +53,8 @@ func TestDrawStatusBarConfirmingLongNameStillShowsAllOptions(t *testing.T) {
 		t.Run(fmt.Sprintf("w=%d", w), func(t *testing.T) {
 			ui, screen := newTUI(t)
 			screen.SetSize(w, 25)
-			ui.Render(outbound.FrameState{
-				StatusBar: outbound.StatusState{
+			ui.Render(outbound.FrameViewState{
+				StatusBar: outbound.StatusViewState{
 					Confirming: &outbound.ConfirmViewState{PID: 54321, Name: "com.apple.WebKit"},
 				},
 			})
@@ -70,8 +70,8 @@ func TestDrawStatusBarConfirmingLongNameStillShowsAllOptions(t *testing.T) {
 func TestDrawStatusBarConfirmingLongNameIsTruncatedWithEllipsis(t *testing.T) {
 	ui, screen := newTUI(t)
 	screen.SetSize(44, 25)
-	ui.Render(outbound.FrameState{
-		StatusBar: outbound.StatusState{
+	ui.Render(outbound.FrameViewState{
+		StatusBar: outbound.StatusViewState{
 			Confirming: &outbound.ConfirmViewState{PID: 54321, Name: "com.apple.WebKit"},
 		},
 	})
@@ -84,8 +84,8 @@ func TestDrawStatusBarConfirmingLongNameIsTruncatedWithEllipsis(t *testing.T) {
 func TestDrawStatusBarConfirmingNameBudgetOfOneIsJustEllipsis(t *testing.T) {
 	ui, screen := newTUI(t)
 	screen.SetSize(38, 25)
-	ui.Render(outbound.FrameState{
-		StatusBar: outbound.StatusState{
+	ui.Render(outbound.FrameViewState{
+		StatusBar: outbound.StatusViewState{
 			Confirming: &outbound.ConfirmViewState{PID: 54321, Name: "com.apple.WebKit"},
 		},
 	})
@@ -97,8 +97,8 @@ func TestDrawStatusBarConfirmingNameBudgetOfOneIsJustEllipsis(t *testing.T) {
 func TestDrawStatusBarConfirmingNameOmittedWhenNoBudgetLeft(t *testing.T) {
 	ui, screen := newTUI(t)
 	screen.SetSize(30, 25)
-	ui.Render(outbound.FrameState{
-		StatusBar: outbound.StatusState{
+	ui.Render(outbound.FrameViewState{
+		StatusBar: outbound.StatusViewState{
 			Confirming: &outbound.ConfirmViewState{PID: 54321, Name: "com.apple.WebKit"},
 		},
 	})
@@ -110,8 +110,8 @@ func TestDrawStatusBarConfirmingNameOmittedWhenNoBudgetLeft(t *testing.T) {
 
 func TestDrawStatusBarWithTimeLimit(t *testing.T) {
 	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameState{
-		StatusBar: outbound.StatusState{Alive: 1, Speed: 1.0, TimeLimit: 30, TimeLeft: 15},
+	ui.Render(outbound.FrameViewState{
+		StatusBar: outbound.StatusViewState{Alive: 1, Speed: 1.0, TimeLimit: 30, TimeLeft: 15},
 	})
 	_, _, h := screen.GetContents()
 	got := rowContent(screen, h-1)
@@ -121,8 +121,8 @@ func TestDrawStatusBarWithTimeLimit(t *testing.T) {
 
 func TestDrawStatusBarNoTimeLimit(t *testing.T) {
 	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameState{
-		StatusBar: outbound.StatusState{Alive: 1, Speed: 1.0, TimeLimit: 0},
+	ui.Render(outbound.FrameViewState{
+		StatusBar: outbound.StatusViewState{Alive: 1, Speed: 1.0, TimeLimit: 0},
 	})
 	_, _, h := screen.GetContents()
 	got := rowContent(screen, h-1)

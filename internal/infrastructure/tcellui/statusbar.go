@@ -14,7 +14,7 @@ var statusBarStyle = tcell.StyleDefault.Foreground(tcell.ColorBlack).Background(
 // statusBar is the status bar row: the play status or, while a kill is
 // pending confirmation, the confirmation prompt.
 type statusBar struct {
-	state  outbound.StatusState
+	state  outbound.StatusViewState
 	window outbound.WindowSize
 }
 

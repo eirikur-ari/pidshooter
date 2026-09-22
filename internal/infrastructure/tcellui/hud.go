@@ -25,7 +25,7 @@ type bounds struct {
 
 // hud is the HUD row: freed memory, high score, and kill count.
 type hud struct {
-	state outbound.HUDState
+	state outbound.HUDViewState
 	width int
 
 	bounds bounds
