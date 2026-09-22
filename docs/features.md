@@ -66,7 +66,7 @@ pidshooter node --time=0
 
 Before entering the game loop the application:
 1. Searches for processes matching the given patterns.
-2. If no processes are found, prints `No processes found matching [patterns]` and exits cleanly.
+2. If no processes are found, prints `error: no processes found` to stderr and exits with a non-zero status.
 3. If processes are found, prints `Found N process(es) matching [patterns]. Starting game...` and launches the game.
 
 ---
@@ -83,11 +83,15 @@ Entities bounce off all four walls continuously. The right and bottom bounds acc
 `+` increases speed by 0.5× per keypress (cap: 5.0×). `-` decreases by 0.5× (floor: 0.5×). Changes take effect immediately and apply to all entities uniformly.
 
 ### Killing
-Left-clicking on an entity's label sends `SIGKILL` to that PID. A kill animation plays over 12 frames cycling through `💥 → ✦ KILLED ✦ → · · · → · → (blank)`, after which the entity transitions to dead and stops rendering.
+Left-clicking on an entity's label attempts to send `SIGKILL` to that PID. Before the signal is sent, the process's identity is re-verified against the same PID pinned at click time — this closes the window where the OS could have already recycled that PID to an unrelated process between when it was first discovered and when you clicked it. A kill animation then plays over 36 ticks (about 1.8 seconds at 20 FPS), cycling through `💥` → `✦ KILLED ✦` → `· · ·` → `·` → blank, after which the entity transitions to dead and stops rendering.
+
+### Fleeing (duds)
+If the re-verification above finds the process already gone — it exited on its own between being discovered and being clicked — the target isn't killed; it *flees* instead. A flee animation plays over the same 36 ticks, cycling through `🏃💨` → `↝ RAN AWAY ↝` → `· · ·` → `·` → blank, after which the target disappears the same way a killed one does. A fled target counts as a **dud**: it doesn't add to your kill count, but it is tracked and shown in the post-game summary and score table.
 
 ### Visual style
 - Alive targets are rendered in **green bold** text.
 - Targets playing the kill animation are rendered in **red bold** text.
+- Targets playing the flee animation are rendered in **orange bold** text.
 - The status bar uses black text on a white background.
 
 ### Terminal resize
@@ -97,10 +101,10 @@ Terminal resize events are handled: the screen is synchronised and the new dimen
 The game runs at 20 FPS. Each tick drains pending input events, updates entity positions and states, then renders a frame.
 
 ### Win condition
-The game ends automatically when all entities have been killed (all reach the dead state). It also ends when the time limit expires, or when the player quits.
+The game ends automatically when every entity has reached the dead state — whether by being killed or by fleeing. It also ends when the time limit expires, or when the player quits.
 
 ### Quit
-`q`, `Q`, or Escape quits at any time. During a confirm prompt, `q` cancels the prompt instead of quitting — a second `q` (outside a prompt) exits. `Ctrl-C`, `Ctrl-Z`, and OS signals `SIGINT`/`SIGTERM`/`SIGTSTP` also terminate the game cleanly.
+`q`, `Q`, or Escape quits at any time. During a confirm prompt, `q` cancels the prompt instead of quitting — a second `q` (outside a prompt) exits. `Ctrl-C`, `Ctrl-Z`, and OS signals `SIGINT`/`SIGTERM`/`SIGTSTP` also terminate the game cleanly. If a kill was still being verified at the moment you quit, the game waits briefly (up to 5 seconds) for it to resolve before exiting, so it isn't lost from your final score.
 
 ---
 
@@ -134,22 +138,22 @@ During a confirm prompt the status bar switches to: `Kill [PID name]? (Y)es / (N
 Scores are stored as JSON at `~/.config/pidshooter/highscores.json`. The directory is created automatically on first save. Up to 10 entries are kept.
 
 ### Ranking
-Entries are ranked by kills descending. Ties are broken, in order, by speed descending, then duration ascending (faster clears win), then freed memory descending. The top 10 are retained; lower scores are dropped on save.
+Entries are ranked by kills descending. Ties are broken, in order, by duds descending (more duds means more session activity on an equal kill count), then speed descending, then duration ascending (faster clears win), then freed memory descending. The top 10 are retained; lower scores are dropped on save. A session with zero kills is never recorded, even if it's the only thing played that day — an instant quit doesn't pollute the leaderboard.
 
 ### Score record
-Each entry stores: kills, freed memory (bytes), speed multiplier, time limit setting, actual game duration (seconds), and date.
+Each entry stores: kills, duds, freed memory (bytes), speed multiplier, time limit setting, actual game duration (seconds), and date.
 
 ### Post-game output
 After the game ends the terminal is restored and a summary is printed:
 
 ```
-  Game Over! Kills: 3 | Freed: 12.4 MB | Time: 18.3s
+  Game Over! Kills: 3 | Duds: 1 | Freed: 12.4 MB | Time: 18.3s
   🏆 New high score!
 ```
 
 The "New high score!" line appears when the session's kill count is greater than zero and equals or exceeds the previous top score (a tie also qualifies).
 
-Followed by the full leaderboard table showing rank, kills, speed, duration, freed memory, and date for all stored entries.
+Followed by the full leaderboard table showing rank, kills, duds, speed, duration, freed memory, and date for all stored entries.
 
 ---
 
@@ -162,7 +166,7 @@ The game registers handlers for `SIGINT`, `SIGTERM`, and `SIGTSTP`. Any of these
 ## Process discovery
 
 Processes are discovered by running `ps` and parsing its output:
-- On **macOS** the command is `ps -ceo pid,rss,comm` (the `-c` flag returns the short executable name without the full path).
-- On **Linux and other platforms** the command is `ps -eo pid,rss,comm`.
+- On **macOS** the command is `ps -eo uid,pid,rss,stat,ucomm` (`ucomm` returns the kernel-owned short executable name, which — unlike the process's own `argv[0]` — a process can't spoof).
+- On **Linux and other platforms** the command is `ps -eo uid,pid,rss,stat,comm`.
 
-Resident Set Size (RSS) is reported in kilobytes by `ps` and converted to bytes internally. The current process and any process with PID ≤ 1 are always filtered out.
+The `uid` column is used for the ownership/`--include-root` filtering described above; the `stat` column is used to detect and skip zombie processes, which exist as a PID slot but can no longer be usefully signaled. Resident Set Size (RSS) is reported in kilobytes by `ps` and converted to bytes internally. The current process and any process with PID ≤ 1 are always filtered out.
