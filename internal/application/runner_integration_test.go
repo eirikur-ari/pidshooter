@@ -36,10 +36,7 @@ func TestIntegrationRunnerRunIsSuccessful(t *testing.T) {
 	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
 	require.NoError(t, err)
 	require.NotNil(t, store.Saved)
-	require.Len(t, store.Saved.Scores, 1)
-	entry := store.Saved.Scores[0]
-	assert.Equal(t, 0, entry.Kills)
-	assert.Greater(t, entry.Duration, 0.0)
+	assert.Empty(t, store.Saved.Scores, "quitting immediately with zero kills must not be recorded to the score board")
 }
 
 func TestIntegrationRunnerIncludeRootFalseExcludesRootOwnedProcess(t *testing.T) {

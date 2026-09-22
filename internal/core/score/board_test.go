@@ -32,6 +32,22 @@ func TestBoardAddTiebreakByMemory(t *testing.T) {
 	assert.Equal(t, int64(500), b.Scores[0].FreedMem, "expected higher memory first")
 }
 
+func TestBoardAddIgnoresZeroKillEntry(t *testing.T) {
+	b := &Board{}
+
+	b.Add(Entry{Kills: 0, Date: time.Now()})
+
+	assert.Empty(t, b.Scores, "a zero-kill session is not a score and should not be recorded")
+}
+
+func TestBoardAddIgnoresNegativeKillEntry(t *testing.T) {
+	b := &Board{}
+
+	b.Add(Entry{Kills: -1, Date: time.Now()})
+
+	assert.Empty(t, b.Scores)
+}
+
 func TestBoardAddCapsAtMax(t *testing.T) {
 	b := &Board{}
 

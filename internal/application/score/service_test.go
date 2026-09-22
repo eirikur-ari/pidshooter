@@ -82,6 +82,18 @@ func TestRecordScoreReturnsNilWhenBoardIsSavedSuccessfully(t *testing.T) {
 	assert.Equal(t, 12.5, entry.Duration)
 }
 
+func TestRecordScoreDoesNotAddZeroKillEntryToBoardOrSave(t *testing.T) {
+	fakeStore := &fake.Store{}
+	svc := NewService(fakeStore, &fake.ScoreReporter{})
+	board := score.NewBoard(nil)
+
+	require.Nil(t, svc.RecordScore(board, score.Entry{Kills: 0, Duration: 1.0}, nil))
+
+	assert.Empty(t, board.Scores, "quitting with no kills must not pollute the score board")
+	require.NotNil(t, fakeStore.Saved)
+	assert.Empty(t, fakeStore.Saved.Scores)
+}
+
 func TestRecordScoreMergesWithConcurrentlyPersistedEntries(t *testing.T) {
 	concurrentEntry := outbound.ScoreEntry{Kills: 20, Date: time.Now()}
 	fakeStore := &fake.Store{Board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{concurrentEntry}}}

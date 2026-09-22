@@ -73,10 +73,12 @@ Covered by `TestTargetHitAtMatchesRoundedRenderPositionNotTruncated` (`internal/
 
 Regression tests: `TestKillReturnsErrorWithoutReapingIfProcessLookupByNameFailsTransiently` (renamed from the old test that asserted the opposite, now asserts `shouldReap = false` for a plain `errors.New` lookup failure) and the new `TestKillReturnsShouldReapIfProcessLookupByNameReportsProcessNotFound` (asserts `shouldReap = true` for a `outbound.NotFoundError`), both in `internal/application/process/service_test.go`.
 
-### 10. Zero-kill sessions are still recorded to the score board
+### ~~10. Zero-kill sessions are still recorded to the score board~~ ✓ Fixed 2026-09-22
 *Origin: `fable-review.md` F8*
 
-`RecordScore` calls `board.Add(entry)` unconditionally regardless of kill count, and the caller (`application/runner.go`) invokes it unconditionally too. Quitting instantly still creates and persists a 0-kill entry, polluting the top-10 table.
+Fixed at the domain level rather than in the application-layer caller: `core/score.Board.Add` now silently ignores an entry with `Kills <= 0` — a zero-kill session is not a score. This keeps the invariant in one place: `application/score.Service.RecordScore` and its `mergeWithLatest` helper both route through `Board.Add` already, so quitting instantly no longer appends anything to the in-memory board or the persisted one, without either call site needing its own guard. `Score.Service.RecordScore` still calls `s.store.Save` in this case (an unconditional-looking write when `err == nil`), but since the board it saves is unchanged, this is a no-op write, not a behavioral gap.
+
+Regression tests: `TestBoardAddIgnoresZeroKillEntry`/`TestBoardAddIgnoresNegativeKillEntry` (`internal/core/score/board_test.go`), `TestRecordScoreDoesNotAddZeroKillEntryToBoardOrSave` (`internal/application/score/service_test.go`), and the pre-existing `TestIntegrationRunnerRunIsSuccessful` (`internal/application/runner_integration_test.go`) was updated — it exercised exactly this scenario (an immediate quit) and previously asserted the buggy behavior (a persisted 0-kill entry); it now asserts the board stays empty.
 
 ### 11. Timer display truncates instead of rounding up
 *Origin: `fable-review.md` F9*
