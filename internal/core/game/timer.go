@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"math"
 	"time"
 )
 
@@ -52,10 +53,11 @@ func (t *timer) Remaining() time.Duration {
 	return r
 }
 
-// SecondsLeft returns the whole seconds remaining, for display.
-// Returns 0 when there is no limit.
+// SecondsLeft returns the whole seconds remaining, for display, rounded up
+// so a session isn't shown as having 0 seconds left before it has actually
+// expired. Returns 0 when there is no limit.
 func (t *timer) SecondsLeft() int {
-	return int(t.Remaining().Seconds())
+	return int(math.Ceil(t.Remaining().Seconds()))
 }
 
 // LimitSeconds returns the configured time limit in seconds. Zero means unlimited.

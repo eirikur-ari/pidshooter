@@ -80,10 +80,12 @@ Fixed at the domain level rather than in the application-layer caller: `core/sco
 
 Regression tests: `TestBoardAddIgnoresZeroKillEntry`/`TestBoardAddIgnoresNegativeKillEntry` (`internal/core/score/board_test.go`), `TestRecordScoreDoesNotAddZeroKillEntryToBoardOrSave` (`internal/application/score/service_test.go`), and the pre-existing `TestIntegrationRunnerRunIsSuccessful` (`internal/application/runner_integration_test.go`) was updated — it exercised exactly this scenario (an immediate quit) and previously asserted the buggy behavior (a persisted 0-kill entry); it now asserts the board stays empty.
 
-### 11. Timer display truncates instead of rounding up
+### ~~11. Timer display truncates instead of rounding up~~ ✓ Fixed 2026-09-22
 *Origin: `fable-review.md` F9*
 
-`timer.SecondsLeft()` floors (`int(t.Remaining().Seconds())`), so e.g. 0.9s remaining still displays "0s" for up to a full second before the game actually ends.
+`timer.SecondsLeft()` (`internal/core/game/timer.go`) now uses `math.Ceil` instead of truncating: `int(math.Ceil(t.Remaining().Seconds()))`. A session with 0.9s left now displays "1s" instead of "0s", and "0s" is only ever shown once `Remaining()` actually hits zero (`math.Ceil(0) == 0`), so the unlimited case (`Remaining()` always 0) is unaffected.
+
+Regression tests in `internal/core/game/timer_test.go`: `TestTimerSecondsLeftRoundsUpPartialSecond` (0.9s remaining → `1`, verified to fail against the pre-fix truncating code), `TestTimerSecondsLeftExactWholeSecondIsUnaffected` (an exact 3s remaining stays `3`, not bumped to `4`), and `TestTimerSecondsLeftZeroWhenExpired` (an already-expired timer still reports `0`).
 
 ### 12. Score-list tie-break is nondeterministic (narrowed to a 5-way exact tie)
 *Origin: `fable-review.md` F10*

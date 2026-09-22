@@ -72,6 +72,31 @@ func TestTimerSecondsLeft(t *testing.T) {
 	assert.Greater(t, tr.SecondsLeft(), 0)
 }
 
+func TestTimerSecondsLeftRoundsUpPartialSecond(t *testing.T) {
+	tr := newTimer(5)
+	start := time.Now()
+	tr.start = start
+	tr.now = func() time.Time { return start.Add(4100 * time.Millisecond) }
+
+	assert.Equal(t, 1, tr.SecondsLeft(), "0.9s remaining should round up to 1s, not truncate to 0s")
+}
+
+func TestTimerSecondsLeftExactWholeSecondIsUnaffected(t *testing.T) {
+	tr := newTimer(5)
+	start := time.Now()
+	tr.start = start
+	tr.now = func() time.Time { return start.Add(2 * time.Second) }
+
+	assert.Equal(t, 3, tr.SecondsLeft())
+}
+
+func TestTimerSecondsLeftZeroWhenExpired(t *testing.T) {
+	tr := newTimer(1)
+	tr.start = time.Now().Add(-2 * time.Second)
+
+	assert.Equal(t, 0, tr.SecondsLeft())
+}
+
 func TestTimerLimitSeconds(t *testing.T) {
 	tr30 := newTimer(30)
 	assert.Equal(t, 30, tr30.LimitSeconds())
