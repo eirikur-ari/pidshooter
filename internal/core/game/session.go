@@ -40,7 +40,7 @@ func NewSession(processes []process.Info, cfg Config) *Session {
 	return &Session{
 		cfg:      cfg,
 		roster:   newRoster(processes),
-		timer:    newTimer(cfg.TimeLimit),
+		timer:    newTimer(cfg.TimeLimit, time.Now),
 		throttle: movement.NewThrottle(cfg.Speed),
 		confirm:  newConfirmation(cfg.Confirm),
 	}

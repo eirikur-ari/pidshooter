@@ -17,16 +17,14 @@ type timer struct {
 	now   func() time.Time
 }
 
-// newTimer creates a timer with the given limit in seconds. Zero means unlimited.
-func newTimer(limitSeconds int) timer {
-	return timer{limit: secondsToDuration(limitSeconds)}
+// newTimer creates a timer with the given limit in seconds and clock. Zero
+// limit means unlimited.
+func newTimer(limitSeconds int, now func() time.Time) timer {
+	return timer{limit: secondsToDuration(limitSeconds), now: now}
 }
 
 // Start records the session start time.
 func (t *timer) Start() {
-	if t.now == nil {
-		t.now = time.Now
-	}
 	t.start = t.now()
 }
 
@@ -42,11 +40,7 @@ func (t *timer) Remaining() time.Duration {
 	if t.limit <= 0 {
 		return 0
 	}
-	now := t.now
-	if now == nil {
-		now = time.Now
-	}
-	r := t.limit - now().Sub(t.start)
+	r := t.limit - t.now().Sub(t.start)
 	if r < 0 {
 		return 0
 	}

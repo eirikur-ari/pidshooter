@@ -134,10 +134,14 @@ Verified with `make test-race` both before and after the change: clean either wa
 
 Follow-up cleanup: `lifecycle.go` no longer had a reason to exist as its own file once the wrapper was gone — the `lifecycle` type and its `pending`/`running`/`stopped` consts were only ever used by `Session`. Moved both into `session.go` (deleting `lifecycle.go`), placed at the very top of the file with the type immediately followed by its const block — matching `core/game/target.go`'s existing `State` enum, which uses the same adjacent type-then-const shape rather than splitting them across the file's separate const/type sections. `Config` and `Session` follow.
 
-### 17. `timer.now` clock side effect in core domain
+### ~~17. `timer.now` clock side effect in core domain~~ ✓ Fixed 2026-09-22
 *Origin: `code-review.md` #41*
 
-`timer` reads `time.Now` directly (defaulted lazily in `Start()`/`Remaining()`); tests reach in and overwrite `now`/`start` as unexported same-package fields. Fix: inject the clock explicitly, or make the timer tick-driven instead of wall-clock-driven.
+Took the "inject the clock explicitly" option over the tick-driven redesign — the latter would have meant changing `Session.Update`'s public signature to take a time delta and moving wall-clock reads into `application/game/service.go`'s frame loop, a much larger and riskier change for a finding that's really about one constructor. `newTimer(limitSeconds int, now func() time.Time) timer` now takes the clock as a required parameter instead of lazily defaulting it to `time.Now` inside `Start()`/`Remaining()` the first time either was called — both methods now just call `t.now()` directly, since a `nil` clock is no longer a reachable state once construction requires one. `Session.NewSession` (the one real production call site) passes `time.Now` explicitly; nothing about its own public signature changed.
+
+This closes the finding's actual complaint — tests no longer reach in and overwrite `now`/`start` as unexported fields post-construction. A small `fakeClock` helper (`t time.Time`, `now()`, `advance(d)`) in `timer_test.go` gives tests a controllable clock supplied at construction time via `newTimer(limit, clock.now)`, and `Start()` is called normally to set `start` — no test anywhere sets `timer.start` or `timer.now` directly anymore. `core/game/session_test.go`'s `TestUpdateStopsWhenTimeLimitExpired` was rewritten the same way, constructing a `Session` with a pre-built `timer` via a raw struct literal (matching the existing `TestUpdateStopsWhenAllTargetsDead` pattern already in that file) instead of calling `NewSession` and then reaching into `s.timer.start`.
+
+One regression surfaced by removing the lazy-default fallback: `TestUpdateStopsWhenAllTargetsDead` constructed a `Session` via raw literal without ever setting `timer`, relying on `Start()`'s old nil-safe defaulting to avoid a nil-func-call panic on the zero-value `timer.now`. Caught immediately by `make test` (a real panic, not a subtle miss) and fixed by giving that literal an explicit `timer: newTimer(0, time.Now)` too. Verified with `make test-race` that no concurrency assumption was disturbed.
 
 ### 18. Renderer view-state type names mix `State`/`ViewState` suffixes inconsistently
 *Origin: `code-review.md` #44*
