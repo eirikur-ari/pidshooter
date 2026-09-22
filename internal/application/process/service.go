@@ -55,7 +55,10 @@ func (s *Service) Kill(pid int, procName string, protected bool) (shouldReap boo
 
 	currentName, err := s.proc.LookupName(pid)
 	if err != nil {
-		return true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not verify PID %d", pid), err)
+		if errors.As(err, &outbound.NotFoundError{}) {
+			return true, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, fmt.Sprintf("PID %d already exited", pid), err)
+		}
+		return false, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not verify PID %d", pid), err)
 	}
 	if err := process.ValidateName(procName, currentName); err != nil {
 		return true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, "", err)

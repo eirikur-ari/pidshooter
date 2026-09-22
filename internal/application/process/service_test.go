@@ -132,13 +132,13 @@ func TestKillReturnsErrorAndShouldReapIfPinFails(t *testing.T) {
 	assert.Empty(t, fp.ReleasedPIDs, "there is no handle to release when Pin itself fails")
 }
 
-func TestKillReturnsErrorAndShouldReapIfProcessLookupByNameFails(t *testing.T) {
+func TestKillReturnsErrorWithoutReapingIfProcessLookupByNameFailsTransiently(t *testing.T) {
 	fp := &fake.Process{LookupNameErr: errors.New("ps lookup failed")}
 	svc := NewService(fp)
 
 	shouldReap, err := svc.Kill(100, "target", false)
 
-	assert.True(t, shouldReap)
+	assert.False(t, shouldReap, "a transient lookup failure must not be treated as the process already having exited")
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, apperror.CodeProcessDiscoveryFailed, appErr.Code)
@@ -146,6 +146,22 @@ func TestKillReturnsErrorAndShouldReapIfProcessLookupByNameFails(t *testing.T) {
 	assert.ErrorContains(t, err, "could not verify PID 100: ps lookup failed", "expected the underlying ps error to still be visible")
 	assert.Empty(t, fp.KilledPIDs)
 	assert.Equal(t, []int{100}, fp.ReleasedPIDs, "the pinned handle must be released even when LookupName fails afterward")
+}
+
+func TestKillReturnsShouldReapIfProcessLookupByNameReportsProcessNotFound(t *testing.T) {
+	fp := &fake.Process{LookupNameErr: outbound.NotFoundError{}}
+	svc := NewService(fp)
+
+	shouldReap, err := svc.Kill(100, "target", false)
+
+	assert.True(t, shouldReap)
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeProcessNotFound, appErr.Code)
+	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
+	assert.ErrorAs(t, err, &outbound.NotFoundError{})
+	assert.Empty(t, fp.KilledPIDs)
+	assert.Equal(t, []int{100}, fp.ReleasedPIDs, "the pinned handle must be released even when LookupName reports the process gone")
 }
 
 func TestKillReturnsErrorAndShouldReapIfNameValidationFails(t *testing.T) {

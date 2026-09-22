@@ -66,10 +66,12 @@ Covered by `TestIntegrationServiceFrameLoopWaitsForKillInFlightWhenSessionStops`
 
 Covered by `TestTargetHitAtMatchesRoundedRenderPositionNotTruncated` (`internal/core/game/target_test.go`), using a position of `(10.6, 5.6)`: asserts a click at the rounded cell `(11, 6)` — where the tag is actually rendered — hits, and clicks at the truncated column/row (`10, 6` and `11, 5`) miss. Verified to fail against the pre-fix truncating code before being kept.
 
-### 9. `LookupName` failures of any kind treated as "process already exited"
+### ~~9. `LookupName` failures of any kind treated as "process already exited"~~ ✓ Fixed 2026-09-22
 *Origin: `fable-review.md` F7*
 
-`process/service.go`'s `Kill` maps *any* `LookupName` error (including a transient `ps` failure) directly to `shouldReap = true`, silently reaping a target that may still be alive — no kill, no score credit, no player feedback.
+`process/service.go`'s `Kill` now distinguishes the two cases `LookupName` can fail with: a `outbound.NotFoundError` (the process is actually gone) still maps to `shouldReap = true`, but any other error (a transient `ps` failure, a timeout, a parse error) now returns `shouldReap = false` alongside a `CodeProcessDiscoveryFailed` error — so the caller sees a failed kill attempt instead of a silent, uncredited reap. `outbound.Process.LookupName`'s port doc comment was updated to state this as an explicit contract (not-found is signaled via `NotFoundError`, not just left to the one current implementation's behavior), since `Kill` now relies on it via `errors.As`.
+
+Regression tests: `TestKillReturnsErrorWithoutReapingIfProcessLookupByNameFailsTransiently` (renamed from the old test that asserted the opposite, now asserts `shouldReap = false` for a plain `errors.New` lookup failure) and the new `TestKillReturnsShouldReapIfProcessLookupByNameReportsProcessNotFound` (asserts `shouldReap = true` for a `outbound.NotFoundError`), both in `internal/application/process/service_test.go`.
 
 ### 10. Zero-kill sessions are still recorded to the score board
 *Origin: `fable-review.md` F8*
