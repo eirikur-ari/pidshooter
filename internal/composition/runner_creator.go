@@ -46,7 +46,7 @@ func (RunnerCreator) Create() (inbound.Runner, error) {
 
 	processSvc := process.NewService(proc, console.NewProcessReporter())
 	scoreSvc := score.NewService(store, console.NewScoreReporter())
-	gameSvc := game.NewService(processSvc, ui, ui)
+	gameSvc := game.NewService(processSvc, ui, ui.InputEvents())
 
 	return application.NewRunner(processSvc, scoreSvc, gameSvc), nil
 }
