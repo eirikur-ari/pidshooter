@@ -12,9 +12,15 @@ type Board struct {
 	highScore int
 }
 
-// NewBoard builds a Board from persisted entries.
+// NewBoard builds a Board from persisted entries, routing each one through
+// Add — so a hand-edited or otherwise corrupted-but-parseable persisted
+// file can't leave the board carrying a bogus entry, unsorted, or oversized.
 func NewBoard(entries []Entry) *Board {
-	return &Board{Scores: entries}
+	b := &Board{}
+	for _, entry := range entries {
+		b.Add(entry)
+	}
+	return b
 }
 
 // HighScore returns the board's current best kill count, or 0 if none.
@@ -22,10 +28,10 @@ func (b *Board) HighScore() int {
 	return b.killScore()
 }
 
-// Add inserts a new score entry and keeps only the top N. An entry with no
-// kills is not a score and is silently ignored.
+// Add inserts a new score entry and keeps only the top N. An entry that
+// isn't a genuine score is silently ignored.
 func (b *Board) Add(entry Entry) {
-	if entry.Kills <= 0 {
+	if !entry.isScore() {
 		return
 	}
 

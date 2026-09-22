@@ -42,3 +42,21 @@ func TestEntryBeatsTiebreakByFreedMem(t *testing.T) {
 	assert.True(t, more.beats(less), "expected higher freed mem to win on kills, speed, and duration tie")
 	assert.False(t, less.beats(more), "expected lower freed mem to lose on kills, speed, and duration tie")
 }
+
+// --- Entry.isScore ---
+
+func TestEntryIsScoreTrueForPositiveKillsAndFreedMem(t *testing.T) {
+	assert.True(t, Entry{Kills: 1, FreedMem: 0}.isScore())
+}
+
+func TestEntryIsScoreFalseForZeroKills(t *testing.T) {
+	assert.False(t, Entry{Kills: 0, FreedMem: 100}.isScore())
+}
+
+func TestEntryIsScoreFalseForNegativeKills(t *testing.T) {
+	assert.False(t, Entry{Kills: -1, FreedMem: 100}.isScore())
+}
+
+func TestEntryIsScoreFalseForNegativeFreedMem(t *testing.T) {
+	assert.False(t, Entry{Kills: 5, FreedMem: -1}.isScore(), "a real session can never free negative memory")
+}
