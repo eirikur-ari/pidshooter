@@ -54,7 +54,7 @@ func (b *Board) killScore() int {
 }
 
 func (b *Board) sortByRank() {
-	sort.Slice(b.Scores, b.less)
+	sort.SliceStable(b.Scores, b.less)
 }
 
 // less reports whether the entry at index i outranks the entry at index j.

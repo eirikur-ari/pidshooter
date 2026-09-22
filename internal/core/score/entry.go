@@ -26,14 +26,18 @@ func (e Entry) beats(other Entry) bool {
 	if e.Kills != other.Kills {
 		return e.Kills > other.Kills
 	}
+
 	if e.Duds != other.Duds {
 		return e.Duds > other.Duds
 	}
+
 	if e.Speed != other.Speed {
 		return e.Speed > other.Speed
 	}
+
 	if e.Duration != other.Duration {
 		return e.Duration < other.Duration
 	}
+
 	return e.FreedMem > other.FreedMem
 }

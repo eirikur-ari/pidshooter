@@ -48,6 +48,24 @@ func TestBoardAddIgnoresNegativeKillEntry(t *testing.T) {
 	assert.Empty(t, b.Scores)
 }
 
+func TestBoardAddFullTieKeepsInsertionOrder(t *testing.T) {
+	b := &Board{}
+	// Date isn't one of beats's ranked dimensions, so it's a safe marker for
+	// telling otherwise-identical entries apart without affecting rank.
+	tied := func(marker int) Entry {
+		return Entry{Kills: 5, Duds: 1, Speed: 2.0, Duration: 10.0, FreedMem: 1024, Date: time.Unix(int64(marker), 0)}
+	}
+
+	for i := 1; i <= 5; i++ {
+		b.Add(tied(i))
+	}
+
+	require.Len(t, b.Scores, 5)
+	for i, entry := range b.Scores {
+		assert.Equal(t, i+1, int(entry.Date.Unix()), "a full tie across every ranked field must deterministically preserve insertion order, not depend on sort.Slice's unspecified tie-breaking")
+	}
+}
+
 func TestBoardAddCapsAtMax(t *testing.T) {
 	b := &Board{}
 

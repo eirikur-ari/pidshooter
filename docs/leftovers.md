@@ -87,10 +87,12 @@ Regression tests: `TestBoardAddIgnoresZeroKillEntry`/`TestBoardAddIgnoresNegativ
 
 Regression tests in `internal/core/game/timer_test.go`: `TestTimerSecondsLeftRoundsUpPartialSecond` (0.9s remaining → `1`, verified to fail against the pre-fix truncating code), `TestTimerSecondsLeftExactWholeSecondIsUnaffected` (an exact 3s remaining stays `3`, not bumped to `4`), and `TestTimerSecondsLeftZeroWhenExpired` (an already-expired timer still reports `0`).
 
-### 12. Score-list tie-break is nondeterministic (narrowed to a 5-way exact tie)
+### ~~12. Score-list tie-break is nondeterministic (narrowed to a 5-way exact tie)~~ ✓ Fixed 2026-09-22
 *Origin: `fable-review.md` F10*
 
-`board.go`'s `sortByRank` uses `sort.Slice`, not `SliceStable`. `Entry.beats` now ranks Kills → Duds → Speed → Duration → FreedMem (a fuller chain than when this finding was written), so two entries now have to match on all five dimensions — including an exact float `Duration` — to hit the ambiguity. Much narrower in practice than originally described, but the underlying non-stable sort is unchanged.
+`board.go`'s `sortByRank` now uses `sort.SliceStable` instead of `sort.Slice`, so two entries tying on all five of `Entry.beats`'s ranked dimensions now deterministically keep their pre-sort relative order — in practice, the entry already on the board outranks one just appended by `Add`, rather than which one survives being unspecified.
+
+Caveat on the regression test: `TestBoardAddFullTieKeepsInsertionOrder` (`internal/core/score/board_test.go`) asserts the now-guaranteed contract (insertion order preserved across a full 5-way tie), but this specific input pattern — every tied entry identical except an unranked `Date` marker, added one at a time via `Add` — was checked empirically and does **not** reproduce disorder against the pre-fix `sort.Slice` for slice lengths up to 30; Go's current sort implementation happens to preserve order for this exact shape of input. The bug being fixed was a documented API contract gap (`sort.Slice` explicitly does not guarantee tie order), not a case with a known concrete repro, and `Board.Add`'s own `maxScores` cap (10) keeps every real call site's slice length inside the range checked. `sort.SliceStable` closes the gap outright regardless, at no measurable cost given these slice sizes.
 
 ### 13. Score file contents trusted after unmarshal
 *Origin: `code-review.md` #36*
