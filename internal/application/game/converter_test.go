@@ -104,8 +104,18 @@ func TestToStatusViewStateReturnsMappedFieldsWithoutConfirmViewState(t *testing.
 
 	assert.Equal(t, 3, status.Alive)
 	assert.Equal(t, 2.0, status.Speed)
-	assert.Equal(t, 30, status.TimeLimit)
+	require.NotNil(t, status.TimeLeft)
+	assert.Equal(t, 30, *status.TimeLeft)
 	assert.Nil(t, status.Confirming)
+}
+
+func TestToStatusViewStateTimeLeftNilWhenUntimed(t *testing.T) {
+	session := game.NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, game.Config{Speed: 2.0})
+	session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
+
+	status := toStatusViewState(session, 1)
+
+	assert.Nil(t, status.TimeLeft)
 }
 
 func TestToStatusViewStateIncludesConfirmViewState(t *testing.T) {

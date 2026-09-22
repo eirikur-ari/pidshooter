@@ -52,11 +52,15 @@ func toHUDViewState(tracker *killTracker) outbound.HUDViewState {
 }
 
 func toStatusViewState(session *game.Session, alive int) outbound.StatusViewState {
+	var timeLeft *int
+	if session.TimeLimit() > 0 {
+		t := session.TimeLeft()
+		timeLeft = &t
+	}
 	return outbound.StatusViewState{
 		Alive:      alive,
 		Speed:      session.Throttle().Speed(),
-		TimeLimit:  session.TimeLimit(),
-		TimeLeft:   session.TimeLeft(),
+		TimeLeft:   timeLeft,
 		Confirming: toConfirmViewState(session.PendingConfirm()),
 	}
 }

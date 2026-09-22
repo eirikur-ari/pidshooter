@@ -40,11 +40,8 @@ type StatusViewState struct {
 	// Speed is the current target movement speed, as a multiplier of the
 	// base speed.
 	Speed float64
-	// TimeLimit is the session's time limit in seconds, or 0 if untimed.
-	TimeLimit int
-	// TimeLeft is the seconds remaining in the session. Meaningful only
-	// when TimeLimit > 0.
-	TimeLeft int
+	// TimeLeft is the seconds remaining in the session, or nil if untimed.
+	TimeLeft *int
 	// Confirming holds the kill-confirmation prompt values, or nil when no
 	// confirmation is pending.
 	Confirming *ConfirmViewState

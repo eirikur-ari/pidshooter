@@ -110,8 +110,9 @@ func TestDrawStatusBarConfirmingNameOmittedWhenNoBudgetLeft(t *testing.T) {
 
 func TestDrawStatusBarWithTimeLimit(t *testing.T) {
 	ui, screen := newTUI(t)
+	timeLeft := 15
 	ui.Render(outbound.FrameViewState{
-		StatusBar: outbound.StatusViewState{Alive: 1, Speed: 1.0, TimeLimit: 30, TimeLeft: 15},
+		StatusBar: outbound.StatusViewState{Alive: 1, Speed: 1.0, TimeLeft: &timeLeft},
 	})
 	_, _, h := screen.GetContents()
 	got := rowContent(screen, h-1)
@@ -122,7 +123,7 @@ func TestDrawStatusBarWithTimeLimit(t *testing.T) {
 func TestDrawStatusBarNoTimeLimit(t *testing.T) {
 	ui, screen := newTUI(t)
 	ui.Render(outbound.FrameViewState{
-		StatusBar: outbound.StatusViewState{Alive: 1, Speed: 1.0, TimeLimit: 0},
+		StatusBar: outbound.StatusViewState{Alive: 1, Speed: 1.0},
 	})
 	_, _, h := screen.GetContents()
 	got := rowContent(screen, h-1)
