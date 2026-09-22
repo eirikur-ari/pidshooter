@@ -155,10 +155,12 @@ Took the suggested fix exactly: `TimeLimit int` and `TimeLeft int` collapsed int
 
 Regression tests: `TestToStatusViewStateTimeLeftNilWhenUntimed` (new, in `application/game/converter_test.go`) asserts `TimeLeft` is nil for an untimed session — the case the old two-int encoding couldn't represent as a single check — alongside the updated `TestToStatusViewStateReturnsMappedFieldsWithoutConfirmViewState` (now asserts `*status.TimeLeft == 30` instead of the removed `TimeLimit` field). `tcellui/statusbar_test.go`'s existing `TestDrawStatusBarWithTimeLimit`/`TestDrawStatusBarNoTimeLimit` updated to construct the new pointer field instead of the two ints.
 
-### 20. `Renderer` Init/Cleanup ordering contract exists only because the service owns both calls
+### ~~20. `Renderer` Init/Cleanup ordering contract exists only because the service owns both calls~~ ✓ Settled, confirmed 2026-09-22
 *Origin: `code-review.md` #46*
 
-`application/game/service.go`'s `runLoop` calls `Init()`/defers `Cleanup()` itself, deep in the application layer — that's the only reason the ordering contract needs documenting on the port at all. If the composition root owned that lifecycle instead (`Init` before constructing the service, `Cleanup` after it returns), the ordering question would disappear rather than needing to be documented.
+Considered and rejected the suggested fix: moving `Init`/`Cleanup` to the composition root would violate `RunnerCreator.Create()`'s actual job (pure wiring — constructing adapters and services, no behavior), and would be wrong going forward regardless of that principle. `game.Service` — the only thing that calls `Init`/`Cleanup` today — exists specifically for the interactive gameplay feature; the planned CLI modes (`project_planned_cli_modes` memory: list+pick-and-kill, kill-all-without-selection, dry-run preview) won't use `game.Service` or a renderer at all. Hoisting the renderer lifecycle to the composition root, or even up to `Runner.Run` once it needs to dispatch across those modes, would force every future non-gameplay CLI mode to inherit a TUI-lifecycle dependency it will never need — trading a doc-comment removal for a real coupling problem. It would also change observable behavior today: `Init()` currently only runs once processes have already been found and the score board loaded (inside `Service.Play` → `runLoop`), so a "no processes found" error never touches the terminal at all; moving `Init` earlier would make even that instant, silent failure flicker the screen into raw/alt-screen mode and back.
+
+Confirmed intentional: the ordering contract is correctly scoped to the one feature (`game.Service`) that actually needs a live terminal, not a leak from a careless composition choice. No code change.
 
 ---
 
