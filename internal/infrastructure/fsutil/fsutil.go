@@ -15,10 +15,12 @@ func ConfigDir(appName string) (string, error) {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); filepath.IsAbs(xdg) {
 		return filepath.Join(xdg, appName), nil
 	}
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("could not resolve user home directory: %w", err)
 	}
+
 	return filepath.Join(home, ".config", appName), nil
 }
 
@@ -33,6 +35,7 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) (err error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return fmt.Errorf("could not create directory %s: %w", dir, err)
 	}
+
 	if err := os.Chmod(dir, 0700); err != nil {
 		return fmt.Errorf("could not set permissions on %s: %w", dir, err)
 	}
@@ -41,6 +44,7 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) (err error) {
 	if err != nil {
 		return fmt.Errorf("could not create temp file in %s: %w", dir, err)
 	}
+
 	defer func() {
 		if err != nil {
 			_ = os.Remove(tmp.Name())
@@ -51,17 +55,21 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) (err error) {
 		_ = tmp.Close()
 		return fmt.Errorf("could not write temp file %s: %w", tmp.Name(), err)
 	}
+
 	if err = tmp.Chmod(perm); err != nil {
 		_ = tmp.Close()
 		return fmt.Errorf("could not set permissions on %s: %w", tmp.Name(), err)
 	}
+
 	if err = tmp.Sync(); err != nil {
 		_ = tmp.Close()
 		return fmt.Errorf("could not sync temp file %s: %w", tmp.Name(), err)
 	}
+
 	if err = tmp.Close(); err != nil {
 		return fmt.Errorf("could not close temp file %s: %w", tmp.Name(), err)
 	}
+
 	if err = os.Rename(tmp.Name(), path); err != nil {
 		return fmt.Errorf("could not rename %s to %s: %w", tmp.Name(), path, err)
 	}

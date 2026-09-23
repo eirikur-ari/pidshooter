@@ -12,7 +12,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/console"
-	"github.com/eirikur-ari/pidshooter/internal/infrastructure/filescore"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/filestore"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/logger"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
@@ -40,7 +40,7 @@ func (c RunnerCreator) Create() (inbound.Runner, error) {
 		return nil, err
 	}
 
-	store, err := filescore.NewFileScore()
+	store, err := filestore.NewScoreFile()
 	if err != nil {
 		return nil, err
 	}
