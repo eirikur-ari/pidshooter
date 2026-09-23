@@ -14,7 +14,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
-// process implements outbound.Process using the ps command.
+// process discovers and manages OS processes using the ps command.
 type process struct {
 	psPath string
 	// timeout bounds how long a single ps invocation may run. A wedged ps

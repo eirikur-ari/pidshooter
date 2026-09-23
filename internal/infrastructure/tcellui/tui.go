@@ -1,4 +1,3 @@
-// Package tcellui implements the outbound.Renderer and outbound.InputEventProvider ports using tcell.
 package tcellui
 
 import (
@@ -14,7 +13,7 @@ import (
 // Compile-time assertion that *TUI satisfies outbound.Renderer.
 var _ outbound.Renderer = (*TUI)(nil)
 
-// TUI implements outbound.Renderer using a tcell.Screen.
+// TUI renders to a tcell.Screen.
 type TUI struct {
 	screen      tcell.Screen
 	chrome      outbound.ChromeSize

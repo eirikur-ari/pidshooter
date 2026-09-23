@@ -8,10 +8,9 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
-// processHandle implements outbound.ProcessHandle around an *os.Process
-// obtained by process.Pin. It performs no safety or name verification
-// itself — callers must confirm via LookupName that the pid Pin was
-// called with still refers to the intended, non-protected process before
+// processHandle wraps a pinned *os.Process. It performs no safety or name
+// verification itself — callers must confirm via LookupName that the
+// process it refers to is still the intended, non-protected one before
 // calling Kill.
 type processHandle struct{ proc *os.Process }
 

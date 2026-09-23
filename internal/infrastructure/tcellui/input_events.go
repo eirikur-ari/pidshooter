@@ -8,7 +8,7 @@ import (
 // Compile-time assertion that *inputEvents satisfies outbound.InputEventProvider.
 var _ outbound.InputEventProvider = (*inputEvents)(nil)
 
-// inputEvents implements outbound.InputEventProvider.
+// inputEvents provides the channel of translated input events.
 type inputEvents struct {
 	poller *poller
 }
