@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-// ProcessReporter implements outbound.ProcessReporter by writing to an io.Writer.
+// ProcessReporter writes process-match reports to an io.Writer.
 type ProcessReporter struct {
 	writer io.Writer
 }

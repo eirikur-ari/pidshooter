@@ -218,5 +218,6 @@ func newRunnerWithRenderer(proc *fake.Process, store *fake.Store, events *fake.I
 	processSvc := process.NewService(proc, &fake.ProcessReporter{})
 	scoreSvc := score.NewService(store, &fake.ScoreReporter{})
 	gameSvc := game.NewService(processSvc, renderer, events)
-	return NewRunner(processSvc, scoreSvc, gameSvc)
+	errHandler := apperror.NewHandler(&fake.Logger{})
+	return NewRunner(processSvc, scoreSvc, gameSvc, errHandler)
 }

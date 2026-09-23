@@ -63,7 +63,8 @@ func newTestRunnerWithProcess(proc *fake.Process) *Runner {
 	processSvc := process.NewService(proc, &fake.ProcessReporter{})
 	scoreSvc := score.NewService(&fake.Store{}, &fake.ScoreReporter{})
 	gameSvc := game.NewService(processSvc, &fake.Renderer{}, fake.NewInputEventProvider())
-	return NewRunner(processSvc, scoreSvc, gameSvc)
+	errHandler := apperror.NewHandler(&fake.Logger{})
+	return NewRunner(processSvc, scoreSvc, gameSvc, errHandler)
 }
 
 func assertFatal(t *testing.T, err error) {

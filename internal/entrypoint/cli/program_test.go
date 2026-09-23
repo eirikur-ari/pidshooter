@@ -238,13 +238,23 @@ func TestRunReturnsErrorOnFatal(t *testing.T) {
 	assert.Contains(t, err.Error(), "game session failed")
 }
 
+func TestRunAbsorbsWarningFromRunner(t *testing.T) {
+	warning := apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, "could not kill target", errors.New("boom"))
+	runner := &fake.Runner{Err: warning}
+
+	err := newTestProgram(runner).Run([]string{"proc"})
+
+	assert.NoError(t, err)
+}
+
 func newTestProgram(runner inbound.Runner) *Program {
 	return NewProgram(&fake.RunnerCreator{Runner: runner})
 }
 
 func newCapturingTestProgram(runner inbound.Runner) (program *Program, out, errOut *bytes.Buffer) {
 	out, errOut = &bytes.Buffer{}, &bytes.Buffer{}
-	program = &Program{creator: &fake.RunnerCreator{Runner: runner}, out: out, errOut: errOut}
+	creator := &fake.RunnerCreator{Runner: runner}
+	program = &Program{creator: creator, errHandler: creator.ErrHandler(), out: out, errOut: errOut}
 	return program, out, errOut
 }
 

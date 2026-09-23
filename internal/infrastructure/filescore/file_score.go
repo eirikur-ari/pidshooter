@@ -13,7 +13,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/fsutil"
 )
 
-// fileScore implements outbound.ScoreStore by persisting to a JSON file.
+// fileScore persists the score board to a JSON file.
 type fileScore struct {
 	path string
 }

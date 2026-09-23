@@ -9,7 +9,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
-// ScoreReporter implements outbound.ScoreReporter by writing to an io.Writer.
+// ScoreReporter writes score reports to an io.Writer.
 type ScoreReporter struct {
 	writer io.Writer
 }
