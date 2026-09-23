@@ -244,7 +244,8 @@ func newTestProgram(runner inbound.Runner) *Program {
 
 func newCapturingTestProgram(runner inbound.Runner) (program *Program, out, errOut *bytes.Buffer) {
 	out, errOut = &bytes.Buffer{}, &bytes.Buffer{}
-	program = &Program{creator: &fake.RunnerCreator{Runner: runner}, out: out, errOut: errOut}
+	creator := &fake.RunnerCreator{Runner: runner}
+	program = &Program{creator: creator, errHandler: creator.ErrHandler(), out: out, errOut: errOut}
 	return program, out, errOut
 }
 

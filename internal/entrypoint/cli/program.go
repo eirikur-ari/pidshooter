@@ -35,30 +35,33 @@ Flags:
 
 // Program translates command-line arguments to application calls.
 type Program struct {
-	creator runnerCreator
-	out     io.Writer
-	errOut  io.Writer
+	creator    runnerCreator
+	errHandler *apperror.Handler
+	out        io.Writer
+	errOut     io.Writer
 }
 
 // runnerCreator constructs a Runner, deferring any expensive or fallible
-// setup until a Runner is actually needed.
+// setup until a Runner is actually needed, and provides a Handler for
+// logging errors.
 type runnerCreator interface {
 	Create() (inbound.Runner, error)
+	ErrHandler() *apperror.Handler
 }
 
 // NewProgram returns a Program that builds its application service via
-// creator. creator is called only once argument parsing and configuration
-// validation have both succeeded, so a service that's expensive or
-// fallible to construct never affects --help, a parse error, or a
-// rejected configuration.
+// creator. creator.Create is called only once argument parsing and
+// configuration validation have both succeeded, so a service that's
+// expensive or fallible to construct never affects --help, a parse error,
+// or a rejected configuration.
 func NewProgram(creator runnerCreator) *Program {
-	return &Program{creator: creator, out: os.Stdout, errOut: os.Stderr}
+	return &Program{creator: creator, errHandler: creator.ErrHandler(), out: os.Stdout, errOut: os.Stderr}
 }
 
 // Run parses args and calls the application service.
 func (p *Program) Run(args []string) error {
 	showUsage, err := p.run(args)
-	err = apperror.Handle(err)
+	err = p.errHandler.Handle(err)
 	p.printUsageText(showUsage, err)
 	return err
 }

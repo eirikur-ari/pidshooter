@@ -1,11 +1,5 @@
 package apperror
 
-import (
-	"errors"
-
-	"github.com/eirikur-ari/pidshooter/internal/util"
-)
-
 // Code categorizes the kind of failure an Error represents.
 type Code int
 
@@ -67,58 +61,11 @@ func (e *Error) Unwrap() error {
 	return e.Cause
 }
 
-// Handle logs err at the level its Severity calls for, then reports whether
-// the caller must still treat the operation as failed: a Warning- or
-// Error-severity err is absorbed (nil); a Fatal-severity err, or one of
-// unknown severity, is returned unchanged. Safe to call more than once on
-// the same err — it is logged only once.
-func Handle(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	var appErr *Error
-	errors.As(err, &appErr)
-
-	severity := severityOf(err)
-
-	if appErr == nil || !appErr.logged {
-		logOnce(err, severity, appErr)
-	}
-
-	if severity == SeverityFatal || severity == SeverityUnknown {
-		return err
-	}
-
-	return nil
-}
-
-// logOnce logs err at the level severity calls for, and marks appErr, if
-// non-nil, as logged.
-func logOnce(err error, severity Severity, appErr *Error) {
-	logger := util.NewLogger()
-
-	switch severity {
-
-	case SeverityWarning:
-		logger.Warn(err.Error())
-	default:
-		logger.Error(err.Error())
-	}
-	if appErr != nil {
-		appErr.logged = true
-	}
-}
-
-// severityOf reports error Severity if it is (or wraps) an *Error, or
-// SeverityUnknown otherwise.
-func severityOf(err error) Severity {
-	var appErr *Error
-	errors.As(err, &appErr)
-
-	if appErr == nil {
+// severity reports e's Severity, or SeverityUnknown if e is nil.
+func (e *Error) severity() Severity {
+	if e == nil {
 		return SeverityUnknown
 	}
 
-	return appErr.Severity
+	return e.Severity
 }

@@ -17,6 +17,7 @@ type Runner struct {
 	processSvc *process.Service
 	gameSvc    *game.Service
 	scoreSvc   *score.Service
+	errHandler *apperror.Handler
 }
 
 // NewRunner constructs a Runner from its already-assembled collaborators.
@@ -24,11 +25,13 @@ func NewRunner(
 	processSvc *process.Service,
 	scoreSvc *score.Service,
 	gameSvc *game.Service,
+	errHandler *apperror.Handler,
 ) *Runner {
 	return &Runner{
 		processSvc: processSvc,
 		gameSvc:    gameSvc,
 		scoreSvc:   scoreSvc,
+		errHandler: errHandler,
 	}
 }
 
@@ -44,17 +47,17 @@ func (r *Runner) Run(cfg config.Config) error {
 
 	processes, err := r.processSvc.FindProcesses(cfg.Patterns, cfg.IncludeRoot)
 	if err != nil {
-		return apperror.Handle(err)
+		return r.errHandler.Handle(err)
 	}
 
 	board, highScore, loadErr := r.scoreSvc.LoadScoreBoard()
-	if err := apperror.Handle(loadErr); err != nil {
+	if err := r.errHandler.Handle(loadErr); err != nil {
 		return err
 	}
 
 	result, err := r.gameSvc.Play(cfg, processes, highScore)
 	if err != nil {
-		return apperror.Handle(err)
+		return r.errHandler.Handle(err)
 	}
 
 	r.logKillFailures(result.KillFailures)
@@ -62,7 +65,7 @@ func (r *Runner) Run(cfg config.Config) error {
 
 	entry := score.ToEntry(result, cfg.TimeLimit)
 	recErr := r.scoreSvc.RecordScore(board, entry, loadErr)
-	if err := apperror.Handle(recErr); err != nil {
+	if err := r.errHandler.Handle(recErr); err != nil {
 		return err
 	}
 
@@ -75,7 +78,7 @@ func (r *Runner) Run(cfg config.Config) error {
 func (r *Runner) logKillFailures(failures []game.KillFailure) {
 	for _, f := range failures {
 		msg := fmt.Sprintf("could not kill %s (PID %d)", f.Target, f.PID)
-		_ = apperror.Handle(apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, msg, f.Err))
+		_ = r.errHandler.Handle(apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, msg, f.Err))
 	}
 }
 
@@ -84,6 +87,6 @@ func (r *Runner) logKillFailures(failures []game.KillFailure) {
 func (r *Runner) logDuds(duds []game.KillDud) {
 	for _, d := range duds {
 		msg := fmt.Sprintf("%s (PID %d) ran away before it could be killed", d.Target, d.PID)
-		_ = apperror.Handle(apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, msg, nil))
+		_ = r.errHandler.Handle(apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, msg, nil))
 	}
 }

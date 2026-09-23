@@ -6,27 +6,36 @@ import (
 	"github.com/gdamore/tcell/v2"
 
 	"github.com/eirikur-ari/pidshooter/internal/application"
+	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/console"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/filescore"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/logger"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
 // RunnerCreator constructs the application.Runner and every outbound
 // adapter it needs.
-type RunnerCreator struct{}
+type RunnerCreator struct {
+	errHandler *apperror.Handler
+}
 
 // NewRunnerCreator returns a RunnerCreator.
 func NewRunnerCreator() RunnerCreator {
-	return RunnerCreator{}
+	return RunnerCreator{errHandler: apperror.NewHandler(logger.NewLogger())}
+}
+
+// ErrHandler returns the Handler used to log errors.
+func (c RunnerCreator) ErrHandler() *apperror.Handler {
+	return c.errHandler
 }
 
 // Create builds a Runner, along with every adapter it depends on.
-func (RunnerCreator) Create() (inbound.Runner, error) {
+func (c RunnerCreator) Create() (inbound.Runner, error) {
 	proc, err := osprocess.NewProcess()
 	if err != nil {
 		return nil, err
@@ -48,5 +57,5 @@ func (RunnerCreator) Create() (inbound.Runner, error) {
 	scoreSvc := score.NewService(store, console.NewScoreReporter())
 	gameSvc := game.NewService(processSvc, ui, ui.InputEvents())
 
-	return application.NewRunner(processSvc, scoreSvc, gameSvc), nil
+	return application.NewRunner(processSvc, scoreSvc, gameSvc, c.errHandler), nil
 }
