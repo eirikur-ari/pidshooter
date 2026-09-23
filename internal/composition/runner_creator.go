@@ -18,8 +18,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
-// RunnerCreator constructs the application.Runner and every outbound
-// adapter it needs.
+// RunnerCreator constructs a Runner, along with everything it depends on.
 type RunnerCreator struct {
 	errHandler *apperror.Handler
 }
