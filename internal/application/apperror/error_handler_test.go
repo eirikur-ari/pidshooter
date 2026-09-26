@@ -10,7 +10,7 @@ import (
 )
 
 func TestHandleAbsorbsWarningSeverity(t *testing.T) {
-	input := NewError(CodeScoreLoadFailed, SeverityWarning, "could not load scores", errors.New("disk full"))
+	input := NewError(CodeStoreLoadFailed, SeverityWarning, "could not load scores", errors.New("disk full"))
 
 	err := newTestHandler().Handle(input)
 
@@ -70,7 +70,7 @@ func TestHandleReturnsWrappedFatalError(t *testing.T) {
 }
 
 func TestHandleAbsorbsWrappedWarning(t *testing.T) {
-	warning := NewError(CodeScoreLoadFailed, SeverityWarning, "score not loaded", errors.New("disk full"))
+	warning := NewError(CodeStoreLoadFailed, SeverityWarning, "score not loaded", errors.New("disk full"))
 	wrapped := fmt.Errorf("during LoadScoreBoard: %w", warning)
 
 	err := newTestHandler().Handle(wrapped)

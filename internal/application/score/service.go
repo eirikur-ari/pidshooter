@@ -24,12 +24,12 @@ func NewService(store outbound.ScoreStore, reporter outbound.ScoreReporter) *Ser
 // LoadScoreBoard loads the persisted score board, falling back to an
 // empty board if none is persisted or the load fails. The returned int is
 // the board's high score. Load failures are classified as
-// CodeScoreLoadFailed and SeverityWarning.
+// CodeStoreLoadFailed and SeverityWarning.
 func (s *Service) LoadScoreBoard() (*score.Board, int, error) {
 	sb, err := s.store.Load()
 	if err != nil {
 		board := score.NewBoard(nil)
-		return board, board.HighScore(), apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded", err)
+		return board, board.HighScore(), apperror.NewError(apperror.CodeStoreLoadFailed, apperror.SeverityWarning, "score board not loaded", err)
 	}
 	board := toBoard(sb)
 	return board, board.HighScore(), nil
@@ -39,7 +39,7 @@ func (s *Service) LoadScoreBoard() (*score.Board, int, error) {
 // error LoadScoreBoard returned for this session) reports a load failure
 // that leaves the persisted data still intact and recoverable, in which
 // case persisting is skipped and err is returned as the reason. Any save
-// failure is classified as CodeScoreSaveFailed and SeverityWarning.
+// failure is classified as CodeStoreSaveFailed and SeverityWarning.
 func (s *Service) RecordScore(board *score.Board, entry score.Entry, err error) error {
 	board.Add(entry)
 
@@ -48,7 +48,7 @@ func (s *Service) RecordScore(board *score.Board, entry score.Entry, err error) 
 	}
 
 	if err != nil {
-		return apperror.NewError(apperror.CodeScoreSaveFailed, apperror.SeverityWarning, "score board not saved", err)
+		return apperror.NewError(apperror.CodeStoreSaveFailed, apperror.SeverityWarning, "score board not saved", err)
 	}
 	return nil
 }

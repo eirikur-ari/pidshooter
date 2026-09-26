@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
+	"github.com/eirikur-ari/pidshooter/internal/testutil/helper"
 )
 
 // --- toScoreBoard ---
@@ -52,28 +53,31 @@ func TestToScoreContentEmptyInput(t *testing.T) {
 	assert.Empty(t, c.Scores)
 }
 
-// --- toDefaultConfig ---
+// --- toConfigStoreResult ---
 
-func TestToDefaultConfigMapsFields(t *testing.T) {
+func TestToConfigStoreResultMapsFields(t *testing.T) {
 	cd := configContent{
 		Version: currentConfigSchemaVersion,
 		Mode:    "yolo",
+		Process: processEntry{
+			IncludeRoot: helper.Ptr(true),
+		},
 		Game: configEntry{
-			ConfirmMode: true,
-			Speed:       2.5,
-			TimeLimit:   60,
-			IncludeRoot: true,
+			ConfirmMode: helper.Ptr(true),
+			Speed:       helper.Ptr(2.5),
+			TimeLimit:   helper.Ptr(60),
 		},
 	}
 
-	defaults := toDefaultConfig(cd)
+	defaults := toConfigStoreResult(cd)
 
 	assert.Equal(t, outbound.ModeYolo, defaults.Mode)
-	assert.Equal(t, outbound.GameConfig{ConfirmMode: true, Speed: 2.5, TimeLimit: 60, IncludeRoot: true}, defaults.Game)
+	assert.Equal(t, outbound.ProcessConfig{IncludeRoot: helper.Ptr(true)}, defaults.Process)
+	assert.Equal(t, outbound.GameConfig{ConfirmMode: helper.Ptr(true), Speed: helper.Ptr(2.5), TimeLimit: helper.Ptr(60)}, defaults.Game)
 }
 
-func TestToDefaultConfigEmptyInput(t *testing.T) {
-	defaults := toDefaultConfig(configContent{})
+func TestToConfigStoreResultEmptyInput(t *testing.T) {
+	defaults := toConfigStoreResult(configContent{})
 
 	assert.Empty(t, defaults)
 }
@@ -81,20 +85,22 @@ func TestToDefaultConfigEmptyInput(t *testing.T) {
 // --- toConfigContent ---
 
 func TestToConfigContentMapsFields(t *testing.T) {
-	defaults := outbound.DefaultConfig{
-		Mode: outbound.ModeYolo,
-		Game: outbound.GameConfig{ConfirmMode: true, Speed: 2.5, TimeLimit: 60, IncludeRoot: true},
+	defaults := outbound.ConfigStoreResult{
+		Mode:    outbound.ModeYolo,
+		Process: outbound.ProcessConfig{IncludeRoot: helper.Ptr(true)},
+		Game:    outbound.GameConfig{ConfirmMode: helper.Ptr(true), Speed: helper.Ptr(2.5), TimeLimit: helper.Ptr(60)},
 	}
 
 	cd := toConfigContent(defaults)
 
 	assert.Equal(t, currentConfigSchemaVersion, cd.Version)
 	assert.Equal(t, "yolo", cd.Mode)
-	assert.Equal(t, configEntry{ConfirmMode: true, Speed: 2.5, TimeLimit: 60, IncludeRoot: true}, cd.Game)
+	assert.Equal(t, processEntry{IncludeRoot: helper.Ptr(true)}, cd.Process)
+	assert.Equal(t, configEntry{ConfirmMode: helper.Ptr(true), Speed: helper.Ptr(2.5), TimeLimit: helper.Ptr(60)}, cd.Game)
 }
 
 func TestToConfigContentEmptyInput(t *testing.T) {
-	cd := toConfigContent(outbound.DefaultConfig{})
+	cd := toConfigContent(outbound.ConfigStoreResult{})
 
 	assert.Equal(t, currentConfigSchemaVersion, cd.Version)
 	assert.Equal(t, "", cd.Mode)

@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
-	"github.com/eirikur-ari/pidshooter/internal/application/config"
 	"github.com/eirikur-ari/pidshooter/internal/application/input"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
@@ -20,10 +19,34 @@ import (
 
 // --- Play ---
 
+func TestServicePlayInvalidSpeedReturnsClassifiedError(t *testing.T) {
+	svc := NewService(nil, nil, nil)
+
+	_, err := svc.Play(PlayRequest{Speed: 99}, nil, 0)
+
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeInvalidConfig, appErr.Code)
+	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
+	assert.ErrorContains(t, err, "speed must be between")
+}
+
+func TestServicePlayInvalidTimeLimitReturnsClassifiedError(t *testing.T) {
+	svc := NewService(nil, nil, nil)
+
+	_, err := svc.Play(PlayRequest{Speed: 2.0, TimeLimit: -1}, nil, 0)
+
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeInvalidConfig, appErr.Code)
+	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
+	assert.ErrorContains(t, err, "time must be")
+}
+
 func TestServicePlayNoProcessesReturnsClassifiedError(t *testing.T) {
 	svc := NewService(nil, nil, nil)
 
-	_, err := svc.Play(config.Config{Patterns: []string{"proc"}}, nil, 0)
+	_, err := svc.Play(PlayRequest{Speed: 2.0}, nil, 0)
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -38,7 +61,7 @@ func TestServicePlayRendererInitFailureReturnsClassifiedError(t *testing.T) {
 	renderer := &fake.Renderer{InitErr: errors.New("terminal not available")}
 	svc := NewService(nil, renderer, fake.NewInputEventProvider())
 
-	_, err := svc.Play(config.Config{}, processes, 0)
+	_, err := svc.Play(PlayRequest{Speed: 2.0}, processes, 0)
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -53,7 +76,7 @@ func TestServicePlaySuccessReturnsPlayResult(t *testing.T) {
 	events.Ch <- input.QuitEvent{}
 	svc := NewService(nil, &fake.Renderer{}, events)
 
-	result, err := svc.Play(config.Config{Speed: 2.0}, processes, 0)
+	result, err := svc.Play(PlayRequest{Speed: 2.0}, processes, 0)
 
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, result.Duration, 0.0)

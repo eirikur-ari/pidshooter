@@ -1,13 +1,13 @@
 package cli
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
-	"github.com/eirikur-ari/pidshooter/internal/application/config"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 )
 
@@ -41,6 +41,14 @@ type Program struct {
 	errOut     io.Writer
 }
 
+// programInput holds the variables the flag set parses into.
+type programInput struct {
+	confirm     bool
+	speed       float64
+	timeLimit   int
+	includeRoot bool
+}
+
 // runnerCreator constructs a Runner, deferring any expensive or fallible
 // setup until a Runner is actually needed, and provides a Handler for
 // logging errors.
@@ -49,11 +57,7 @@ type runnerCreator interface {
 	ErrHandler() *apperror.Handler
 }
 
-// NewProgram returns a Program that builds its application service via
-// creator. creator.Create is called only once argument parsing and
-// configuration validation have both succeeded, so a service that's
-// expensive or fallible to construct never affects --help, a parse error,
-// or a rejected configuration.
+// NewProgram returns a Program that builds its application service via creator.
 func NewProgram(creator runnerCreator) *Program {
 	return &Program{creator: creator, errHandler: creator.ErrHandler(), out: os.Stdout, errOut: os.Stderr}
 }
@@ -67,51 +71,66 @@ func (p *Program) Run(args []string) error {
 }
 
 func (p *Program) run(args []string) (showUsage bool, err error) {
-	if len(args) == 0 {
-		return true, nil
-	}
-	if help(args) {
-		return true, nil
-	}
-
-	var confirm bool
-	var speed float64
-	var timeLimit int
-	var includeRoot bool
-
-	flagSet := flag.NewFlagSet("pidshooter", flag.ContinueOnError)
-	flagSet.SetOutput(io.Discard)
-	flagSet.BoolVar(&confirm, "confirm", false, "")
-	flagSet.Float64Var(&speed, "speed", 2.0, "")
-	flagSet.IntVar(&timeLimit, "time", 30, "")
-	flagSet.BoolVar(&includeRoot, "include-root", false, "")
-
-	patterns, flagArgs, err := newFlagSplitter(flagSet).split(args)
-	if err != nil {
-		return true, ArgumentError{Cause: err}
-	}
-
-	if err := flagSet.Parse(flagArgs); err != nil {
-		return true, ArgumentError{Cause: err}
-	}
-	// split has already classified every token as a pattern or as part of
-	// flagArgs, so flagSet.Parse can never stop early on a leftover
-	// positional. This holds unconditionally today; guarded defensively
-	// in case a future change to split ever breaks it.
-	if flagSet.NArg() > 0 {
-		return true, ArgumentError{Cause: fmt.Errorf("unexpected argument: %s", flagSet.Arg(0))}
-	}
-
-	cfg := config.Config{Patterns: patterns, ConfirmMode: confirm, Speed: speed, TimeLimit: timeLimit, IncludeRoot: includeRoot}
-	if err := cfg.Validate(); err != nil {
-		return true, ArgumentError{Cause: err}
+	req, showUsage, err := p.prepare(args)
+	if showUsage || err != nil {
+		return showUsage, err
 	}
 
 	runner, err := p.creator.Create()
 	if err != nil {
 		return false, err
 	}
-	return false, runner.Run(cfg)
+
+	if err := runner.Run(req); err != nil {
+		if p.isInvalidConfig(err) {
+			return true, ArgumentError{Cause: err}
+		}
+		return false, err
+	}
+	return false, nil
+}
+
+// prepare parses args into a RunRequest. showUsage reports whether usage
+// text should be shown, independent of whether err is also set.
+func (p *Program) prepare(args []string) (req inbound.RunRequest, showUsage bool, err error) {
+	if len(args) == 0 {
+		return inbound.RunRequest{}, true, nil
+	}
+	if help(args) {
+		return inbound.RunRequest{}, true, nil
+	}
+
+	var input programInput
+
+	flagSet := flag.NewFlagSet("pidshooter", flag.ContinueOnError)
+	flagSet.SetOutput(io.Discard)
+	flagSet.BoolVar(&input.confirm, "confirm", false, "")
+	flagSet.Float64Var(&input.speed, "speed", 0, "")
+	flagSet.IntVar(&input.timeLimit, "time", 0, "")
+	flagSet.BoolVar(&input.includeRoot, "include-root", false, "")
+
+	patterns, flagArgs, err := newFlagSplitter(flagSet).split(args)
+	if err != nil {
+		return inbound.RunRequest{}, true, ArgumentError{Cause: err}
+	}
+
+	if err := flagSet.Parse(flagArgs); err != nil {
+		return inbound.RunRequest{}, true, ArgumentError{Cause: err}
+	}
+	// split has already classified every token as a pattern or as part of
+	// flagArgs, so flagSet.Parse can never stop early on a leftover
+	// positional. This holds unconditionally today; guarded defensively
+	// in case a future change to split ever breaks it.
+	if flagSet.NArg() > 0 {
+		return inbound.RunRequest{}, true, ArgumentError{Cause: fmt.Errorf("unexpected argument: %s", flagSet.Arg(0))}
+	}
+
+	return toRunRequest(flagSet, patterns, &input), false, nil
+}
+
+func (p *Program) isInvalidConfig(err error) bool {
+	var appErr *apperror.Error
+	return errors.As(err, &appErr) && appErr.Code == apperror.CodeInvalidConfig
 }
 
 func (p *Program) printUsageText(printUsage bool, err error) {

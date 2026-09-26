@@ -24,6 +24,10 @@ func NewService(proc outbound.Process, reporter outbound.ProcessReporter) *Servi
 // additionally permits root-owned processes as matches, regardless of the
 // caller's own effective UID.
 func (s *Service) FindProcesses(patterns []string, includeRoot bool) ([]process.Info, error) {
+	if err := process.ValidatePatterns(patterns); err != nil {
+		return nil, apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", err)
+	}
+
 	processes, err := s.proc.Discover()
 	if err != nil {
 		return nil, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityFatal, "process discovery failed", err)

@@ -11,28 +11,36 @@ const (
 )
 
 // GameConfig is the persistence representation of a user's saved game mode
-// defaults.
+// config. A nil field means that value was not present in the persisted
+// data.
 type GameConfig struct {
-	ConfirmMode bool
-	Speed       float64
-	TimeLimit   int
-	IncludeRoot bool
+	ConfirmMode *bool
+	Speed       *float64
+	TimeLimit   *int
 }
 
-// DefaultConfig is the persistence representation of a user's saved run
-// defaults.
-type DefaultConfig struct {
-	Mode Mode
-	Game GameConfig
+// ProcessConfig is the persistence representation of a user's saved
+// process-discovery config. A nil field means that value was not present
+// in the persisted data.
+type ProcessConfig struct {
+	IncludeRoot *bool
 }
 
-// ConfigStore is the outbound port for persisting and retrieving run defaults.
+// ConfigStoreResult is the persistence representation of a user's saved run
+// config.
+type ConfigStoreResult struct {
+	Mode    Mode
+	Process ProcessConfig
+	Game    GameConfig
+}
+
+// ConfigStore is the outbound port for persisting and retrieving run config.
 type ConfigStore interface {
-	// Load returns the persisted defaults. If none have been persisted yet,
-	// it returns empty DefaultConfig and a NotFoundError. If the
-	// persisted data exists but cannot be parsed, it returns empty
-	// DefaultConfig and a CorruptedDataError.
-	Load() (DefaultConfig, error)
-	// Save persists defaults, overwriting any previously persisted defaults.
-	Save(defaults DefaultConfig) error
+	// Load returns the persisted config. If none has been persisted yet,
+	// it returns an empty ConfigStoreResult and a NotFoundError. If the
+	// persisted data exists but cannot be parsed, it returns an empty
+	// ConfigStoreResult and a CorruptedDataError.
+	Load() (ConfigStoreResult, error)
+	// Save persists result, overwriting any previously persisted config.
+	Save(result ConfigStoreResult) error
 }

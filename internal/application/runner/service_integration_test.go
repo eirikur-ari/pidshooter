@@ -1,6 +1,6 @@
 //go:build integration
 
-package application
+package runner
 
 import (
 	"errors"
@@ -13,33 +13,35 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/application/input"
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
+	"github.com/eirikur-ari/pidshooter/internal/testutil/helper"
 )
 
-func TestIntegrationRunnerRunIsSuccessful(t *testing.T) {
+func TestIntegrationServiceRunIsSuccessful(t *testing.T) {
 	events := fake.NewInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
 	store := &fake.Store{}
-	r := newRunner(
+	r := newService(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024}}},
 		store,
 		events,
 	)
 
-	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}})
 	require.NoError(t, err)
 	require.NotNil(t, store.Saved)
 	assert.Empty(t, store.Saved.Scores, "quitting immediately with zero kills must not be recorded to the score board")
 }
 
-func TestIntegrationRunnerIncludeRootFalseExcludesRootOwnedProcess(t *testing.T) {
-	r := newRunner(
+func TestIntegrationServiceIncludeRootFalseExcludesRootOwnedProcess(t *testing.T) {
+	r := newService(
 		&fake.Process{
 			Infos:       []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024, UID: 0}},
 			OwnUIDValue: 1000,
@@ -48,18 +50,18 @@ func TestIntegrationRunnerIncludeRootFalseExcludesRootOwnedProcess(t *testing.T)
 		fake.NewInputEventProvider(),
 	)
 
-	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}})
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, apperror.CodeProcessNotFound, appErr.Code)
 }
 
-func TestIntegrationRunnerIncludeRootTrueIncludesRootOwnedProcess(t *testing.T) {
+func TestIntegrationServiceIncludeRootTrueIncludesRootOwnedProcess(t *testing.T) {
 	events := fake.NewInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
-	r := newRunner(
+	r := newService(
 		&fake.Process{
 			Infos:       []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024, UID: 0}},
 			OwnUIDValue: 1000,
@@ -68,20 +70,24 @@ func TestIntegrationRunnerIncludeRootTrueIncludesRootOwnedProcess(t *testing.T) 
 		events,
 	)
 
-	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0, IncludeRoot: true})
+	err := r.Run(inbound.RunRequest{
+		Patterns: []string{"target"},
+		Game:     inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)},
+		Process:  inbound.ProcessConfig{IncludeRoot: helper.Ptr(true)},
+	})
 
 	require.NoError(t, err)
 }
 
-func TestIntegrationRunnerRunReturnsErrorWhenRendererInitFails(t *testing.T) {
-	r := newRunnerWithRenderer(
+func TestIntegrationServiceRunReturnsErrorWhenRendererInitFails(t *testing.T) {
+	r := newServiceWithRenderer(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 204, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		fake.NewInputEventProvider(),
 		&fake.Renderer{InitErr: errors.New("terminal not available")},
 	)
 
-	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}})
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -89,102 +95,102 @@ func TestIntegrationRunnerRunReturnsErrorWhenRendererInitFails(t *testing.T) {
 	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
 }
 
-func TestIntegrationRunnerRunSkipsSaveWhenLoadingScoreBoardFails(t *testing.T) {
+func TestIntegrationServiceRunSkipsSaveWhenLoadingScoreBoardFails(t *testing.T) {
 	events := fake.NewInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
 	store := &fake.Store{LoadErr: errors.New("json: invalid character")}
-	r := newRunner(
+	r := newService(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 201, Name: "target", Rss: 1024}}},
 		store,
 		events,
 	)
 
-	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}})
 
 	require.NoError(t, err)
 	assert.Nil(t, store.Saved)
 }
 
-func TestIntegrationRunnerRunDoesNotFailWhenSavingScoreFails(t *testing.T) {
+func TestIntegrationServiceRunDoesNotFailWhenSavingScoreFails(t *testing.T) {
 	events := fake.NewInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
-	r := newRunner(
+	r := newService(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 202, Name: "target", Rss: 1024}}},
 		&fake.Store{SaveErr: errors.New("disk full")},
 		events,
 	)
 
-	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}})
 
 	require.NoError(t, err)
 }
 
-func TestIntegrationRunnerRunWillSaveScoreWhenScoreBoardWasNotFound(t *testing.T) {
+func TestIntegrationServiceRunWillSaveScoreWhenScoreBoardWasNotFound(t *testing.T) {
 	events := fake.NewInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
 	store := &fake.Store{LoadErr: outbound.NotFoundError{}}
-	r := newRunner(
+	r := newService(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 203, Name: "target", Rss: 1024}}},
 		store,
 		events,
 	)
 
-	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 0})
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}})
 
 	require.NoError(t, err)
 	require.NotNil(t, store.Saved, "a fresh (never-persisted) board should still be saved")
 }
 
-func TestIntegrationRunnerRunWillQuitOnQuitEvent(t *testing.T) {
+func TestIntegrationServiceRunWillQuitOnQuitEvent(t *testing.T) {
 	events := fake.NewInputEventProvider()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
 		events.Ch <- input.QuitEvent{}
 	}()
 
-	r := newRunner(
+	r := newService(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 100, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		events,
 	)
 
 	start := time.Now()
-	err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0})
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0)}})
 
 	require.NoError(t, err)
 	assert.Less(t, time.Since(start), time.Second, "Run should have quit shortly after the QuitEvent, not run indefinitely")
 }
 
-func TestIntegrationRunnerRunWillQuitWhenTimeLimitExpires(t *testing.T) {
-	r := newRunner(
+func TestIntegrationServiceRunWillQuitWhenTimeLimitExpires(t *testing.T) {
+	r := newService(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 102, Name: "target", Rss: 1024}}},
 		&fake.Store{},
 		fake.NewInputEventProvider(),
 	)
 
 	start := time.Now()
-	require.NoError(t, r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0, TimeLimit: 1}))
+	require.NoError(t, r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(1)}}))
 	assert.LessOrEqual(t, time.Since(start), 3*time.Second, "game took too long to exit on time limit")
 }
 
-// TestIntegrationRunnerRunSignalGoroutineDoesNotAccumulate verifies the signal goroutine
+// TestIntegrationServiceRunSignalGoroutineDoesNotAccumulate verifies the signal goroutine
 // started inside runLoop exits when Run returns, preventing goroutine leaks.
-func TestIntegrationRunnerRunSignalGoroutineDoesNotAccumulate(t *testing.T) {
+func TestIntegrationServiceRunSignalGoroutineDoesNotAccumulate(t *testing.T) {
 	runGame := func(pid int) {
 		events := fake.NewInputEventProvider()
 		go func() {
 			time.Sleep(50 * time.Millisecond)
 			events.Ch <- input.QuitEvent{}
 		}()
-		r := newRunner(
+		r := newService(
 			&fake.Process{Infos: []outbound.ProcessInfo{{PID: pid, Name: "target", Rss: 1024}}},
 			&fake.Store{},
 			events,
 		)
-		if err := r.Run(config.Config{Patterns: []string{"target"}, Speed: 2.0}); err != nil {
+		if err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0)}}); err != nil {
 			t.Fatalf("pid %d: unexpected error: %v", pid, err)
 		}
 	}
@@ -210,14 +216,15 @@ func TestIntegrationRunnerRunSignalGoroutineDoesNotAccumulate(t *testing.T) {
 		before, runtime.NumGoroutine())
 }
 
-func newRunner(proc *fake.Process, store *fake.Store, events *fake.InputEventProvider) *Runner {
-	return newRunnerWithRenderer(proc, store, events, &fake.Renderer{})
+func newService(proc *fake.Process, store *fake.Store, events *fake.InputEventProvider) *Service {
+	return newServiceWithRenderer(proc, store, events, &fake.Renderer{})
 }
 
-func newRunnerWithRenderer(proc *fake.Process, store *fake.Store, events *fake.InputEventProvider, renderer *fake.Renderer) *Runner {
+func newServiceWithRenderer(proc *fake.Process, store *fake.Store, events *fake.InputEventProvider, renderer *fake.Renderer) *Service {
+	configSvc := config.NewService(&fake.ConfigStore{LoadErr: outbound.NotFoundError{}})
 	processSvc := process.NewService(proc, &fake.ProcessReporter{})
 	scoreSvc := score.NewService(store, &fake.ScoreReporter{})
 	gameSvc := game.NewService(processSvc, renderer, events)
 	errHandler := apperror.NewHandler(&fake.Logger{})
-	return NewRunner(processSvc, scoreSvc, gameSvc, errHandler)
+	return NewService(configSvc, processSvc, scoreSvc, gameSvc, errHandler)
 }

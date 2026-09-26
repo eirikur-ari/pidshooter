@@ -1,15 +1,15 @@
 package fake
 
-import "github.com/eirikur-ari/pidshooter/internal/application/config"
+import "github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 
-// Runner is a test double for inbound.Runner. It captures the Config it was
-// run with and returns Err.
+// Runner is a test double for inbound.Runner. It captures the RunRequest it
+// was run with and returns Err.
 type Runner struct {
 	Err error
-	Cfg config.Config
+	Req inbound.RunRequest
 }
 
-func (r *Runner) Run(cfg config.Config) error {
-	r.Cfg = cfg
+func (r *Runner) Run(req inbound.RunRequest) error {
+	r.Req = req
 	return r.Err
 }

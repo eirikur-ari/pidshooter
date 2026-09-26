@@ -9,7 +9,7 @@ import (
 
 func TestErrorUnwrapReturnsErrorCause(t *testing.T) {
 	cause := errors.New("disk full")
-	err := NewError(CodeScoreSaveFailed, SeverityWarning, "score not saved", cause)
+	err := NewError(CodeStoreSaveFailed, SeverityWarning, "score not saved", cause)
 
 	assert.Equal(t, cause, err.Unwrap())
 	assert.Same(t, cause, err.Unwrap())
@@ -51,7 +51,7 @@ func newErrorTestCases() []struct {
 	}{
 		{
 			name:        "with both message and cause",
-			errCode:     CodeScoreLoadFailed,
+			errCode:     CodeStoreLoadFailed,
 			errSeverity: SeverityWarning,
 			errMessage:  "score not loaded",
 			errCause:    errors.New("disk full"),

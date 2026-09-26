@@ -9,9 +9,9 @@ const (
 	CodeProcessDiscoveryFailed
 	CodeProcessNotFound
 	CodeGameFailed
-	CodeScoreLoadFailed
-	CodeScoreSaveFailed
 	CodeKillFailed
+	CodeStoreLoadFailed
+	CodeStoreSaveFailed
 )
 
 // Severity tells the caller whether an Error should abort its operation,

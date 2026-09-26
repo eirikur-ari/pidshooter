@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFormatBytes(t *testing.T) {
@@ -26,4 +27,20 @@ func TestFormatBytes(t *testing.T) {
 			assert.Equal(t, tt.want, FormatBytes(tt.input))
 		})
 	}
+}
+
+func TestClonePtrNilReturnsNil(t *testing.T) {
+	var p *int
+	assert.Nil(t, ClonePtr(p))
+}
+
+func TestClonePtrReturnsDistinctPointerWithSameValue(t *testing.T) {
+	v := 42
+	p := &v
+
+	clone := ClonePtr(p)
+
+	require.NotNil(t, clone)
+	assert.Equal(t, *p, *clone)
+	assert.NotSame(t, p, clone, "the clone must not alias the original")
 }

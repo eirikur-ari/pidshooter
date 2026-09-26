@@ -36,7 +36,7 @@ func TestLoadScoreBoardReturnsNotFoundErrorWhenScoreBoardIsNotFound(t *testing.T
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeScoreLoadFailed, appErr.Code)
+	assert.Equal(t, apperror.CodeStoreLoadFailed, appErr.Code)
 	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	var notFound outbound.NotFoundError
 	assert.ErrorAs(t, err, &notFound)
@@ -53,7 +53,7 @@ func TestLoadScoreBoardReturnsUnderlyingError(t *testing.T) {
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeScoreLoadFailed, appErr.Code)
+	assert.Equal(t, apperror.CodeStoreLoadFailed, appErr.Code)
 	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorIs(t, err, cause)
 	assert.ErrorContains(t, err, "score board not loaded: disk error", "should report the underlying Error")
@@ -111,7 +111,7 @@ func TestRecordScoreSavesWhenScoreBoardWasNotFound(t *testing.T) {
 	svc := NewService(fakeStore, &fake.ScoreReporter{})
 	board := score.NewBoard(nil)
 
-	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded", outbound.NotFoundError{})
+	loadErr := apperror.NewError(apperror.CodeStoreLoadFailed, apperror.SeverityWarning, "score board not loaded", outbound.NotFoundError{})
 	require.Nil(t, svc.RecordScore(board, score.Entry{Kills: 1, Duration: 1.0}, loadErr))
 
 	require.NotNil(t, fakeStore.Saved, "a fresh (never-persisted) board should still be saved")
@@ -124,7 +124,7 @@ func TestRecordScoreSavesWhenScoreBoardWasCorrupted(t *testing.T) {
 	svc := NewService(fakeStore, &fake.ScoreReporter{})
 	board := score.NewBoard(nil)
 
-	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded",
+	loadErr := apperror.NewError(apperror.CodeStoreLoadFailed, apperror.SeverityWarning, "score board not loaded",
 		outbound.CorruptedDataError{})
 	require.Nil(t, svc.RecordScore(board, score.Entry{Kills: 1, Duration: 1.0}, loadErr))
 
@@ -139,14 +139,14 @@ func TestRecordScoreSkipsSaveAndReturnsWarningWhenLoadFailed(t *testing.T) {
 	board := score.NewBoard(nil)
 
 	cause := errors.New("disk error")
-	loadErr := apperror.NewError(apperror.CodeScoreLoadFailed, apperror.SeverityWarning, "score board not loaded", cause)
+	loadErr := apperror.NewError(apperror.CodeStoreLoadFailed, apperror.SeverityWarning, "score board not loaded", cause)
 
 	err := svc.RecordScore(board, score.Entry{Kills: 1, Duration: 1.0}, loadErr)
 
 	assert.Nil(t, fakeStore.Saved, "should not overwrite a file that failed to load for a real reason")
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeScoreSaveFailed, appErr.Code)
+	assert.Equal(t, apperror.CodeStoreSaveFailed, appErr.Code)
 	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorIs(t, err, cause, "should report the original load failure as the reason the save was skipped")
 }
@@ -161,7 +161,7 @@ func TestRecordScoreSaveErrorReturnsUnderlyingError(t *testing.T) {
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeScoreSaveFailed, appErr.Code)
+	assert.Equal(t, apperror.CodeStoreSaveFailed, appErr.Code)
 	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorIs(t, err, cause)
 }

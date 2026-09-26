@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
+	"github.com/eirikur-ari/pidshooter/internal/testutil/helper"
 )
 
 func TestNewConfigFileResolvesDefaultPath(t *testing.T) {
@@ -53,14 +54,14 @@ func TestConfigLoadInvalidYAMLReturnsCorruptedDataError(t *testing.T) {
 
 func TestConfigSaveCreatesFile(t *testing.T) {
 	c := newTempConfig(t)
-	require.NoError(t, c.Save(outbound.DefaultConfig{}))
+	require.NoError(t, c.Save(outbound.ConfigStoreResult{}))
 	_, err := os.Stat(c.file.path)
 	assert.NoError(t, err, "expected file to be created after Save")
 }
 
 func TestConfigSaveFilePermissions(t *testing.T) {
 	c := newTempConfig(t)
-	require.NoError(t, c.Save(outbound.DefaultConfig{}))
+	require.NoError(t, c.Save(outbound.ConfigStoreResult{}))
 	info, err := os.Stat(c.file.path)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
@@ -68,13 +69,13 @@ func TestConfigSaveFilePermissions(t *testing.T) {
 
 func TestConfigSaveLoadRoundTrip(t *testing.T) {
 	c := newTempConfig(t)
-	defaults := outbound.DefaultConfig{
-		Mode: outbound.ModeGame,
+	defaults := outbound.ConfigStoreResult{
+		Mode:    outbound.ModeGame,
+		Process: outbound.ProcessConfig{IncludeRoot: helper.Ptr(true)},
 		Game: outbound.GameConfig{
-			ConfirmMode: true,
-			Speed:       2.5,
-			TimeLimit:   60,
-			IncludeRoot: true,
+			ConfirmMode: helper.Ptr(true),
+			Speed:       helper.Ptr(2.5),
+			TimeLimit:   helper.Ptr(60),
 		},
 	}
 
@@ -87,10 +88,10 @@ func TestConfigSaveLoadRoundTrip(t *testing.T) {
 func TestConfigSaveOverwritesPreviousFile(t *testing.T) {
 	c := newTempConfig(t)
 
-	first := outbound.DefaultConfig{Mode: outbound.ModeGame, Game: outbound.GameConfig{Speed: 1.0}}
+	first := outbound.ConfigStoreResult{Mode: outbound.ModeGame, Game: outbound.GameConfig{Speed: helper.Ptr(1.0)}}
 	require.NoError(t, c.Save(first))
 
-	second := outbound.DefaultConfig{Mode: outbound.ModeYolo, Game: outbound.GameConfig{Speed: 2.0}}
+	second := outbound.ConfigStoreResult{Mode: outbound.ModeYolo, Game: outbound.GameConfig{Speed: helper.Ptr(2.0)}}
 	require.NoError(t, c.Save(second))
 
 	loaded, err := c.Load()
@@ -102,7 +103,7 @@ func TestConfigSaveToNestedNonexistentDirectoryCreatesParentDirs(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "deeper", "config.yaml")
 	c := newConfigFileAt(path)
 
-	require.NoError(t, c.Save(outbound.DefaultConfig{}))
+	require.NoError(t, c.Save(outbound.ConfigStoreResult{}))
 
 	_, err := os.Stat(path)
 	assert.NoError(t, err, "Save should create the path's parent directories, not ~/.config/pidshooter")
@@ -112,7 +113,7 @@ func TestConfigSaveDoesNotLeaveTempFileAfterSuccess(t *testing.T) {
 	dir := t.TempDir()
 	c := newConfigFileAt(filepath.Join(dir, "config.yaml"))
 
-	require.NoError(t, c.Save(outbound.DefaultConfig{}))
+	require.NoError(t, c.Save(outbound.ConfigStoreResult{}))
 
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
@@ -123,13 +124,13 @@ func TestConfigSaveDoesNotLeaveTempFileAfterSuccess(t *testing.T) {
 
 func TestConfigSaveWritesYAMLMatchingOnDiskSchema(t *testing.T) {
 	c := newTempConfig(t)
-	defaults := outbound.DefaultConfig{
-		Mode: outbound.ModeGame,
+	defaults := outbound.ConfigStoreResult{
+		Mode:    outbound.ModeGame,
+		Process: outbound.ProcessConfig{IncludeRoot: helper.Ptr(true)},
 		Game: outbound.GameConfig{
-			ConfirmMode: true,
-			Speed:       2.5,
-			TimeLimit:   60,
-			IncludeRoot: true,
+			ConfirmMode: helper.Ptr(true),
+			Speed:       helper.Ptr(2.5),
+			TimeLimit:   helper.Ptr(60),
 		},
 	}
 	require.NoError(t, c.Save(defaults))
@@ -141,12 +142,14 @@ func TestConfigSaveWritesYAMLMatchingOnDiskSchema(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal(raw, &onDisk))
 	assert.Equal(t, currentConfigSchemaVersion, onDisk["version"])
 	assert.Equal(t, "game", onDisk["mode"])
+	process, ok := onDisk["process"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, true, process["include_root"])
 	game, ok := onDisk["game"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, true, game["confirm_mode"])
 	assert.Equal(t, 2.5, game["speed"])
 	assert.Equal(t, 60, game["time_limit"])
-	assert.Equal(t, true, game["include_root"])
 }
 
 func TestConfigLoadAcceptsFileWithoutVersionField(t *testing.T) {
@@ -157,6 +160,20 @@ func TestConfigLoadAcceptsFileWithoutVersionField(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, outbound.ModeYolo, defaults.Mode)
+}
+
+func TestConfigLoadOnlySpeedSetLeavesOtherFieldsNil(t *testing.T) {
+	c := newTempConfig(t)
+	require.NoError(t, os.WriteFile(c.file.path, []byte("game:\n  speed: 3.0\n"), 0600))
+
+	defaults, err := c.Load()
+
+	require.NoError(t, err)
+	require.NotNil(t, defaults.Game.Speed)
+	assert.Equal(t, 3.0, *defaults.Game.Speed)
+	assert.Nil(t, defaults.Game.ConfirmMode)
+	assert.Nil(t, defaults.Game.TimeLimit)
+	assert.Nil(t, defaults.Process.IncludeRoot)
 }
 
 func TestConfigLoadRejectsNewerSchemaVersion(t *testing.T) {

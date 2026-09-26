@@ -16,13 +16,6 @@ const (
 	stopped                  // game over
 )
 
-// Config holds the gameplay parameters for a session.
-type Config struct {
-	Confirm   bool
-	Speed     float64
-	TimeLimit int
-}
-
 // Session manages targets and lifecycle state for a single play-through, as
 // a pure state machine.
 type Session struct {

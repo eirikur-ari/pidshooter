@@ -15,6 +15,18 @@ import (
 
 // --- FindProcesses ---
 
+func TestFindProcessesReturnsErrorWhenPatternsAreInvalid(t *testing.T) {
+	svc := NewService(&fake.Process{}, &fake.ProcessReporter{})
+
+	_, err := svc.FindProcesses(nil, false)
+
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeInvalidConfig, appErr.Code)
+	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
+	assert.ErrorContains(t, err, "at least one search pattern is required")
+}
+
 func TestFindProcessesReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 	svc := NewService(&fake.Process{DiscoverErr: errors.New("ps failed")}, &fake.ProcessReporter{})
 
