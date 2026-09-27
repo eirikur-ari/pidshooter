@@ -1,6 +1,7 @@
 package filestore
 
 import (
+	"bytes"
 	"fmt"
 
 	"gopkg.in/yaml.v3"
@@ -66,12 +67,14 @@ func newConfigFileAt(path string) outbound.ConfigStore {
 }
 
 // Load reads and decodes the persisted run config. A missing file is
-// reported as outbound.NotFoundError; a file that exists but fails to
-// decode, or exceeds maxConfigFileSize, is reported as
-// outbound.CorruptedDataError. A file written by a newer, unrecognized
-// schema version (e.g. by a newer build, on a downgrade) is returned
-// unwrapped rather than as outbound.CorruptedDataError. Any other read
-// failure (e.g. a permission error) is also returned unwrapped.
+// reported as outbound.NotFoundError; an empty file is treated the same as
+// one with every field absent. A non-empty file that fails to decode —
+// including one containing a key this build doesn't recognize — or that
+// exceeds maxConfigFileSize, is reported as outbound.CorruptedDataError. A
+// file written by a newer, unrecognized schema version (e.g. by a newer
+// build, on a downgrade) is returned unwrapped rather than as
+// outbound.CorruptedDataError. Any other read failure (e.g. a permission
+// error) is also returned unwrapped.
 func (c *configFile) Load() (outbound.ConfigStoreResult, error) {
 	data, err := c.file.read()
 	if err != nil {
@@ -79,8 +82,12 @@ func (c *configFile) Load() (outbound.ConfigStoreResult, error) {
 	}
 
 	var cd configContent
-	if err := yaml.Unmarshal(data, &cd); err != nil {
-		return outbound.ConfigStoreResult{}, outbound.CorruptedDataError{Message: err.Error()}
+	if len(data) > 0 {
+		dec := yaml.NewDecoder(bytes.NewReader(data))
+		dec.KnownFields(true)
+		if err := dec.Decode(&cd); err != nil {
+			return outbound.ConfigStoreResult{}, outbound.CorruptedDataError{Message: err.Error()}
+		}
 	}
 
 	if cd.Version > currentConfigSchemaVersion {

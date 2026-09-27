@@ -35,7 +35,7 @@ func (s *Service) Load(req Request) (Result, error) {
 		// no persisted config yet.
 		return newResult().fromRequest(req), nil
 	default:
-		return newResult().fromRequest(req), apperror.NewError(apperror.CodeStoreLoadFailed, apperror.SeverityWarning, "config defaults not loaded", err)
+		return newResult().fromRequest(req), apperror.NewError(apperror.CodeStoreLoadFailed, apperror.SeverityWarning, "config store not loaded", err)
 	}
 }
 

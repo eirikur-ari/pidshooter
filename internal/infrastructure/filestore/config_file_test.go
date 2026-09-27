@@ -52,6 +52,25 @@ func TestConfigLoadInvalidYAMLReturnsCorruptedDataError(t *testing.T) {
 	assert.ErrorAs(t, err, &outbound.CorruptedDataError{})
 }
 
+func TestConfigLoadUnknownKeyReturnsCorruptedDataError(t *testing.T) {
+	c := newTempConfig(t)
+	require.NoError(t, os.WriteFile(c.file.path, []byte("game:\n  timelimit: 55\n"), 0644))
+
+	_, err := c.Load()
+
+	assert.ErrorAs(t, err, &outbound.CorruptedDataError{})
+}
+
+func TestConfigLoadEmptyFileReturnsNoError(t *testing.T) {
+	c := newTempConfig(t)
+	require.NoError(t, os.WriteFile(c.file.path, []byte(""), 0644))
+
+	defaults, err := c.Load()
+
+	require.NoError(t, err)
+	assert.Empty(t, defaults)
+}
+
 func TestConfigSaveCreatesFile(t *testing.T) {
 	c := newTempConfig(t)
 	require.NoError(t, c.Save(outbound.ConfigStoreResult{}))
