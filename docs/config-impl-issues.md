@@ -3,7 +3,7 @@
 **Date:** 2026-09-27
 **Method:** Full review of everything changed on branch `add-config-file` relative to `master` (the persisted `config.yaml` feature: `application/config`, `outbound/config.go`, `infrastructure/filestore`, the `application/runner` package, `entrypoint/cli`, `apperror.Code.In`), run on Claude Opus with full repo context and empirical verification (`go build`/`go vet`/`make test`, probe scripts against real config files, and a diff against `master` to confirm which behaviors are regressions vs. pre-existing). Findings 1, 2, and 4 below were independently re-verified against `master` and current code in this session (Sonnet, orchestrating) before being recorded.
 **Scope:** `internal/application/config/` (`Request`, `Result`, `Service`), `internal/application/contract/outbound/config.go`, `internal/infrastructure/filestore/` (`config_file.go`, `score_file.go`, `file.go`, `converter.go`), `internal/application/contract/inbound/runner.go`, `internal/application/runner/`, `internal/entrypoint/cli/` (`program.go`, `flag_mapper.go`, `flag_splitter.go`), `internal/application/apperror/error.go`, `internal/composition/runner_creator.go`, `internal/core/game/session.go` (`Config`).
-**Status:** Finding 1 resolved as a non-issue 2026-09-27 (see its updated note below — the first fix attempt was itself incorrect and was reverted). Finding 2 resolved as won't-fix 2026-09-27 (intentional behavior — see its updated note below). Finding 3 fixed 2026-09-27. All other findings below are open (unfixed) as of this writing.
+**Status:** Finding 1 resolved as a non-issue 2026-09-27 (see its updated note below — the first fix attempt was itself incorrect and was reverted). Finding 2 resolved as won't-fix 2026-09-27 (intentional behavior — see its updated note below). Finding 3 fixed 2026-09-27. Finding 4 fixed 2026-09-27 (doc comment only — the implementation was already correct). All other findings below are open (unfixed) as of this writing.
 
 ---
 
@@ -64,9 +64,11 @@ loads with no error and no warning — both keys are silently ignored (the corre
 
 ---
 
-### Finding 4: `apperror.Code.In`'s doc comment ("is, or wraps") overstates what `errors.As` actually checks
+### ~~Finding 4: `apperror.Code.In`'s doc comment ("is, or wraps") overstates what `errors.As` actually checks~~ ✓ Fixed 2026-09-27 (doc only)
 
-**Verified, currently latent.** `internal/application/apperror/error.go:19-23`:
+**Status: Fixed — doc comment only, implementation was already correct.** Considered making `In` walk the whole chain (checking every `*Error`, not just the first), but that would have been a real bug, not a fix: nesting one `*Error` as another's `Cause` (e.g. `runner.Service.logKillFailures` wrapping a `CodeProcessDiscoveryFailed`/etc. error inside a new `CodeKillFailed` one) represents "problem B occurred, caused by problem A" — two distinct classified events, not one event wrapped with extra context. Walking the whole chain would let an unrelated `Code` buried in some inner cause falsely match, misclassifying the outer (and actually-relevant) error. Stopping at the first `*Error` — `errors.As`'s actual behavior — is correct. Only the doc comment was wrong; it now states the real, narrower contract.
+
+**Original report, for reference:** `internal/application/apperror/error.go:19-23`:
 
 ```go
 // In reports whether error is, or wraps, an *Error with this Code.
@@ -79,8 +81,6 @@ func (c Code) In(err error) bool {
 `errors.As` stops at the *first* value in the chain assignable to `*Error` — it does not keep unwrapping past that match to find a *different* `*Error` deeper in the chain with a matching `Code`. So `CodeInvalidConfig.In(NewError(CodeKillFailed, SeverityWarning, "", someInvalidConfigErr))` returns `false` even when a `CodeInvalidConfig` error genuinely exists deeper in the chain — the doc's "or wraps" claim is only true when the *outermost* `apperror.Error` in the chain is the one with the matching code.
 
 **Not reachable today:** tracing the current call graph, nothing that reaches `program.go`'s sole `CodeInvalidConfig.In(err)` check nests one `*apperror.Error` inside another. But `runner.Service.logKillFailures`/`logDuds` already wrap errors that themselves originate as `apperror.Error`s in some paths — this is one future change away from silently mismatching.
-
-**Suggested fix:** Either loosen the doc comment to describe the real (outermost-only) semantics, or change `In` to keep walking: repeatedly `errors.Unwrap` and check every `*Error` in the chain, not just the first found by `errors.As`.
 
 ---
 
