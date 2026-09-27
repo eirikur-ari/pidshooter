@@ -31,18 +31,24 @@ type Result struct {
 	Game    GameResult
 }
 
-// newResult returns a Result populated with this domain's default gameplay
-// and process-discovery parameters.
+// defaultSpeed and defaultTimeLimit are this application's baseline gameplay
+// parameters, used when neither a config file nor a request overrides them.
+const (
+	defaultSpeed     = 2.0
+	defaultTimeLimit = 30
+)
+
+// newResult returns a Result populated with this application's default
+// gameplay and process-discovery parameters.
 func newResult() Result {
-	cfg := game.DefaultConfig()
 	return Result{
 		Process: ProcessResult{
 			IncludeRoot: false,
 		},
 		Game: GameResult{
-			ConfirmMode: cfg.Confirm,
-			Speed:       cfg.Speed,
-			TimeLimit:   cfg.TimeLimit,
+			ConfirmMode: false,
+			Speed:       defaultSpeed,
+			TimeLimit:   defaultTimeLimit,
 		},
 	}
 }
