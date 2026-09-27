@@ -2,10 +2,38 @@ package apperror
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestCodeInReturnsTrueWhenErrHasMatchingCode(t *testing.T) {
+	err := NewError(CodeInvalidConfig, SeverityFatal, "invalid configuration", nil)
+
+	assert.True(t, CodeInvalidConfig.In(err))
+}
+
+func TestCodeInReturnsFalseWhenErrHasDifferentCode(t *testing.T) {
+	err := NewError(CodeGameFailed, SeverityFatal, "game session failed", nil)
+
+	assert.False(t, CodeInvalidConfig.In(err))
+}
+
+func TestCodeInReturnsTrueWhenErrWrapsMatchingError(t *testing.T) {
+	appErr := NewError(CodeInvalidConfig, SeverityFatal, "invalid configuration", nil)
+	err := fmt.Errorf("wrapped: %w", appErr)
+
+	assert.True(t, CodeInvalidConfig.In(err))
+}
+
+func TestCodeInReturnsFalseWhenErrIsNotAnError(t *testing.T) {
+	assert.False(t, CodeInvalidConfig.In(errors.New("boom")))
+}
+
+func TestCodeInReturnsFalseWhenErrIsNil(t *testing.T) {
+	assert.False(t, CodeInvalidConfig.In(nil))
+}
 
 func TestErrorUnwrapReturnsErrorCause(t *testing.T) {
 	cause := errors.New("disk full")

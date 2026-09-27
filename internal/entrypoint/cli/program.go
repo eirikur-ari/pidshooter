@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -41,14 +40,6 @@ type Program struct {
 	errOut     io.Writer
 }
 
-// programInput holds the variables the flag set parses into.
-type programInput struct {
-	confirm     bool
-	speed       float64
-	timeLimit   int
-	includeRoot bool
-}
-
 // runnerCreator constructs a Runner, deferring any expensive or fallible
 // setup until a Runner is actually needed, and provides a Handler for
 // logging errors.
@@ -82,11 +73,12 @@ func (p *Program) run(args []string) (showUsage bool, err error) {
 	}
 
 	if err := runner.Run(req); err != nil {
-		if p.isInvalidConfig(err) {
+		if apperror.CodeInvalidConfig.In(err) {
 			return true, ArgumentError{Cause: err}
 		}
 		return false, err
 	}
+
 	return false, nil
 }
 
@@ -100,14 +92,9 @@ func (p *Program) prepare(args []string) (req inbound.RunRequest, showUsage bool
 		return inbound.RunRequest{}, true, nil
 	}
 
-	var input programInput
-
 	flagSet := flag.NewFlagSet("pidshooter", flag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
-	flagSet.BoolVar(&input.confirm, "confirm", false, "")
-	flagSet.Float64Var(&input.speed, "speed", 0, "")
-	flagSet.IntVar(&input.timeLimit, "time", 0, "")
-	flagSet.BoolVar(&input.includeRoot, "include-root", false, "")
+	mapper := newFlagMapper(flagSet)
 
 	patterns, flagArgs, err := newFlagSplitter(flagSet).split(args)
 	if err != nil {
@@ -125,12 +112,7 @@ func (p *Program) prepare(args []string) (req inbound.RunRequest, showUsage bool
 		return inbound.RunRequest{}, true, ArgumentError{Cause: fmt.Errorf("unexpected argument: %s", flagSet.Arg(0))}
 	}
 
-	return toRunRequest(flagSet, patterns, &input), false, nil
-}
-
-func (p *Program) isInvalidConfig(err error) bool {
-	var appErr *apperror.Error
-	return errors.As(err, &appErr) && appErr.Code == apperror.CodeInvalidConfig
+	return mapper.toRunRequest(patterns), false, nil
 }
 
 func (p *Program) printUsageText(printUsage bool, err error) {

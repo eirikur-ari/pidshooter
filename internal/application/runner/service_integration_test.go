@@ -34,7 +34,7 @@ func TestIntegrationServiceRunIsSuccessful(t *testing.T) {
 		events,
 	)
 
-	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}})
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}}})
 	require.NoError(t, err)
 	require.NotNil(t, store.Saved)
 	assert.Empty(t, store.Saved.Scores, "quitting immediately with zero kills must not be recorded to the score board")
@@ -50,7 +50,7 @@ func TestIntegrationServiceIncludeRootFalseExcludesRootOwnedProcess(t *testing.T
 		fake.NewInputEventProvider(),
 	)
 
-	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}})
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}}})
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -72,8 +72,10 @@ func TestIntegrationServiceIncludeRootTrueIncludesRootOwnedProcess(t *testing.T)
 
 	err := r.Run(inbound.RunRequest{
 		Patterns: []string{"target"},
-		Game:     inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)},
-		Process:  inbound.ProcessConfig{IncludeRoot: helper.Ptr(true)},
+		Config: config.Request{
+			Game:    config.GameRequest{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)},
+			Process: config.ProcessRequest{IncludeRoot: helper.Ptr(true)},
+		},
 	})
 
 	require.NoError(t, err)
@@ -87,7 +89,7 @@ func TestIntegrationServiceRunReturnsErrorWhenRendererInitFails(t *testing.T) {
 		&fake.Renderer{InitErr: errors.New("terminal not available")},
 	)
 
-	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}})
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}}})
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -106,7 +108,7 @@ func TestIntegrationServiceRunSkipsSaveWhenLoadingScoreBoardFails(t *testing.T) 
 		events,
 	)
 
-	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}})
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}}})
 
 	require.NoError(t, err)
 	assert.Nil(t, store.Saved)
@@ -122,7 +124,7 @@ func TestIntegrationServiceRunDoesNotFailWhenSavingScoreFails(t *testing.T) {
 		events,
 	)
 
-	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}})
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}}})
 
 	require.NoError(t, err)
 }
@@ -138,7 +140,7 @@ func TestIntegrationServiceRunWillSaveScoreWhenScoreBoardWasNotFound(t *testing.
 		events,
 	)
 
-	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}})
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}}})
 
 	require.NoError(t, err)
 	require.NotNil(t, store.Saved, "a fresh (never-persisted) board should still be saved")
@@ -158,7 +160,7 @@ func TestIntegrationServiceRunWillQuitOnQuitEvent(t *testing.T) {
 	)
 
 	start := time.Now()
-	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0)}})
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0)}}})
 
 	require.NoError(t, err)
 	assert.Less(t, time.Since(start), time.Second, "Run should have quit shortly after the QuitEvent, not run indefinitely")
@@ -172,7 +174,7 @@ func TestIntegrationServiceRunWillQuitWhenTimeLimitExpires(t *testing.T) {
 	)
 
 	start := time.Now()
-	require.NoError(t, r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(1)}}))
+	require.NoError(t, r.Run(inbound.RunRequest{Patterns: []string{"target"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(1)}}}))
 	assert.LessOrEqual(t, time.Since(start), 3*time.Second, "game took too long to exit on time limit")
 }
 
@@ -190,7 +192,7 @@ func TestIntegrationServiceRunSignalGoroutineDoesNotAccumulate(t *testing.T) {
 			&fake.Store{},
 			events,
 		)
-		if err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0)}}); err != nil {
+		if err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0)}}}); err != nil {
 			t.Fatalf("pid %d: unexpected error: %v", pid, err)
 		}
 	}

@@ -43,7 +43,7 @@ func NewService(
 // of severity. Run returns nil unless the failure was Fatal, in which case
 // it's returned too so the caller can terminate the program.
 func (s *Service) Run(req inbound.RunRequest) error {
-	cfg, loadErr := s.configSvc.Load(toConfigRequest(req))
+	cfg, loadErr := s.configSvc.Load(req.Config)
 	if err := s.errHandler.Handle(loadErr); err != nil {
 		return err
 	}

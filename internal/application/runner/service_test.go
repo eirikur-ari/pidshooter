@@ -20,29 +20,29 @@ import (
 )
 
 func TestServiceRunReturnsErrorWhenSpeedTooLow(t *testing.T) {
-	err := newTestService().Run(inbound.RunRequest{Patterns: []string{"proc"}, Game: inbound.GameConfig{Speed: helper.Ptr(movement.MinSpeed - 0.1)}})
+	err := newTestService().Run(inbound.RunRequest{Patterns: []string{"proc"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(movement.MinSpeed - 0.1)}}})
 	assertFatal(t, err)
 }
 
 func TestServiceRunReturnsErrorWhenSpeedTooHigh(t *testing.T) {
-	err := newTestService().Run(inbound.RunRequest{Patterns: []string{"proc"}, Game: inbound.GameConfig{Speed: helper.Ptr(movement.MaxSpeed + 0.1)}})
+	err := newTestService().Run(inbound.RunRequest{Patterns: []string{"proc"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(movement.MaxSpeed + 0.1)}}})
 	assertFatal(t, err)
 }
 
 func TestServiceRunReturnsErrorWhenTimeLimitIsNegative(t *testing.T) {
-	err := newTestService().Run(inbound.RunRequest{Patterns: []string{"proc"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(-1)}})
+	err := newTestService().Run(inbound.RunRequest{Patterns: []string{"proc"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(-1)}}})
 	assertFatal(t, err)
 }
 
 func TestServiceRunReturnsErrorWhenNoPatternsAreProvided(t *testing.T) {
-	err := newTestService().Run(inbound.RunRequest{Game: inbound.GameConfig{Speed: helper.Ptr(2.0)}})
+	err := newTestService().Run(inbound.RunRequest{Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0)}}})
 	assertFatal(t, err)
 	assert.ErrorContains(t, err, "at least one search pattern is required")
 }
 
 func TestServiceRunReturnsErrorWhenPatternTooShort(t *testing.T) {
 	for _, p := range []string{"a", "ab"} {
-		err := newTestService().Run(inbound.RunRequest{Patterns: []string{p}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0)}})
+		err := newTestService().Run(inbound.RunRequest{Patterns: []string{p}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0)}}})
 		assertFatal(t, err)
 	}
 }
@@ -50,7 +50,7 @@ func TestServiceRunReturnsErrorWhenPatternTooShort(t *testing.T) {
 func TestServiceRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 	r := newTestServiceWithProcess(&fake.Process{DiscoverErr: errors.New("ps failed")})
 
-	err := r.Run(inbound.RunRequest{Patterns: []string{"proc"}, Game: inbound.GameConfig{Speed: helper.Ptr(2.0)}})
+	err := r.Run(inbound.RunRequest{Patterns: []string{"proc"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0)}}})
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)

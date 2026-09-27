@@ -1,5 +1,7 @@
 package apperror
 
+import "errors"
+
 // Code categorizes the kind of failure an Error represents.
 type Code int
 
@@ -13,6 +15,12 @@ const (
 	CodeStoreLoadFailed
 	CodeStoreSaveFailed
 )
+
+// In reports whether error is, or wraps, an *Error with this Code.
+func (c Code) In(err error) bool {
+	var appErr *Error
+	return errors.As(err, &appErr) && appErr.Code == c
+}
 
 // Severity tells the caller whether an Error should abort its operation,
 // end it early while being logged as an error, or merely be reported
