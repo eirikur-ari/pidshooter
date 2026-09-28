@@ -184,6 +184,17 @@ func TestLoadRejectsNewerSchemaVersion(t *testing.T) {
 	assert.False(t, errors.As(err, &outbound.CorruptedDataError{}), "a from-the-future schema version is valid data, not corrupt")
 }
 
+func TestLoadRejectsNegativeSchemaVersion(t *testing.T) {
+	s := newTempScore(t)
+	require.NoError(t, os.WriteFile(s.file.path, []byte(`{"version":-5,"scores":[]}`), 0600))
+
+	_, err := s.Load()
+
+	require.Error(t, err)
+	assert.False(t, errors.As(err, &outbound.NotFoundError{}), "a negative schema version is not a missing file")
+	assert.False(t, errors.As(err, &outbound.CorruptedDataError{}), "a negative schema version is a version mismatch, not corrupt JSON")
+}
+
 func TestLoadRejectsFileOverMaxSize(t *testing.T) {
 	s := newTempScore(t)
 	oversized := make([]byte, maxScoreFileSize+1)

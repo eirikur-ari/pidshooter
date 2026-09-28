@@ -61,13 +61,10 @@ func newScoreFileAt(path string) outbound.ScoreStore {
 	return &scoreFile{file: file{path: path, maxSize: maxScoreFileSize}}
 }
 
-// Load reads and decodes the score board. A missing file is reported as
-// outbound.NotFoundError; a file that exists but fails to decode, or
-// exceeds maxScoreFileSize, is reported as outbound.CorruptedDataError.
-// A file written by a newer, unrecognized schema version (e.g. by a
-// newer build, on a downgrade) is returned unwrapped rather than as
-// outbound.CorruptedDataError. Any other read failure (e.g. a permission
-// error) is also returned unwrapped.
+// Load returns the persisted score board. A missing file is reported as
+// outbound.NotFoundError; a file that fails to decode is reported as
+// outbound.CorruptedDataError. Any other failure, including a schema
+// version mismatch, is returned unwrapped.
 func (s *scoreFile) Load() (outbound.ScoreBoard, error) {
 	data, err := s.file.read()
 	if err != nil {
@@ -79,8 +76,8 @@ func (s *scoreFile) Load() (outbound.ScoreBoard, error) {
 		return outbound.ScoreBoard{}, outbound.CorruptedDataError{Message: err.Error()}
 	}
 
-	if c.Version > currentScoreSchemaVersion {
-		return outbound.ScoreBoard{}, fmt.Errorf("score file schema version %d is newer than the %d this build supports", c.Version, currentScoreSchemaVersion)
+	if err := schemaVersion(currentScoreSchemaVersion).validate("score file", c.Version); err != nil {
+		return outbound.ScoreBoard{}, err
 	}
 
 	return toScoreBoard(c), nil

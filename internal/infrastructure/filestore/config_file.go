@@ -66,15 +66,10 @@ func newConfigFileAt(path string) outbound.ConfigStore {
 	return &configFile{file: file{path: path, maxSize: maxConfigFileSize}}
 }
 
-// Load reads and decodes the persisted run config. A missing file is
-// reported as outbound.NotFoundError; an empty file is treated the same as
-// one with every field absent. A non-empty file that fails to decode —
-// including one containing a key this build doesn't recognize — or that
-// exceeds maxConfigFileSize, is reported as outbound.CorruptedDataError. A
-// file written by a newer, unrecognized schema version (e.g. by a newer
-// build, on a downgrade) is returned unwrapped rather than as
-// outbound.CorruptedDataError. Any other read failure (e.g. a permission
-// error) is also returned unwrapped.
+// Load returns the persisted config. A missing file is reported as
+// outbound.NotFoundError; a file that fails to decode is reported as
+// outbound.CorruptedDataError. Any other failure, including a schema
+// version mismatch, is returned unwrapped.
 func (c *configFile) Load() (outbound.ConfigStoreResult, error) {
 	data, err := c.file.read()
 	if err != nil {
@@ -90,8 +85,8 @@ func (c *configFile) Load() (outbound.ConfigStoreResult, error) {
 		}
 	}
 
-	if cd.Version > currentConfigSchemaVersion {
-		return outbound.ConfigStoreResult{}, fmt.Errorf("config file schema version %d is newer than the %d this build supports", cd.Version, currentConfigSchemaVersion)
+	if err := schemaVersion(currentConfigSchemaVersion).validate("config file", cd.Version); err != nil {
+		return outbound.ConfigStoreResult{}, err
 	}
 
 	return toConfigStoreResult(cd), nil

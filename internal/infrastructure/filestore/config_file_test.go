@@ -206,6 +206,27 @@ func TestConfigLoadRejectsNewerSchemaVersion(t *testing.T) {
 	assert.False(t, errors.As(err, &outbound.CorruptedDataError{}), "a from-the-future schema version is valid data, not corrupt")
 }
 
+func TestConfigLoadRejectsNegativeSchemaVersion(t *testing.T) {
+	c := newTempConfig(t)
+	require.NoError(t, os.WriteFile(c.file.path, []byte("version: -5\n"), 0600))
+
+	_, err := c.Load()
+
+	require.Error(t, err)
+	assert.False(t, errors.As(err, &outbound.NotFoundError{}), "a negative schema version is not a missing file")
+	assert.False(t, errors.As(err, &outbound.CorruptedDataError{}), "a negative schema version is a version mismatch, not corrupt YAML")
+}
+
+func TestConfigLoadAcceptsExplicitZeroSchemaVersion(t *testing.T) {
+	c := newTempConfig(t)
+	require.NoError(t, os.WriteFile(c.file.path, []byte("version: 0\nmode: yolo\n"), 0600))
+
+	defaults, err := c.Load()
+
+	require.NoError(t, err)
+	assert.Equal(t, outbound.ModeYolo, defaults.Mode)
+}
+
 func TestConfigLoadRejectsFileOverMaxSize(t *testing.T) {
 	c := newTempConfig(t)
 	oversized := make([]byte, maxConfigFileSize+1)
