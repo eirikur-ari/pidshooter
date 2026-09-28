@@ -66,6 +66,26 @@ func TestResultApplyRejectsOutOfRangeTimeLimitAndKeepsDefault(t *testing.T) {
 	assert.ErrorContains(t, err, "time_limit")
 }
 
+func TestResultApplyOverlaysValidStoredMode(t *testing.T) {
+	cfg := Result{Mode: ModeGame, Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
+	stored := outbound.ConfigStoreResult{Mode: outbound.ModeYolo}
+
+	result, err := cfg.apply(stored, Request{})
+
+	require.NoError(t, err)
+	assert.Equal(t, ModeYolo, result.Mode)
+}
+
+func TestResultApplyRejectsUnrecognizedStoredModeAndKeepsDefault(t *testing.T) {
+	cfg := Result{Mode: ModeGame, Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
+	stored := outbound.ConfigStoreResult{Mode: outbound.Mode("wobble")}
+
+	result, err := cfg.apply(stored, Request{})
+
+	assert.Equal(t, ModeGame, result.Mode, "an unrecognized stored mode must not override the default")
+	assert.ErrorContains(t, err, "mode")
+}
+
 func TestResultApplyRequestWinsOverStored(t *testing.T) {
 	cfg := Result{Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
 	stored := outbound.ConfigStoreResult{

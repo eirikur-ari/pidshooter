@@ -11,6 +11,16 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 )
 
+// Mode identifies which run mode a Result resolves to.
+type Mode string
+
+// Mode's possible values.
+const (
+	ModeGame Mode = "game"
+	ModeYolo Mode = "yolo"
+	ModeList Mode = "list"
+)
+
 // GameResult holds game mode run parameters.
 type GameResult struct {
 	ConfirmMode bool
@@ -27,6 +37,7 @@ type ProcessResult struct {
 
 // Result holds the run parameters for a single invocation of pidshooter.
 type Result struct {
+	Mode    Mode
 	Process ProcessResult
 	Game    GameResult
 }
@@ -42,6 +53,7 @@ const (
 // gameplay and process-discovery parameters.
 func newResult() Result {
 	return Result{
+		Mode: ModeGame,
 		Process: ProcessResult{
 			IncludeRoot: false,
 		},
@@ -68,8 +80,11 @@ func (cfg Result) apply(stored outbound.ConfigStoreResult, req Request) (Result,
 // nil, or a plain error naming every skipped field and why.
 func (cfg Result) fromStore(stored outbound.ConfigStoreResult) (Result, error) {
 	g := stored.Game
-	rejected, err := validateStore(g)
+	rejected, err := validateStore(stored)
 
+	if stored.Mode != "" && !slices.Contains(rejected, "mode") {
+		cfg.Mode = Mode(stored.Mode)
+	}
 	if g.ConfirmMode != nil {
 		cfg.Game.ConfirmMode = *g.ConfirmMode
 	}
@@ -103,12 +118,22 @@ func (cfg Result) fromRequest(req Request) Result {
 	return cfg
 }
 
-// validateStore reports every present field in config that fails domain
+// validateStore reports every present field in stored that fails domain
 // validation. The returned error is nil, or a plain error naming every
 // invalid field and why.
-func validateStore(config outbound.GameConfig) (rejected []string, err error) {
+func validateStore(stored outbound.ConfigStoreResult) (rejected []string, err error) {
 	var causes []error
 
+	if stored.Mode != "" {
+		switch stored.Mode {
+		case outbound.ModeGame, outbound.ModeYolo, outbound.ModeList:
+		default:
+			rejected = append(rejected, "mode")
+			causes = append(causes, fmt.Errorf("mode must be one of %q, %q, %q, got: %q", outbound.ModeGame, outbound.ModeYolo, outbound.ModeList, stored.Mode))
+		}
+	}
+
+	config := stored.Game
 	if config.Speed != nil {
 		if validationErr := movement.ValidateSpeed(*config.Speed); validationErr != nil {
 			rejected = append(rejected, "speed")

@@ -26,7 +26,7 @@ func TestLoadUsesFileDefaultsWhenNoOverrides(t *testing.T) {
 	cfg, err := svc.Load(config.Request{})
 
 	require.NoError(t, err)
-	assert.Equal(t, config.Result{Process: config.ProcessResult{IncludeRoot: true}, Game: config.GameResult{ConfirmMode: true, Speed: 3.0, TimeLimit: 45}}, cfg)
+	assert.Equal(t, config.Result{Mode: config.ModeGame, Process: config.ProcessResult{IncludeRoot: true}, Game: config.GameResult{ConfirmMode: true, Speed: 3.0, TimeLimit: 45}}, cfg)
 }
 
 func TestLoadUsesHardcodedDefaultsWhenConfigFileNotFound(t *testing.T) {
@@ -36,7 +36,7 @@ func TestLoadUsesHardcodedDefaultsWhenConfigFileNotFound(t *testing.T) {
 	cfg, err := svc.Load(config.Request{})
 
 	require.NoError(t, err)
-	assert.Equal(t, config.Result{Process: config.ProcessResult{IncludeRoot: false}, Game: config.GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}, cfg)
+	assert.Equal(t, config.Result{Mode: config.ModeGame, Process: config.ProcessResult{IncludeRoot: false}, Game: config.GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}, cfg)
 }
 
 func TestLoadReturnsWarningAndHardcodedDefaultsOnOtherLoadError(t *testing.T) {
@@ -46,7 +46,7 @@ func TestLoadReturnsWarningAndHardcodedDefaultsOnOtherLoadError(t *testing.T) {
 
 	cfg, err := svc.Load(config.Request{})
 
-	assert.Equal(t, config.Result{Process: config.ProcessResult{IncludeRoot: false}, Game: config.GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}, cfg)
+	assert.Equal(t, config.Result{Mode: config.ModeGame, Process: config.ProcessResult{IncludeRoot: false}, Game: config.GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}, cfg)
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, apperror.CodeStoreLoadFailed, appErr.Code)
@@ -71,7 +71,7 @@ func TestLoadOverridesWinOverFileDefaults(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, config.Result{Process: config.ProcessResult{IncludeRoot: true}, Game: config.GameResult{ConfirmMode: true, Speed: 5.0, TimeLimit: 60}}, cfg)
+	assert.Equal(t, config.Result{Mode: config.ModeGame, Process: config.ProcessResult{IncludeRoot: true}, Game: config.GameResult{ConfirmMode: true, Speed: 5.0, TimeLimit: 60}}, cfg)
 }
 
 func TestLoadOverridesWinOverHardcodedDefaultsWhenFileNotFound(t *testing.T) {
@@ -81,7 +81,7 @@ func TestLoadOverridesWinOverHardcodedDefaultsWhenFileNotFound(t *testing.T) {
 	cfg, err := svc.Load(config.Request{Game: config.GameRequest{Speed: helper.Ptr(4.5)}})
 
 	require.NoError(t, err)
-	assert.Equal(t, config.Result{Process: config.ProcessResult{IncludeRoot: false}, Game: config.GameResult{ConfirmMode: false, Speed: 4.5, TimeLimit: 30}}, cfg)
+	assert.Equal(t, config.Result{Mode: config.ModeGame, Process: config.ProcessResult{IncludeRoot: false}, Game: config.GameResult{ConfirmMode: false, Speed: 4.5, TimeLimit: 30}}, cfg)
 }
 
 func TestLoadPartialOverridesLeaveOtherFileDefaultsIntact(t *testing.T) {
@@ -94,7 +94,7 @@ func TestLoadPartialOverridesLeaveOtherFileDefaultsIntact(t *testing.T) {
 	cfg, err := svc.Load(config.Request{Game: config.GameRequest{Speed: helper.Ptr(1.5)}})
 
 	require.NoError(t, err)
-	assert.Equal(t, config.Result{Process: config.ProcessResult{IncludeRoot: true}, Game: config.GameResult{ConfirmMode: true, Speed: 1.5, TimeLimit: 45}}, cfg)
+	assert.Equal(t, config.Result{Mode: config.ModeGame, Process: config.ProcessResult{IncludeRoot: true}, Game: config.GameResult{ConfirmMode: true, Speed: 1.5, TimeLimit: 45}}, cfg)
 }
 
 func TestLoadReturnsInvalidRequestWithoutConsultingConfigFile(t *testing.T) {
