@@ -3,7 +3,7 @@
 **Date:** 2026-09-27
 **Method:** Full review of everything changed on branch `add-config-file` relative to `master` (the persisted `config.yaml` feature: `application/config`, `outbound/config.go`, `infrastructure/filestore`, the `application/runner` package, `entrypoint/cli`, `apperror.Code.In`), run on Claude Opus with full repo context and empirical verification (`go build`/`go vet`/`make test`, probe scripts against real config files, and a diff against `master` to confirm which behaviors are regressions vs. pre-existing). Findings 1, 2, and 4 below were independently re-verified against `master` and current code in this session (Sonnet, orchestrating) before being recorded.
 **Scope:** `internal/application/config/` (`Request`, `Result`, `Service`), `internal/application/contract/outbound/config.go`, `internal/infrastructure/filestore/` (`config_file.go`, `score_file.go`, `file.go`, `converter.go`), `internal/application/contract/inbound/runner.go`, `internal/application/runner/`, `internal/entrypoint/cli/` (`program.go`, `flag_mapper.go`, `flag_splitter.go`), `internal/application/apperror/error.go`, `internal/composition/runner_creator.go`, `internal/core/game/session.go` (`Config`).
-**Status:** Finding 1 resolved as a non-issue 2026-09-27 (see its updated note below — the first fix attempt was itself incorrect and was reverted). Finding 2 resolved as won't-fix 2026-09-27 (intentional behavior — see its updated note below). Finding 3 fixed 2026-09-27. Finding 4 fixed 2026-09-27 (doc comment only — the implementation was already correct). Finding 5 fixed 2026-09-28. Finding 6 partially resolved 2026-09-28 (see its updated note below — the empty-file half is intentional, not a defect; only the negative-version half was fixed). Finding 8 fixed 2026-09-28. All other findings below are open (unfixed) as of this writing.
+**Status:** Finding 1 resolved as a non-issue 2026-09-27 (see its updated note below — the first fix attempt was itself incorrect and was reverted). Finding 2 resolved as won't-fix 2026-09-27 (intentional behavior — see its updated note below). Finding 3 fixed 2026-09-27. Finding 4 fixed 2026-09-27 (doc comment only — the implementation was already correct). Finding 5 fixed 2026-09-28. Finding 6 partially resolved 2026-09-28 (see its updated note below — the empty-file half is intentional, not a defect; only the negative-version half was fixed). Finding 8 fixed 2026-09-28. Finding 9 fixed 2026-09-28. All other findings below are open (unfixed) as of this writing.
 
 ---
 
@@ -126,9 +126,11 @@ A port package (`contract/inbound`) now depends on a concrete application-layer 
 
 ---
 
-### Finding 9: `validateStore`/`fromStore` are coupled through string literals with no shared constant
+### ~~Finding 9: `validateStore`/`fromStore` are coupled through string literals with no shared constant~~ ✓ Fixed 2026-09-28
 
-`internal/application/config/result.go:76,79` check `slices.Contains(rejected, "speed")`/`"time_limit"` against literals produced at `result.go:114,120`. A future rename on either side (e.g. renaming the reported field name) silently starts *applying* an invalid persisted value instead of rejecting it, since the `slices.Contains` check would just stop matching. No compiler or test would catch a rename that touched only one side.
+**Status: Fixed.** Replaced all four raw string-literal occurrences (`"mode"`, `"speed"`, `"time_limit"`, each written twice — once in `validateStore`, once in `fromStore`) with a `fieldMode`/`fieldSpeed`/`fieldTimeLimit` constant block, referenced from both functions. A rename now has to touch a single shared identifier, so a rename that only updates one side is a compile error instead of a silent `slices.Contains` mismatch.
+
+**Original report, for reference:** `internal/application/config/result.go:76,79` check `slices.Contains(rejected, "speed")`/`"time_limit"` against literals produced at `result.go:114,120`. A future rename on either side (e.g. renaming the reported field name) silently starts *applying* an invalid persisted value instead of rejecting it, since the `slices.Contains` check would just stop matching. No compiler or test would catch a rename that touched only one side.
 
 **Suggested fix:** Define named constants (e.g. `fieldSpeed = "speed"`) shared between `validateStore` and `fromStore`, or restructure `validateStore` to return a `map[string]bool`/set that `fromStore` and the two functions share the same source of truth for.
 

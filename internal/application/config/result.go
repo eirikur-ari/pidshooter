@@ -49,6 +49,13 @@ const (
 	defaultTimeLimit = 30
 )
 
+// Stored field names shared between validateStore and fromStore.
+const (
+	fieldMode      = "mode"
+	fieldSpeed     = "speed"
+	fieldTimeLimit = "time_limit"
+)
+
 // newResult returns a Result populated with this application's default
 // gameplay and process-discovery parameters.
 func newResult() Result {
@@ -82,16 +89,16 @@ func (cfg Result) fromStore(stored outbound.ConfigStoreResult) (Result, error) {
 	g := stored.Game
 	rejected, err := validateStore(stored)
 
-	if stored.Mode != "" && !slices.Contains(rejected, "mode") {
+	if stored.Mode != "" && !slices.Contains(rejected, fieldMode) {
 		cfg.Mode = Mode(stored.Mode)
 	}
 	if g.ConfirmMode != nil {
 		cfg.Game.ConfirmMode = *g.ConfirmMode
 	}
-	if g.Speed != nil && !slices.Contains(rejected, "speed") {
+	if g.Speed != nil && !slices.Contains(rejected, fieldSpeed) {
 		cfg.Game.Speed = *g.Speed
 	}
-	if g.TimeLimit != nil && !slices.Contains(rejected, "time_limit") {
+	if g.TimeLimit != nil && !slices.Contains(rejected, fieldTimeLimit) {
 		cfg.Game.TimeLimit = *g.TimeLimit
 	}
 	if stored.Process.IncludeRoot != nil {
@@ -128,7 +135,7 @@ func validateStore(stored outbound.ConfigStoreResult) (rejected []string, err er
 		switch stored.Mode {
 		case outbound.ModeGame, outbound.ModeYolo, outbound.ModeList:
 		default:
-			rejected = append(rejected, "mode")
+			rejected = append(rejected, fieldMode)
 			causes = append(causes, fmt.Errorf("mode must be one of %q, %q, %q, got: %q", outbound.ModeGame, outbound.ModeYolo, outbound.ModeList, stored.Mode))
 		}
 	}
@@ -136,13 +143,13 @@ func validateStore(stored outbound.ConfigStoreResult) (rejected []string, err er
 	config := stored.Game
 	if config.Speed != nil {
 		if validationErr := movement.ValidateSpeed(*config.Speed); validationErr != nil {
-			rejected = append(rejected, "speed")
+			rejected = append(rejected, fieldSpeed)
 			causes = append(causes, validationErr)
 		}
 	}
 	if config.TimeLimit != nil {
 		if validationErr := game.ValidateTimeLimit(*config.TimeLimit); validationErr != nil {
-			rejected = append(rejected, "time_limit")
+			rejected = append(rejected, fieldTimeLimit)
 			causes = append(causes, validationErr)
 		}
 	}
