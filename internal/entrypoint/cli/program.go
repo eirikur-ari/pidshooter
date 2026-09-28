@@ -26,10 +26,16 @@ Examples:
 
 Flags:
   --confirm        Ask for confirmation before killing
-  --speed float    Speed multiplier (range: 0.5-5.0) (default 2.0)
-  --time int       Time limit in seconds (0 = no limit, max 300) (default 30)
+  --speed float    Speed multiplier (range: 0.5-5.0); defaults to the config file value, or 2.0 if unset
+  --time int       Time limit in seconds (0 = no limit, max 300); defaults to the config file value, or 30 if unset
   --include-root   Also target root-owned processes (always allowed when running as root)
   -h, --help       Show this help
+
+Config file:
+  Defaults for the flags above are read from ~/.config/pidshooter/config.yaml
+  (or $XDG_CONFIG_HOME/pidshooter/config.yaml, if set), when present. A flag
+  passed on the command line always overrides the config file for that run —
+  e.g. --include-root=false overrides a persisted "include_root: true".
 `
 
 // Program translates command-line arguments to application calls.
