@@ -81,6 +81,67 @@ func TestIntegrationServiceIncludeRootTrueIncludesRootOwnedProcess(t *testing.T)
 	require.NoError(t, err)
 }
 
+func TestIntegrationServicePersistedIncludeRootIncludesRootOwnedProcess(t *testing.T) {
+	events := fake.NewInputEventProvider()
+	events.Ch <- input.QuitEvent{}
+
+	configStore := &fake.ConfigStore{Result: outbound.ConfigStoreResult{Process: outbound.ProcessConfig{IncludeRoot: helper.Ptr(true)}}}
+	r := newServiceWithConfigStore(
+		&fake.Process{
+			Infos:       []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024, UID: 0}},
+			OwnUIDValue: 1000,
+		},
+		&fake.Store{},
+		events,
+		&fake.Renderer{},
+		configStore,
+		&fake.Logger{},
+	)
+
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)}}})
+
+	require.NoError(t, err, "a persisted include_root: true, with no request override, must reach process discovery")
+}
+
+func TestIntegrationServicePersistedTimeLimitQuitsGameplay(t *testing.T) {
+	configStore := &fake.ConfigStore{Result: outbound.ConfigStoreResult{Game: outbound.GameConfig{TimeLimit: helper.Ptr(1)}}}
+	r := newServiceWithConfigStore(
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 102, Name: "target", Rss: 1024}}},
+		&fake.Store{},
+		fake.NewInputEventProvider(),
+		&fake.Renderer{},
+		configStore,
+		&fake.Logger{},
+	)
+
+	start := time.Now()
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}})
+
+	require.NoError(t, err)
+	assert.LessOrEqual(t, time.Since(start), 3*time.Second, "a persisted time_limit, with no request override, must reach gameplay and end the session")
+}
+
+func TestIntegrationServiceFallsBackAndWarnsOnUnreadableConfigStore(t *testing.T) {
+	events := fake.NewInputEventProvider()
+	events.Ch <- input.QuitEvent{}
+
+	configStore := &fake.ConfigStore{LoadErr: outbound.CorruptedDataError{Message: "not valid yaml"}}
+	logger := &fake.Logger{}
+	r := newServiceWithConfigStore(
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 205, Name: "target", Rss: 1024}}},
+		&fake.Store{},
+		events,
+		&fake.Renderer{},
+		configStore,
+		logger,
+	)
+
+	err := r.Run(inbound.RunRequest{Patterns: []string{"target"}})
+
+	require.NoError(t, err, "an unreadable config store must fall back to domain defaults, not fail the run")
+	assert.NotEmpty(t, logger.Warned, "the unreadable config store must still be reported as a warning")
+}
+
 func TestIntegrationServiceRunReturnsErrorWhenRendererInitFails(t *testing.T) {
 	r := newServiceWithRenderer(
 		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 204, Name: "target", Rss: 1024}}},
@@ -223,10 +284,14 @@ func newService(proc *fake.Process, store *fake.Store, events *fake.InputEventPr
 }
 
 func newServiceWithRenderer(proc *fake.Process, store *fake.Store, events *fake.InputEventProvider, renderer *fake.Renderer) *Service {
-	configSvc := config.NewService(&fake.ConfigStore{LoadErr: outbound.NotFoundError{}})
+	return newServiceWithConfigStore(proc, store, events, renderer, &fake.ConfigStore{LoadErr: outbound.NotFoundError{}}, &fake.Logger{})
+}
+
+func newServiceWithConfigStore(proc *fake.Process, store *fake.Store, events *fake.InputEventProvider, renderer *fake.Renderer, configStore *fake.ConfigStore, logger *fake.Logger) *Service {
+	configSvc := config.NewService(configStore)
 	processSvc := process.NewService(proc, &fake.ProcessReporter{})
 	scoreSvc := score.NewService(store, &fake.ScoreReporter{})
 	gameSvc := game.NewService(processSvc, renderer, events)
-	errHandler := apperror.NewHandler(&fake.Logger{})
+	errHandler := apperror.NewHandler(logger)
 	return NewService(configSvc, processSvc, scoreSvc, gameSvc, errHandler)
 }
