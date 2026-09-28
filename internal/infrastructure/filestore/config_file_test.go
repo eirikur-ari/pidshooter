@@ -181,6 +181,16 @@ func TestConfigLoadAcceptsFileWithoutVersionField(t *testing.T) {
 	assert.Equal(t, outbound.ModeYolo, defaults.Mode)
 }
 
+func TestConfigLoadPassesThroughUnrecognizedModeWithoutValidating(t *testing.T) {
+	c := newTempConfig(t)
+	require.NoError(t, os.WriteFile(c.file.path, []byte("mode: wobble\n"), 0600))
+
+	defaults, err := c.Load()
+
+	require.NoError(t, err, "mode validation is application/config's job, not this layer's")
+	assert.Equal(t, outbound.Mode("wobble"), defaults.Mode)
+}
+
 func TestConfigLoadOnlySpeedSetLeavesOtherFieldsNil(t *testing.T) {
 	c := newTempConfig(t)
 	require.NoError(t, os.WriteFile(c.file.path, []byte("game:\n  speed: 3.0\n"), 0600))
