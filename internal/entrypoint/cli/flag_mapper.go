@@ -4,6 +4,7 @@ import (
 	"flag"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
+	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
 // flagMapper maps the confirm, speed, time, and include-root flags the
@@ -14,7 +15,6 @@ type flagMapper struct {
 	speed       *float64
 	timeLimit   *int
 	includeRoot *bool
-	req         inbound.RunRequest
 }
 
 // newFlagMapper returns a flagMapper for flagSet's confirm, speed, time,
@@ -33,22 +33,18 @@ func newFlagMapper(flagSet *flag.FlagSet) *flagMapper {
 // the flags the caller actually passed — an omitted flag stays nil, leaving
 // it to the resolved defaults.
 func (m *flagMapper) toRunRequest(patterns []string) inbound.RunRequest {
-	m.req = inbound.RunRequest{Patterns: patterns}
-	m.flagSet.Visit(m.visit)
-	return m.req
-}
-
-// visit records the given flag's value onto the request being built, if
-// the flag is one this flagMapper tracks.
-func (m *flagMapper) visit(f *flag.Flag) {
-	switch f.Name {
-	case "confirm":
-		m.req.Config.Game.ConfirmMode = m.confirm
-	case "speed":
-		m.req.Config.Game.Speed = m.speed
-	case "time":
-		m.req.Config.Game.TimeLimit = m.timeLimit
-	case "include-root":
-		m.req.Config.Process.IncludeRoot = m.includeRoot
-	}
+	req := inbound.RunRequest{Patterns: patterns}
+	m.flagSet.Visit(func(f *flag.Flag) {
+		switch f.Name {
+		case "confirm":
+			req.Config.Game.ConfirmMode = util.ClonePtr(m.confirm)
+		case "speed":
+			req.Config.Game.Speed = util.ClonePtr(m.speed)
+		case "time":
+			req.Config.Game.TimeLimit = util.ClonePtr(m.timeLimit)
+		case "include-root":
+			req.Config.Process.IncludeRoot = util.ClonePtr(m.includeRoot)
+		}
+	})
+	return req
 }

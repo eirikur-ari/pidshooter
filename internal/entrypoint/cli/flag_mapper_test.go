@@ -3,10 +3,13 @@ package cli
 import (
 	"flag"
 	"io"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 )
 
 func TestFlagMapperToRunRequestIncludesPatterns(t *testing.T) {
@@ -84,6 +87,38 @@ func TestFlagMapperToRunRequestSetsAllFlagsWhenAllPassed(t *testing.T) {
 	assert.Equal(t, 90, *req.Config.Game.TimeLimit)
 	require.NotNil(t, req.Config.Process.IncludeRoot)
 	assert.True(t, *req.Config.Process.IncludeRoot)
+}
+
+func TestFlagMapperToRunRequestClonesFlagSetPointers(t *testing.T) {
+	mapper, flagSet := newTestFlagMapper()
+	require.NoError(t, flagSet.Parse([]string{"--speed=3.5"}))
+
+	req := mapper.toRunRequest(nil)
+
+	require.NotNil(t, req.Config.Game.Speed)
+	assert.NotSame(t, mapper.speed, req.Config.Game.Speed, "the request must not alias the FlagSet's own destination pointer")
+}
+
+func TestFlagMapperToRunRequestConcurrentCallsDoNotRace(t *testing.T) {
+	mapper, flagSet := newTestFlagMapper()
+	require.NoError(t, flagSet.Parse([]string{"--speed=3.5"}))
+
+	const goroutines = 20
+	results := make([]inbound.RunRequest, goroutines)
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := range goroutines {
+		go func() {
+			defer wg.Done()
+			results[i] = mapper.toRunRequest([]string{"chrome"})
+		}()
+	}
+	wg.Wait()
+
+	for _, req := range results {
+		require.NotNil(t, req.Config.Game.Speed)
+		assert.Equal(t, 3.5, *req.Config.Game.Speed)
+	}
 }
 
 // newTestFlagMapper returns a flagMapper backed by a fresh flag.FlagSet, for
