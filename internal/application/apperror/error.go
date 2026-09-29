@@ -1,5 +1,7 @@
 package apperror
 
+import "errors"
+
 // Code categorizes the kind of failure an Error represents.
 type Code int
 
@@ -9,10 +11,19 @@ const (
 	CodeProcessDiscoveryFailed
 	CodeProcessNotFound
 	CodeGameFailed
-	CodeScoreLoadFailed
-	CodeScoreSaveFailed
 	CodeKillFailed
+	CodeStoreLoadFailed
+	CodeStoreSaveFailed
 )
+
+// In reports whether error is, or directly wraps as a plain error, an *Error
+// with this Code. A Code nested deeper inside another *Error's own Cause
+// does not count — that Cause is context for a different, already-classified
+// problem, not a second classification of err itself.
+func (c Code) In(err error) bool {
+	var appErr *Error
+	return errors.As(err, &appErr) && appErr.Code == c
+}
 
 // Severity tells the caller whether an Error should abort its operation,
 // end it early while being logged as an error, or merely be reported

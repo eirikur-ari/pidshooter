@@ -8,6 +8,12 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 )
 
+// toGameConfig converts a PlayRequest into the core/game.Config a
+// Session is constructed with.
+func toGameConfig(req PlayRequest) game.Config {
+	return game.Config{Confirm: req.ConfirmMode, Speed: req.Speed, TimeLimit: req.TimeLimit}
+}
+
 // toBounds converts the display dimensions and reserved chrome rows
 // reported by a Renderer into a movement.Bounds.
 func toBounds(window outbound.WindowSize, chrome outbound.ChromeSize) movement.Bounds {

@@ -2,14 +2,42 @@ package apperror
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
+func TestCodeInReturnsTrueWhenErrHasMatchingCode(t *testing.T) {
+	err := NewError(CodeInvalidConfig, SeverityFatal, "invalid configuration", nil)
+
+	assert.True(t, CodeInvalidConfig.In(err))
+}
+
+func TestCodeInReturnsFalseWhenErrHasDifferentCode(t *testing.T) {
+	err := NewError(CodeGameFailed, SeverityFatal, "game session failed", nil)
+
+	assert.False(t, CodeInvalidConfig.In(err))
+}
+
+func TestCodeInReturnsTrueWhenErrWrapsMatchingError(t *testing.T) {
+	appErr := NewError(CodeInvalidConfig, SeverityFatal, "invalid configuration", nil)
+	err := fmt.Errorf("wrapped: %w", appErr)
+
+	assert.True(t, CodeInvalidConfig.In(err))
+}
+
+func TestCodeInReturnsFalseWhenErrIsNotAnError(t *testing.T) {
+	assert.False(t, CodeInvalidConfig.In(errors.New("boom")))
+}
+
+func TestCodeInReturnsFalseWhenErrIsNil(t *testing.T) {
+	assert.False(t, CodeInvalidConfig.In(nil))
+}
+
 func TestErrorUnwrapReturnsErrorCause(t *testing.T) {
 	cause := errors.New("disk full")
-	err := NewError(CodeScoreSaveFailed, SeverityWarning, "score not saved", cause)
+	err := NewError(CodeStoreSaveFailed, SeverityWarning, "score not saved", cause)
 
 	assert.Equal(t, cause, err.Unwrap())
 	assert.Same(t, cause, err.Unwrap())
@@ -51,7 +79,7 @@ func newErrorTestCases() []struct {
 	}{
 		{
 			name:        "with both message and cause",
-			errCode:     CodeScoreLoadFailed,
+			errCode:     CodeStoreLoadFailed,
 			errSeverity: SeverityWarning,
 			errMessage:  "score not loaded",
 			errCause:    errors.New("disk full"),

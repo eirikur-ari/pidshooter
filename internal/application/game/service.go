@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
-	"github.com/eirikur-ari/pidshooter/internal/application/config"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/input"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
@@ -32,6 +31,14 @@ type Service struct {
 	// in-flight kills to resolve before giving up on them, so a wedged
 	// processKiller can't hang session shutdown indefinitely.
 	killGracePeriod time.Duration
+}
+
+// PlayRequest carries the gameplay parameters Play needs. Every value is
+// already resolved and validated by the time Play sees it.
+type PlayRequest struct {
+	ConfirmMode bool
+	Speed       float64
+	TimeLimit   int
 }
 
 // PlayResult carries the outcome of a completed play session, needed by the
@@ -77,12 +84,15 @@ func NewService(
 // Play runs the game loop for the given already-discovered processes.
 // highScore is the caller's persisted best, used to track a running high
 // score for display during the session.
-func (s *Service) Play(cfg config.Config, processes []process.Info, highScore int) (PlayResult, error) {
+func (s *Service) Play(req PlayRequest, processes []process.Info, highScore int) (PlayResult, error) {
+	if err := validateGameConfig(req); err != nil {
+		return PlayResult{}, apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", err)
+	}
 	if err := process.ValidateProcesses(processes); err != nil {
 		return PlayResult{}, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "", err)
 	}
 
-	session := game.NewSession(processes, game.Config{Confirm: cfg.ConfirmMode, Speed: cfg.Speed, TimeLimit: cfg.TimeLimit})
+	session := game.NewSession(processes, toGameConfig(req))
 
 	tracker := newKillTracker(highScore)
 	endTime, err := s.runLoop(session, tracker)
@@ -98,6 +108,18 @@ func (s *Service) Play(cfg config.Config, processes []process.Info, highScore in
 		KillFailures: tracker.failure.failures,
 		Duds:         tracker.duds,
 	}, nil
+}
+
+// validateGameConfig returns an error if req's Speed or TimeLimit fails
+// domain validation.
+func validateGameConfig(req PlayRequest) error {
+	if err := movement.ValidateSpeed(req.Speed); err != nil {
+		return err
+	}
+	if err := game.ValidateTimeLimit(req.TimeLimit); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *Service) runLoop(session *game.Session, tracker *killTracker) (time.Time, error) {

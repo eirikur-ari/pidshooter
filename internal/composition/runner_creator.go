@@ -5,14 +5,15 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"github.com/eirikur-ari/pidshooter/internal/application"
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
+	"github.com/eirikur-ari/pidshooter/internal/application/config"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
+	"github.com/eirikur-ari/pidshooter/internal/application/runner"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/console"
-	"github.com/eirikur-ari/pidshooter/internal/infrastructure/filescore"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/filestore"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/logger"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
@@ -40,7 +41,12 @@ func (c RunnerCreator) Create() (inbound.Runner, error) {
 		return nil, err
 	}
 
-	store, err := filescore.NewFileScore()
+	scoreStore, err := filestore.NewScoreFile()
+	if err != nil {
+		return nil, err
+	}
+
+	configStore, err := filestore.NewConfigFile()
 	if err != nil {
 		return nil, err
 	}
@@ -52,9 +58,10 @@ func (c RunnerCreator) Create() (inbound.Runner, error) {
 
 	ui := tcellui.NewTUI(screen)
 
+	configSvc := config.NewService(configStore)
 	processSvc := process.NewService(proc, console.NewProcessReporter())
-	scoreSvc := score.NewService(store, console.NewScoreReporter())
+	scoreSvc := score.NewService(scoreStore, console.NewScoreReporter())
 	gameSvc := game.NewService(processSvc, ui, ui.InputEvents())
 
-	return application.NewRunner(processSvc, scoreSvc, gameSvc, c.errHandler), nil
+	return runner.NewService(configSvc, processSvc, scoreSvc, gameSvc, c.errHandler), nil
 }
