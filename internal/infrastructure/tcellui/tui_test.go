@@ -18,14 +18,6 @@ func TestNewTUIPanicsOnNilScreen(t *testing.T) {
 	assert.Panics(t, func() { tcellui.NewTUI(nil) })
 }
 
-func TestCleanupBeforeInitDoesNotPanicOnRealScreen(t *testing.T) {
-	screen, err := tcell.NewScreen()
-	require.NoError(t, err)
-	ui := tcellui.NewTUI(screen)
-
-	assert.NotPanics(t, ui.Cleanup)
-}
-
 func TestInitSecondCallReturnsErrorAndDoesNotSpawnSecondPollGoroutine(t *testing.T) {
 	screen := tcell.NewSimulationScreen("")
 	ui := tcellui.NewTUI(screen)

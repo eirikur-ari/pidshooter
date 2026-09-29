@@ -19,6 +19,17 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil/helper"
 )
 
+func TestServiceRunReturnsErrorWhenRunningAsRootWithoutOverride(t *testing.T) {
+	r := newTestServiceWithProcess(&fake.Process{OwnUIDValue: 0})
+
+	err := r.Run(inbound.RunRequest{Patterns: []string{"proc"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0)}}})
+
+	var appErr *apperror.Error
+	require.ErrorAs(t, err, &appErr)
+	assert.Equal(t, apperror.CodeInvalidConfig, appErr.Code)
+	assert.ErrorContains(t, err, "refusing to run as root")
+}
+
 func TestServiceRunReturnsErrorWhenSpeedTooLow(t *testing.T) {
 	err := newTestService().Run(inbound.RunRequest{Patterns: []string{"proc"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(movement.MinSpeed - 0.1)}}})
 	assertFatal(t, err)
@@ -48,7 +59,7 @@ func TestServiceRunReturnsErrorWhenPatternTooShort(t *testing.T) {
 }
 
 func TestServiceRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
-	r := newTestServiceWithProcess(&fake.Process{DiscoverErr: errors.New("ps failed")})
+	r := newTestServiceWithProcess(&fake.Process{DiscoverErr: errors.New("ps failed"), OwnUIDValue: 1000})
 
 	err := r.Run(inbound.RunRequest{Patterns: []string{"proc"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0)}}})
 
@@ -59,7 +70,7 @@ func TestServiceRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 }
 
 func newTestService() *Service {
-	return newTestServiceWithProcess(&fake.Process{})
+	return newTestServiceWithProcess(&fake.Process{OwnUIDValue: 1000})
 }
 
 func newTestServiceWithProcess(proc *fake.Process) *Service {

@@ -20,10 +20,22 @@ func NewService(proc outbound.Process, reporter outbound.ProcessReporter) *Servi
 	return &Service{proc: proc, reporter: reporter}
 }
 
-// FindProcesses discovers running processes matching patterns. includeRoot
-// additionally permits root-owned processes as matches, regardless of the
-// caller's own effective UID.
-func (s *Service) FindProcesses(patterns []string, includeRoot bool) ([]process.Info, error) {
+// FindRequest carries the process-discovery parameters FindProcesses needs.
+type FindRequest struct {
+	// IncludeRoot additionally permits root-owned processes as matches,
+	// regardless of the caller's own effective UID.
+	IncludeRoot bool
+	// AllowRoot permits running pidshooter itself as root; never populated
+	// from the persisted config file.
+	AllowRoot bool
+}
+
+// FindProcesses discovers running processes matching patterns, refusing
+// when the caller is root and req.AllowRoot is false.
+func (s *Service) FindProcesses(patterns []string, req FindRequest) ([]process.Info, error) {
+	if err := process.ValidateRoot(s.proc.OwnUID(), req.AllowRoot); err != nil {
+		return nil, apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "", err)
+	}
 	if err := process.ValidatePatterns(patterns); err != nil {
 		return nil, apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", err)
 	}
@@ -33,7 +45,7 @@ func (s *Service) FindProcesses(patterns []string, includeRoot bool) ([]process.
 		return nil, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityFatal, "process discovery failed", err)
 	}
 
-	matches := process.Find(toProcessInfos(processes), patterns, s.proc.OwnPID(), s.proc.OwnUID(), includeRoot)
+	matches := process.Find(toProcessInfos(processes), patterns, s.proc.OwnPID(), s.proc.OwnUID(), req.IncludeRoot)
 	if err := process.ValidateProcesses(matches); err != nil {
 		return nil, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "", err)
 	}

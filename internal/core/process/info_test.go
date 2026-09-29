@@ -56,6 +56,18 @@ func TestValidateNameMatch(t *testing.T) {
 	assert.NoError(t, ValidateName("target", "target"))
 }
 
+func TestValidateNotRootRefusesRootWithoutOverride(t *testing.T) {
+	assert.ErrorContains(t, ValidateRoot(0, false), "refusing to run as root")
+}
+
+func TestValidateNotRootAllowsRootWithOverride(t *testing.T) {
+	assert.NoError(t, ValidateRoot(0, true))
+}
+
+func TestValidateNotRootAllowsNonRoot(t *testing.T) {
+	assert.NoError(t, ValidateRoot(1000, false))
+}
+
 func TestInfoIsProtected(t *testing.T) {
 	assert.True(t, NewInfo(0, "swapper", 0, 0).IsProtected())
 	assert.True(t, NewInfo(1, "init", 0, 0).IsProtected())

@@ -31,8 +31,9 @@ var controlKeyBindings = map[tcell.Key]input.EventDispatcher{
 // translator translates a raw tcell.Event into the input event it
 // represents.
 type translator struct {
-	screen tcell.Screen
-	event  input.EventDispatcher
+	screen      tcell.Screen
+	event       input.EventDispatcher
+	prevButtons tcell.ButtonMask
 }
 
 // newTranslator returns a translator reading window state from screen.
@@ -56,11 +57,15 @@ func (t *translator) translateEvent(rawEvent tcell.Event) bool {
 	return false
 }
 
-// translateMouseEvent translates a left click to a ClickEvent. Any other
-// mouse activity — a different button, or a chord (e.g. Button1+Button2
-// held together) — is dropped.
+// translateMouseEvent translates the press that starts a left click to a
+// ClickEvent. Any other mouse activity — a different button, more than one
+// button held at once, or a motion sample while the button is already held
+// — is dropped.
 func (t *translator) translateMouseEvent(mouseEvent *tcell.EventMouse) bool {
-	if mouseEvent.Buttons() != tcell.Button1 {
+	buttons := mouseEvent.Buttons()
+	pressed := buttons == tcell.Button1 && t.prevButtons != tcell.Button1
+	t.prevButtons = buttons
+	if !pressed {
 		return false
 	}
 	x, y := mouseEvent.Position()

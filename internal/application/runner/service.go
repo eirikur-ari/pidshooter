@@ -48,7 +48,7 @@ func (s *Service) Run(req inbound.RunRequest) error {
 		return err
 	}
 
-	processes, err := s.processSvc.FindProcesses(req.Patterns, cfg.Process.IncludeRoot)
+	processes, err := s.processSvc.FindProcesses(req.Patterns, toFindRequest(cfg.Process))
 	if err != nil {
 		return s.errHandler.Handle(err)
 	}
@@ -58,7 +58,7 @@ func (s *Service) Run(req inbound.RunRequest) error {
 		return err
 	}
 
-	result, err := s.gameSvc.Play(toPlayRequest(cfg), processes, highScore)
+	result, err := s.gameSvc.Play(toPlayRequest(cfg.Game), processes, highScore)
 	if err != nil {
 		return s.errHandler.Handle(err)
 	}

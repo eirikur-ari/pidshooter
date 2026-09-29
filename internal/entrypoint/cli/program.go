@@ -29,6 +29,7 @@ Flags:
   --speed float    Speed multiplier (range: 0.5-5.0); defaults to the config file value, or 2.0 if unset
   --time int       Time limit in seconds (0 = no limit, max 300); defaults to the config file value, or 30 if unset
   --include-root   Also target root-owned processes (always allowed when running as root)
+  --i-am-root      Allow running as root (refused by default: as root, every process on the machine becomes a target)
   -h, --help       Show this help
 
 Config file:

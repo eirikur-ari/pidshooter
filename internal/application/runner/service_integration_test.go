@@ -29,7 +29,7 @@ func TestIntegrationServiceRunIsSuccessful(t *testing.T) {
 
 	store := &fake.Store{}
 	r := newService(
-		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024}}},
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
 		store,
 		events,
 	)
@@ -38,6 +38,27 @@ func TestIntegrationServiceRunIsSuccessful(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, store.Saved)
 	assert.Empty(t, store.Saved.Scores, "quitting immediately with zero kills must not be recorded to the score board")
+}
+
+func TestIntegrationServiceRunAsRootWithOverrideReachesProcessDiscovery(t *testing.T) {
+	events := fake.NewInputEventProvider()
+	events.Ch <- input.QuitEvent{}
+
+	r := newService(
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024}}, OwnUIDValue: 0},
+		&fake.Store{},
+		events,
+	)
+
+	err := r.Run(inbound.RunRequest{
+		Patterns: []string{"target"},
+		Config: config.Request{
+			Game:    config.GameRequest{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(0)},
+			Process: config.ProcessRequest{AllowRoot: helper.Ptr(true)},
+		},
+	})
+
+	require.NoError(t, err, "AllowRoot must let a root session reach process discovery")
 }
 
 func TestIntegrationServiceIncludeRootFalseExcludesRootOwnedProcess(t *testing.T) {
@@ -106,7 +127,7 @@ func TestIntegrationServicePersistedIncludeRootIncludesRootOwnedProcess(t *testi
 func TestIntegrationServicePersistedTimeLimitQuitsGameplay(t *testing.T) {
 	configStore := &fake.ConfigStore{Result: outbound.ConfigStoreResult{Game: outbound.GameConfig{TimeLimit: helper.Ptr(1)}}}
 	r := newServiceWithConfigStore(
-		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 102, Name: "target", Rss: 1024}}},
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 102, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
 		&fake.Store{},
 		fake.NewInputEventProvider(),
 		&fake.Renderer{},
@@ -128,7 +149,7 @@ func TestIntegrationServiceFallsBackAndWarnsOnUnreadableConfigStore(t *testing.T
 	configStore := &fake.ConfigStore{LoadErr: outbound.CorruptedDataError{Message: "not valid yaml"}}
 	logger := &fake.Logger{}
 	r := newServiceWithConfigStore(
-		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 205, Name: "target", Rss: 1024}}},
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 205, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
 		&fake.Store{},
 		events,
 		&fake.Renderer{},
@@ -144,7 +165,7 @@ func TestIntegrationServiceFallsBackAndWarnsOnUnreadableConfigStore(t *testing.T
 
 func TestIntegrationServiceRunReturnsErrorWhenRendererInitFails(t *testing.T) {
 	r := newServiceWithRenderer(
-		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 204, Name: "target", Rss: 1024}}},
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 204, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
 		&fake.Store{},
 		fake.NewInputEventProvider(),
 		&fake.Renderer{InitErr: errors.New("terminal not available")},
@@ -164,7 +185,7 @@ func TestIntegrationServiceRunSkipsSaveWhenLoadingScoreBoardFails(t *testing.T) 
 
 	store := &fake.Store{LoadErr: errors.New("json: invalid character")}
 	r := newService(
-		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 201, Name: "target", Rss: 1024}}},
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 201, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
 		store,
 		events,
 	)
@@ -180,7 +201,7 @@ func TestIntegrationServiceRunDoesNotFailWhenSavingScoreFails(t *testing.T) {
 	events.Ch <- input.QuitEvent{}
 
 	r := newService(
-		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 202, Name: "target", Rss: 1024}}},
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 202, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
 		&fake.Store{SaveErr: errors.New("disk full")},
 		events,
 	)
@@ -196,7 +217,7 @@ func TestIntegrationServiceRunWillSaveScoreWhenScoreBoardWasNotFound(t *testing.
 
 	store := &fake.Store{LoadErr: outbound.NotFoundError{}}
 	r := newService(
-		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 203, Name: "target", Rss: 1024}}},
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 203, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
 		store,
 		events,
 	)
@@ -215,7 +236,7 @@ func TestIntegrationServiceRunWillQuitOnQuitEvent(t *testing.T) {
 	}()
 
 	r := newService(
-		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 100, Name: "target", Rss: 1024}}},
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 100, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
 		&fake.Store{},
 		events,
 	)
@@ -229,7 +250,7 @@ func TestIntegrationServiceRunWillQuitOnQuitEvent(t *testing.T) {
 
 func TestIntegrationServiceRunWillQuitWhenTimeLimitExpires(t *testing.T) {
 	r := newService(
-		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 102, Name: "target", Rss: 1024}}},
+		&fake.Process{Infos: []outbound.ProcessInfo{{PID: 102, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
 		&fake.Store{},
 		fake.NewInputEventProvider(),
 	)
@@ -249,7 +270,7 @@ func TestIntegrationServiceRunSignalGoroutineDoesNotAccumulate(t *testing.T) {
 			events.Ch <- input.QuitEvent{}
 		}()
 		r := newService(
-			&fake.Process{Infos: []outbound.ProcessInfo{{PID: pid, Name: "target", Rss: 1024}}},
+			&fake.Process{Infos: []outbound.ProcessInfo{{PID: pid, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
 			&fake.Store{},
 			events,
 		)

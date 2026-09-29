@@ -8,8 +8,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 )
 
-// toGameConfig converts a PlayRequest into the core/game.Config a
-// Session is constructed with.
+// toGameConfig converts a PlayRequest into the game.Config.
 func toGameConfig(req PlayRequest) game.Config {
 	return game.Config{Confirm: req.ConfirmMode, Speed: req.Speed, TimeLimit: req.TimeLimit}
 }

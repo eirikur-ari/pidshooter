@@ -6,11 +6,13 @@
 
 **Re-verified 2026-09-21** against current source (package renames since: `scorefilestore`→`filescore`, `osprocess.go` split into multiple files, `tcellui.go` split into several files including `translator.go`). These findings map directly onto `docs/fable-review.md`'s S1–S7 (re-verified the same day) — SEC-07↔S1, SEC-08↔S2, SEC-09↔S3, SEC-10↔S4, SEC-11↔S5, SEC-12↔S6, SEC-13↔S7 — so the same confirmations are cited here rather than re-derived from scratch.
 
+**Cleanup pass 2026-09-29:** SEC-07 (root guard) and SEC-09 (mouse-drag) fixed — see their entries below. SEC-08, SEC-10, SEC-11, and SEC-13 remain open (SEC-10 not yet addressed; SEC-08/SEC-11/SEC-13 are deliberate accepted-risk / by-design / low-priority calls).
+
 ---
 
 ## Summary
 
-pidshooter is a terminal game that kills OS processes. Its core attack surface is the ability to send `SIGKILL` to arbitrary PIDs, which makes process-identity validation the most critical security concern. Six issues from the original audit were found and fixed (SEC-01–SEC-06). A follow-up pass (informed by `docs/fable-review.md`, 2026-08-20) against the current package layout — after the service-layer refactor that split `internal/application/service` into `internal/application/{game,process,score}` — found seven additional issues, all still **OPEN**. None are critical; the previously-fixed process-identity checks (name re-verification, `PID ≤ 1` guard, minimum pattern length) remain intact.
+pidshooter is a terminal game that kills OS processes. Its core attack surface is the ability to send `SIGKILL` to arbitrary PIDs, which makes process-identity validation the most critical security concern. Six issues from the original audit were found and fixed (SEC-01–SEC-06). A follow-up pass (informed by `docs/fable-review.md`, 2026-08-20) against the current package layout — after the service-layer refactor that split `internal/application/service` into `internal/application/{game,process,score}` — found seven additional issues. Two (SEC-07, SEC-09) have since been fixed. The rest (SEC-08, SEC-10, SEC-11, SEC-13) remain open, either as deliberate accepted-risk/by-design calls or not yet addressed. None are critical; the previously-fixed process-identity checks (name re-verification, `PID ≤ 1` guard, minimum pattern length) remain intact.
 
 ---
 
@@ -90,7 +92,7 @@ The following transitive dependencies (pulled in by `golang.org/x/tools`) were p
 
 ---
 
-### [MEDIUM] SEC-07 — No safeguard against running as root — OPEN (partially mitigated)
+### ~~[MEDIUM] SEC-07 — No safeguard against running as root~~ ✓ FIXED
 
 **File:** `cmd/pidshooter/main.go`, `internal/infrastructure/osprocess/osprocess.go`
 
@@ -99,6 +101,8 @@ There is no `os.Geteuid()` (or equivalent) check anywhere in the composition roo
 **Suggested fix:** Refuse to start when `os.Geteuid() == 0`, or require an explicit `--i-am-root` override flag.
 
 **Partially mitigated, confirmed 2026-09-21** — `core/process.IsKillableBy` plus `Find`'s UID filter now scope a non-root player's target list to processes they own, closing the non-root case. The root case this finding is actually about is unchanged: still no `os.Geteuid()` check anywhere.
+
+**Fix applied (2026-09-29):** `core/process.ValidateNotRoot(ownUID int, allowRoot bool) error` rejects `ownUID == 0` unless `allowRoot` is set. `application/process.Service.FindProcesses` calls it first, using the injected `outbound.Process.OwnUID()`, before pattern validation or discovery — wrapped as `CodeInvalidConfig`/`SeverityFatal`, refusing before anything else in the run happens. The override is a CLI-only `--i-am-root` flag, mapped to `config.ProcessRequest.AllowRoot`/`config.ProcessResult.AllowRoot`. It deliberately flows through the same `config.Request`→`config.Result` pipeline `--include-root` uses (for consistency — one path for all process-discovery parameters), but unlike `IncludeRoot` it is never wired to the persisted config file: `config.Result.fromStore` never touches `Process.AllowRoot`, so it always reflects only the current invocation's flags, never a forgotten config file setting. Covered by `TestValidateNotRoot*` (`core/process/info_test.go`), `TestFindProcessesReturnsErrorWhenRunningAsRootWithoutAllowRoot`/`TestFindProcessesRefusesRootBeforeValidatingPatterns`/`TestFindProcessesAllowsRootWithAllowRoot` (`application/process/service_test.go`), `TestServiceRunReturnsErrorWhenRunningAsRootWithoutOverride` (`application/runner/service_test.go`), `TestIntegrationServiceRunAsRootWithOverrideReachesProcessDiscovery` (`application/runner/service_integration_test.go`), `TestResultApplySetsAllowRootFromRequestOnly` (`application/config/result_test.go`), and `TestFlagMapperToRunRequestSetsAllowRootWhenPassed` (`entrypoint/cli/flag_mapper_test.go`).
 
 ---
 
@@ -116,7 +120,7 @@ This is inherent to signal-by-PID and not fully closable on macOS. On Linux, `pi
 
 ---
 
-### [LOW] SEC-09 — Mouse-drag fires a kill on every motion sample while the button is held — OPEN
+### ~~[LOW] SEC-09 — Mouse-drag fires a kill on every motion sample while the button is held~~ ✓ FIXED
 
 **File:** `internal/infrastructure/tcellui/tcellui.go:158-163`
 
@@ -134,6 +138,8 @@ This forwards every `EventMouse` where `Button1` is held — including motion ev
 **Suggested fix:** Track the previous button state and only emit a `ClickEvent` on the press transition (`prev == 0 && ev.Buttons() == Button1`).
 
 **Still open, confirmed 2026-09-21** — `translator.go` (this logic moved out of `tcellui.go` when that file was split) still checks only `mouseEvent.Buttons() != tcell.Button1`, with no press-vs-motion distinction. Unchanged.
+
+**Fix applied (2026-09-29):** `translator` (`infrastructure/tcellui/translator.go`) now tracks `prevButtons tcell.ButtonMask` across calls. `translateMouseEvent` only emits a `ClickEvent` on the press transition (`buttons == tcell.Button1 && prevButtons != tcell.Button1`); a motion sample reporting `Button1` still held from an earlier press is dropped, same as any other non-transition event. Covered by `TestTranslateMouseEventDragOnlyFiresOnPressNotMotion` (`translator_test.go`), which drives a press, a motion sample, a release, and a second press through the same `translator` and asserts only the two presses fire.
 
 ---
 
@@ -195,9 +201,9 @@ Every accepted click spawns a new goroutine that runs `s.killer.Kill(target)` �
 | SEC-04 | Medium | ~~Kill errors silently discarded~~ ✓ FIXED | `runner.go` (`drainEvents`) |
 | SEC-05 | Medium | ~~Score file world-readable permissions~~ ✓ FIXED | `score_file_store.go` |
 | SEC-06 | Low | ~~Outdated transitive dependencies~~ ✓ FIXED | `go.mod` |
-| SEC-07 | Medium | No safeguard against running as root — OPEN (non-root case mitigated) | `main.go`, `osprocess.go` |
+| SEC-07 | Medium | ~~No safeguard against running as root~~ ✓ FIXED | `core/process/info.go`, `application/process/service.go`, `application/runner/service.go`, `entrypoint/cli` |
 | SEC-08 | Medium | Residual TOCTOU window (name check vs. SIGKILL) — OPEN | `application/process/service.go`, `osprocess.go` |
-| SEC-09 | Low | Mouse-drag fires kill events continuously while button held — OPEN | `tcellui.go` |
+| SEC-09 | Low | ~~Mouse-drag fires kill events continuously while button held~~ ✓ FIXED | `infrastructure/tcellui/translator.go` |
 | SEC-10 | Low | Unbounded concurrent kill-goroutine spawning — OPEN | `application/game/service.go` |
 | SEC-11 | Low | SIGKILL only — no graceful shutdown option — OPEN | `osprocess.go` |
 | SEC-12 | Low | ~~Score file written non-atomically~~ ✓ FIXED | `filescore/file_score.go` |
@@ -211,8 +217,8 @@ Every accepted click spawns a new goroutine that runs `s.killer.Kill(target)` �
 4. **SEC-04** — stop recording kills when `Kill()` returns an error. *(fixed)*
 5. **SEC-05** — change two permission constants. *(fixed)*
 6. **SEC-06** — `go get -u` + `go mod tidy`. *(fixed)*
-7. **SEC-07** — root guard; one `os.Geteuid()` check at startup, high benefit for low effort. *(non-root case mitigated 2026-09-21 via `IsKillableBy`/UID filtering; the root check itself still not added)*
-8. **SEC-09** — press-vs-drag fix for mouse input; low effort, closes the drag-to-kill amplifier.
+7. **SEC-07** — root guard; one `os.Geteuid()` check at startup, high benefit for low effort. *(fixed 2026-09-29 — `core/process.ValidateNotRoot` + `--i-am-root` override)*
+8. **SEC-09** — press-vs-drag fix for mouse input; low effort, closes the drag-to-kill amplifier. *(fixed 2026-09-29 — press-transition tracking in `translator`)*
 9. **SEC-12** — temp-file + rename for score persistence; low effort. *(fixed — `fsutil.WriteFileAtomic`)*
 10. **SEC-10** — worker pool or in-flight dedup for kill goroutines.
 11. **SEC-11** — optional `SIGTERM`-first mode.

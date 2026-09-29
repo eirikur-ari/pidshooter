@@ -83,7 +83,7 @@ if timeLimit < 0 || timeLimit > maxTimeLimit {
 
 **Resolved 2026-09-21:** `core/game/timer.go`'s `ValidateTimeLimit` now rejects `limit > maxTimeLimitSeconds`. Rather than the arithmetic-overflow boundary this finding suggested (86400s), a domain-meaningful cap was chosen instead — 300 seconds (5 minutes), since the game is about quickly clearing processes, not hour-long sessions. Either cap closes the actual bug (silent overflow to "unlimited"); 300 is far enough below the ~9.2-billion-second overflow threshold that overflow can no longer occur at all. See `docs/cli-findings.md` Finding 3.
 
-### 34. Hit detection truncates while rendering rounds — `core/game/target.go` (`isHitAt`) vs. `application/game/converter.go` (`toTargetViewState`)
+### ~~34. Hit detection truncates while rendering rounds~~ ✓ Resolved — `core/game/target.go` (`isHitAt`) vs. `application/game/converter.go` (`toTargetViewState`)
 
 `isHitAt` converts the float position with `int()` (truncation), but the outbound view-state converter uses `math.Round`:
 
@@ -106,6 +106,8 @@ return y == py && x >= px && x < px+width
 ```
 
 **Still open, confirmed 2026-09-21** — `isHitAt` (`core/game/target.go:124`) still truncates with `int(t.Position.Y)`/`int(t.Position.X)`; `toTargetViewState` (`application/game/converter.go:29-30`) still rounds with `math.Round`. Both file paths and the mismatch itself are unchanged from the original finding.
+
+**Resolved, confirmed 2026-09-29** — `isHitAt` (`core/game/target.go`) now computes both coordinates via `int(math.Round(...))`, matching `toTargetViewState` exactly. Found already resolved by earlier, unrelated refactoring work, not this cleanup pass — the doc was left stale claiming "still open," which this entry corrects. See `docs/fable-review.md` F6 for the same fix.
 
 ---
 
@@ -382,9 +384,9 @@ None appear in the replacement `internal/core/game/target.go`. The godoc lines w
 | 31 | `core/game/frame.go` | ✓ Resolved | Frame snapshot types moved to `application/contract/outbound/ui.go`; `core/game` import removed from outbound port |
 | 32 | `entrypoint/cli/cli.go` (`validate`) | ✓ Resolved | `--speed=NaN` bypasses range guard — NaN propagates into all target positions, game unwinnable |
 | 33 | `entrypoint/cli/cli.go` (`validate`), `core/game/timer.go` (`newTimer`) | ✓ Resolved | `--time` with value > ~292 years overflows `time.Duration` to negative, silently becomes no time limit |
-| 34 | `core/game/target.go` (`isHitAt`), `application/game/converter.go` (`toTargetViewState`) | Medium | `isHitAt` truncates float position (`int()`) while the view-state converter rounds (`math.Round`) — clicks on visible target miss ~50% of the time |
+| 34 | `core/game/target.go` (`isHitAt`), `application/game/converter.go` (`toTargetViewState`) | ✓ Resolved | `isHitAt` truncates float position (`int()`) while the view-state converter rounds (`math.Round`) — clicks on visible target miss ~50% of the time |
 | 35 | `application/runner.go` (`Runner.Run`) | ✓ Resolved | `Runner.Run` performs no input validation — only the CLI adapter validates; any second delivery adapter bypasses all guards |
-| 36 | `infrastructure/filescore/file_score.go` | Low | Score file contents trusted after unmarshal — unsorted, oversized, or negative-valued entries corrupt the high score and get re-saved |
+| 36 | `infrastructure/filescore/file_score.go` | ✓ Resolved | Score file contents trusted after unmarshal — unsorted, oversized, or negative-valued entries corrupt the high score and get re-saved |
 | 37 | `core/game/event_handler.go:22–36` | ✓ Resolved | Keybinding policy (rune→action map) in the domain; control-key translation already lives in the app layer — binding logic split across three layers |
 | 38 | `core/movement/bounds.go` (`bounceBottom`), `core/movement/motion.go` (`newRandomPosition`) | Design | ~~Bounce physics and spawn logic hardcode `-2` for the tcellui status bar~~ ✓ Resolved (2026-09-15) — `outbound.Renderer.ChromeSize()` now supplies typed `top`/`bottom` values, threaded through as a `movement.Bounds`, not a caller-side subtraction |
 | 39 | `core/game/target.go`, `internal/infrastructure/tcellui/tcellui.go` | Design | ~~Kill/flee-animation glyphs owned by domain~~ ✓ Resolved (2026-09-15) — moved to `tcellui`, `Target` exposes `AnimationProgress()` instead. `AnimationDuration` in ticks still silently couples to the app-layer ticker rate — open |
@@ -464,13 +466,15 @@ func (e *Target) Label() string {
 
 `"\nRun 'pidshooter --help' for usage"` is appended to some error messages (invalid flag, bad parse) but omitted from others (speed out-of-range, time out-of-range, missing pattern). The hint should be applied uniformly — either added once in `Run()` after any parse error, or appended consistently at every error site.
 
-### 36. Score file contents trusted after `json.Unmarshal` — `infrastructure/scorefilestore/score_file_store.go:34`
+### ~~36. Score file contents trusted after `json.Unmarshal`~~ ✓ Resolved — `infrastructure/scorefilestore/score_file_store.go:34`
 
 `Load` unmarshals `~/.config/pidshooter/highscores.json` and returns the result without validating field values, sort order, or entry count. `Board.HighScore()` assumes `b.Scores[0].Kills` is the maximum (sorted descending). A hand-edited or partially-written file that is unsorted, longer than `maxScores`, or contains negative `Kills`/`FreedMem` yields a wrong in-game high score, spurious "New high score!" trophies (negative stored value makes `kills >= b.highScore` trivially true), and an oversized or garbled score table — all of which get re-saved, making the corruption durable.
 
 Fix: normalize in `Store.Load` after unmarshal: drop entries with negative `Kills`/`FreedMem`, call `sortByRank()`, and truncate to `maxScores`.
 
 **Still open, confirmed 2026-09-21** — `scorefilestore` was renamed `internal/infrastructure/filescore` (`file_score.go`); `Load()` there handles a missing file, an oversized file, a malformed-JSON file, and a too-new schema version, each with a distinct error — but still does not re-validate field values, sort order, or entry count after a successful unmarshal. `core/score.NewBoard(entries []Entry)` also just stores whatever it's given as-is; `sortByRank()`/truncation only run inside `Add()`, i.e. only after a new score is recorded this session, not at load time. A hand-edited or corrupted-but-valid-JSON file would still produce the wrong high score and an unsorted/oversized table until the next `Add()` — and even then, negative-valued entries are never dropped. The bug itself is unchanged from the original finding.
+
+**Resolved, confirmed 2026-09-29** — `core/score.NewBoard(entries []Entry)` (now in `core/score/board.go`) routes every persisted entry through `Add()` instead of storing the slice as-is: `Add` drops any entry that isn't `isScore()` (`Kills > 0 && FreedMem >= 0`), sorts via `sortByRank()`, and truncates to `maxScores` — all at load time, not just after the next in-session score. A hand-edited file with negative values, wrong order, or too many entries is normalized the moment it's loaded. Found already resolved by earlier, unrelated refactoring work, not this cleanup pass — the doc was left stale claiming "still open," which this entry corrects.
 
 ### 42. `sync/atomic` in core driven by application threading model — `core/game/lifecycle.go`
 

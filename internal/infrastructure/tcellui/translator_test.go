@@ -39,6 +39,24 @@ func TestTranslateMouseEvent(t *testing.T) {
 	}
 }
 
+func TestTranslateMouseEventDragOnlyFiresOnPressNotMotion(t *testing.T) {
+	tr := translator{}
+
+	press := tr.translateMouseEvent(tcell.NewEventMouse(1, 1, tcell.Button1, tcell.ModNone))
+	assert.True(t, press, "the initial press should emit a click")
+	assert.Equal(t, input.ClickEvent{X: 1, Y: 1}, tr.event)
+
+	drag := tr.translateMouseEvent(tcell.NewEventMouse(2, 1, tcell.Button1, tcell.ModNone))
+	assert.False(t, drag, "a motion sample while the button is still held must not emit another click")
+
+	release := tr.translateMouseEvent(tcell.NewEventMouse(2, 1, tcell.ButtonNone, tcell.ModNone))
+	assert.False(t, release)
+
+	rePress := tr.translateMouseEvent(tcell.NewEventMouse(3, 1, tcell.Button1, tcell.ModNone))
+	assert.True(t, rePress, "a new press after release should emit another click")
+	assert.Equal(t, input.ClickEvent{X: 3, Y: 1}, tr.event)
+}
+
 func newTranslateKeyEventTestCases() []struct {
 	name   string
 	key    tcell.Key
