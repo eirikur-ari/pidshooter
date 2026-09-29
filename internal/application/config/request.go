@@ -17,6 +17,9 @@ type GameRequest struct {
 // values. A nil field means the caller did not provide that value.
 type ProcessRequest struct {
 	IncludeRoot *bool
+	// AllowRoot permits running pidshooter itself as root; never read from
+	// the config file, only ever set per invocation.
+	AllowRoot *bool
 }
 
 // Request holds the caller's explicitly-provided values.

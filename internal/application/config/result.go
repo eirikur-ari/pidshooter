@@ -33,6 +33,9 @@ type ProcessResult struct {
 	// IncludeRoot additionally permits root-owned processes as targets,
 	// regardless of the caller's own effective UID.
 	IncludeRoot bool
+	// AllowRoot permits running pidshooter itself as root; never populated
+	// from the persisted config file.
+	AllowRoot bool
 }
 
 // Result holds the run parameters for a single invocation of pidshooter.
@@ -63,6 +66,7 @@ func newResult() Result {
 		Mode: ModeGame,
 		Process: ProcessResult{
 			IncludeRoot: false,
+			AllowRoot:   false,
 		},
 		Game: GameResult{
 			ConfirmMode: false,
@@ -121,6 +125,9 @@ func (cfg Result) fromRequest(req Request) Result {
 	}
 	if req.Process.IncludeRoot != nil {
 		cfg.Process.IncludeRoot = *req.Process.IncludeRoot
+	}
+	if req.Process.AllowRoot != nil {
+		cfg.Process.AllowRoot = *req.Process.AllowRoot
 	}
 	return cfg
 }

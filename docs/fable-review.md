@@ -26,6 +26,8 @@ No critical or new-and-exploitable security findings; the SIGKILL-path safety la
 
 **2026-09-21 status of the bullets above:** the `--speed` help text (F1), `--speed=NaN` (F2), and no-inbound-port-validation (D3) items are resolved. Lost final-frame kills (F3) and the console-I/O leak (D1 resolved, D2 half-resolved — see below) are the two genuinely still-open items from this list.
 
+**2026-09-29 status:** the root-safety bullet is now also resolved — see S1 below. F6–F10 and S3 (found during this pass to already be fixed by earlier, unrelated refactoring work, but left stale as "still open" in this document) are corrected in place below.
+
 ---
 
 ## 2. Functional Issues
@@ -60,30 +62,40 @@ All comparisons with `NaN` are `false`, so neither branch fires and `NaN` passes
 
 **Resolved, confirmed 2026-09-21** — `applyKillSignals` (`application/game/service.go`) now has an explicit `case sig.err != nil: tracker.recordFailure(sig.target, sig.err)` branch — a failed kill is recorded, not dropped. `application.Runner.logKillFailures` reports every recorded failure via `apperror.Handle` (a `"could not kill %s (PID %d)"` warning to stderr) once the session ends. Feedback is post-session rather than in-the-moment, but the original complaint — nothing printed, ever, no indication the click did nothing — no longer holds.
 
-**F6. [moderate] Hit-detection truncates while the rendered position rounds — clicks miss the visible target.**
+**~~F6. [moderate] Hit-detection truncates while the rendered position rounds — clicks miss the visible target.~~ ✓ Resolved**
 `internal/core/game/target.go:98-104`'s `isHitAt` uses `int(t.Position.Y)`/`int(t.Position.X)` (truncation toward zero), while `internal/application/game/converter.go:18-25`'s `toTargetViewState` uses `math.Round` for the same coordinates. Targets accumulate non-integer positions every tick via velocity (`core/movement/motion.go:27-31`), so whenever the fractional part of `Position.Y` (or `X`) is `≥ 0.5`, the tag is drawn one row (or column) away from where a click actually registers. Since fractional parts are effectively uniformly distributed over time, this affects roughly half of all click attempts on a moving target.
 
 **Still open, confirmed 2026-09-21** — same finding as `docs/code-review.md` #34: `isHitAt` (`core/game/target.go:124` at current line numbers) still truncates, `toTargetViewState` (`application/game/converter.go:29-30`) still rounds. Unchanged.
 
-**F7. [minor] `LookupName` failures for any reason are treated as "process already exited."**
+**Resolved, confirmed 2026-09-29** — `Target.isHitAt` (`core/game/target.go`) now computes `row := int(math.Round(t.Motion.Position.Y))` and `col := int(math.Round(t.Motion.Position.X))`, matching `toTargetViewState`'s `math.Round` exactly. Both sides of the mismatch this finding described now agree. Not fixed as part of this cleanup pass — found already resolved by earlier, unrelated refactoring work — but the doc was left stale claiming "still open," which this entry corrects.
+
+**~~F7. [minor] `LookupName` failures for any reason are treated as "process already exited."~~ ✓ Resolved**
 `internal/application/process/service.go:53-56` maps *any* error from `s.process.LookupName(pid)` — which just wraps `ps`'s `exec.Command(...).Output()` error (`internal/infrastructure/osprocess/osprocess.go:49-52`) — to `shouldReap = true`. A transient `ps` failure (resource exhaustion, unexpected exit code, spawn failure) is indistinguishable from "PID no longer exists," so the target gets silently reaped (marked `Dead`, no kill, no score credit) even if the real process is still running.
 
 **Still open, confirmed 2026-09-21** — `process/service.go`'s `Kill` still maps any `LookupName` error directly to `shouldReap = true` (`return true, apperror.NewError(...)` immediately after the `LookupName` call, no error-type discrimination). Unchanged.
 
-**F8. [minor] Zero-kill sessions are still recorded to the score board.**
+**Resolved, confirmed 2026-09-29** — `process.Service.Kill` (`application/process/service.go`) now checks `errors.As(err, &outbound.NotFoundError{})` on the `LookupName` error specifically: only that sentinel maps to `shouldReap = true`; every other error returns `shouldReap = false` with a `"could not verify PID %d"` message, leaving the target alive rather than silently reaping it. Covered by `TestKillReturnsErrorWithoutReapingIfProcessLookupByNameFailsTransiently` and `TestKillReturnsShouldReapIfProcessLookupByNameReportsProcessNotFound` (`application/process/service_test.go`). Found already resolved by earlier, unrelated refactoring work, not this cleanup pass — the doc was left stale claiming "still open," which this entry corrects.
+
+**~~F8. [minor] Zero-kill sessions are still recorded to the score board.~~ ✓ Resolved**
 `internal/application/score/service.go:37-53`'s `RecordScore` unconditionally calls `board.Add(...)` regardless of `tracker.Kills`. Quitting instantly (`q`) still creates a 0-kill/0-freed entry, and it gets persisted whenever the initial load succeeded (`persist=true` is `success` from `LoadScoreBoard`, independent of whether any kills happened), polluting the top-10 table until it fills with real scores.
 
 **Still open, confirmed 2026-09-21** — `score/service.go`'s `RecordScore` still calls `board.Add(entry)` unconditionally with no `Kills > 0` guard, and `application/runner.go`'s `Run` still calls `RecordScore` unconditionally for every session regardless of kill count. Unchanged.
 
-**F9. [minor] Timer display truncates instead of rounding up.**
+**Resolved, confirmed 2026-09-29** — `core/score.Entry.isScore()` now requires `Kills > 0` (and `FreedMem >= 0`), and `Board.Add` returns early via `if !entry.isScore() { return }` before appending — a zero-kill entry is silently dropped rather than stored. Found already resolved by earlier, unrelated refactoring work, not this cleanup pass — the doc was left stale claiming "still open," which this entry corrects.
+
+**~~F9. [minor] Timer display truncates instead of rounding up.~~ ✓ Resolved**
 `internal/core/game/timer.go:54-56`'s `SecondsLeft()` returns `int(t.Remaining().Seconds())` — a floor, so e.g. 0.9s remaining still displays "0s" for up to a full second before the game actually ends.
 
 **Still open, confirmed 2026-09-21** — `timer.go`'s `SecondsLeft()` is unchanged: `int(t.Remaining().Seconds())`.
 
-**F10. [minor] Score-list tie-break is nondeterministic.**
+**Resolved, confirmed 2026-09-29** — `timer.SecondsLeft()` (`core/game/timer.go`) now returns `int(math.Ceil(t.Remaining().Seconds()))`, rounding up instead of truncating; the doc comment states this explicitly ("rounded up so a session isn't shown as having 0 seconds left before it has actually expired"). Found already resolved by earlier, unrelated refactoring work, not this cleanup pass — the doc was left stale claiming "still open," which this entry corrects.
+
+**~~F10. [minor] Score-list tie-break is nondeterministic.~~ ✓ Resolved**
 `internal/core/score/board.go:78-82`'s `sortByRank` uses `sort.Slice` (not `SliceStable`), and `Entry.beats` (`internal/core/score/entry.go:19-30`) ties out fully identical entries (same kills, speed, duration, and freed memory) with no further tie-break. Which of two otherwise-identical entries survives the `maxScores` cutoff (`board.go:37-39`) is unspecified.
 
 **Still open, but narrowed, confirmed 2026-09-21** — `board.go` still calls `sort.Slice` (not `SliceStable`). `Entry.beats` gained a new tie-break dimension since this finding was written: it now ranks by Kills → Duds → Speed → Duration → FreedMem (Duds didn't exist as a scoring field at review time). Two entries now have to match on all five dimensions, including an exact float `Duration` match, to hit the unstable-sort ambiguity — a much narrower real-world case than originally described, but the underlying mechanism (`sort.Slice`, not `SliceStable`) is unchanged.
+
+**Resolved, confirmed 2026-09-29** — `board.sortByRank` (`core/score/board.go`) now calls `sort.SliceStable`, closing the unstable-sort ambiguity outright rather than merely narrowing it. Found already resolved by earlier, unrelated refactoring work, not this cleanup pass — the doc was left stale claiming "still open," which this entry corrects.
 
 **~~F11. [minor] Process-name canonicalization can differ between discovery and kill-time verification.~~ ✓ Resolved**
 `internal/infrastructure/osprocess/osprocess.go:105` (`list()`) collapses internal whitespace runs via `strings.Fields(...)` + `Join(..., " ")`, while `LookupName` (`osprocess.go:44-54`, `TrimSpace` at line 53) only trims the outer whitespace of the raw `ps` output without collapsing interior runs. A `comm` value with irregular internal spacing would never satisfy `validateProcessName` (`internal/application/process/validation.go:13-18`), silently refusing every kill attempt on that target with no player-visible feedback.
@@ -139,20 +151,24 @@ All comparisons with `NaN` are `false`, so neither branch fires and `NaN` passes
 
 ## 4. Security Concerns
 
-**S1. [moderate] No safeguard against running as root.**
+**~~S1. [moderate] No safeguard against running as root.~~ ✓ Resolved**
 Confirmed: no `os.Geteuid()` or equivalent check exists anywhere in `cmd/pidshooter/main.go` or `internal/infrastructure/osprocess`. As root, every process on the machine (besides `PID ≤ 1` and pidshooter itself) becomes a one-click SIGKILL target, compounded by S3 (drag-to-kill) and F5 (a failed kill against a non-owned process now fails completely silently, which — combined with running as non-root, the safer default — at least fails closed rather than crashing).
 
 **Partially mitigated, confirmed 2026-09-21** — matches `docs/cli-findings.md`'s own assessment: `core/process.IsKillableBy` plus `Find`'s UID filter now scope a non-root player's target list to processes they own, closing the non-root case. The root case this finding is actually about — running pidshooter as root still makes every process on the machine a target — is unchanged; no `os.Geteuid()` check exists anywhere.
+
+**Resolved 2026-09-29** — see `docs/security-issues.md` SEC-07: `core/process.ValidateNotRoot` refuses to run as root unless the caller passes `--i-am-root`, enforced as the first check inside `application/process.Service.FindProcesses`.
 
 **S2. [moderate] Residual TOCTOU window between name re-verification and SIGKILL.**
 `internal/application/process/service.go:53-61` looks up the current name via `ps` (`LookupName`), compares it, then calls `s.process.Kill(pid)` (`internal/infrastructure/osprocess/osprocess.go:59-68`, a plain `os.FindProcess` + `Signal`). The window between the two — a `ps` subprocess round-trip — remains open for a PID recycle. Inherent to signal-by-PID on both Linux and macOS; unchanged by the refactor.
 
 **Still open, confirmed 2026-09-21** — inherent to signal-by-PID; unchanged, as expected (this was never something a refactor would fix).
 
-**S3. [low] Mouse-drag fires a kill on every motion sample while the button is held, not just on press.**
+**~~S3. [low] Mouse-drag fires a kill on every motion sample while the button is held, not just on press.~~ ✓ Resolved**
 `internal/infrastructure/tcellui/tcellui.go:158-163` forwards every `*tcell.EventMouse` where `Buttons() == Button1`, including motion events while the button stays down. In the default (non-confirm) mode, sweeping the cursor across the screen with the button held triggers a `ClickEvent`, and therefore a kill attempt, on every target the cursor passes over in one continuous gesture.
 
 **Still open, confirmed 2026-09-21** — `translator.go`'s `translateMouseEvent` still checks only `mouseEvent.Buttons() != tcell.Button1` (i.e. accepts any event reporting Button1 down), with no distinction between a press and a motion sample taken while the button is held. Unchanged.
+
+**Resolved 2026-09-29** — see `docs/security-issues.md` SEC-09: `translator` now tracks the previous button state and only emits a `ClickEvent` on the press transition.
 
 **S4. [low] Unbounded concurrent kill goroutines.**
 `internal/application/game/service.go:153` spawns one goroutine (a `ps` subprocess plus a signal syscall) per accepted kill target, with no cap. Combined with S3, a single drag gesture can spawn many concurrent `ps` invocations.
@@ -215,11 +231,11 @@ Confirmed: no `os.Geteuid()` or equivalent check exists anywhere in `cmd/pidshoo
 | F3  | moderate | Functional  | Kills completing at/after session end can be lost from the score     |
 | F4  | ✓ Resolved | Functional  | `--time` upper bound unchecked; overflows silently to "unlimited"    |
 | F5  | ✓ Resolved | Functional  | Failed OS-level kill is silently swallowed, no player feedback       |
-| F6  | moderate | Functional  | Hit-detection truncates while render position rounds — clicks miss   |
-| F7  | minor    | Functional  | `LookupName` errors of any kind treated as "process already exited"  |
-| F8  | minor    | Functional  | Zero-kill sessions still recorded to the score board                 |
-| F9  | minor    | Functional  | Timer display truncates instead of rounding up                       |
-| F10 | minor    | Functional  | Unstable sort causes nondeterministic score-list tie-break (narrowed to a 5-way exact tie) |
+| F6  | ✓ Resolved | Functional  | Hit-detection truncates while render position rounds — clicks miss   |
+| F7  | ✓ Resolved | Functional  | `LookupName` errors of any kind treated as "process already exited"  |
+| F8  | ✓ Resolved | Functional  | Zero-kill sessions still recorded to the score board                 |
+| F9  | ✓ Resolved | Functional  | Timer display truncates instead of rounding up                       |
+| F10 | ✓ Resolved | Functional  | Unstable sort causes nondeterministic score-list tie-break           |
 | F11 | ✓ Resolved | Functional  | Process-name canonicalization mismatch between discovery/kill-time   |
 | F12 | Irrelevant | Functional  | `capture` test helpers don't restore streams via `defer` — package removed |
 | D1  | ✓ Resolved | Design      | Domain (`core/score`) performs console I/O                           |
@@ -230,9 +246,9 @@ Confirmed: no `os.Geteuid()` or equivalent check exists anywhere in `cmd/pidshoo
 | D6  | minor    | Design      | Atomic lifecycle in core exists only for app-layer signal concurrency |
 | D7  | ✓ Resolved | Design      | Composition root builds `ps`/tcell adapters before arg parsing       |
 | D8  | ✓ Resolved | Design      | `UI.Cleanup` panics if called twice                                   |
-| S1  | Partially mitigated | Security | No guard against running as root (non-root case scoped via UID filter; root case unchanged) |
+| S1  | ✓ Resolved | Security | No guard against running as root (non-root case scoped via UID filter; root case now refused by default, `--i-am-root` to override) |
 | S2  | moderate | Security    | Residual TOCTOU window in kill flow                                  |
-| S3  | low      | Security    | Mouse-drag fires kill events continuously while button held          |
+| S3  | ✓ Resolved | Security    | Mouse-drag fires kill events continuously while button held          |
 | S4  | low      | Security    | Unbounded concurrent kill-goroutine spawning                         |
 | S5  | low      | Security    | SIGKILL only — no graceful shutdown option                           |
 | S6  | ✓ Resolved | Security    | Score file written non-atomically                                    |

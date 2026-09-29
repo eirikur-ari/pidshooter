@@ -105,3 +105,13 @@ func validatePatternLength(patterns []string) error {
 	}
 	return nil
 }
+
+// ValidateRoot returns an error when ownUID is 0 (root) and allowRoot is
+// false — running as root turns every process on the machine into a
+// one-click kill target.
+func ValidateRoot(ownUID int, allowRoot bool) error {
+	if ownUID == 0 && !allowRoot {
+		return fmt.Errorf("refusing to run as root without an explicit override")
+	}
+	return nil
+}

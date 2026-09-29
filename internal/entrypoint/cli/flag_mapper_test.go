@@ -31,6 +31,17 @@ func TestFlagMapperToRunRequestLeavesUnpassedFlagsNil(t *testing.T) {
 	assert.Nil(t, req.Config.Game.Speed)
 	assert.Nil(t, req.Config.Game.TimeLimit)
 	assert.Nil(t, req.Config.Process.IncludeRoot)
+	assert.Nil(t, req.Config.Process.AllowRoot)
+}
+
+func TestFlagMapperToRunRequestSetsAllowRootWhenPassed(t *testing.T) {
+	mapper, flagSet := newTestFlagMapper()
+	require.NoError(t, flagSet.Parse([]string{"--i-am-root"}))
+
+	req := mapper.toRunRequest(nil)
+
+	require.NotNil(t, req.Config.Process.AllowRoot)
+	assert.True(t, *req.Config.Process.AllowRoot)
 }
 
 func TestFlagMapperToRunRequestSetsConfirmWhenPassed(t *testing.T) {
@@ -75,7 +86,7 @@ func TestFlagMapperToRunRequestSetsIncludeRootWhenPassed(t *testing.T) {
 
 func TestFlagMapperToRunRequestSetsAllFlagsWhenAllPassed(t *testing.T) {
 	mapper, flagSet := newTestFlagMapper()
-	require.NoError(t, flagSet.Parse([]string{"--confirm", "--speed=4.0", "--time=90", "--include-root"}))
+	require.NoError(t, flagSet.Parse([]string{"--confirm", "--speed=4.0", "--time=90", "--include-root", "--i-am-root"}))
 
 	req := mapper.toRunRequest(nil)
 
@@ -87,6 +98,8 @@ func TestFlagMapperToRunRequestSetsAllFlagsWhenAllPassed(t *testing.T) {
 	assert.Equal(t, 90, *req.Config.Game.TimeLimit)
 	require.NotNil(t, req.Config.Process.IncludeRoot)
 	assert.True(t, *req.Config.Process.IncludeRoot)
+	require.NotNil(t, req.Config.Process.AllowRoot)
+	assert.True(t, *req.Config.Process.AllowRoot)
 }
 
 func TestFlagMapperToRunRequestClonesFlagSetPointers(t *testing.T) {

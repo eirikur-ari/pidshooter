@@ -86,6 +86,16 @@ func TestResultApplyRejectsUnrecognizedStoredModeAndKeepsDefault(t *testing.T) {
 	assert.ErrorContains(t, err, "mode")
 }
 
+func TestResultApplySetsAllowRootFromRequestOnly(t *testing.T) {
+	cfg := Result{Process: ProcessResult{IncludeRoot: false, AllowRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
+	req := Request{Process: ProcessRequest{AllowRoot: helper.Ptr(true)}}
+
+	result, err := cfg.apply(outbound.ConfigStoreResult{}, req)
+
+	require.NoError(t, err)
+	assert.True(t, result.Process.AllowRoot, "AllowRoot must be settable from the request even though it is never read from the config file")
+}
+
 func TestResultApplyRequestWinsOverStored(t *testing.T) {
 	cfg := Result{Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
 	stored := outbound.ConfigStoreResult{
