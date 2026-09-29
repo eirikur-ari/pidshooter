@@ -56,15 +56,15 @@ func TestValidateNameMatch(t *testing.T) {
 	assert.NoError(t, ValidateName("target", "target"))
 }
 
-func TestValidateNotRootRefusesRootWithoutOverride(t *testing.T) {
+func TestValidateRootRefusesRootWithoutOverride(t *testing.T) {
 	assert.ErrorContains(t, ValidateRoot(0, false), "refusing to run as root")
 }
 
-func TestValidateNotRootAllowsRootWithOverride(t *testing.T) {
+func TestValidateRootAllowsRootWithOverride(t *testing.T) {
 	assert.NoError(t, ValidateRoot(0, true))
 }
 
-func TestValidateNotRootAllowsNonRoot(t *testing.T) {
+func TestValidateRootAllowsNonRoot(t *testing.T) {
 	assert.NoError(t, ValidateRoot(1000, false))
 }
 

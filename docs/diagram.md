@@ -1,15 +1,17 @@
 # pidshooter — Package & Architecture Diagram
 
-*Updated 2026-09-22. Full hexagonal architecture: pure-core domain (game/movement/process/score),
+*Updated 2026-09-29. Full hexagonal architecture: pure-core domain (game/movement/process/score),
 a core/game `Input` intent gateway, an `application/input` dispatcher, contract ports split by
-concern (inbound/outbound subpackages, including `ProcessReporter`/`ScoreReporter` and a
-`Process`/`ProcessHandle` pair replacing the old `Lister`/`Killer` split), a structured `apperror`
-package classifying every application-layer failure, infrastructure adapters (including a
-decomposed `tcellui` and a new `console` reporter package), a hand-rolled (no `cobra`) entrypoint
-adapter, a dedicated `internal/composition` package as the actual composition root, and an
-application layer split into three focused services — `game`, `process`, `score` — composed by a
-top-level `Runner` that implements the `inbound.Runner` port. See `docs/hexagonal-arc.md` §14 for
-the narrative behind this round's changes, and `docs/leftovers.md` for the finding-by-finding detail.*
+concern (inbound/outbound subpackages, including `ConfigStore` and `Logger` outbound ports
+alongside `ProcessReporter`/`ScoreReporter` and the `Process`/`ProcessHandle` pair), a structured
+`apperror` package classifying every application-layer failure and logging it through an injected
+`Handler`, infrastructure adapters (a decomposed `tcellui`, a `console` reporter package, a
+`filestore` package persisting both the score board and run config, and a dedicated `logger`
+adapter), a hand-rolled (no `cobra`) entrypoint adapter, a dedicated `internal/composition`
+package as the actual composition root, and an application layer split into four focused
+services — `config`, `game`, `process`, `score` — composed by an `application/runner` package
+that implements the `inbound.Runner` port. See `docs/hexagonal-arc.md` §15 for the narrative
+behind this round's changes, and `docs/improvement-finding.md` for what's still open.*
 
 ---
 
@@ -34,21 +36,26 @@ internal/
 │   │   ├── speed.go                    speed (unexported) · newSpeed() · Current() · Lowest() · Set()
 │   │   └── throttle.go                 MinSpeed · MaxSpeed · Throttle · NewThrottle() · Speed() · LowestSpeed() · Increase() · Decrease() · ValidateSpeed()
 │   ├── process/
-│   │   └── info.go                     Info · NewInfo() · IsProtected() · IsKillableBy() · Find() · ValidateProcesses() · ValidateName() · ValidatePatterns()
+│   │   └── info.go                     Info · NewInfo() · IsProtected() · IsKillableBy() · Find() · ValidateProcesses() · ValidateName() · ValidatePatterns() · ValidateRoot()
 │   └── score/
 │       ├── board.go                    Board · NewBoard() (routes every entry through Add) · HighScore() · Add() · IsNewHighScore() · killScore() · sortByRank() (sort.SliceStable) · less()
 │       └── entry.go                    Entry · beats() · isScore()
 ├── application/
 │   ├── apperror/
-│   │   └── apperror.go                 Code (enum) · Severity (enum) · Error · NewError() · Error() · Unwrap() · Handle() · logOnce() · severityOf()
+│   │   ├── error.go                    Code (enum, In(err) predicate) · Severity (enum) · Error · NewError() · Error() · Unwrap() · severity()
+│   │   └── error_handler.go            Handler{logger outbound.Logger} · NewHandler(logger) · Handle() · logOnce()
 │   ├── config/
-│   │   └── config.go                   Config{Patterns, ConfirmMode, Speed, TimeLimit, IncludeRoot} · Validate()
+│   │   ├── request.go                  GameRequest{ConfirmMode, Speed, TimeLimit *pointers} · ProcessRequest{IncludeRoot, AllowRoot *pointers} · Request{Game, Process} · validate()
+│   │   ├── result.go                   Mode (ModeGame/ModeYolo/ModeList) · GameResult · ProcessResult{IncludeRoot, AllowRoot} · Result{Mode, Process, Game} · newResult() · apply() · fromStore() · fromRequest() · validateStore()
+│   │   └── service.go                  Service{store outbound.ConfigStore} · NewService() · Load() · applyConfig()
 │   ├── contract/
 │   │   ├── inbound/
-│   │   │   └── runner.go               Runner (interface, Run(cfg config.Config) error)
+│   │   │   └── runner.go               RunRequest{Patterns, Config config.Request} · Runner (interface, Run(req RunRequest) error)
 │   │   └── outbound/
+│   │       ├── config.go               Mode (ModeGame/ModeYolo/ModeList) · GameConfig · ProcessConfig · ConfigStoreResult{Mode, Process, Game} · ConfigStore (interface)
 │   │       ├── error.go                NotFoundError · CorruptedDataError
 │   │       ├── input.go                InputEventProvider (interface)
+│   │       ├── logger.go               Logger (interface)
 │   │       ├── process.go              ProcessInfo · ProcessHandle (interface) · Process (interface) · ProcessReporter (interface)
 │   │       ├── score.go                ScoreEntry · ScoreBoard · ScoreStore (interface) · ScoreSummary · ScoreReporter (interface)
 │   │       └── ui.go                   FrameViewState · TargetViewState · HUDViewState · StatusViewState · ConfirmViewState · WindowSize · ChromeSize · Renderer (interface)
@@ -56,31 +63,40 @@ internal/
 │   │   ├── dispatcher.go               Dispatcher · NewDispatcher() · Dispatch()
 │   │   └── event.go                    EventDispatcher (interface, unexported dispatch() method) · ClickEvent · QuitEvent · ConfirmEvent · SpeedEvent
 │   ├── game/
-│   │   ├── service.go                  Service · NewService() · PlayResult · Play() · runLoop() · registerTermSignalWatcher() · frameLoop() · awaitOutstandingKills() · applyKillSignals() · applyKillSignal() · drainEventQueue() · killOrReap() · processKiller (unexported interface)
+│   │   ├── service.go                  Service · PlayRequest{ConfirmMode, Speed, TimeLimit} · PlayResult · NewService() · Play() · validateGameConfig() · runLoop() · registerTermSignalWatcher() · frameLoop() · awaitOutstandingKills() · applyKillSignals() · applyKillSignal() · drainEventQueue() · killOrReap() · processKiller (unexported interface)
 │   │   ├── kill_tracker.go             KillFailure · KillDud · killTracker · newKillTracker() · recordKill() · recordFailure() · recordDud()
-│   │   └── converter.go                toBounds() · toConfirmViewState() · toTargetViewState() · toTargetViewStates() · toHUDViewState() · toStatusViewState() · toFrameViewState()
+│   │   └── converter.go                toGameConfig() · toBounds() · toConfirmViewState() · toTargetViewState() · toTargetViewStates() · toHUDViewState() · toStatusViewState() · toFrameViewState()
 │   ├── process/
-│   │   ├── service.go                  Service{proc, reporter} · NewService() · FindProcesses() · Kill()
+│   │   ├── service.go                  Service{proc, reporter} · FindRequest{IncludeRoot, AllowRoot} · NewService() · FindProcesses() · Kill()
 │   │   └── converter.go                toProcessInfo() · toProcessInfos()
-│   ├── score/
-│   │   ├── service.go                  Service{store, reporter} · NewService() · LoadScoreBoard() · RecordScore() · ReportResults() · mergeWithLatest()
-│   │   └── converter.go                ToEntry() · toBoard() · toScoreBoard() · toScoreSummary() · toScoreEntries()
-│   └── runner.go                       Runner{processSvc, gameSvc, scoreSvc} · NewRunner(processSvc, scoreSvc, gameSvc) · Run() · logKillFailures() · logDuds()   (application package — implements inbound.Runner)
+│   ├── runner/
+│   │   ├── service.go                  Service{configSvc, processSvc, gameSvc, scoreSvc, errHandler} · NewService(configSvc, processSvc, scoreSvc, gameSvc, errHandler) · Run() · logKillFailures() · logDuds()   (implements inbound.Runner)
+│   │   └── converter.go                toPlayRequest() · toFindRequest()
+│   └── score/
+│       ├── service.go                  Service{store, reporter} · NewService() · LoadScoreBoard() · RecordScore() · ReportResults() · mergeWithLatest()
+│       └── converter.go                ToEntry() · toBoard() · toScoreBoard() · toScoreSummary() · toScoreEntries()
 ├── composition/                        the actual composition root — pure wiring, no behavior
-│   └── runner_creator.go               RunnerCreator · NewRunnerCreator() · Create()
+│   └── runner_creator.go               RunnerCreator{errHandler} · NewRunnerCreator() · ErrHandler() · Create()
 ├── entrypoint/                         driving adapter — calls the application's inbound.Runner port
 │   └── cli/
-│       ├── program.go                  usageText · Program · runnerCreator (interface) · NewProgram() · Run() · run() · printUsageText() · help()
+│       ├── program.go                  usageText · Program{creator, errHandler, out, errOut} · runnerCreator (interface) · NewProgram() · Run() · run() · prepare() · printUsageText() · help()
+│       ├── flag_mapper.go              flagMapper · newFlagMapper() · toRunRequest()
 │       ├── flag_splitter.go            flagSplitter · newFlagSplitter() · split() · looksLikeFlag() · isBoolFlag() · flagNameAndValue()
 │       └── error.go                    ArgumentError · Error() · Unwrap()
 ├── infrastructure/                     driven adapters — implement outbound ports
 │   ├── console/
 │   │   ├── score_reporter.go           ScoreReporter · NewScoreReporter()  (implements outbound.ScoreReporter)
 │   │   └── process_reporter.go         ProcessReporter · NewProcessReporter()  (implements outbound.ProcessReporter)
-│   ├── filescore/
-│   │   └── file_score.go               fileScore · fileEntry · fileContent · NewFileScore() · newFileScoreAt()  (implements outbound.ScoreStore) — schema-versioned JSON, atomic writes
+│   ├── filestore/
+│   │   ├── config_file.go              configFile · configEntry · processEntry · configContent · NewConfigFile() · newConfigFileAt()  (implements outbound.ConfigStore) — schema-versioned YAML
+│   │   ├── score_file.go               scoreFile · scoreEntry · scoreContent · NewScoreFile() · newScoreFileAt()  (implements outbound.ScoreStore) — schema-versioned JSON
+│   │   ├── file.go                     file · newFile() · read() · write()  (I/O shared by both stores: bounded reads mapped to NotFoundError/CorruptedDataError, atomic writes)
+│   │   ├── schema_version.go           schemaVersion · validate()
+│   │   └── converter.go                toScoreBoard() · toScoreContent() · toConfigStoreResult() · toConfigContent()
 │   ├── fsutil/
 │   │   └── fsutil.go                   ConfigDir() · WriteFileAtomic()  (shared leaf helper, no port)
+│   ├── logger/
+│   │   └── logger.go                   Logger · NewLogger() · Warn() · Error()  (implements outbound.Logger, writes to os.Stderr)
 │   ├── osprocess/
 │   │   ├── process.go                  process · NewProcess()  (implements outbound.Process, `ps`-backed)
 │   │   └── process_handle.go           processHandle  (implements outbound.ProcessHandle — pins a pid across verify-then-kill)
@@ -95,22 +111,21 @@ internal/
 │       ├── target.go                   target (drawing helper, distinct from core/game.Target) · draw()
 │       └── animation.go                killAnimation · fleeAnimation · animation · frame()
 ├── testutil/
-│   ├── fake/                           InputEventProvider · Process · ProcessHandle · ProcessKiller · ProcessReporter · Renderer · RunnerCreator · Runner · ScoreReporter · Store  (test doubles for every outbound port + inbound.Runner + composition.RunnerCreator)
+│   ├── fake/                           ConfigStore · InputEventProvider · Logger · Process · ProcessHandle · ProcessKiller · ProcessReporter · Renderer · RunnerCreator · Runner · ScoreReporter · Store  (test doubles for every outbound port + inbound.Runner + composition.RunnerCreator)
 │   ├── fixture/
 │   │   ├── game.go                     Game() · ConfirmGameSession() · PendingConfirmGameSession()  (*core/game.Session builders)
 │   │   └── process.go                  Process() · Processes()  (core/process.Info builders)
 │   └── helper/
-│       └── helper.go                   UnsetEnv()
+│       └── helper.go                   Ptr()  (generic pointer-literal helper, for inline optional-field struct literals) · UnsetEnv()
 └── util/
-    ├── logger.go                        Logger · NewLogger() · Warn() · Error()  (called directly by apperror — not an adapter, no port)
-    └── util.go                          FormatBytes()
+    └── util.go                          FormatBytes() · ClonePtr()
 ```
 
 ---
 
 ## Class diagram
 
-Types, their fields/methods, and relationships across packages. Visibility follows Go conventions: `+` = exported, `-` = unexported. Where a Go identifier collides with another package's identifier of the same name (e.g. three `Service` types, or `Process`/`ProcessInfo`/`ProcessHandle` appearing both as ports and as concrete adapter types), the diagram node uses a disambiguated name instead — real Go names and package/file provenance are given in the prose and the `%%` section comments, not in the diagram itself, since Mermaid's `<<...>>` class annotation only accepts a single bare keyword (`interface`, `enumeration`, …), not free text. Purely internal rendering-detail helpers inside `infrastructure/tcellui` (`hud`, `statusBar`, `target`, `killAnimation`/`fleeAnimation`) are listed in the package layout above but not diagrammed field-by-field here — each owns drawing for one screen region and doesn't affect the port-facing architecture.
+Types, their fields/methods, and relationships across packages. Visibility follows Go conventions: `+` = exported, `-` = unexported. Where a Go identifier collides with another package's identifier of the same name, the diagram node uses a disambiguated name instead — real Go names and package/file provenance are given in the prose and the `%%` section comments, not in the diagram itself, since Mermaid's `<<...>>` class annotation only accepts a single bare keyword (`interface`, `enumeration`, …), not free text. Five distinct `Service` types are disambiguated as `ConfigService`, `GameService`, `ProcessService`, `ScoreService`, and `RunnerService` (the last is `application/runner.Service`, which implements `inbound.Runner`). Two distinct `Mode` types are disambiguated as `ConfigMode` (`application/config.Mode`) and `Mode` (`contract/outbound.Mode`) — deliberately separate, mirrored-value types; see the note near `Result` below. `core/game`'s session-level `Config` type is disambiguated as `SessionConfig`, to avoid colliding with `contract/outbound`'s real `GameConfig` persisted-config DTO. Purely internal rendering-detail helpers inside `infrastructure/tcellui` (`hud`, `statusBar`, `target`, `killAnimation`/`fleeAnimation`) are listed in the package layout above but not diagrammed field-by-field here — each owns drawing for one screen region and doesn't affect the port-facing architecture.
 
 ```mermaid
 classDiagram
@@ -118,14 +133,72 @@ classDiagram
 
     %% ── application/config ───────────────────────────────────────────────────
 
-    class Config {
-        +Patterns []string
+    class GameRequest {
+        +ConfirmMode *bool
+        +Speed *float64
+        +TimeLimit *int
+    }
+
+    class ProcessRequest {
+        +IncludeRoot *bool
+        +AllowRoot *bool
+    }
+
+    class Request {
+        +Game GameRequest
+        +Process ProcessRequest
+        -validate() error
+    }
+
+    class ConfigMode {
+        <<enumeration>>
+        ModeGame
+        ModeYolo
+        ModeList
+    }
+
+    class GameResult {
         +ConfirmMode bool
         +Speed float64
         +TimeLimit int
-        +IncludeRoot bool
-        +Validate() error
     }
+
+    class ProcessResult {
+        +IncludeRoot bool
+        +AllowRoot bool
+    }
+
+    class Result {
+        +Mode ConfigMode
+        +Process ProcessResult
+        +Game GameResult
+        -apply(stored, req) Result, error
+        -fromStore(stored) Result, error
+        -fromRequest(req) Result
+    }
+
+    %% ConfigMode (application/config.Mode) is intentionally a separate type from
+    %% contract/outbound.Mode, not a reuse of it — GameResult/ProcessResult are
+    %% plain-value types while GameConfig/ProcessConfig are pointer-typed for the
+    %% YAML round-trip, so config keeps its own vocabulary. See docs/improvement-finding.md #2.
+
+    class ConfigService {
+        -store outbound.ConfigStore
+        +NewService(store) *Service
+        +Load(req Request) Result, error
+        -applyConfig(config, req) Result, error
+    }
+
+    %% package-level: newResult() Result · validateStore(stored) rejected []string, error
+
+    Request *-- GameRequest : Game
+    Request *-- ProcessRequest : Process
+    Result *-- GameResult : Game
+    Result *-- ProcessResult : Process
+    Result --> ConfigMode : Mode
+    ConfigService --> ConfigStorePort : store
+    ConfigService ..> Request : Load parameter
+    ConfigService ..> Result  : Load returns
 
     %% ── application/apperror ─────────────────────────────────────────────────
 
@@ -136,9 +209,10 @@ classDiagram
         CodeProcessDiscoveryFailed
         CodeProcessNotFound
         CodeGameFailed
-        CodeScoreLoadFailed
-        CodeScoreSaveFailed
         CodeKillFailed
+        CodeStoreLoadFailed
+        CodeStoreSaveFailed
+        +In(err error) bool
     }
 
     class Severity {
@@ -158,23 +232,72 @@ classDiagram
         +NewError(code, severity, message, cause) *Error
         +Error() string
         +Unwrap() error
+        -severity() Severity
     }
 
-    %% package-level: Handle(err error) error — the one place severity decides log-and-swallow vs. return
+    class Handler {
+        -logger outbound.Logger
+        +NewHandler(logger) *Handler
+        +Handle(err error) error
+        -logOnce(err, severity, appErr)
+    }
 
     AppError --> Code     : Code
     AppError --> Severity : Severity
+    Handler  --> LoggerPort : logger
+    Handler  ..> AppError   : inspects via errors.As
 
     %% ── application/contract/inbound ─────────────────────────────────────────
 
-    class RunnerPort {
-        <<interface>>
-        +Run(cfg config.Config) error
+    class RunRequest {
+        +Patterns []string
+        +Config Request
     }
 
-    RunnerPort ..> Config : Run parameter
+    class RunnerPort {
+        <<interface>>
+        +Run(req RunRequest) error
+    }
+
+    RunRequest  --> Request   : Config
+    RunnerPort  ..> RunRequest : Run parameter
 
     %% ── application/contract/outbound ────────────────────────────────────────
+
+    class Mode {
+        <<enumeration>>
+        ModeGame
+        ModeYolo
+        ModeList
+    }
+
+    class GameConfig {
+        +ConfirmMode *bool
+        +Speed *float64
+        +TimeLimit *int
+    }
+
+    class ProcessConfig {
+        +IncludeRoot *bool
+    }
+
+    class ConfigStoreResult {
+        +Mode Mode
+        +Process ProcessConfig
+        +Game GameConfig
+    }
+
+    class ConfigStorePort {
+        <<interface>>
+        +Load() ConfigStoreResult, error
+        +Save(result ConfigStoreResult) error
+    }
+
+    class LoggerPort {
+        <<interface>>
+        +Warn(msg string)
+        +Error(msg string)
+    }
 
     class NotFoundError {
         +Error() string
@@ -293,6 +416,10 @@ classDiagram
         +Events() chan EventDispatcher
     }
 
+    ConfigStoreResult *-- GameConfig      : Game
+    ConfigStoreResult *-- ProcessConfig   : Process
+    ConfigStoreResult --> Mode            : Mode
+    ConfigStorePort   ..> ConfigStoreResult : Load/Save
     ProcessPort ..> ProcessHandlePort : Pin returns
     FrameViewState *-- "0..*" TargetViewState : Targets
     FrameViewState *-- HUDViewState           : HUD
@@ -369,7 +496,8 @@ classDiagram
 
     %% package-level: Find(processes, patterns, ownPID, ownUID, includeRoot) []Info ·
     %% ValidateProcesses(processes) error · ValidateName(expected, actual) error ·
-    %% ValidatePatterns(patterns) error · minPatternLength = 3 · maxPatternLength = 256
+    %% ValidatePatterns(patterns) error · ValidateRoot(ownUID int, allowRoot bool) error ·
+    %% minPatternLength = 3 · maxPatternLength = 256
 
     %% ── core/score ───────────────────────────────────────────────────────────
 
@@ -407,14 +535,14 @@ classDiagram
         stopped
     }
 
-    class GameConfig {
+    class SessionConfig {
         +Confirm bool
         +Speed float64
         +TimeLimit int
     }
 
     class Session {
-        -cfg GameConfig
+        -cfg SessionConfig
         -state Lifecycle
         -timer timer
         -confirm confirmation
@@ -568,6 +696,12 @@ classDiagram
         +Kill(pid int, name string, protected bool) shouldReap bool, err error
     }
 
+    class PlayRequest {
+        +ConfirmMode bool
+        +Speed float64
+        +TimeLimit int
+    }
+
     class PlayResult {
         +Duration float64
         +LowestSpeed float64
@@ -601,7 +735,8 @@ classDiagram
         -events outbound.InputEventProvider
         -killGracePeriod time.Duration
         +NewService(killer, renderer, events) *Service
-        +Play(cfg, processes, highScore) PlayResult, error
+        +Play(req PlayRequest, processes, highScore) PlayResult, error
+        -validateGameConfig(req) error
         -runLoop(session, tracker) time.Time, error
         -frameLoop(session, tracker, dispatcher, termSignal, done) error
         -awaitOutstandingKills(wg, tracker, killSignals)
@@ -609,30 +744,37 @@ classDiagram
         -killOrReap(target, killSignals, done, wg)
     }
 
-    %% package-level converter.go: toBounds() · toConfirmViewState() · toTargetViewState() ·
-    %% toTargetViewStates() · toHUDViewState() · toStatusViewState() · toFrameViewState()
+    %% package-level converter.go: toGameConfig(req PlayRequest) SessionConfig · toBounds() ·
+    %% toConfirmViewState() · toTargetViewState() · toTargetViewStates() · toHUDViewState() ·
+    %% toStatusViewState() · toFrameViewState()
 
     GameService --> processKiller          : killer
     GameService --> RendererPort           : renderer
     GameService --> InputEventProviderPort : events
     GameService ..> killTracker            : creates per Play()
     GameService ..> Session                : creates (NewSession)
+    GameService ..> SessionConfig          : builds (toGameConfig)
     GameService ..> Dispatcher             : creates (runLoop)
     GameService ..> Input                  : creates (NewInput)
+    GameService ..> PlayRequest            : accepts (Play req)
     GameService ..> PlayResult             : returns
     GameService ..> FrameViewState         : builds (toFrameViewState)
-    GameService ..> Config                 : accepts (Play cfg)
     GameService ..> Info                   : accepts (Play processes)
     killTracker *-- "0..*" KillFailure     : failures
     killTracker *-- "0..*" KillDud         : duds
 
     %% ── application/process ──────────────────────────────────────────────────
 
+    class FindRequest {
+        +IncludeRoot bool
+        +AllowRoot bool
+    }
+
     class ProcessService {
         -proc outbound.Process
         -reporter outbound.ProcessReporter
         +NewService(proc, reporter) *Service
-        +FindProcesses(patterns, includeRoot) []Info, error
+        +FindProcesses(patterns, req FindRequest) []Info, error
         +Kill(pid, procName, protected) shouldReap bool, err error
     }
 
@@ -640,6 +782,7 @@ classDiagram
 
     ProcessService --> ProcessPort         : proc
     ProcessService --> ProcessReporterPort : reporter
+    ProcessService ..> FindRequest         : accepts (FindProcesses)
     ProcessService ..> Info                : returns (FindProcesses)
     ProcessService ..|> processKiller      : satisfies (structural typing, no import)
 
@@ -656,31 +799,38 @@ classDiagram
     }
 
     %% package-level converter.go: ToEntry(result PlayResult, cfgTimeLimit) Entry ·
-    %% toBoard() · toScoreBoard() · toScoreSummary()
+    %% toBoard() · toScoreBoard() · toScoreSummary() · toScoreEntries()
 
     ScoreService --> ScoreStorePort    : store
     ScoreService --> ScoreReporterPort : reporter
     ScoreService ..> Board             : loads/returns
     ScoreService ..> PlayResult        : ToEntry accepts
 
-    %% ── application (top-level) ──────────────────────────────────────────────
+    %% ── application/runner ───────────────────────────────────────────────────
 
-    class Runner {
+    class RunnerService {
+        -configSvc *ConfigService
         -processSvc *ProcessService
         -gameSvc *GameService
         -scoreSvc *ScoreService
-        +NewRunner(processSvc, scoreSvc, gameSvc) *Runner
-        +Run(cfg Config) error
+        -errHandler *Handler
+        +NewService(configSvc, processSvc, scoreSvc, gameSvc, errHandler) *Service
+        +Run(req RunRequest) error
         -logKillFailures(failures)
         -logDuds(duds)
     }
 
-    Runner ..|> RunnerPort     : implements
-    Runner *-- ProcessService  : processSvc
-    Runner *-- GameService     : gameSvc
-    Runner *-- ScoreService    : scoreSvc
-    Runner ..> AppError        : routes every failure through apperror.Handle
-    Runner ..> Info            : FindProcesses results
+    %% package-level converter.go: toPlayRequest(cfg GameResult) PlayRequest ·
+    %% toFindRequest(cfg ProcessResult) FindRequest
+
+    RunnerService ..|> RunnerPort     : implements
+    RunnerService *-- ConfigService   : configSvc
+    RunnerService *-- ProcessService  : processSvc
+    RunnerService *-- GameService     : gameSvc
+    RunnerService *-- ScoreService    : scoreSvc
+    RunnerService --> Handler         : errHandler
+    RunnerService ..> RunRequest      : Run parameter
+    RunnerService ..> Info            : FindProcesses results
 
     %% ── infrastructure/tcellui ───────────────────────────────────────────────
 
@@ -742,16 +892,37 @@ classDiagram
     OsProcess ..> OsProcessHandle      : Pin creates
     OsProcessHandle ..|> ProcessHandlePort : implements
 
-    %% ── infrastructure/filescore ─────────────────────────────────────────────
+    %% ── infrastructure/filestore ─────────────────────────────────────────────
 
-    class FileScore {
+    class SharedFile {
         -path string
-        +NewFileScore() *fileScore, error
+        -maxSize int
+        +newFile(filename, maxSize) file, error
+        -read() []byte, error
+        -write(data []byte) error
+    }
+
+    class ScoreFile {
+        -file SharedFile
+        +NewScoreFile() ScoreStore, error
         +Load() ScoreBoard, error
         +Save(board ScoreBoard) error
     }
 
-    FileScore ..|> ScoreStorePort : implements
+    class ConfigFile {
+        -file SharedFile
+        +NewConfigFile() ConfigStore, error
+        +Load() ConfigStoreResult, error
+        +Save(result ConfigStoreResult) error
+    }
+
+    %% package-level: schemaVersion(v).validate(fileType, version) error (schema_version.go) ·
+    %% converter.go: toScoreBoard() · toScoreContent() · toConfigStoreResult() · toConfigContent()
+
+    ScoreFile  *-- SharedFile          : file
+    ConfigFile *-- SharedFile          : file
+    ScoreFile  ..|> ScoreStorePort     : implements
+    ConfigFile ..|> ConfigStorePort    : implements
 
     %% ── infrastructure/console ───────────────────────────────────────────────
 
@@ -770,37 +941,67 @@ classDiagram
     ConsoleScoreReporter   ..|> ScoreReporterPort   : implements
     ConsoleProcessReporter ..|> ProcessReporterPort : implements
 
+    %% ── infrastructure/logger ────────────────────────────────────────────────
+
+    class InfraLogger {
+        +NewLogger() *Logger
+        +Warn(msg string)
+        +Error(msg string)
+    }
+
+    InfraLogger ..|> LoggerPort : implements
+
     %% ── internal/composition ─────────────────────────────────────────────────
 
     class RunnerCreator {
+        -errHandler *apperror.Handler
         +NewRunnerCreator() RunnerCreator
+        +ErrHandler() *apperror.Handler
         +Create() Runner, error
     }
 
     RunnerCreator ..> OsProcess              : builds
-    RunnerCreator ..> FileScore              : builds
+    RunnerCreator ..> ScoreFile              : builds
+    RunnerCreator ..> ConfigFile             : builds
     RunnerCreator ..> TUI                    : builds
     RunnerCreator ..> ConsoleProcessReporter : builds
     RunnerCreator ..> ConsoleScoreReporter   : builds
+    RunnerCreator ..> InfraLogger            : builds (via NewHandler)
+    RunnerCreator ..> Handler                : builds (NewHandler)
+    RunnerCreator ..> ConfigService          : builds
     RunnerCreator ..> ProcessService         : builds
     RunnerCreator ..> ScoreService           : builds
     RunnerCreator ..> GameService            : builds
-    RunnerCreator ..> Runner                 : builds & returns
+    RunnerCreator ..> RunnerService          : builds & returns
 
     %% ── entrypoint/cli ───────────────────────────────────────────────────────
 
     class Program {
-        -creator runnerCreator
+        -creator programRunnerCreator
+        -errHandler *apperror.Handler
         -out, errOut io.Writer
         +NewProgram(creator) *Program
         +Run(args []string) error
         -run(args) bool, error
+        -prepare(args) req RunRequest, showUsage bool, err error
         -printUsageText(showUsage, err)
     }
 
     class programRunnerCreator {
         <<interface>>
         +Create() Runner, error
+        +ErrHandler() *apperror.Handler
+    }
+
+    class flagMapper {
+        -flagSet *flag.FlagSet
+        -confirm *bool
+        -speed *float64
+        -timeLimit *int
+        -includeRoot *bool
+        -allowRoot *bool
+        +newFlagMapper(flagSet) *flagMapper
+        +toRunRequest(patterns) RunRequest
     }
 
     class flagSplitter {
@@ -815,21 +1016,16 @@ classDiagram
     }
 
     Program --> programRunnerCreator : creator
-    Program ..> flagSplitter         : uses (run)
-    Program ..> Config               : builds & validates before calling Create()
+    Program --> Handler              : errHandler
+    Program ..> flagSplitter         : uses (prepare)
+    Program ..> flagMapper           : uses (prepare)
+    Program ..> RunRequest           : builds via flagMapper before calling Create()
+    flagMapper ..> RunRequest        : returns (toRunRequest)
     programRunnerCreator <|.. RunnerCreator : satisfied by (structural typing)
 
     %% ── internal/util ────────────────────────────────────────────────────────
 
-    class Logger {
-        +NewLogger() *Logger
-        +Warn(msg string)
-        +Error(msg string)
-    }
-
-    %% package-level: FormatBytes(bytes int64) string (util.go)
-
-    AppError ..> Logger : Handle() calls Warn/Error directly — a deliberate, unported exception
+    %% package-level: FormatBytes(bytes int64) string · ClonePtr[T](p *T) *T  (util.go — no exported types, generic helpers only)
 ```
 
 ---
@@ -842,43 +1038,46 @@ cmd/pidshooter
     └─ entrypoint/cli                         (Program, NewProgram, ArgumentError)
 
 internal/composition
-    ├─ application                            (Runner, NewRunner)
+    ├─ application/apperror                   (Handler, NewHandler)
+    ├─ application/config                     (NewService)
     ├─ application/contract/inbound           (Runner interface)
     ├─ application/game                       (NewService)
     ├─ application/process                    (NewService)
+    ├─ application/runner                     (NewService)
     ├─ application/score                      (NewService)
     ├─ infrastructure/console                 (NewScoreReporter, NewProcessReporter)
-    ├─ infrastructure/filescore                (NewFileScore)
-    ├─ infrastructure/osprocess                (NewProcess)
-    └─ infrastructure/tcellui                  (NewTUI)
+    ├─ infrastructure/filestore               (NewScoreFile, NewConfigFile)
+    ├─ infrastructure/logger                  (NewLogger)
+    ├─ infrastructure/osprocess               (NewProcess)
+    └─ infrastructure/tcellui                 (NewTUI)
 
 entrypoint/cli
-    ├─ application/apperror                   (Handle)
-    ├─ application/config                     (Config, Validate)
-    └─ application/contract/inbound           (Runner interface, for the runnerCreator return type)
+    ├─ application/apperror                   (Handler, Code.In)
+    ├─ application/contract/inbound           (Runner interface, RunRequest, for the runnerCreator return type)
+    └─ internal/util                          (ClonePtr — flag_mapper.go only)
 
-application  (top-level Runner, wires the three services)
+application/runner  (Service, wires configSvc/processSvc/scoreSvc/gameSvc — implements inbound.Runner)
     ├─ application/apperror
     ├─ application/config
+    ├─ application/contract/inbound
     ├─ application/game
-    ├─ application/process
-    └─ application/score
+    └─ application/process
+    (application/score is reached only through the score.ToEntry call, not a Service field import beyond what application/game already provides)
 
 application/config
     ├─ application/apperror
+    ├─ application/contract/outbound          (ConfigStore, ConfigStoreResult, NotFoundError)
     ├─ core/game                              (TimeLimit validation range)
-    ├─ core/movement                          (MinSpeed, MaxSpeed)
-    └─ core/process                           (pattern validation)
+    └─ core/movement                          (MinSpeed, MaxSpeed)
 
 application/contract/inbound
-    └─ application/config                     (Runner.Run's parameter type)
+    └─ application/config                     (Request, embedded in RunRequest.Config)
 
 application/contract/outbound
     └─ application/input                      (InputEventProvider's channel element type)
 
 application/game
     ├─ application/apperror
-    ├─ application/config
     ├─ application/contract/outbound          (Renderer, InputEventProvider, FrameViewState, HUDViewState, StatusViewState, ConfirmViewState)
     ├─ application/input                      (Dispatcher, NewDispatcher, EventDispatcher)
     ├─ core/game                              (Session, NewSession, Config, Target, Input, NewInput)
@@ -888,7 +1087,7 @@ application/game
 application/process
     ├─ application/apperror
     ├─ application/contract/outbound          (ProcessInfo, Process, ProcessHandle, ProcessReporter)
-    └─ core/process                           (Info, Find, Validate*)
+    └─ core/process                           (Info, Find, Validate*, ValidateRoot)
 
 application/score
     ├─ application/apperror
@@ -900,7 +1099,7 @@ application/input
     └─ core/game                              (Input, Target)
 
 application/apperror
-    └─ internal/util                          (Logger)
+    └─ application/contract/outbound          (Logger — error_handler.go only)
 
 infrastructure/tcellui
     ├─ application/contract/outbound          (WindowSize, ChromeSize, FrameViewState, Renderer, InputEventProvider)
@@ -909,13 +1108,17 @@ infrastructure/tcellui
 infrastructure/osprocess
     └─ application/contract/outbound          (ProcessInfo, Process, ProcessHandle — satisfied structurally)
 
-infrastructure/filescore
-    ├─ application/contract/outbound          (ScoreBoard, ScoreEntry, ScoreStore, NotFoundError, CorruptedDataError)
-    └─ infrastructure/fsutil                  (ConfigDir, WriteFileAtomic)
+infrastructure/filestore
+    ├─ application/contract/outbound          (ScoreBoard, ScoreEntry, ScoreStore, ConfigStoreResult, ConfigStore, NotFoundError, CorruptedDataError)
+    ├─ infrastructure/fsutil                  (ConfigDir, WriteFileAtomic)
+    └─ internal/util                          (ClonePtr — converter.go only)
 
 infrastructure/console
     ├─ application/contract/outbound          (ScoreSummary, ScoreReporter, ProcessReporter)
     └─ internal/util                          (FormatBytes — score_reporter.go only)
+
+infrastructure/logger
+    (no internal package imports — implements application/contract/outbound.Logger structurally)
 
 core/game
     ├─ core/movement                          (Bounds, Motion, Throttle, WindowSize, ChromeSize)
@@ -925,11 +1128,12 @@ core/* imports nothing from application, infrastructure, entrypoint, or composit
 zero outward edges from core/game, core/movement, core/process, or core/score, not even to
 internal/util.
 
-application/game, application/process, and application/score share no imports of one another
-(application/score depends on application/game only for the PlayResult *type*, used by its own
-ToEntry converter — it still never touches application/process). `application` (top-level Runner)
-is the only place all three application sub-packages are wired together, and it does so with
-already-constructed collaborators (NewRunner(processSvc, scoreSvc, gameSvc)) rather than raw ports.
+application/config, application/game, application/process, and application/score share no
+imports of one another (application/score depends on application/game only for the PlayResult
+*type*, used by its own ToEntry converter — it still never touches application/process or
+application/config). application/runner is the only place all four application sub-packages are
+wired together, and it does so with already-constructed collaborators
+(NewService(configSvc, processSvc, scoreSvc, gameSvc, errHandler)) rather than raw ports.
 
 application/game depends on application/process only through the unexported `processKiller`
 interface it declares itself — process.Service satisfies it structurally, with no import of
@@ -939,7 +1143,8 @@ internal/composition is the only package that imports every infrastructure adapt
 application service directly — that's its entire job. main.go imports only composition and cli.
 
 Infrastructure packages satisfy contract interfaces via Go structural typing — no import of
-application/contract required beyond the shared data/port types.
+application/contract required beyond the shared data/port types (infrastructure/logger needs
+none at all).
 ```
 
 ---
@@ -949,63 +1154,75 @@ application/contract required beyond the shared data/port types.
 ```
 main()
 └─ run()
-     ├─ composition.NewRunnerCreator()          → composition.RunnerCreator{}
-     └─ cli.NewProgram(creator)                  → *cli.Program
+     ├─ composition.NewRunnerCreator()          → composition.RunnerCreator{errHandler: apperror.NewHandler(logger.NewLogger())}
+     └─ cli.NewProgram(creator)                  → *cli.Program{creator, errHandler: creator.ErrHandler(), out, errOut}
           └─ program.Run(os.Args[1:])
-               └─ p.run(args)
-                    ├─ help(args) / flagSplitter.split(args) / flag.FlagSet.Parse   [no cobra]
-                    ├─ config.Config{Patterns, ConfirmMode, Speed, TimeLimit, IncludeRoot}
-                    ├─ cfg.Validate()
-                    └─ creator.Create()                                    [composition.RunnerCreator.Create()]
-                         ├─ osprocess.NewProcess()                    → outbound.Process
-                         ├─ filescore.NewFileScore()                  → outbound.ScoreStore  (~/.config/pidshooter/highscores.json)
-                         ├─ tcell.NewScreen()
-                         ├─ tcellui.NewTUI(screen)                    → *tcellui.TUI  (outbound.Renderer)
-                         ├─ process.NewService(proc, console.NewProcessReporter())  → *process.Service
-                         ├─ score.NewService(store, console.NewScoreReporter())     → *score.Service
-                         ├─ game.NewService(processSvc, ui, ui.InputEvents())       → *game.Service   (processSvc satisfies game's processKiller interface; ui.InputEvents() shares ui's poller)
-                         └─ application.NewRunner(processSvc, scoreSvc, gameSvc)    → *application.Runner
-                    └─ runner.Run(cfg)     [Runner implements inbound.Runner — every step below routes failures through apperror.Handle]
-                         ├─ cfg.Validate()
-                         ├─ processSvc.FindProcesses(patterns, includeRoot)
-                         │     ├─ proc.Discover()                          [outbound.Process → osprocess]
-                         │     ├─ process.Find(infos, patterns, ownPID, ownUID, includeRoot)   → []core/process.Info
-                         │     ├─ process.ValidateProcesses(matches)
-                         │     └─ reporter.Report(len(matches), patterns)  [outbound.ProcessReporter → console]
-                         ├─ scoreSvc.LoadScoreBoard()                 [ScoreStore → filescore]  → board, highScore, loadErr
-                         ├─ gameSvc.Play(cfg, processes, highScore)
-                         │     ├─ game.NewSession(processes, gameConfig)   → *core/game.Session
-                         │     ├─ newKillTracker(highScore)
-                         │     └─ runLoop(session, tracker)
-                         │          ├─ renderer.Init()                         [Renderer → tcellui: screen.Init + poller.poll goroutine]
-                         │          ├─ session.Start(bounds)                   → pending → running, spawns targets
-                         │          ├─ registerTermSignalWatcher()             [signal.NotifyContext SIGINT/SIGTERM/SIGTSTP → a channel, no goroutine of ours]
-                         │          ├─ input.NewDispatcher(game.NewInput(session))
-                         │          └─ frameLoop(session, tracker, dispatcher, termSignal, done) ─────────────────────────┐
-                         │               ├─ applyKillSignals(tracker, killSignals)   drains buffered async kill results  │
-                         │               ├─ drainEventQueue(dispatcher, killSignals, done, wg)                           │
-                         │               │     ├─ events.Events()              [InputEventProvider → tcellui.inputEvents]│
-                         │               │     ├─ dispatcher.Dispatch(ev)      → input.On*(...) → *Target or nil        │
-                         │               │     └─ hit: target.FireShot(); go killOrReap(target, ...)                    │
-                         │               │           └─ killer.Kill(pid, name, protected)   [processKiller → process.Service]
-                         │               │                 ├─ proc.Pin(pid)             → ProcessHandle  [pidfd-pinned on Linux 5.3+]
-                         │               │                 ├─ proc.LookupName(pid)      [re-verify — the pinned handle survives PID reuse]
-                         │               │                 ├─ process.ValidateName(expected, actual)
-                         │               │                 ├─ handle.Kill()              [outbound.ProcessHandle → osprocess]
-                         │               │                 └─ killSignals <- killSignal{target, shouldReap, err}        │
-                         │               ├─ session.Update(window)             → timer.Expired / roster.move + target bounce
-                         │               ├─ renderer.Render(toFrameViewState(session, tracker))  [FrameViewState snapshot → tcellui]
-                         │               └─ select { ticker.C | termSignal → session.Stop() }   — same goroutine, no concurrent Session access
-                         │          └─ (loop exits) awaitOutstandingKills(wg, tracker, killSignals)   bounded by killGracePeriod (default 5s)
-                         │          └─ renderer.Cleanup()  [deferred]
-                         │     └─ returns PlayResult{Duration, LowestSpeed, Kills, FreedMem, KillFailures, Duds}
-                         ├─ logKillFailures(result.KillFailures) / logDuds(result.Duds)     [via apperror.Handle]
-                         ├─ score.ToEntry(result, cfg.TimeLimit)                → core/score.Entry
-                         ├─ scoreSvc.RecordScore(board, entry, loadErr)
-                         │     ├─ board.Add(entry)              [rejects non-scores: Entry.isScore() — Kills>0 && FreedMem>=0]
-                         │     └─ store.Save(...)               [ScoreStore → filescore, atomic write via fsutil]
-                         └─ scoreSvc.ReportResults(duration, kills, duds, freedMem, board)
-                               └─ reporter.Report(summary)      [ScoreReporter → console]
+               ├─ p.run(args)   → showUsage bool, err error
+               │    ├─ p.prepare(args)   → req inbound.RunRequest, showUsage bool, err error
+               │    │    ├─ help(args) / flagSplitter.split(args) / flag.FlagSet.Parse   [no cobra; -h/--help or no args short-circuits to showUsage]
+               │    │    └─ flagMapper.toRunRequest(patterns)   → inbound.RunRequest{Patterns, Config: config.Request{Game, Process}}   (only explicitly-passed flags populate Config's pointer fields)
+               │    ├─ creator.Create()                                    [composition.RunnerCreator.Create()]
+               │    │    ├─ osprocess.NewProcess()                    → outbound.Process
+               │    │    ├─ filestore.NewScoreFile()                  → outbound.ScoreStore  (~/.config/pidshooter/highscores.json)
+               │    │    ├─ filestore.NewConfigFile()                 → outbound.ConfigStore (~/.config/pidshooter/config.yaml)
+               │    │    ├─ tcell.NewScreen()
+               │    │    ├─ tcellui.NewTUI(screen)                    → *tcellui.TUI  (outbound.Renderer)
+               │    │    ├─ config.NewService(configStore)                        → *config.Service
+               │    │    ├─ process.NewService(proc, console.NewProcessReporter())  → *process.Service
+               │    │    ├─ score.NewService(store, console.NewScoreReporter())     → *score.Service
+               │    │    ├─ game.NewService(processSvc, ui, ui.InputEvents())       → *game.Service   (processSvc satisfies game's processKiller interface; ui.InputEvents() shares ui's poller)
+               │    │    └─ runner.NewService(configSvc, processSvc, scoreSvc, gameSvc, c.errHandler)    → *runner.Service
+               │    └─ runner.Run(req)     [runner.Service implements inbound.Runner — every step below routes failures through errHandler.Handle before returning]
+               │         ├─ configSvc.Load(req.Config)
+               │         │     ├─ req.validate()                          [core/movement.ValidateSpeed, core/game.ValidateTimeLimit — only for explicitly-passed flags]
+               │         │     ├─ configStore.Load()                      [outbound.ConfigStore → filestore]
+               │         │     └─ newResult().apply(stored, req)          merges: domain defaults < config file < req, req always wins; a stored field failing validation is skipped and reported as a warning
+               │         ├─ processSvc.FindProcesses(req.Patterns, toFindRequest(cfg.Process))
+               │         │     ├─ process.ValidateRoot(proc.OwnUID(), req.AllowRoot)   refuses to run as root without --i-am-root
+               │         │     ├─ process.ValidatePatterns(patterns)
+               │         │     ├─ proc.Discover()                         [outbound.Process → osprocess]
+               │         │     ├─ process.Find(infos, patterns, ownPID, ownUID, includeRoot)   → []core/process.Info
+               │         │     ├─ process.ValidateProcesses(matches)
+               │         │     └─ reporter.Report(len(matches), patterns)  [outbound.ProcessReporter → console]
+               │         ├─ scoreSvc.LoadScoreBoard()                 [ScoreStore → filestore]  → board, highScore, loadErr
+               │         ├─ gameSvc.Play(toPlayRequest(cfg.Game), processes, highScore)
+               │         │     ├─ validateGameConfig(req)                 [core/movement.ValidateSpeed, core/game.ValidateTimeLimit]
+               │         │     ├─ game.NewSession(processes, toGameConfig(req))   → *core/game.Session
+               │         │     ├─ newKillTracker(highScore)
+               │         │     └─ runLoop(session, tracker)
+               │         │          ├─ renderer.Init()                         [Renderer → tcellui: screen.Init + poller.poll goroutine]
+               │         │          ├─ session.Start(bounds)                   → pending → running, spawns targets
+               │         │          ├─ registerTermSignalWatcher()             [signal.NotifyContext SIGINT/SIGTERM/SIGTSTP → a channel, no goroutine of ours]
+               │         │          ├─ input.NewDispatcher(game.NewInput(session))
+               │         │          └─ frameLoop(session, tracker, dispatcher, termSignal, done) ─────────────────────────┐
+               │         │               ├─ applyKillSignals(tracker, killSignals)   drains buffered async kill results  │
+               │         │               ├─ drainEventQueue(dispatcher, killSignals, done, wg)                           │
+               │         │               │     ├─ events.Events()              [InputEventProvider → tcellui.inputEvents]│
+               │         │               │     ├─ dispatcher.Dispatch(ev)      → input.On*(...) → *Target or nil        │
+               │         │               │     └─ hit: target.FireShot(); go killOrReap(target, ...)                    │
+               │         │               │           └─ killer.Kill(pid, name, protected)   [processKiller → process.Service]
+               │         │               │                 ├─ proc.Pin(pid)             → ProcessHandle  [pidfd-pinned on Linux 5.3+]
+               │         │               │                 ├─ proc.LookupName(pid)      [re-verify — the pinned handle survives PID reuse]
+               │         │               │                 ├─ process.ValidateName(expected, actual)
+               │         │               │                 ├─ handle.Kill()              [outbound.ProcessHandle → osprocess]
+               │         │               │                 └─ killSignals <- killSignal{target, shouldReap, err}        │
+               │         │               ├─ session.Update(window)             → timer.Expired / roster.move + target bounce
+               │         │               ├─ renderer.Render(toFrameViewState(session, tracker))  [FrameViewState snapshot → tcellui]
+               │         │               └─ select { ticker.C | termSignal → session.Stop() }   — same goroutine, no concurrent Session access
+               │         │          └─ (loop exits) awaitOutstandingKills(wg, tracker, killSignals)   bounded by killGracePeriod (default 5s)
+               │         │          └─ renderer.Cleanup()  [deferred]
+               │         │     └─ returns PlayResult{Duration, LowestSpeed, Kills, FreedMem, KillFailures, Duds}
+               │         ├─ logKillFailures(result.KillFailures) / logDuds(result.Duds)     [via errHandler.Handle]
+               │         ├─ score.ToEntry(result, cfg.Game.TimeLimit)                → core/score.Entry
+               │         ├─ scoreSvc.RecordScore(board, entry, loadErr)
+               │         │     ├─ board.Add(entry)              [rejects non-scores: Entry.isScore() — Kills>0 && FreedMem>=0]
+               │         │     └─ store.Save(...)               [ScoreStore → filestore, atomic write via fsutil]
+               │         └─ scoreSvc.ReportResults(duration, kills, duds, freedMem, board)
+               │               └─ reporter.Report(summary)      [ScoreReporter → console]
+               │    (a remaining error from runner.Run is a Fatal apperror.Error already logged once by errHandler above;
+               │     p.run remaps a CodeInvalidConfig error specifically into cli.ArgumentError, so it's shown with usage text)
+               ├─ p.errHandler.Handle(err)        [idempotent — an error already logged inside Run is not logged twice]
+               └─ p.printUsageText(showUsage, err)  usage on missing args / --help / any ArgumentError
 ```
 
 ---
@@ -1014,23 +1231,24 @@ main()
 
 | Package | Exported identifiers |
 |---|---|
-| `application/apperror` | `Code`, `CodeUnknown`, `CodeInvalidConfig`, `CodeProcessDiscoveryFailed`, `CodeProcessNotFound`, `CodeGameFailed`, `CodeScoreLoadFailed`, `CodeScoreSaveFailed`, `CodeKillFailed`, `Severity`, `SeverityFatal`, `SeverityError`, `SeverityWarning`, `SeverityUnknown`, `Error`, `NewError`, `Handle` |
-| `application/config` | `Config` |
-| `application/contract/inbound` | `Runner` |
-| `application/contract/outbound` | `NotFoundError`, `CorruptedDataError`, `InputEventProvider`, `ProcessInfo`, `ProcessHandle`, `Process`, `ProcessReporter`, `ScoreEntry`, `ScoreBoard`, `ScoreStore`, `ScoreSummary`, `ScoreReporter`, `FrameViewState`, `TargetViewState`, `HUDViewState`, `StatusViewState`, `ConfirmViewState`, `WindowSize`, `ChromeSize`, `Renderer` |
+| `application/apperror` | `Code`, `CodeUnknown`, `CodeInvalidConfig`, `CodeProcessDiscoveryFailed`, `CodeProcessNotFound`, `CodeGameFailed`, `CodeKillFailed`, `CodeStoreLoadFailed`, `CodeStoreSaveFailed`, `(Code).In`, `Severity`, `SeverityFatal`, `SeverityError`, `SeverityWarning`, `SeverityUnknown`, `Error`, `NewError`, `Handler`, `NewHandler`, `(*Handler).Handle` |
+| `application/config` | `Request`, `GameRequest`, `ProcessRequest`, `Result`, `Mode`, `ModeGame`, `ModeYolo`, `ModeList`, `GameResult`, `ProcessResult`, `Service`, `NewService` |
+| `application/contract/inbound` | `RunRequest`, `Runner` |
+| `application/contract/outbound` | `Mode`, `ModeGame`, `ModeYolo`, `ModeList`, `GameConfig`, `ProcessConfig`, `ConfigStoreResult`, `ConfigStore`, `NotFoundError`, `CorruptedDataError`, `InputEventProvider`, `Logger`, `ProcessInfo`, `ProcessHandle`, `Process`, `ProcessReporter`, `ScoreEntry`, `ScoreBoard`, `ScoreStore`, `ScoreSummary`, `ScoreReporter`, `FrameViewState`, `TargetViewState`, `HUDViewState`, `StatusViewState`, `ConfirmViewState`, `WindowSize`, `ChromeSize`, `Renderer` |
 | `application/input` | `Dispatcher`, `NewDispatcher`, `EventDispatcher`, `ClickEvent`, `QuitEvent`, `ConfirmEvent`, `SpeedEvent` |
-| `application/game` | `Service`, `NewService`, `PlayResult`, `KillFailure`, `KillDud` |
-| `application/process` | `Service`, `NewService` |
+| `application/game` | `Service`, `NewService`, `PlayRequest`, `PlayResult`, `KillFailure`, `KillDud` |
+| `application/process` | `Service`, `NewService`, `FindRequest` |
 | `application/score` | `Service`, `NewService`, `ToEntry` |
-| `application` | `Runner`, `NewRunner` |
+| `application/runner` | `Service`, `NewService` |
 | `composition` | `RunnerCreator`, `NewRunnerCreator` |
 | `core/game` | `Config`, `Session`, `NewSession`, `Target`, `NewTarget`, `State`, `Alive`, `Killing`, `Fleeing`, `Dead`, `AnimationDuration`, `Input`, `NewInput`, `ValidateTimeLimit` |
 | `core/movement` | `Bounds`, `NewBounds`, `WindowSize`, `ChromeSize`, `Vector`, `Motion`, `NewMotion`, `Throttle`, `NewThrottle`, `MinSpeed`, `MaxSpeed`, `ValidateSpeed` |
-| `core/process` | `Info`, `NewInfo`, `Find`, `ValidateProcesses`, `ValidateName`, `ValidatePatterns` |
+| `core/process` | `Info`, `NewInfo`, `Find`, `ValidateProcesses`, `ValidateName`, `ValidatePatterns`, `ValidateRoot` |
 | `core/score` | `Board`, `NewBoard`, `Entry` |
 | `entrypoint/cli` | `Program`, `NewProgram`, `ArgumentError` |
 | `infrastructure/tcellui` | `TUI`, `NewTUI` |
 | `infrastructure/osprocess` | `NewProcess` (the `process` type itself is unexported — callers only ever see the `outbound.Process` it returns) |
-| `infrastructure/filescore` | `NewFileScore` (the `fileScore` type itself is unexported) |
+| `infrastructure/filestore` | `NewScoreFile`, `NewConfigFile` (the `scoreFile`/`configFile` types themselves are unexported) |
 | `infrastructure/console` | `ScoreReporter`, `NewScoreReporter`, `ProcessReporter`, `NewProcessReporter` |
-| `internal/util` | `Logger`, `NewLogger`, `FormatBytes` |
+| `infrastructure/logger` | `Logger`, `NewLogger` |
+| `internal/util` | `FormatBytes`, `ClonePtr` |
