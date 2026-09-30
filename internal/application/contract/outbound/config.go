@@ -5,14 +5,14 @@ type Mode string
 
 // Mode's possible values.
 const (
-	ModeGame Mode = "game"
-	ModeYolo Mode = "yolo"
-	ModeList Mode = "list"
+	ModeGame  Mode = "game"
+	ModeLucky Mode = "lucky"
+	ModeList  Mode = "list"
 )
 
-// GameConfig is the persistence representation of a user's saved game mode
-// config. A nil field means that value was not present in the persisted
-// data.
+// GameConfig is the persistence representation of a user's saved game
+// mode config. A nil field means that value was not present in the
+// persisted data.
 type GameConfig struct {
 	ConfirmMode *bool
 	Speed       *float64
@@ -26,9 +26,8 @@ type ProcessConfig struct {
 	IncludeRoot *bool
 }
 
-// ConfigStoreResult is the persistence representation of a user's saved run
-// config.
-type ConfigStoreResult struct {
+// Config is the persistence representation of a user's saved run config.
+type Config struct {
 	Mode    Mode
 	Process ProcessConfig
 	Game    GameConfig
@@ -37,10 +36,10 @@ type ConfigStoreResult struct {
 // ConfigStore is the outbound port for persisting and retrieving run config.
 type ConfigStore interface {
 	// Load returns the persisted config. If none has been persisted yet,
-	// it returns an empty ConfigStoreResult and a NotFoundError. If the
-	// persisted data exists but cannot be parsed, it returns an empty
-	// ConfigStoreResult and a CorruptedDataError.
-	Load() (ConfigStoreResult, error)
-	// Save persists result, overwriting any previously persisted config.
-	Save(result ConfigStoreResult) error
+	// it returns an empty Config and a NotFoundError. If the persisted
+	// data exists but cannot be parsed, it returns an empty Config and a
+	// CorruptedDataError.
+	Load() (Config, error)
+	// Save persists config, overwriting any previously persisted config.
+	Save(config Config) error
 }

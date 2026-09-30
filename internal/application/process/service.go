@@ -11,13 +11,14 @@ import (
 
 // Service discovers and terminates OS processes.
 type Service struct {
-	proc     outbound.Process
+	manager  outbound.ProcessManager
 	reporter outbound.ProcessReporter
+	patterns []string
 }
 
-// NewService constructs a Service with all required outbound ports injected.
-func NewService(proc outbound.Process, reporter outbound.ProcessReporter) *Service {
-	return &Service{proc: proc, reporter: reporter}
+// NewService constructs a Service with all required outbound ports injected, to discover processes matching patterns.
+func NewService(manager outbound.ProcessManager, reporter outbound.ProcessReporter, patterns []string) *Service {
+	return &Service{manager: manager, reporter: reporter, patterns: patterns}
 }
 
 // FindRequest carries the process-discovery parameters FindProcesses needs.
@@ -30,27 +31,28 @@ type FindRequest struct {
 	AllowRoot bool
 }
 
-// FindProcesses discovers running processes matching patterns, refusing
-// when the caller is root and req.AllowRoot is false.
-func (s *Service) FindProcesses(patterns []string, req FindRequest) ([]process.Info, error) {
-	if err := process.ValidateRoot(s.proc.OwnUID(), req.AllowRoot); err != nil {
+// FindProcesses discovers running processes matching the patterns s was
+// constructed with, refusing when the caller is root and req.AllowRoot is
+// false.
+func (s *Service) FindProcesses(req FindRequest) ([]process.Info, error) {
+	if err := process.ValidateRoot(s.manager.OwnUID(), req.AllowRoot); err != nil {
 		return nil, apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "", err)
 	}
-	if err := process.ValidatePatterns(patterns); err != nil {
+	if err := process.ValidatePatterns(s.patterns); err != nil {
 		return nil, apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", err)
 	}
 
-	processes, err := s.proc.Discover()
+	processes, err := s.manager.Discover()
 	if err != nil {
 		return nil, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityFatal, "process discovery failed", err)
 	}
 
-	matches := process.Find(toProcessInfos(processes), patterns, s.proc.OwnPID(), s.proc.OwnUID(), req.IncludeRoot)
+	matches := process.Find(toInfos(processes), s.patterns, s.manager.OwnPID(), s.manager.OwnUID(), req.IncludeRoot)
 	if err := process.ValidateProcesses(matches); err != nil {
 		return nil, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "", err)
 	}
 
-	s.reporter.Report(len(matches), patterns)
+	s.reporter.Report(toProcessInfos(matches), s.patterns)
 
 	return matches, nil
 }
@@ -64,13 +66,13 @@ func (s *Service) Kill(pid int, procName string, protected bool) (shouldReap boo
 	if protected {
 		return false, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("refusing to kill PID %d", pid), nil)
 	}
-	handle, err := s.proc.Pin(pid)
+	handle, err := s.manager.Pin(pid)
 	if err != nil {
 		return true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not pin PID %d", pid), err)
 	}
 	defer func() { _ = handle.Release() }()
 
-	currentName, err := s.proc.LookupName(pid)
+	currentName, err := s.manager.LookupName(pid)
 	if err != nil {
 		if errors.As(err, &outbound.NotFoundError{}) {
 			return true, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, fmt.Sprintf("PID %d already exited", pid), err)

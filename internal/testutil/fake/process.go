@@ -4,7 +4,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
-// Process is a test double for outbound.Process.
+// Process is a test double for outbound.ProcessManager.
 type Process struct {
 	Infos           []outbound.ProcessInfo
 	DiscoverErr     error

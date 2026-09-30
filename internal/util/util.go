@@ -26,12 +26,11 @@ func FormatBytes(bytes int64) string {
 	}
 }
 
-// ClonePtr returns a pointer to a copy of *p, or nil if p is nil, so the
-// caller's copy never aliases the original.
-func ClonePtr[T any](p *T) *T {
+// ClonePointer returns a pointer to a copy of *p, or nil if p is nil, so
+// the caller's copy never aliases the original.
+func ClonePointer[T any](p *T) *T {
 	if p == nil {
 		return nil
 	}
-	v := *p
-	return &v
+	return new(*p)
 }

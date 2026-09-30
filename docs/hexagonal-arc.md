@@ -1,6 +1,6 @@
 # Hexagonal Architecture — Design Record for pidshooter
 
-*Originally a migration proposal (2026-06-26). Migration completed 2026-07-01. Further refactoring completed 2026-07-06: `domain` → `core`, `adapter` → `infrastructure`/`entrypoint`, `app` → `application`, port interfaces moved to `application/contract`. A second round of refactoring completed 2026-08-20: `Game` → `Session`, the inbound port renamed `GamePlay`/`Play()` → `Runner`/`Run()`, the single `GameService` split into three focused services (`application/game`, `application/process`, `application/score`) composed by a top-level `application.Runner`, and `outbound.Process` renamed `ProcessManager`. A third round completed 2026-09-22, covering a full pass over every open review finding (see `docs/leftovers.md`, since renamed `docs/improvement-finding.md`): the composition root moved out of `main.go` into its own `internal/composition` package, `outbound.ProcessManager`'s `Lister`/`Killer` split was superseded by a single PID-pinning `Process`/`ProcessHandle` pair, `outbound.ProcessReporter`/`ScoreReporter` ports replaced direct `fmt.Printf` calls, `cobra` was removed in favor of hand-rolled flag parsing, a structured `apperror` package now classifies every error by code and severity, and several domain-safety and naming fixes landed in `core/game`/`core/score`. A fourth round completed 2026-09-29: `application/config` split into `Request`/`Result` types merged across three tiers (hardcoded defaults < a new persisted `~/.config/pidshooter/config.yaml` < the caller's request), `infrastructure/filescore` was renamed again to `infrastructure/filestore` and gained the config-file store alongside the score-file store, a root-safety refusal guard (`core/process.ValidateRoot` + `--i-am-root`) was added, `application/runner.go` became its own `internal/application/runner` package, and `apperror.Handle` became an instance method on a constructed `*apperror.Handler` backed by a real `outbound.Logger` port. Sections 3–9 and 15 describe this current, live codebase. Sections 2, 10, and 11 document the original pre-refactor state and the reasoning behind the 2026-07 migration — kept as a design record. Section 13 documents the 2026-08 changes, section 14 documents the 2026-09 (September) changes, and section 15 documents the 2026-09 (late September) changes, each the same way — some of section 14's detail has since been superseded again; where that's so, section 15 says.*
+*Originally a migration proposal (2026-06-26). Migration completed 2026-07-01. Further refactoring completed 2026-07-06: `domain` → `core`, `adapter` → `infrastructure`/`entrypoint`, `app` → `application`, port interfaces moved to `application/contract`. A second round of refactoring completed 2026-08-20: `Game` → `Session`, the inbound port renamed `GamePlay`/`Play()` → `Runner`/`Run()`, the single `GameService` split into three focused services (`application/game`, `application/process`, `application/score`) composed by a top-level `application.Runner`, and `outbound.Process` renamed `ProcessManager`. A third round completed 2026-09-22, covering a full pass over every open review finding (see `docs/leftovers.md`, since renamed `docs/improvement-finding.md`): the composition root moved out of `main.go` into its own `internal/composition` package, `outbound.ProcessManager`'s `Lister`/`Killer` split was superseded by a single PID-pinning `Process`/`ProcessHandle` pair, `outbound.ProcessReporter`/`ScoreReporter` ports replaced direct `fmt.Printf` calls, `cobra` was removed in favor of hand-rolled flag parsing, a structured `apperror` package now classifies every error by code and severity, and several domain-safety and naming fixes landed in `core/game`/`core/score`. A fourth round completed 2026-09-29: `application/config` split into `Request`/`Result` types merged across three tiers (hardcoded defaults < a new persisted `~/.config/pidshooter/config.yaml` < the caller's request), `infrastructure/filescore` was renamed again to `infrastructure/filestore` and gained the config-file store alongside the score-file store, a root-safety refusal guard (`core/process.ValidateRoot` + `--i-am-root`) was added, `application/runner.go` became its own `internal/application/runner` package, and `apperror.Handle` became an instance method on a constructed `*apperror.Handler` backed by a real `outbound.Logger` port. A fifth, small change on 2026-09-30: `outbound.Process` renamed back to `outbound.ProcessManager` (§7) — same single-interface shape from the third round, reusing August's name because "Process" alone had again become ambiguous against `core/process`/`application/process`. Sections 3–9 and 15 describe this current, live codebase. Sections 2, 10, and 11 document the original pre-refactor state and the reasoning behind the 2026-07 migration — kept as a design record. Section 13 documents the 2026-08 changes, section 14 documents the 2026-09 (September) changes, and section 15 documents the 2026-09 (late September) changes, each the same way — some of section 14's detail has since been superseded again; where that's so, section 15 says.*
 
 ---
 
@@ -86,7 +86,7 @@ One layer above the core. Defines the port interfaces (contracts) and implements
 - **`application/config`** — `Request`/`Result`, resolved via `Service.Load(req Request) (Result, error)`. `Request` (`GameRequest{ConfirmMode, Speed, TimeLimit *pointers}`, `ProcessRequest{IncludeRoot, AllowRoot *pointers}`) holds only what the caller explicitly provided — a nil field means the caller didn't set it. `Result` (`GameResult`, `ProcessResult` — the same fields, concrete values) is what `Load` resolves to, merging three tiers in order: hardcoded defaults < the persisted config file (read via the injected `outbound.ConfigStore`) < `req`, with `req` always winning and an invalid stored field being dropped (with a warning) rather than failing the whole load. `Result` also carries a `Mode` (`ModeGame`/`ModeYolo`/`ModeList`) that resolves through the same pipeline but isn't read anywhere yet — it anticipates planned, not-yet-built list/yolo CLI modes. `ProcessRequest.AllowRoot`/`ProcessResult.AllowRoot` are deliberately excluded from the config-file tier — see §15.
 - **`application/apperror`** — `Code`/`Severity` enums, an `Error` type carrying both (with an unexported `logged` flag, making it safe to pass the same `*Error` through `Handle` more than once — logged only the first time), and `Handler` — constructed with an injected `outbound.Logger` (`NewHandler(logger outbound.Logger) *Handler`), not called as a bare package function. `Handler.Handle(err)` is the single place that decides whether an error is logged-and-swallowed (`Warning`/`Error` severity) or returned up to the caller (`Fatal`/`Unknown` severity). One `*Handler` instance is built at the composition root and threaded down through `runner.Service` and `cli.Program`, so `entrypoint/cli` never has to know *why* an error is fatal, only that `Handle` already decided.
 - **`application/contract/inbound/runner.go`** — `RunRequest{Patterns []string, Config config.Request}` and the `Runner` interface (`Run(req RunRequest) error`).
-- **`application/contract/outbound/*.go`** — `Renderer`, `InputEventProvider`, `Process`/`ProcessHandle`, `ProcessReporter`, `ScoreStore`, `ScoreReporter`, `ConfigStore`, `Logger` interfaces and their mirror data types (`FrameViewState`, `ProcessInfo`, `ScoreBoard`, `ScoreSummary`, `ConfigStoreResult`, `GameConfig`/`ProcessConfig`, …). Full source in §7.
+- **`application/contract/outbound/*.go`** — `Renderer`, `InputEventProvider`, `ProcessManager`/`ProcessHandle`, `ProcessReporter`, `ScoreStore`, `ScoreReporter`, `ConfigStore`, `Logger` interfaces and their mirror data types (`FrameViewState`, `ProcessInfo`, `ScoreBoard`, `ScoreSummary`, `ConfigStoreResult`, `GameConfig`/`ProcessConfig`, …). Full source in §7.
 - **`application/input`** — `Dispatcher`, translating raw `EventDispatcher` values (`ClickEvent`, `QuitEvent`, `ConfirmEvent`, `SpeedEvent`) into calls on `core/game.Input`. (Renamed from `application/event` — the package now holds the event *types* themselves, not just the dispatcher, so `event` stopped fitting.)
 - **`application/game`** — `Service`, owning the game loop (`Play(req PlayRequest, processes []process.Info, highScore int)`): spawns a `core/game.Session`, ticks it at 20 FPS, dispatches input, verifies and applies kill results via its own unexported `processKiller` interface, and waits (up to a bounded grace period) for any kill still in flight when the session stops before returning. `PlayRequest{ConfirmMode, Speed, TimeLimit}` is a type `application/game` owns itself — structurally identical to `config.GameResult` but not imported from it (see §15). Also owns `killTracker` — the live, per-session score/failure/dud bookkeeping — and the pure `converter.go` mapping functions that build `outbound.FrameViewState` each tick. Knows nothing about score persistence or config resolution.
 - **`application/process`** — `Service`, owning process discovery (`FindProcesses(patterns []string, req FindRequest)`, reporting the match count via an injected `outbound.ProcessReporter`) and verified termination (`Kill`, pinning the target PID before re-verifying its name to close the discovery-to-kill TOCTOU window). `FindRequest{IncludeRoot, AllowRoot bool}` is `application/process`'s own type, structurally identical to `config.ProcessResult` but not imported from it (see §15). `FindProcesses` calls `core/process.ValidateRoot` first, before pattern validation or discovery, refusing outright if the caller is root and `req.AllowRoot` is false.
@@ -101,7 +101,7 @@ One directory per integration point. Adapters import libraries; the core domain 
 
 | Adapter | Contracts it satisfies | Technology |
 |---|---|---|
-| `infrastructure/osprocess` | `Process`, `ProcessHandle` | `os/exec ps`, `os.FindProcess` (pidfd-backed on Linux 5.3+) |
+| `infrastructure/osprocess` | `ProcessManager`, `ProcessHandle` | `os/exec ps`, `os.FindProcess` (pidfd-backed on Linux 5.3+) |
 | `infrastructure/tcellui` | `Renderer` (via `*TUI`), `InputEventProvider` (via the unexported `*inputEvents`, obtained through `TUI.InputEvents()`) | `github.com/gdamore/tcell/v2` |
 | `infrastructure/filestore` | `ScoreStore` (`NewScoreFile`), `ConfigStore` (`NewConfigFile`) | `encoding/json` (scores), `gopkg.in/yaml.v3` (config), `internal/infrastructure/fsutil` for atomic writes, both schema-versioned |
 | `infrastructure/console` | `ScoreReporter`, `ProcessReporter` | `os.Stdout` |
@@ -139,7 +139,7 @@ flowchart LR
             ProcSvc["application/process\nService"]
             ScoreSvc["application/score\nService"]
         end
-        Contracts["application/contract\nRunner\nRenderer · InputEventProvider\nProcess · ProcessHandle · ProcessReporter\nScoreStore · ScoreReporter · ConfigStore · Logger"]
+        Contracts["application/contract\nRunner\nRenderer · InputEventProvider\nProcessManager · ProcessHandle · ProcessReporter\nScoreStore · ScoreReporter · ConfigStore · Logger"]
         subgraph Core["Core Domain"]
             direction LR
             DGame["core/game\nSession · Target · Input"]
@@ -221,7 +221,7 @@ pidshooter/
     │   │   ├── kill_tracker.go               # killTracker · KillFailure · KillDud — live per-session bookkeeping
     │   │   └── converter.go                  # toGameConfig() · toFrameViewState() · toTargetViewState() · toHUDViewState() · toStatusViewState() · toConfirmViewState()
     │   ├── process/
-    │   │   ├── service.go                    # Service{proc, reporter} · FindRequest{IncludeRoot, AllowRoot} · NewService() · FindProcesses() · Kill()
+    │   │   ├── service.go                    # Service{manager, reporter} · FindRequest{IncludeRoot, AllowRoot} · NewService() · FindProcesses() · Kill()
     │   │   └── converter.go                  # toProcessInfo() · toProcessInfos()
     │   ├── score/
     │   │   ├── service.go                    # Service{store, reporter} · NewService() · LoadScoreBoard() · RecordScore() · ReportResults()
@@ -255,7 +255,7 @@ pidshooter/
     │   ├── logger/
     │   │   └── logger.go                     # Logger · NewLogger()  (implements outbound.Logger) — Warn()/Error() to os.Stderr
     │   ├── osprocess/
-    │   │   ├── process.go                    # process · NewProcess()  (implements outbound.Process) — ps-backed discovery
+    │   │   ├── process.go                    # process · NewProcess()  (implements outbound.ProcessManager) — ps-backed discovery
     │   │   └── process_handle.go             # processHandle  (implements outbound.ProcessHandle) — pins a pid across verify-then-kill
     │   └── tcellui/                          # implements outbound.Renderer (*TUI) and outbound.InputEventProvider (*inputEvents)
     │       ├── tui.go                        # TUI · NewTUI() · Init()/Cleanup()/WindowSize()/ChromeSize()/Render()/InputEvents()
@@ -350,9 +350,9 @@ type ProcessInfo struct {
     Name  string
 }
 
-// ProcessHandle references a specific process obtained via Process.Pin,
-// pinning its identity so a later Kill call cannot be redirected to a
-// different process that has since reused the same PID.
+// ProcessHandle references a specific process obtained via
+// ProcessManager.Pin, pinning its identity so a later Kill call cannot be
+// redirected to a different process that has since reused the same PID.
 type ProcessHandle interface {
     // Kill terminates the process this ProcessHandle refers to. If the
     // process no longer exists, Kill returns a NotFoundError instead of
@@ -364,8 +364,8 @@ type ProcessHandle interface {
     Release() error
 }
 
-// Process is the outbound port for process discovery and termination on the host.
-type Process interface {
+// ProcessManager is the outbound port for process discovery and termination on the host.
+type ProcessManager interface {
     // Discover returns the processes currently running on the host.
     Discover() ([]ProcessInfo, error)
     // OwnPID returns the PID of the calling process.
@@ -393,7 +393,9 @@ type ProcessReporter interface {
 }
 ```
 
-This supersedes the August design's `Lister`/`Killer` split composed into `ProcessManager`. The single `Process` interface plus a separate `Pin`-returned `ProcessHandle` exists to close a real security gap: `Pin` obtains an OS handle to a PID *before* the caller re-verifies its name, so a PID recycled by the OS between verification and `Kill` can't be silently signaled in the original process's place (on Linux 5.3+, Go's stdlib transparently backs this with a pidfd; on macOS, the residual bare-PID-signaling window is a documented, accepted risk — see `osprocess.process.Pin`'s doc comment). `ProcessReporter` is new: `application/process.Service.FindProcesses` used to `fmt.Printf` its match count directly; it now reports through this port instead, implemented by `infrastructure/console`.
+This supersedes the August design's `Lister`/`Killer` split composed into `ProcessManager`. The single interface (named `Process` from the September round through 2026-09-30, then renamed back to `ProcessManager` — see below) plus a separate `Pin`-returned `ProcessHandle` exists to close a real security gap: `Pin` obtains an OS handle to a PID *before* the caller re-verifies its name, so a PID recycled by the OS between verification and `Kill` can't be silently signaled in the original process's place (on Linux 5.3+, Go's stdlib transparently backs this with a pidfd; on macOS, the residual bare-PID-signaling window is a documented, accepted risk — see `osprocess.process.Pin`'s doc comment). `ProcessReporter` is new: `application/process.Service.FindProcesses` used to `fmt.Printf` its match count directly; it now reports through this port instead, implemented by `infrastructure/console`.
+
+**Renamed back to `ProcessManager` on 2026-09-30** — not a structural change, just the name: `Process` alone had become ambiguous again against `core/process`, `application/process`, and `core/process.Info`, the same overload problem that motivated August's original `Process` → `ProcessManager` rename (§13). This reuses that name for today's single-interface shape (`Discover`/`OwnPID`/`OwnUID`/`LookupName`/`Pin`) — it is not a reversion to August's `Lister`/`Killer` split, which stays superseded. Prompted by a same-day investigation into whether `ProcessInfo`/`ProcessHandle`/`ProcessReporter`/`Process` could relocate into `application/process` alongside their consuming `Service` (see `docs/improvement-finding.md` history and the `project_port_dto_relocation_concluded` note) — that relocation was tried on this exact port and reverted; the owner's settled position is that DTOs and interfaces both stay in `contract/outbound`, with `application/process.Service` continuing to depend on `outbound.ProcessManager`/`outbound.ProcessReporter` directly.
 
 ### `application/contract/outbound/score.go`
 
@@ -500,7 +502,7 @@ type ConfigStore interface {
 }
 ```
 
-New in the September (late) round (§15). `ConfigStoreResult` is deliberately the same three-way shape (`Mode`, `Process`, `Game`) as `application/config.Result`, but is its own type, owned by the port — `application/config` converts between the two at its `fromStore` boundary rather than reusing this type directly, the same "own your input/output shapes" pattern `PlayRequest`/`FindRequest` follow one layer up. Notably absent: there is no `AllowRoot` field on `ProcessConfig` — the root-refusal override is never persisted (§15).
+New in the September (late) round (§15). `ConfigStoreResult` is the same three-way shape (`Mode`, `Process`, `Game`) as `application/config.Result`. `GameConfig`/`ProcessConfig` stay separate types from `GameResult`/`ProcessResult` — `application/config` converts between them at its `fromStore` boundary, the same "own your input/output shapes" pattern `PlayRequest`/`FindRequest` follow one layer up — because the port DTOs use pointer fields (tri-state present-with-value/absent, needed for the YAML round-trip) while `Result`'s fields are plain, already-resolved values. `Mode` has no such mismatch (a plain string on both sides), so as of 2026-09-30 `application/config.Result.Mode` is `outbound.Mode` directly rather than a second, mirrored `config.Mode` type — the two had been kept deliberately separate as an interim step pending a decision on relocating `contract`'s DTOs into the application layer (docs/improvement-finding.md #2), a plan since investigated and abandoned as not viable (unavoidable Go import cycle); with that settled, the duplicate `Mode` had no remaining purpose. Notably absent from `ProcessConfig`: there is no `AllowRoot` field — the root-refusal override is never persisted (§15).
 
 ### `application/contract/outbound/ui.go`
 
@@ -596,7 +598,7 @@ type Logger interface {
 }
 ```
 
-`InputEventProvider` is the August design's `InputSource` renamed to match `application/input` (renamed from `application/event`). `NotFoundError`/`CorruptedDataError` are sentinel value-type errors any `ScoreStore`/`ConfigStore`/`Process` implementation can return, matched via `errors.As` — they didn't exist as ported error types in August; store/process failures were plain wrapped errors. `Logger` is new in the September (late) round (§15) — `apperror.Handler` is built around it instead of calling `internal/util.Logger` directly.
+`InputEventProvider` is the August design's `InputSource` renamed to match `application/input` (renamed from `application/event`). `NotFoundError`/`CorruptedDataError` are sentinel value-type errors any `ScoreStore`/`ConfigStore`/`ProcessManager` implementation can return, matched via `errors.As` — they didn't exist as ported error types in August; store/process failures were plain wrapped errors. `Logger` is new in the September (late) round (§15) — `apperror.Handler` is built around it instead of calling `internal/util.Logger` directly.
 
 ### `application/runner` — wires the four services
 
@@ -856,7 +858,7 @@ func (c RunnerCreator) ErrHandler() *apperror.Handler {
 
 // Create builds a Runner, along with every adapter it depends on.
 func (c RunnerCreator) Create() (inbound.Runner, error) {
-    proc, err := osprocess.NewProcess()
+    manager, err := osprocess.NewProcess()
     if err != nil {
         return nil, err
     }
@@ -875,7 +877,7 @@ func (c RunnerCreator) Create() (inbound.Runner, error) {
     ui := tcellui.NewTUI(screen)
 
     configSvc := config.NewService(configStore)
-    processSvc := process.NewService(proc, console.NewProcessReporter())
+    processSvc := process.NewService(manager, console.NewProcessReporter())
     scoreSvc := score.NewService(scoreStore, console.NewScoreReporter())
     gameSvc := game.NewService(processSvc, ui, ui.InputEvents())
 

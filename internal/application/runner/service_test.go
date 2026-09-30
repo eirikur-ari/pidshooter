@@ -9,7 +9,6 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
@@ -20,9 +19,10 @@ import (
 )
 
 func TestServiceRunReturnsErrorWhenRunningAsRootWithoutOverride(t *testing.T) {
-	r := newTestServiceWithProcess(&fake.Process{OwnUIDValue: 0})
+	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0)}}
+	r := newTestServiceWithProcess(&fake.Process{OwnUIDValue: 0}, []string{"proc"}, opts)
 
-	err := r.Run(inbound.RunRequest{Patterns: []string{"proc"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0)}}})
+	err := r.Run()
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -31,37 +31,43 @@ func TestServiceRunReturnsErrorWhenRunningAsRootWithoutOverride(t *testing.T) {
 }
 
 func TestServiceRunReturnsErrorWhenSpeedTooLow(t *testing.T) {
-	err := newTestService().Run(inbound.RunRequest{Patterns: []string{"proc"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(movement.MinSpeed - 0.1)}}})
+	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(movement.MinSpeed - 0.1)}}
+	err := newTestService([]string{"proc"}, opts).Run()
 	assertFatal(t, err)
 }
 
 func TestServiceRunReturnsErrorWhenSpeedTooHigh(t *testing.T) {
-	err := newTestService().Run(inbound.RunRequest{Patterns: []string{"proc"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(movement.MaxSpeed + 0.1)}}})
+	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(movement.MaxSpeed + 0.1)}}
+	err := newTestService([]string{"proc"}, opts).Run()
 	assertFatal(t, err)
 }
 
 func TestServiceRunReturnsErrorWhenTimeLimitIsNegative(t *testing.T) {
-	err := newTestService().Run(inbound.RunRequest{Patterns: []string{"proc"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0), TimeLimit: helper.Ptr(-1)}}})
+	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0), TimeLimit: helper.Pointer(-1)}}
+	err := newTestService([]string{"proc"}, opts).Run()
 	assertFatal(t, err)
 }
 
 func TestServiceRunReturnsErrorWhenNoPatternsAreProvided(t *testing.T) {
-	err := newTestService().Run(inbound.RunRequest{Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0)}}})
+	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0)}}
+	err := newTestService(nil, opts).Run()
 	assertFatal(t, err)
 	assert.ErrorContains(t, err, "at least one search pattern is required")
 }
 
 func TestServiceRunReturnsErrorWhenPatternTooShort(t *testing.T) {
 	for _, p := range []string{"a", "ab"} {
-		err := newTestService().Run(inbound.RunRequest{Patterns: []string{p}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0)}}})
+		opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0)}}
+		err := newTestService([]string{p}, opts).Run()
 		assertFatal(t, err)
 	}
 }
 
 func TestServiceRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
-	r := newTestServiceWithProcess(&fake.Process{DiscoverErr: errors.New("ps failed"), OwnUIDValue: 1000})
+	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0)}}
+	r := newTestServiceWithProcess(&fake.Process{DiscoverErr: errors.New("ps failed"), OwnUIDValue: 1000}, []string{"proc"}, opts)
 
-	err := r.Run(inbound.RunRequest{Patterns: []string{"proc"}, Config: config.Request{Game: config.GameRequest{Speed: helper.Ptr(2.0)}}})
+	err := r.Run()
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
@@ -69,13 +75,13 @@ func TestServiceRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
 }
 
-func newTestService() *Service {
-	return newTestServiceWithProcess(&fake.Process{OwnUIDValue: 1000})
+func newTestService(patterns []string, opts config.Options) *Service {
+	return newTestServiceWithProcess(&fake.Process{OwnUIDValue: 1000}, patterns, opts)
 }
 
-func newTestServiceWithProcess(proc *fake.Process) *Service {
-	configSvc := config.NewService(&fake.ConfigStore{LoadErr: outbound.NotFoundError{}})
-	processSvc := process.NewService(proc, &fake.ProcessReporter{})
+func newTestServiceWithProcess(proc *fake.Process, patterns []string, opts config.Options) *Service {
+	configSvc := config.NewService(&fake.ConfigStore{LoadErr: outbound.NotFoundError{}}, opts)
+	processSvc := process.NewService(proc, &fake.ProcessReporter{}, patterns)
 	scoreSvc := score.NewService(&fake.Store{}, &fake.ScoreReporter{})
 	gameSvc := game.NewService(processSvc, &fake.Renderer{}, fake.NewInputEventProvider())
 	errHandler := apperror.NewHandler(&fake.Logger{})

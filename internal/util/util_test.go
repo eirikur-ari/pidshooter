@@ -29,16 +29,16 @@ func TestFormatBytes(t *testing.T) {
 	}
 }
 
-func TestClonePtrNilReturnsNil(t *testing.T) {
+func TestClonePointerNilReturnsNil(t *testing.T) {
 	var p *int
-	assert.Nil(t, ClonePtr(p))
+	assert.Nil(t, ClonePointer(p))
 }
 
-func TestClonePtrReturnsDistinctPointerWithSameValue(t *testing.T) {
+func TestClonePointerReturnsDistinctPointerWithSameValue(t *testing.T) {
 	v := 42
 	p := &v
 
-	clone := ClonePtr(p)
+	clone := ClonePointer(p)
 
 	require.NotNil(t, clone)
 	assert.Equal(t, *p, *clone)

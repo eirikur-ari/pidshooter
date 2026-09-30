@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
 // ProcessReporter writes process-match reports to an io.Writer.
@@ -17,6 +19,6 @@ func NewProcessReporter() *ProcessReporter {
 }
 
 // Report writes how many processes matched patterns, and that the game is starting.
-func (r *ProcessReporter) Report(count int, patterns []string) {
-	_, _ = fmt.Fprintf(r.writer, "Found %d process(es) matching %v. Starting game...\n", count, patterns)
+func (r *ProcessReporter) Report(matches []outbound.ProcessInfo, patterns []string) {
+	_, _ = fmt.Fprintf(r.writer, "Found %d process(es) matching %v. Starting game...\n", len(matches), patterns)
 }

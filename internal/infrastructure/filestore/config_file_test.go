@@ -73,14 +73,14 @@ func TestConfigLoadEmptyFileReturnsNoError(t *testing.T) {
 
 func TestConfigSaveCreatesFile(t *testing.T) {
 	c := newTempConfig(t)
-	require.NoError(t, c.Save(outbound.ConfigStoreResult{}))
+	require.NoError(t, c.Save(outbound.Config{}))
 	_, err := os.Stat(c.file.path)
 	assert.NoError(t, err, "expected file to be created after Save")
 }
 
 func TestConfigSaveFilePermissions(t *testing.T) {
 	c := newTempConfig(t)
-	require.NoError(t, c.Save(outbound.ConfigStoreResult{}))
+	require.NoError(t, c.Save(outbound.Config{}))
 	info, err := os.Stat(c.file.path)
 	require.NoError(t, err)
 	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
@@ -88,13 +88,13 @@ func TestConfigSaveFilePermissions(t *testing.T) {
 
 func TestConfigSaveLoadRoundTrip(t *testing.T) {
 	c := newTempConfig(t)
-	defaults := outbound.ConfigStoreResult{
+	defaults := outbound.Config{
 		Mode:    outbound.ModeGame,
-		Process: outbound.ProcessConfig{IncludeRoot: helper.Ptr(true)},
+		Process: outbound.ProcessConfig{IncludeRoot: helper.Pointer(true)},
 		Game: outbound.GameConfig{
-			ConfirmMode: helper.Ptr(true),
-			Speed:       helper.Ptr(2.5),
-			TimeLimit:   helper.Ptr(60),
+			ConfirmMode: helper.Pointer(true),
+			Speed:       helper.Pointer(2.5),
+			TimeLimit:   helper.Pointer(60),
 		},
 	}
 
@@ -107,10 +107,10 @@ func TestConfigSaveLoadRoundTrip(t *testing.T) {
 func TestConfigSaveOverwritesPreviousFile(t *testing.T) {
 	c := newTempConfig(t)
 
-	first := outbound.ConfigStoreResult{Mode: outbound.ModeGame, Game: outbound.GameConfig{Speed: helper.Ptr(1.0)}}
+	first := outbound.Config{Mode: outbound.ModeGame, Game: outbound.GameConfig{Speed: helper.Pointer(1.0)}}
 	require.NoError(t, c.Save(first))
 
-	second := outbound.ConfigStoreResult{Mode: outbound.ModeYolo, Game: outbound.GameConfig{Speed: helper.Ptr(2.0)}}
+	second := outbound.Config{Mode: outbound.ModeLucky, Game: outbound.GameConfig{Speed: helper.Pointer(2.0)}}
 	require.NoError(t, c.Save(second))
 
 	loaded, err := c.Load()
@@ -122,7 +122,7 @@ func TestConfigSaveToNestedNonexistentDirectoryCreatesParentDirs(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "deeper", "config.yaml")
 	c := newConfigFileAt(path)
 
-	require.NoError(t, c.Save(outbound.ConfigStoreResult{}))
+	require.NoError(t, c.Save(outbound.Config{}))
 
 	_, err := os.Stat(path)
 	assert.NoError(t, err, "Save should create the path's parent directories, not ~/.config/pidshooter")
@@ -132,7 +132,7 @@ func TestConfigSaveDoesNotLeaveTempFileAfterSuccess(t *testing.T) {
 	dir := t.TempDir()
 	c := newConfigFileAt(filepath.Join(dir, "config.yaml"))
 
-	require.NoError(t, c.Save(outbound.ConfigStoreResult{}))
+	require.NoError(t, c.Save(outbound.Config{}))
 
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
@@ -143,13 +143,13 @@ func TestConfigSaveDoesNotLeaveTempFileAfterSuccess(t *testing.T) {
 
 func TestConfigSaveWritesYAMLMatchingOnDiskSchema(t *testing.T) {
 	c := newTempConfig(t)
-	defaults := outbound.ConfigStoreResult{
+	defaults := outbound.Config{
 		Mode:    outbound.ModeGame,
-		Process: outbound.ProcessConfig{IncludeRoot: helper.Ptr(true)},
+		Process: outbound.ProcessConfig{IncludeRoot: helper.Pointer(true)},
 		Game: outbound.GameConfig{
-			ConfirmMode: helper.Ptr(true),
-			Speed:       helper.Ptr(2.5),
-			TimeLimit:   helper.Ptr(60),
+			ConfirmMode: helper.Pointer(true),
+			Speed:       helper.Pointer(2.5),
+			TimeLimit:   helper.Pointer(60),
 		},
 	}
 	require.NoError(t, c.Save(defaults))
@@ -173,12 +173,12 @@ func TestConfigSaveWritesYAMLMatchingOnDiskSchema(t *testing.T) {
 
 func TestConfigLoadAcceptsFileWithoutVersionField(t *testing.T) {
 	c := newTempConfig(t)
-	require.NoError(t, os.WriteFile(c.file.path, []byte("mode: yolo\n"), 0600))
+	require.NoError(t, os.WriteFile(c.file.path, []byte("mode: lucky\n"), 0600))
 
 	defaults, err := c.Load()
 
 	require.NoError(t, err)
-	assert.Equal(t, outbound.ModeYolo, defaults.Mode)
+	assert.Equal(t, outbound.ModeLucky, defaults.Mode)
 }
 
 func TestConfigLoadPassesThroughUnrecognizedModeWithoutValidating(t *testing.T) {
@@ -229,12 +229,12 @@ func TestConfigLoadRejectsNegativeSchemaVersion(t *testing.T) {
 
 func TestConfigLoadAcceptsExplicitZeroSchemaVersion(t *testing.T) {
 	c := newTempConfig(t)
-	require.NoError(t, os.WriteFile(c.file.path, []byte("version: 0\nmode: yolo\n"), 0600))
+	require.NoError(t, os.WriteFile(c.file.path, []byte("version: 0\nmode: lucky\n"), 0600))
 
 	defaults, err := c.Load()
 
 	require.NoError(t, err)
-	assert.Equal(t, outbound.ModeYolo, defaults.Mode)
+	assert.Equal(t, outbound.ModeLucky, defaults.Mode)
 }
 
 func TestConfigLoadRejectsFileOverMaxSize(t *testing.T) {

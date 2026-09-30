@@ -70,10 +70,10 @@ func newConfigFileAt(path string) outbound.ConfigStore {
 // outbound.NotFoundError; a file that fails to decode is reported as
 // outbound.CorruptedDataError. Any other failure, including a schema
 // version mismatch, is returned unwrapped.
-func (c *configFile) Load() (outbound.ConfigStoreResult, error) {
+func (c *configFile) Load() (outbound.Config, error) {
 	data, err := c.file.read()
 	if err != nil {
-		return outbound.ConfigStoreResult{}, err
+		return outbound.Config{}, err
 	}
 
 	var cd configContent
@@ -81,22 +81,22 @@ func (c *configFile) Load() (outbound.ConfigStoreResult, error) {
 		dec := yaml.NewDecoder(bytes.NewReader(data))
 		dec.KnownFields(true)
 		if err := dec.Decode(&cd); err != nil {
-			return outbound.ConfigStoreResult{}, outbound.CorruptedDataError{Message: err.Error()}
+			return outbound.Config{}, outbound.CorruptedDataError{Message: err.Error()}
 		}
 	}
 
 	if err := schemaVersion(currentConfigSchemaVersion).validate("config file", cd.Version); err != nil {
-		return outbound.ConfigStoreResult{}, err
+		return outbound.Config{}, err
 	}
 
-	return toConfigStoreResult(cd), nil
+	return toConfig(cd), nil
 }
 
 // Save encodes and persists the run config, replacing any previously
 // persisted config atomically, so a crash or kill mid-write can never
 // leave a truncated or partial file behind.
-func (c *configFile) Save(result outbound.ConfigStoreResult) error {
-	data, err := yaml.Marshal(toConfigContent(result))
+func (c *configFile) Save(config outbound.Config) error {
+	data, err := yaml.Marshal(toConfigContent(config))
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}

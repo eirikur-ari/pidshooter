@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
+	"github.com/eirikur-ari/pidshooter/internal/application/config"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 )
 
@@ -51,7 +52,7 @@ type Program struct {
 // setup until a Runner is actually needed, and provides a Handler for
 // logging errors.
 type runnerCreator interface {
-	Create() (inbound.Runner, error)
+	Create(patterns []string, opts config.Options) (inbound.Runner, error)
 	ErrHandler() *apperror.Handler
 }
 
@@ -69,17 +70,17 @@ func (p *Program) Run(args []string) error {
 }
 
 func (p *Program) run(args []string) (showUsage bool, err error) {
-	req, showUsage, err := p.prepare(args)
+	patterns, opts, showUsage, err := p.prepare(args)
 	if showUsage || err != nil {
 		return showUsage, err
 	}
 
-	runner, err := p.creator.Create()
+	runner, err := p.creator.Create(patterns, opts)
 	if err != nil {
 		return false, err
 	}
 
-	if err := runner.Run(req); err != nil {
+	if err := runner.Run(); err != nil {
 		if apperror.CodeInvalidConfig.In(err) {
 			return true, ArgumentError{Cause: err}
 		}
@@ -89,14 +90,15 @@ func (p *Program) run(args []string) (showUsage bool, err error) {
 	return false, nil
 }
 
-// prepare parses args into a RunRequest. showUsage reports whether usage
-// text should be shown, independent of whether err is also set.
-func (p *Program) prepare(args []string) (req inbound.RunRequest, showUsage bool, err error) {
+// prepare parses args into patterns and config.Options. showUsage reports
+// whether usage text should be shown, independent of whether err is also
+// set.
+func (p *Program) prepare(args []string) (patterns []string, opts config.Options, showUsage bool, err error) {
 	if len(args) == 0 {
-		return inbound.RunRequest{}, true, nil
+		return nil, config.Options{}, true, nil
 	}
 	if help(args) {
-		return inbound.RunRequest{}, true, nil
+		return nil, config.Options{}, true, nil
 	}
 
 	flagSet := flag.NewFlagSet("pidshooter", flag.ContinueOnError)
@@ -105,21 +107,21 @@ func (p *Program) prepare(args []string) (req inbound.RunRequest, showUsage bool
 
 	patterns, flagArgs, err := newFlagSplitter(flagSet).split(args)
 	if err != nil {
-		return inbound.RunRequest{}, true, ArgumentError{Cause: err}
+		return nil, config.Options{}, true, ArgumentError{Cause: err}
 	}
 
 	if err := flagSet.Parse(flagArgs); err != nil {
-		return inbound.RunRequest{}, true, ArgumentError{Cause: err}
+		return nil, config.Options{}, true, ArgumentError{Cause: err}
 	}
 	// split has already classified every token as a pattern or as part of
 	// flagArgs, so flagSet.Parse can never stop early on a leftover
 	// positional. This holds unconditionally today; guarded defensively
 	// in case a future change to split ever breaks it.
 	if flagSet.NArg() > 0 {
-		return inbound.RunRequest{}, true, ArgumentError{Cause: fmt.Errorf("unexpected argument: %s", flagSet.Arg(0))}
+		return nil, config.Options{}, true, ArgumentError{Cause: fmt.Errorf("unexpected argument: %s", flagSet.Arg(0))}
 	}
 
-	return mapper.toRunRequest(patterns), false, nil
+	return patterns, mapper.toConfigOptions(), false, nil
 }
 
 func (p *Program) printUsageText(printUsage bool, err error) {

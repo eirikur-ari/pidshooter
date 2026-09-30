@@ -9,9 +9,9 @@ type ProcessInfo struct {
 	Name  string
 }
 
-// ProcessHandle references a specific process obtained via Process.Pin,
-// pinning its identity so a later Kill call cannot be redirected to a
-// different process that has since reused the same PID.
+// ProcessHandle references a specific process obtained via
+// ProcessManager.Pin, pinning its identity so a later Kill call cannot be
+// redirected to a different process that has since reused the same PID.
 type ProcessHandle interface {
 	// Kill terminates the process this ProcessHandle refers to. If the
 	// process no longer exists, Kill returns a NotFoundError instead of
@@ -23,8 +23,8 @@ type ProcessHandle interface {
 	Release() error
 }
 
-// Process is the outbound port for process discovery and termination on the host.
-type Process interface {
+// ProcessManager is the outbound port for process discovery and termination on the host.
+type ProcessManager interface {
 	// Discover returns the processes currently running on the host.
 	Discover() ([]ProcessInfo, error)
 	// OwnPID returns the PID of the calling process.
@@ -44,9 +44,9 @@ type Process interface {
 	Pin(pid int) (ProcessHandle, error)
 }
 
-// ProcessReporter is the outbound port for reporting how many processes
+// ProcessReporter is the outbound port for reporting which processes
 // matched the requested search patterns.
 type ProcessReporter interface {
-	// Report displays how many processes matched patterns.
-	Report(count int, patterns []string)
+	// Report displays matches, the processes that matched patterns.
+	Report(matches []ProcessInfo, patterns []string)
 }

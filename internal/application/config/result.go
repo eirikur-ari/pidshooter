@@ -11,16 +11,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 )
 
-// Mode identifies which run mode a Result resolves to.
-type Mode string
-
-// Mode's possible values.
-const (
-	ModeGame Mode = "game"
-	ModeYolo Mode = "yolo"
-	ModeList Mode = "list"
-)
-
 // GameResult holds game mode run parameters.
 type GameResult struct {
 	ConfirmMode bool
@@ -40,13 +30,13 @@ type ProcessResult struct {
 
 // Result holds the run parameters for a single invocation of pidshooter.
 type Result struct {
-	Mode    Mode
+	Mode    outbound.Mode
 	Process ProcessResult
 	Game    GameResult
 }
 
 // defaultSpeed and defaultTimeLimit are this application's baseline gameplay
-// parameters, used when neither a config file nor a request overrides them.
+// parameters, used when neither a config file nor options override them.
 const (
 	defaultSpeed     = 2.0
 	defaultTimeLimit = 30
@@ -63,7 +53,7 @@ const (
 // gameplay and process-discovery parameters.
 func newResult() Result {
 	return Result{
-		Mode: ModeGame,
+		Mode: outbound.ModeGame,
 		Process: ProcessResult{
 			IncludeRoot: false,
 			AllowRoot:   false,
@@ -76,25 +66,25 @@ func newResult() Result {
 	}
 }
 
-// apply overlays stored's and then req's explicitly-provided fields onto
-// cfg, in that priority order — req always wins over stored. A stored
+// apply overlays stored's and then opts's explicitly-provided fields onto
+// cfg, in that priority order — opts always wins over stored. A stored
 // field that fails domain validation is skipped, keeping cfg's existing
 // value. The returned error is nil, or a plain error naming every
 // skipped stored field.
-func (cfg Result) apply(stored outbound.ConfigStoreResult, req Request) (Result, error) {
+func (cfg Result) apply(stored outbound.Config, opts Options) (Result, error) {
 	cfg, err := cfg.fromStore(stored)
-	return cfg.fromRequest(req), err
+	return cfg.fromOptions(opts), err
 }
 
 // fromStore overlays stored's present fields onto cfg, skipping any field
 // whose persisted value fails domain validation. The returned error is
 // nil, or a plain error naming every skipped field and why.
-func (cfg Result) fromStore(stored outbound.ConfigStoreResult) (Result, error) {
+func (cfg Result) fromStore(stored outbound.Config) (Result, error) {
 	g := stored.Game
 	rejected, err := validateStore(stored)
 
 	if stored.Mode != "" && !slices.Contains(rejected, fieldMode) {
-		cfg.Mode = Mode(stored.Mode)
+		cfg.Mode = stored.Mode
 	}
 	if g.ConfirmMode != nil {
 		cfg.Game.ConfirmMode = *g.ConfirmMode
@@ -112,22 +102,22 @@ func (cfg Result) fromStore(stored outbound.ConfigStoreResult) (Result, error) {
 	return cfg, err
 }
 
-// fromRequest overlays req's explicitly-provided fields onto cfg.
-func (cfg Result) fromRequest(req Request) Result {
-	if req.Game.ConfirmMode != nil {
-		cfg.Game.ConfirmMode = *req.Game.ConfirmMode
+// fromOptions overlays opts's explicitly-provided fields onto cfg.
+func (cfg Result) fromOptions(opts Options) Result {
+	if opts.Game.ConfirmMode != nil {
+		cfg.Game.ConfirmMode = *opts.Game.ConfirmMode
 	}
-	if req.Game.Speed != nil {
-		cfg.Game.Speed = *req.Game.Speed
+	if opts.Game.Speed != nil {
+		cfg.Game.Speed = *opts.Game.Speed
 	}
-	if req.Game.TimeLimit != nil {
-		cfg.Game.TimeLimit = *req.Game.TimeLimit
+	if opts.Game.TimeLimit != nil {
+		cfg.Game.TimeLimit = *opts.Game.TimeLimit
 	}
-	if req.Process.IncludeRoot != nil {
-		cfg.Process.IncludeRoot = *req.Process.IncludeRoot
+	if opts.Process.IncludeRoot != nil {
+		cfg.Process.IncludeRoot = *opts.Process.IncludeRoot
 	}
-	if req.Process.AllowRoot != nil {
-		cfg.Process.AllowRoot = *req.Process.AllowRoot
+	if opts.Process.AllowRoot != nil {
+		cfg.Process.AllowRoot = *opts.Process.AllowRoot
 	}
 	return cfg
 }
@@ -135,15 +125,15 @@ func (cfg Result) fromRequest(req Request) Result {
 // validateStore reports every present field in stored that fails domain
 // validation. The returned error is nil, or a plain error naming every
 // invalid field and why.
-func validateStore(stored outbound.ConfigStoreResult) (rejected []string, err error) {
+func validateStore(stored outbound.Config) (rejected []string, err error) {
 	var causes []error
 
 	if stored.Mode != "" {
 		switch stored.Mode {
-		case outbound.ModeGame, outbound.ModeYolo, outbound.ModeList:
+		case outbound.ModeGame, outbound.ModeLucky, outbound.ModeList:
 		default:
 			rejected = append(rejected, fieldMode)
-			causes = append(causes, fmt.Errorf("mode must be one of %q, %q, %q, got: %q", outbound.ModeGame, outbound.ModeYolo, outbound.ModeList, stored.Mode))
+			causes = append(causes, fmt.Errorf("mode must be one of %q, %q, %q, got: %q", outbound.ModeGame, outbound.ModeLucky, outbound.ModeList, stored.Mode))
 		}
 	}
 

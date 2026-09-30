@@ -24,10 +24,10 @@ type process struct {
 	timeout time.Duration
 }
 
-// NewProcess returns an outbound.Process backed by the OS ps command.
+// NewProcess returns an outbound.ProcessManager backed by the OS ps command.
 // It resolves the absolute path to ps at construction time so the
 // adapter does not depend on $PATH at runtime.
-func NewProcess() (outbound.Process, error) {
+func NewProcess() (outbound.ProcessManager, error) {
 	path, err := exec.LookPath("ps")
 	if err != nil {
 		return nil, fmt.Errorf("ps not found: %w", err)

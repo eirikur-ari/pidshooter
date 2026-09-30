@@ -53,31 +53,31 @@ func TestToScoreContentEmptyInput(t *testing.T) {
 	assert.Empty(t, c.Scores)
 }
 
-// --- toConfigStoreResult ---
+// --- toConfig ---
 
-func TestToConfigStoreResultMapsFields(t *testing.T) {
+func TestToConfigMapsFields(t *testing.T) {
 	cd := configContent{
 		Version: currentConfigSchemaVersion,
-		Mode:    "yolo",
+		Mode:    "lucky",
 		Process: processEntry{
-			IncludeRoot: helper.Ptr(true),
+			IncludeRoot: helper.Pointer(true),
 		},
 		Game: configEntry{
-			ConfirmMode: helper.Ptr(true),
-			Speed:       helper.Ptr(2.5),
-			TimeLimit:   helper.Ptr(60),
+			ConfirmMode: helper.Pointer(true),
+			Speed:       helper.Pointer(2.5),
+			TimeLimit:   helper.Pointer(60),
 		},
 	}
 
-	defaults := toConfigStoreResult(cd)
+	defaults := toConfig(cd)
 
-	assert.Equal(t, outbound.ModeYolo, defaults.Mode)
-	assert.Equal(t, outbound.ProcessConfig{IncludeRoot: helper.Ptr(true)}, defaults.Process)
-	assert.Equal(t, outbound.GameConfig{ConfirmMode: helper.Ptr(true), Speed: helper.Ptr(2.5), TimeLimit: helper.Ptr(60)}, defaults.Game)
+	assert.Equal(t, outbound.ModeLucky, defaults.Mode)
+	assert.Equal(t, outbound.ProcessConfig{IncludeRoot: helper.Pointer(true)}, defaults.Process)
+	assert.Equal(t, outbound.GameConfig{ConfirmMode: helper.Pointer(true), Speed: helper.Pointer(2.5), TimeLimit: helper.Pointer(60)}, defaults.Game)
 }
 
-func TestToConfigStoreResultEmptyInput(t *testing.T) {
-	defaults := toConfigStoreResult(configContent{})
+func TestToConfigEmptyInput(t *testing.T) {
+	defaults := toConfig(configContent{})
 
 	assert.Empty(t, defaults)
 }
@@ -85,22 +85,22 @@ func TestToConfigStoreResultEmptyInput(t *testing.T) {
 // --- toConfigContent ---
 
 func TestToConfigContentMapsFields(t *testing.T) {
-	defaults := outbound.ConfigStoreResult{
-		Mode:    outbound.ModeYolo,
-		Process: outbound.ProcessConfig{IncludeRoot: helper.Ptr(true)},
-		Game:    outbound.GameConfig{ConfirmMode: helper.Ptr(true), Speed: helper.Ptr(2.5), TimeLimit: helper.Ptr(60)},
+	defaults := outbound.Config{
+		Mode:    outbound.ModeLucky,
+		Process: outbound.ProcessConfig{IncludeRoot: helper.Pointer(true)},
+		Game:    outbound.GameConfig{ConfirmMode: helper.Pointer(true), Speed: helper.Pointer(2.5), TimeLimit: helper.Pointer(60)},
 	}
 
 	cd := toConfigContent(defaults)
 
 	assert.Equal(t, currentConfigSchemaVersion, cd.Version)
-	assert.Equal(t, "yolo", cd.Mode)
-	assert.Equal(t, processEntry{IncludeRoot: helper.Ptr(true)}, cd.Process)
-	assert.Equal(t, configEntry{ConfirmMode: helper.Ptr(true), Speed: helper.Ptr(2.5), TimeLimit: helper.Ptr(60)}, cd.Game)
+	assert.Equal(t, "lucky", cd.Mode)
+	assert.Equal(t, processEntry{IncludeRoot: helper.Pointer(true)}, cd.Process)
+	assert.Equal(t, configEntry{ConfirmMode: helper.Pointer(true), Speed: helper.Pointer(2.5), TimeLimit: helper.Pointer(60)}, cd.Game)
 }
 
 func TestToConfigContentEmptyInput(t *testing.T) {
-	cd := toConfigContent(outbound.ConfigStoreResult{})
+	cd := toConfigContent(outbound.Config{})
 
 	assert.Equal(t, currentConfigSchemaVersion, cd.Version)
 	assert.Equal(t, "", cd.Mode)

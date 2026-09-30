@@ -5,7 +5,6 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
@@ -37,18 +36,18 @@ func NewService(
 	}
 }
 
-// Run resolves req into the final run configuration, discovers processes
-// matching its patterns, plays a game session against them, then records
-// and prints the resulting score. Every failure is logged here, regardless
-// of severity. Run returns nil unless the failure was Fatal, in which case
-// it's returned too so the caller can terminate the program.
-func (s *Service) Run(req inbound.RunRequest) error {
-	cfg, loadErr := s.configSvc.Load(req.Config)
+// Run resolves the final run configuration, discovers matching processes,
+// plays a game session against them, then records and prints the
+// resulting score. Every failure is logged here, regardless of severity.
+// Run returns nil unless the failure was Fatal, in which case it's
+// returned too so the caller can terminate the program.
+func (s *Service) Run() error {
+	cfg, loadErr := s.configSvc.Load()
 	if err := s.errHandler.Handle(loadErr); err != nil {
 		return err
 	}
 
-	processes, err := s.processSvc.FindProcesses(req.Patterns, toFindRequest(cfg.Process))
+	processes, err := s.processSvc.FindProcesses(toFindRequest(cfg.Process))
 	if err != nil {
 		return s.errHandler.Handle(err)
 	}

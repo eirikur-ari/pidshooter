@@ -37,31 +37,31 @@ func toScoreContent(sb outbound.ScoreBoard) scoreContent {
 	return scoreContent{Version: currentScoreSchemaVersion, Scores: entries}
 }
 
-func toConfigStoreResult(config configContent) outbound.ConfigStoreResult {
-	return outbound.ConfigStoreResult{
+func toConfig(config configContent) outbound.Config {
+	return outbound.Config{
 		Mode: outbound.Mode(config.Mode),
 		Process: outbound.ProcessConfig{
-			IncludeRoot: util.ClonePtr(config.Process.IncludeRoot),
+			IncludeRoot: util.ClonePointer(config.Process.IncludeRoot),
 		},
 		Game: outbound.GameConfig{
-			ConfirmMode: util.ClonePtr(config.Game.ConfirmMode),
-			Speed:       util.ClonePtr(config.Game.Speed),
-			TimeLimit:   util.ClonePtr(config.Game.TimeLimit),
+			ConfirmMode: util.ClonePointer(config.Game.ConfirmMode),
+			Speed:       util.ClonePointer(config.Game.Speed),
+			TimeLimit:   util.ClonePointer(config.Game.TimeLimit),
 		},
 	}
 }
 
-func toConfigContent(config outbound.ConfigStoreResult) configContent {
+func toConfigContent(config outbound.Config) configContent {
 	return configContent{
 		Version: currentConfigSchemaVersion,
 		Mode:    string(config.Mode),
 		Process: processEntry{
-			IncludeRoot: util.ClonePtr(config.Process.IncludeRoot),
+			IncludeRoot: util.ClonePointer(config.Process.IncludeRoot),
 		},
 		Game: configEntry{
-			ConfirmMode: util.ClonePtr(config.Game.ConfirmMode),
-			Speed:       util.ClonePtr(config.Game.Speed),
-			TimeLimit:   util.ClonePtr(config.Game.TimeLimit),
+			ConfirmMode: util.ClonePointer(config.Game.ConfirmMode),
+			Speed:       util.ClonePointer(config.Game.Speed),
+			TimeLimit:   util.ClonePointer(config.Game.TimeLimit),
 		},
 	}
 }
