@@ -7,10 +7,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Ptr returns a pointer to a copy of v, for constructing struct literals
-// with optional (pointer-typed) fields inline.
-func Ptr[T any](v T) *T {
-	return &v
+// Pointer returns a pointer to a copy of v, for constructing struct
+// literals with optional (pointer-typed) fields inline.
+//
+//go:fix inline
+func Pointer[T any](v T) *T {
+	return new(v)
 }
 
 // UnsetEnv removes key from the environment for the duration of the test,

@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -125,6 +127,85 @@ func TestWriteFileAtomicLeavesExistingFileUntouchedOnFailure(t *testing.T) {
 	for _, e := range entries {
 		assert.NotContains(t, e.Name(), ".tmp-", "no temp file should remain after a failed write")
 	}
+}
+
+func TestWriteFileAtomicPreservesExistingFileOwnerWhenRunningAsRoot(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file ownership is not modeled the same way on Windows")
+	}
+	if os.Geteuid() != 0 {
+		t.Skip("requires root to chown a file to a non-root owner and reproduce a root-privileged rewrite")
+	}
+	// Force the stat-based fallback path, regardless of whether this test
+	// binary was itself launched via sudo (which would otherwise set these).
+	helper.UnsetEnv(t, "SUDO_UID")
+	helper.UnsetEnv(t, "SUDO_GID")
+
+	path := filepath.Join(t.TempDir(), "scores.json")
+	require.NoError(t, WriteFileAtomic(path, []byte("first"), 0600))
+
+	const nonRootUID = 1
+	require.NoError(t, os.Chown(path, nonRootUID, nonRootUID))
+
+	require.NoError(t, WriteFileAtomic(path, []byte("second"), 0600))
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	require.True(t, ok)
+	assert.Equal(t, uint32(nonRootUID), stat.Uid, "the file's original owner must survive a root-privileged rewrite")
+	assert.Equal(t, uint32(nonRootUID), stat.Gid, "the file's original group must survive a root-privileged rewrite")
+}
+
+func TestWriteFileAtomicPrefersSudoUIDGIDOverExistingFileOwnerWhenRunningAsRoot(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file ownership is not modeled the same way on Windows")
+	}
+	if os.Geteuid() != 0 {
+		t.Skip("requires root to chown a file and reproduce a root-privileged rewrite")
+	}
+
+	path := filepath.Join(t.TempDir(), "scores.json")
+	require.NoError(t, WriteFileAtomic(path, []byte("first"), 0600))
+
+	const existingUID = 1
+	require.NoError(t, os.Chown(path, existingUID, existingUID))
+
+	const sudoUID = 2
+	t.Setenv("SUDO_UID", strconv.Itoa(sudoUID))
+	t.Setenv("SUDO_GID", strconv.Itoa(sudoUID))
+
+	require.NoError(t, WriteFileAtomic(path, []byte("second"), 0600))
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	require.True(t, ok)
+	assert.Equal(t, uint32(sudoUID), stat.Uid, "SUDO_UID must take priority over the file's previously stored owner")
+	assert.Equal(t, uint32(sudoUID), stat.Gid, "SUDO_GID must take priority over the file's previously stored owner")
+}
+
+func TestWriteFileAtomicUsesSudoUIDGIDForNewFileWhenRunningAsRoot(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file ownership is not modeled the same way on Windows")
+	}
+	if os.Geteuid() != 0 {
+		t.Skip("requires root to verify a freshly created file's ownership")
+	}
+
+	const sudoUID = 3
+	t.Setenv("SUDO_UID", strconv.Itoa(sudoUID))
+	t.Setenv("SUDO_GID", strconv.Itoa(sudoUID))
+
+	path := filepath.Join(t.TempDir(), "scores.json")
+	require.NoError(t, WriteFileAtomic(path, []byte("first"), 0600))
+
+	info, err := os.Stat(path)
+	require.NoError(t, err)
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	require.True(t, ok)
+	assert.Equal(t, uint32(sudoUID), stat.Uid, "a file created for the first time while running as root must still be owned by SUDO_UID")
+	assert.Equal(t, uint32(sudoUID), stat.Gid, "a file created for the first time while running as root must still be owned by SUDO_GID")
 }
 
 func TestWriteFileAtomicTightensExistingDirectoryPermissions(t *testing.T) {

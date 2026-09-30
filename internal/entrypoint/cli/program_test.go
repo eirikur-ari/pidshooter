@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
+	"github.com/eirikur-ari/pidshooter/internal/application/config"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
@@ -60,41 +61,46 @@ func TestRunMalformedFlagReturnsArgumentError(t *testing.T) {
 
 func TestRunBasicPattern(t *testing.T) {
 	runner := &fake.Runner{}
-	require.NoError(t, newTestProgram(runner).Run([]string{"firefox"}))
-	require.Len(t, runner.Req.Patterns, 1)
-	assert.Equal(t, "firefox", runner.Req.Patterns[0])
-	assert.Nil(t, runner.Req.Config.Game.ConfirmMode, "an unpassed flag must stay nil, leaving it to the resolved defaults")
-	assert.Nil(t, runner.Req.Config.Game.Speed)
-	assert.Nil(t, runner.Req.Config.Game.TimeLimit)
+	program, creator := newTestProgramWithCreator(runner)
+	require.NoError(t, program.Run([]string{"firefox"}))
+	require.Len(t, creator.Patterns, 1)
+	assert.Equal(t, "firefox", creator.Patterns[0])
+	assert.Nil(t, creator.Options.Game.ConfirmMode, "an unpassed flag must stay nil, leaving it to the resolved defaults")
+	assert.Nil(t, creator.Options.Game.Speed)
+	assert.Nil(t, creator.Options.Game.TimeLimit)
 }
 
 func TestRunMultiplePatterns(t *testing.T) {
 	runner := &fake.Runner{}
-	require.NoError(t, newTestProgram(runner).Run([]string{"chrome", "firefox", "node"}))
-	require.Len(t, runner.Req.Patterns, 3)
+	program, creator := newTestProgramWithCreator(runner)
+	require.NoError(t, program.Run([]string{"chrome", "firefox", "node"}))
+	require.Len(t, creator.Patterns, 3)
 	for i, want := range []string{"chrome", "firefox", "node"} {
-		assert.Equal(t, want, runner.Req.Patterns[i])
+		assert.Equal(t, want, creator.Patterns[i])
 	}
 }
 
 func TestRunConfirmFlag(t *testing.T) {
 	runner := &fake.Runner{}
-	require.NoError(t, newTestProgram(runner).Run([]string{"sleep", "--confirm"}))
-	require.NotNil(t, runner.Req.Config.Game.ConfirmMode)
-	assert.True(t, *runner.Req.Config.Game.ConfirmMode)
+	program, creator := newTestProgramWithCreator(runner)
+	require.NoError(t, program.Run([]string{"sleep", "--confirm"}))
+	require.NotNil(t, creator.Options.Game.ConfirmMode)
+	assert.True(t, *creator.Options.Game.ConfirmMode)
 }
 
 func TestRunIncludeRootFlag(t *testing.T) {
 	runner := &fake.Runner{}
-	require.NoError(t, newTestProgram(runner).Run([]string{"sleep", "--include-root"}))
-	require.NotNil(t, runner.Req.Config.Process.IncludeRoot)
-	assert.True(t, *runner.Req.Config.Process.IncludeRoot)
+	program, creator := newTestProgramWithCreator(runner)
+	require.NoError(t, program.Run([]string{"sleep", "--include-root"}))
+	require.NotNil(t, creator.Options.Process.IncludeRoot)
+	assert.True(t, *creator.Options.Process.IncludeRoot)
 }
 
 func TestRunIncludeRootUnsetWhenFlagAbsent(t *testing.T) {
 	runner := &fake.Runner{}
-	require.NoError(t, newTestProgram(runner).Run([]string{"sleep"}))
-	assert.Nil(t, runner.Req.Config.Process.IncludeRoot)
+	program, creator := newTestProgramWithCreator(runner)
+	require.NoError(t, program.Run([]string{"sleep"}))
+	assert.Nil(t, creator.Options.Process.IncludeRoot)
 }
 
 func TestRunSpeedFlag(t *testing.T) {
@@ -112,7 +118,7 @@ func TestRunSpeedFlag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assertFlagResult(t, tt.arg, tt.wantErr, tt.want, func(req inbound.RunRequest) *float64 { return req.Config.Game.Speed })
+			assertFlagResult(t, tt.arg, tt.wantErr, tt.want, func(opts config.Options) *float64 { return opts.Game.Speed })
 		})
 	}
 }
@@ -131,27 +137,29 @@ func TestRunTimeFlag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assertFlagResult(t, tt.arg, tt.wantErr, tt.want, func(req inbound.RunRequest) *int { return req.Config.Game.TimeLimit })
+			assertFlagResult(t, tt.arg, tt.wantErr, tt.want, func(opts config.Options) *int { return opts.Game.TimeLimit })
 		})
 	}
 }
 
 func TestRunPatternAfterFlag(t *testing.T) {
 	runner := &fake.Runner{}
-	require.NoError(t, newTestProgram(runner).Run([]string{"chrome", "--confirm", "firefox"}))
-	assert.Equal(t, []string{"chrome", "firefox"}, runner.Req.Patterns)
-	require.NotNil(t, runner.Req.Config.Game.ConfirmMode)
-	assert.True(t, *runner.Req.Config.Game.ConfirmMode)
+	program, creator := newTestProgramWithCreator(runner)
+	require.NoError(t, program.Run([]string{"chrome", "--confirm", "firefox"}))
+	assert.Equal(t, []string{"chrome", "firefox"}, creator.Patterns)
+	require.NotNil(t, creator.Options.Game.ConfirmMode)
+	assert.True(t, *creator.Options.Game.ConfirmMode)
 }
 
 func TestRunFlagsSurroundingPatterns(t *testing.T) {
 	runner := &fake.Runner{}
-	require.NoError(t, newTestProgram(runner).Run([]string{"chrome", "--speed", "3.5", "firefox", "node", "--confirm"}))
-	assert.Equal(t, []string{"chrome", "firefox", "node"}, runner.Req.Patterns)
-	require.NotNil(t, runner.Req.Config.Game.Speed)
-	assert.Equal(t, 3.5, *runner.Req.Config.Game.Speed)
-	require.NotNil(t, runner.Req.Config.Game.ConfirmMode)
-	assert.True(t, *runner.Req.Config.Game.ConfirmMode)
+	program, creator := newTestProgramWithCreator(runner)
+	require.NoError(t, program.Run([]string{"chrome", "--speed", "3.5", "firefox", "node", "--confirm"}))
+	assert.Equal(t, []string{"chrome", "firefox", "node"}, creator.Patterns)
+	require.NotNil(t, creator.Options.Game.Speed)
+	assert.Equal(t, 3.5, *creator.Options.Game.Speed)
+	require.NotNil(t, creator.Options.Game.ConfirmMode)
+	assert.True(t, *creator.Options.Game.ConfirmMode)
 }
 
 func TestRunNoArgsDoesNotConstructRunner(t *testing.T) {
@@ -266,6 +274,11 @@ func newTestProgram(runner inbound.Runner) *Program {
 	return NewProgram(&fake.RunnerCreator{Runner: runner})
 }
 
+func newTestProgramWithCreator(runner inbound.Runner) (*Program, *fake.RunnerCreator) {
+	creator := &fake.RunnerCreator{Runner: runner}
+	return NewProgram(creator), creator
+}
+
 func newCapturingTestProgram(runner inbound.Runner) (program *Program, out, errOut *bytes.Buffer) {
 	out, errOut = &bytes.Buffer{}, &bytes.Buffer{}
 	creator := &fake.RunnerCreator{Runner: runner}
@@ -273,16 +286,17 @@ func newCapturingTestProgram(runner inbound.Runner) (program *Program, out, errO
 	return program, out, errOut
 }
 
-func assertFlagResult[T any](t *testing.T, arg string, wantErr bool, want T, get func(inbound.RunRequest) *T) {
+func assertFlagResult[T any](t *testing.T, arg string, wantErr bool, want T, get func(config.Options) *T) {
 	t.Helper()
 	runner := &fake.Runner{}
-	err := newTestProgram(runner).Run([]string{"proc", arg})
+	program, creator := newTestProgramWithCreator(runner)
+	err := program.Run([]string{"proc", arg})
 	if wantErr {
 		assert.Error(t, err)
 		return
 	}
 	require.NoError(t, err)
-	got := get(runner.Req)
+	got := get(creator.Options)
 	require.NotNil(t, got)
 	assert.Equal(t, want, *got)
 }

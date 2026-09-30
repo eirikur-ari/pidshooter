@@ -9,133 +9,124 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
+	"github.com/eirikur-ari/pidshooter/internal/application/config"
 )
 
-func TestFlagMapperToRunRequestIncludesPatterns(t *testing.T) {
+func TestFlagMapperToConfigOptionsLeavesUnpassedFlagsNil(t *testing.T) {
 	mapper, flagSet := newTestFlagMapper()
 	require.NoError(t, flagSet.Parse(nil))
 
-	req := mapper.toRunRequest([]string{"chrome", "firefox"})
+	opts := mapper.toConfigOptions()
 
-	assert.Equal(t, []string{"chrome", "firefox"}, req.Patterns)
+	assert.Nil(t, opts.Game.ConfirmMode)
+	assert.Nil(t, opts.Game.Speed)
+	assert.Nil(t, opts.Game.TimeLimit)
+	assert.Nil(t, opts.Process.IncludeRoot)
+	assert.Nil(t, opts.Process.AllowRoot)
 }
 
-func TestFlagMapperToRunRequestLeavesUnpassedFlagsNil(t *testing.T) {
-	mapper, flagSet := newTestFlagMapper()
-	require.NoError(t, flagSet.Parse(nil))
-
-	req := mapper.toRunRequest(nil)
-
-	assert.Nil(t, req.Config.Game.ConfirmMode)
-	assert.Nil(t, req.Config.Game.Speed)
-	assert.Nil(t, req.Config.Game.TimeLimit)
-	assert.Nil(t, req.Config.Process.IncludeRoot)
-	assert.Nil(t, req.Config.Process.AllowRoot)
-}
-
-func TestFlagMapperToRunRequestSetsAllowRootWhenPassed(t *testing.T) {
+func TestFlagMapperToConfigOptionsSetsAllowRootWhenPassed(t *testing.T) {
 	mapper, flagSet := newTestFlagMapper()
 	require.NoError(t, flagSet.Parse([]string{"--i-am-root"}))
 
-	req := mapper.toRunRequest(nil)
+	opts := mapper.toConfigOptions()
 
-	require.NotNil(t, req.Config.Process.AllowRoot)
-	assert.True(t, *req.Config.Process.AllowRoot)
+	require.NotNil(t, opts.Process.AllowRoot)
+	assert.True(t, *opts.Process.AllowRoot)
 }
 
-func TestFlagMapperToRunRequestSetsConfirmWhenPassed(t *testing.T) {
+func TestFlagMapperToConfigOptionsSetsConfirmWhenPassed(t *testing.T) {
 	mapper, flagSet := newTestFlagMapper()
 	require.NoError(t, flagSet.Parse([]string{"--confirm"}))
 
-	req := mapper.toRunRequest(nil)
+	opts := mapper.toConfigOptions()
 
-	require.NotNil(t, req.Config.Game.ConfirmMode)
-	assert.True(t, *req.Config.Game.ConfirmMode)
+	require.NotNil(t, opts.Game.ConfirmMode)
+	assert.True(t, *opts.Game.ConfirmMode)
 }
 
-func TestFlagMapperToRunRequestSetsSpeedWhenPassed(t *testing.T) {
+func TestFlagMapperToConfigOptionsSetsSpeedWhenPassed(t *testing.T) {
 	mapper, flagSet := newTestFlagMapper()
 	require.NoError(t, flagSet.Parse([]string{"--speed=3.5"}))
 
-	req := mapper.toRunRequest(nil)
+	opts := mapper.toConfigOptions()
 
-	require.NotNil(t, req.Config.Game.Speed)
-	assert.Equal(t, 3.5, *req.Config.Game.Speed)
+	require.NotNil(t, opts.Game.Speed)
+	assert.Equal(t, 3.5, *opts.Game.Speed)
 }
 
-func TestFlagMapperToRunRequestSetsTimeLimitWhenPassed(t *testing.T) {
+func TestFlagMapperToConfigOptionsSetsTimeLimitWhenPassed(t *testing.T) {
 	mapper, flagSet := newTestFlagMapper()
 	require.NoError(t, flagSet.Parse([]string{"--time=60"}))
 
-	req := mapper.toRunRequest(nil)
+	opts := mapper.toConfigOptions()
 
-	require.NotNil(t, req.Config.Game.TimeLimit)
-	assert.Equal(t, 60, *req.Config.Game.TimeLimit)
+	require.NotNil(t, opts.Game.TimeLimit)
+	assert.Equal(t, 60, *opts.Game.TimeLimit)
 }
 
-func TestFlagMapperToRunRequestSetsIncludeRootWhenPassed(t *testing.T) {
+func TestFlagMapperToConfigOptionsSetsIncludeRootWhenPassed(t *testing.T) {
 	mapper, flagSet := newTestFlagMapper()
 	require.NoError(t, flagSet.Parse([]string{"--include-root"}))
 
-	req := mapper.toRunRequest(nil)
+	opts := mapper.toConfigOptions()
 
-	require.NotNil(t, req.Config.Process.IncludeRoot)
-	assert.True(t, *req.Config.Process.IncludeRoot)
+	require.NotNil(t, opts.Process.IncludeRoot)
+	assert.True(t, *opts.Process.IncludeRoot)
 }
 
-func TestFlagMapperToRunRequestSetsAllFlagsWhenAllPassed(t *testing.T) {
+func TestFlagMapperToConfigOptionsSetsAllFlagsWhenAllPassed(t *testing.T) {
 	mapper, flagSet := newTestFlagMapper()
 	require.NoError(t, flagSet.Parse([]string{"--confirm", "--speed=4.0", "--time=90", "--include-root", "--i-am-root"}))
 
-	req := mapper.toRunRequest(nil)
+	opts := mapper.toConfigOptions()
 
-	require.NotNil(t, req.Config.Game.ConfirmMode)
-	assert.True(t, *req.Config.Game.ConfirmMode)
-	require.NotNil(t, req.Config.Game.Speed)
-	assert.Equal(t, 4.0, *req.Config.Game.Speed)
-	require.NotNil(t, req.Config.Game.TimeLimit)
-	assert.Equal(t, 90, *req.Config.Game.TimeLimit)
-	require.NotNil(t, req.Config.Process.IncludeRoot)
-	assert.True(t, *req.Config.Process.IncludeRoot)
-	require.NotNil(t, req.Config.Process.AllowRoot)
-	assert.True(t, *req.Config.Process.AllowRoot)
+	require.NotNil(t, opts.Game.ConfirmMode)
+	assert.True(t, *opts.Game.ConfirmMode)
+	require.NotNil(t, opts.Game.Speed)
+	assert.Equal(t, 4.0, *opts.Game.Speed)
+	require.NotNil(t, opts.Game.TimeLimit)
+	assert.Equal(t, 90, *opts.Game.TimeLimit)
+	require.NotNil(t, opts.Process.IncludeRoot)
+	assert.True(t, *opts.Process.IncludeRoot)
+	require.NotNil(t, opts.Process.AllowRoot)
+	assert.True(t, *opts.Process.AllowRoot)
 }
 
-func TestFlagMapperToRunRequestClonesFlagSetPointers(t *testing.T) {
+func TestFlagMapperToConfigOptionsClonesFlagSetPointers(t *testing.T) {
 	mapper, flagSet := newTestFlagMapper()
 	require.NoError(t, flagSet.Parse([]string{"--speed=3.5"}))
 
-	req := mapper.toRunRequest(nil)
+	opts := mapper.toConfigOptions()
 
-	require.NotNil(t, req.Config.Game.Speed)
-	assert.NotSame(t, mapper.speed, req.Config.Game.Speed, "the request must not alias the FlagSet's own destination pointer")
+	require.NotNil(t, opts.Game.Speed)
+	assert.NotSame(t, mapper.speed, opts.Game.Speed, "the options must not alias the FlagSet's own destination pointer")
 }
 
-func TestFlagMapperToRunRequestConcurrentCallsDoNotRace(t *testing.T) {
+func TestFlagMapperToConfigOptionsConcurrentCallsDoNotRace(t *testing.T) {
 	mapper, flagSet := newTestFlagMapper()
 	require.NoError(t, flagSet.Parse([]string{"--speed=3.5"}))
 
 	const goroutines = 20
-	results := make([]inbound.RunRequest, goroutines)
+	results := make([]config.Options, goroutines)
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
 	for i := range goroutines {
 		go func() {
 			defer wg.Done()
-			results[i] = mapper.toRunRequest([]string{"chrome"})
+			results[i] = mapper.toConfigOptions()
 		}()
 	}
 	wg.Wait()
 
-	for _, req := range results {
-		require.NotNil(t, req.Config.Game.Speed)
-		assert.Equal(t, 3.5, *req.Config.Game.Speed)
+	for _, opts := range results {
+		require.NotNil(t, opts.Game.Speed)
+		assert.Equal(t, 3.5, *opts.Game.Speed)
 	}
 }
 
 // newTestFlagMapper returns a flagMapper backed by a fresh flag.FlagSet, for
-// tests to Parse args into before calling toRunRequest.
+// tests to Parse args into before calling toConfigOptions.
 func newTestFlagMapper() (*flagMapper, *flag.FlagSet) {
 	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)

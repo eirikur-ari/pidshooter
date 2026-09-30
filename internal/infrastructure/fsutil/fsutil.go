@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"syscall"
 )
 
 // ConfigDir returns the per-user configuration directory for appName,
@@ -61,6 +63,8 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) (err error) {
 		return fmt.Errorf("could not set permissions on %s: %w", tmp.Name(), err)
 	}
 
+	preserveOwner(tmp.Name(), path)
+
 	if err = tmp.Sync(); err != nil {
 		_ = tmp.Close()
 		return fmt.Errorf("could not sync temp file %s: %w", tmp.Name(), err)
@@ -85,4 +89,40 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) (err error) {
 	}
 
 	return nil
+}
+
+// preserveOwner best-effort chowns the replacement file to the invoking
+// user — preferring sudo's own record of who that is over the file being
+// replaced — so an elevated write doesn't leave it owned by the writing
+// process instead.
+func preserveOwner(tmpPath, path string) {
+	uid, gid, ok := sudoOwner()
+	if !ok {
+		uid, gid, ok = existingOwner(path)
+	}
+	if !ok {
+		return
+	}
+	_ = os.Chown(tmpPath, uid, gid)
+}
+
+// sudoOwner reports the user sudo recorded as having invoked the program,
+// if SUDO_UID and SUDO_GID are both set and valid.
+func sudoOwner() (uid, gid int, ok bool) {
+	uid, uidErr := strconv.Atoi(os.Getenv("SUDO_UID"))
+	gid, gidErr := strconv.Atoi(os.Getenv("SUDO_GID"))
+	return uid, gid, uidErr == nil && gidErr == nil
+}
+
+// existingOwner reports a file's current owner, if it exists.
+func existingOwner(path string) (uid, gid int, ok bool) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, 0, false
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, 0, false
+	}
+	return int(stat.Uid), int(stat.Gid), true
 }
