@@ -1,7 +1,8 @@
 # pidshooter Makefile
 
 BINARY_NAME := pidshooter
-BUILD_DIR := bin
+BUILD_DIR := build
+BIN_DIR := bin
 
 LDFLAGS := -s -w
 
@@ -9,15 +10,15 @@ WORKSPACE_FOLDER := $(CURDIR)
 LABEL_FILTER      := label=devcontainer.local_folder=$(WORKSPACE_FOLDER)
 DC_SHELL          ?= zsh
 
-.PHONY: all build test test-unit test-integration test-acceptance test-short test-race coverage vet fmt clean run help \
-        dev-start dev-stop dev-shell dev-destroy dev-status dev-rebuild
+.PHONY: all build test test-unit test-integration test-acceptance test-short test-race coverage coverage-html vet fmt \
+        clean run help dev-start dev-stop dev-shell dev-destroy dev-status dev-rebuild
 
-all: clean test build
+all: clean test build coverage-html
 
 ## build: Compile the binary into bin/
 build:
-	@mkdir -p $(BUILD_DIR)
-	go build -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/pidshooter
+	@mkdir -p $(BIN_DIR)
+	go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) ./cmd/pidshooter
 
 ## test: Run all tests
 test:
@@ -49,6 +50,10 @@ coverage:
 	go test -coverprofile=$(BUILD_DIR)/coverage.out ./...
 	go tool cover -func=$(BUILD_DIR)/coverage.out
 
+## coverage-html: Generate HTML coverage report
+coverage-html: coverage
+	go tool cover -html=$(BUILD_DIR)/coverage.out -o $(BUILD_DIR)/coverage.html
+
 ## vet: Run go vet
 vet:
 	go vet ./...
@@ -59,12 +64,12 @@ fmt:
 
 ## clean: Remove build artifacts
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BIN_DIR) $(BUILD_DIR)
 
 ## run: Build and run (override ARGS= to customize)
 ARGS ?= sleep
 run: build
-	./$(BUILD_DIR)/$(BINARY_NAME) "$(ARGS)"
+	./$(BIN_DIR)/$(BINARY_NAME) "$(ARGS)"
 
 ### dev-start: Start the devcontainer
 dev-start:
