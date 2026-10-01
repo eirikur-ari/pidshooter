@@ -1,9 +1,10 @@
 package fake
 
 // processHandle is a test double for outbound.ProcessHandle, bound to the
-// Process that created it so Kill can record which pid it was called with.
+// ProcessManager that created it so Kill can record which pid it was called
+// with.
 type processHandle struct {
-	process *Process
+	process *ProcessManager
 	pid     int
 }
 

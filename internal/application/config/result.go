@@ -24,7 +24,7 @@ type ProcessResult struct {
 	// regardless of the caller's own effective UID.
 	IncludeRoot bool
 	// AllowRoot permits running pidshooter itself as root; never populated
-	// from the persisted config file.
+	// from the stored config.
 	AllowRoot bool
 }
 
@@ -36,7 +36,7 @@ type Result struct {
 }
 
 // defaultSpeed and defaultTimeLimit are this application's baseline gameplay
-// parameters, used when neither a config file nor options override them.
+// parameters, used when neither the stored config nor options override them.
 const (
 	defaultSpeed     = 2.0
 	defaultTimeLimit = 30
@@ -154,5 +154,5 @@ func validateStore(stored outbound.Config) (rejected []string, err error) {
 	if len(rejected) == 0 {
 		return nil, nil
 	}
-	return rejected, fmt.Errorf("config file values ignored: %s: %w", strings.Join(rejected, ", "), errors.Join(causes...))
+	return rejected, fmt.Errorf("stored config values ignored: %s: %w", strings.Join(rejected, ", "), errors.Join(causes...))
 }

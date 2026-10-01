@@ -21,7 +21,8 @@ func NewService(manager outbound.ProcessManager, reporter outbound.ProcessReport
 	return &Service{manager: manager, reporter: reporter, patterns: patterns}
 }
 
-// FindRequest carries the process-discovery parameters FindProcesses needs.
+// FindRequest carries the root-handling parameters for a single
+// FindProcesses call.
 type FindRequest struct {
 	// IncludeRoot additionally permits root-owned processes as matches,
 	// regardless of the caller's own effective UID.

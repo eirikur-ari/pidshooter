@@ -23,7 +23,7 @@ type GameOptions struct {
 type ProcessOptions struct {
 	IncludeRoot *bool
 	// AllowRoot permits running pidshooter itself as root; never read from
-	// the config file, only ever set per invocation.
+	// the stored config, only ever set per invocation.
 	AllowRoot *bool
 }
 
@@ -45,11 +45,10 @@ func NewService(store outbound.ConfigStore, opts Options) *Service {
 }
 
 // Load returns a Result by validating the options it was constructed with,
-// then merging the persisted config file and those options onto domain
-// defaults, the options taking precedence. Invalid options are rejected
-// before the config file is read. Any other problem loading or applying
-// the persisted config is non-fatal — Load still returns a usable
-// Result.
+// then merging the stored config and those options onto domain defaults,
+// the options taking precedence. Invalid options are rejected before the
+// stored config is read. Any other problem loading or applying the stored
+// config is non-fatal — Load still returns a usable Result.
 func (s *Service) Load() (Result, error) {
 	if err := s.validate(); err != nil {
 		return Result{}, apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", err)
