@@ -93,7 +93,7 @@ test-race:
 .PHONY: coverage
 coverage:
 	@mkdir -p $(BUILD_DIR)
-	go test -v -tags integration -race -count=1 -coverprofile=$(BUILD_DIR)/coverage.out ./...
+	go test -v -tags integration -race -count=1 -coverprofile=$(BUILD_DIR)/coverage.out -covermode=atomic ./...
 	go tool cover -func=$(BUILD_DIR)/coverage.out
 
 ## coverage-html: Generate an HTML report from an existing coverage profile
