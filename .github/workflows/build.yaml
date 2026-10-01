@@ -14,13 +14,20 @@ on:
       - 'LICENSE'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -30,11 +37,17 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Vet
+      - name: Static Analysis
         run: make vet
+
+      - name: Lint
+        run: make lint
+
+      - name: Test
+        run: make test
+
+      - name: Report
+        run: make coverage-html
 
       - name: Build
         run: make build
-
-      - name: Test
-        run: make test-race
