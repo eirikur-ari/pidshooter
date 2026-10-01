@@ -12,7 +12,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
-func TestCleanupBeforeInitDoesNotPanicOnRealScreen(t *testing.T) {
+func TestIntegrationCleanupBeforeInitDoesNotPanicOnRealScreen(t *testing.T) {
 	t.Setenv("TERM", "xterm")
 
 	screen, err := tcell.NewScreen()
