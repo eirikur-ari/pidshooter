@@ -20,7 +20,7 @@ import (
 
 func TestServiceRunReturnsErrorWhenRunningAsRootWithoutOverride(t *testing.T) {
 	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0)}}
-	r := newTestServiceWithProcess(&fake.Process{OwnUIDValue: 0}, []string{"proc"}, opts)
+	r := newTestServiceWithProcess(&fake.ProcessManager{OwnUIDValue: 0}, []string{"proc"}, opts)
 
 	err := r.Run()
 
@@ -65,7 +65,7 @@ func TestServiceRunReturnsErrorWhenPatternTooShort(t *testing.T) {
 
 func TestServiceRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0)}}
-	r := newTestServiceWithProcess(&fake.Process{DiscoverErr: errors.New("ps failed"), OwnUIDValue: 1000}, []string{"proc"}, opts)
+	r := newTestServiceWithProcess(&fake.ProcessManager{DiscoverErr: errors.New("ps failed"), OwnUIDValue: 1000}, []string{"proc"}, opts)
 
 	err := r.Run()
 
@@ -76,10 +76,10 @@ func TestServiceRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 }
 
 func newTestService(patterns []string, opts config.Options) *Service {
-	return newTestServiceWithProcess(&fake.Process{OwnUIDValue: 1000}, patterns, opts)
+	return newTestServiceWithProcess(&fake.ProcessManager{OwnUIDValue: 1000}, patterns, opts)
 }
 
-func newTestServiceWithProcess(proc *fake.Process, patterns []string, opts config.Options) *Service {
+func newTestServiceWithProcess(proc *fake.ProcessManager, patterns []string, opts config.Options) *Service {
 	configSvc := config.NewService(&fake.ConfigStore{LoadErr: outbound.NotFoundError{}}, opts)
 	processSvc := process.NewService(proc, &fake.ProcessReporter{}, patterns)
 	scoreSvc := score.NewService(&fake.Store{}, &fake.ScoreReporter{})

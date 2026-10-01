@@ -9,8 +9,6 @@ import (
 
 // Pointer returns a pointer to a copy of v, for constructing struct
 // literals with optional (pointer-typed) fields inline.
-//
-//go:fix inline
 func Pointer[T any](v T) *T {
 	return new(v)
 }

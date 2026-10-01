@@ -18,7 +18,8 @@ func NewProcessReporter() *ProcessReporter {
 	return &ProcessReporter{writer: os.Stdout}
 }
 
-// Report writes how many processes matched patterns, and that the game is starting.
+// Report writes the given matches and the patterns that produced them, and
+// notes that the game is starting.
 func (r *ProcessReporter) Report(matches []outbound.ProcessInfo, patterns []string) {
 	_, _ = fmt.Fprintf(r.writer, "Found %d process(es) matching %v. Starting game...\n", len(matches), patterns)
 }
