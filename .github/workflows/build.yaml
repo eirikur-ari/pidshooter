@@ -84,6 +84,7 @@ jobs:
             -Dsonar.organization=${{ vars.SONAR_ORG_NAME }}
             -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
             -Dsonar.go.coverage.reportPaths=build/coverage.out
+            -Dsonar.coverage.exclusions=**/*_test.go,internal/testutil/**
 
       - name: Build
         run: make build
