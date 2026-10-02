@@ -2,7 +2,6 @@ package game
 
 import (
 	"fmt"
-	"math"
 	"unicode/utf8"
 
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
@@ -128,8 +127,7 @@ func (t *Target) isHitAt(x, y int) bool {
 	}
 
 	width := utf8.RuneCountInString(t.Tag())
-	row := int(math.Round(t.Motion.Position.Y))
-	col := int(math.Round(t.Motion.Position.X))
+	col, row := t.Motion.Position.Rounded()
 
 	return y == row && x >= col && x < col+width
 }

@@ -1,7 +1,6 @@
 package game_test
 
 import (
-	"math"
 	"testing"
 
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
@@ -11,99 +10,114 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil/fixture"
 )
 
-func newInput(s *game.Session) *game.Input {
-	return game.NewInput(s)
+func TestInput_OnQuit_StopsGameSessionWhenThereIsNoPendingKillConfirmation(t *testing.T) {
+	// Given
+	gameSession := fixture.GameSession(nil, game.Config{})
+
+	// When
+	game.NewInput(gameSession).OnQuit()
+
+	// Then
+	assert.False(t, gameSession.IsRunning())
 }
 
-// --- OnQuit ---
+func TestInput_OnQuit_CancelsPendingKillConfirmation(t *testing.T) {
+	// Given
+	gameSession := fixture.PendingConfirmGameSession()
+	input := game.NewInput(gameSession)
 
-func TestInputOnQuitStopsGame(t *testing.T) {
-	s := fixture.Game(nil, game.Config{})
+	// When
+	input.OnQuit()
 
-	newInput(s).OnQuit()
-
-	assert.False(t, s.IsRunning())
+	// Then
+	assert.True(t, gameSession.IsRunning(), "OnQuit should cancel confirm, not stop, when confirm is pending")
+	assert.Nil(t, gameSession.PendingConfirm())
 }
 
-func TestInputOnQuitCancelsConfirmWhenPending(t *testing.T) {
-	s := fixture.PendingConfirmGameSession(1)
-	in := newInput(s)
+func TestInput_OnYes_AcceptsPendingKillConfirmationAndReturnsTargetToKill(t *testing.T) {
+	// Given
+	gameSession := fixture.PendingConfirmGameSession()
+	input := game.NewInput(gameSession)
 
-	in.OnQuit()
+	// When
+	result := input.OnYes()
 
-	assert.True(t, s.IsRunning(), "OnQuit should cancel confirm, not stop, when confirm is pending")
-	assert.Nil(t, s.PendingConfirm())
-}
-
-// --- OnYes ---
-
-func TestInputOnYesReturnsConfirmedTarget(t *testing.T) {
-	s := fixture.PendingConfirmGameSession(1)
-	in := newInput(s)
-
-	result := in.OnYes()
-
+	// Then
 	require.NotNil(t, result)
-	assert.Nil(t, s.PendingConfirm())
+	assert.Nil(t, gameSession.PendingConfirm())
 }
 
-// --- OnNo ---
+func TestInput_OnNo_CancelsPendingKillConfirmation(t *testing.T) {
+	// Given
+	gameSession := fixture.PendingConfirmGameSession()
+	input := game.NewInput(gameSession)
 
-func TestInputOnNoCancelsPending(t *testing.T) {
-	s := fixture.PendingConfirmGameSession(1)
-	in := newInput(s)
+	// When
+	input.OnNo()
 
-	in.OnNo()
+	// Then
+	assert.Nil(t, gameSession.PendingConfirm())
+	assert.True(t, gameSession.IsRunning())
+}
 
-	assert.Nil(t, s.PendingConfirm())
-	assert.True(t, s.IsRunning())
+func TestInput_OnSpeedUp_IncreasesSpeed(t *testing.T) {
+	// Given
+	gameSession := fixture.GameSession(nil, game.Config{Speed: 2.0})
+
+	// When
+	game.NewInput(gameSession).OnSpeedUp()
+
+	// Then
+	assert.Equal(t, 2.5, gameSession.Throttle().Speed())
 }
 
 // --- OnSpeedUp / OnSpeedDown ---
 
-func TestInputOnSpeedUpIncreasesSpeed(t *testing.T) {
-	s := fixture.Game(nil, game.Config{Speed: 2.0})
+func TestInput_OnSpeedDown_DecreasesSpeed(t *testing.T) {
+	// Given
+	gameSession := fixture.GameSession(nil, game.Config{Speed: 2.0})
 
-	newInput(s).OnSpeedUp()
+	// When
+	game.NewInput(gameSession).OnSpeedDown()
 
-	assert.Equal(t, 2.5, s.Throttle().Speed())
+	// Then
+	assert.Equal(t, 1.5, gameSession.Throttle().Speed())
 }
 
-func TestInputOnSpeedDownDecreasesSpeed(t *testing.T) {
-	s := fixture.Game(nil, game.Config{Speed: 2.0})
+func TestInput_OnClickAt_ReturnsTargetOnHitWhenThereIsNoPendingKillConfirmation(t *testing.T) {
+	// Given
+	gameSession := fixture.GameSession(fixture.Processes(1), game.Config{Speed: 1.0})
+	target := gameSession.Targets()[0]
+	x, y := target.Motion.Position.Rounded()
 
-	newInput(s).OnSpeedDown()
+	// When
+	result := game.NewInput(gameSession).OnClickAt(x, y)
 
-	assert.Equal(t, 1.5, s.Throttle().Speed())
-}
-
-// --- OnClickAt ---
-
-func TestInputOnClickAtReturnsTarget(t *testing.T) {
-	s := fixture.Game(fixture.Processes(1), game.Config{Speed: 1.0})
-	tgt := s.Targets()[0]
-
-	result := newInput(s).OnClickAt(int(math.Round(tgt.Motion.Position.X)), int(math.Round(tgt.Motion.Position.Y)))
-
+	// Then
 	require.NotNil(t, result)
 }
 
-func TestInputOnClickAtMissReturnsNil(t *testing.T) {
-	s := fixture.Game(nil, game.Config{Speed: 1.0})
+func TestInput_OnClickAt_ReturnsNilWhenHitAtIsAMiss(t *testing.T) {
+	// Given
+	gameSession := fixture.GameSession(nil, game.Config{Speed: 1.0})
 
-	result := newInput(s).OnClickAt(0, 0)
+	// When
+	result := game.NewInput(gameSession).OnClickAt(0, 0)
 
+	// Then
 	assert.Nil(t, result)
 }
 
-func TestInputOnClickAtNoOpWhenAlreadyConfirming(t *testing.T) {
-	s := fixture.PendingConfirmGameSession(2)
-	in := newInput(s)
-	pending := s.PendingConfirm()
+func TestInput_OnClickAt_NoOpWhenAlreadyConfirming(t *testing.T) {
+	// Given
+	gameSession := fixture.PendingConfirmGameSession()
+	input := game.NewInput(gameSession)
+	target := gameSession.Targets()[0]
 
-	second := s.Targets()[1]
-	result := in.OnClickAt(int(math.Round(second.Motion.Position.X)), int(math.Round(second.Motion.Position.Y)))
+	// When
+	result := input.OnClickAt(0, 0)
 
+	// Then
 	assert.Nil(t, result, "expected no result when already confirming")
-	assert.Equal(t, pending, s.PendingConfirm(), "expected pending confirmation unchanged")
+	assert.Equal(t, target, gameSession.PendingConfirm(), "expected the original pending target to remain unchanged")
 }

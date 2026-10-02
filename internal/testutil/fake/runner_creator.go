@@ -6,18 +6,18 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 )
 
-// RunnerCreator is a test double that constructs a Runner. It returns
-// Runner and Err, and records how many times Create was called and the
-// patterns and config.Options it was last called with.
+// RunnerCreator is a test double that constructs a Runner.
 type RunnerCreator struct {
-	Runner   inbound.Runner
-	Err      error
-	Calls    int
+	Runner inbound.Runner
+	Err    error
+	// Calls counts how many times Create was called.
+	Calls int
+	// Patterns and Options capture the arguments Create was most recently called with.
 	Patterns []string
 	Options  config.Options
 }
 
-// Create returns Runner and Err, and records the call, patterns, and opts.
+// Create returns Runner and Err, and records the call, patterns, and config.Options.
 func (f *RunnerCreator) Create(patterns []string, opts config.Options) (inbound.Runner, error) {
 	f.Calls++
 	f.Patterns = patterns

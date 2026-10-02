@@ -1,4 +1,3 @@
-// Package fixture provides reusable test data builders for domain types.
 package fixture
 
 import "github.com/eirikur-ari/pidshooter/internal/core/process"
@@ -8,8 +7,8 @@ func Process(pid int, name string) process.Info {
 	return process.NewInfo(pid, name, 0, 0)
 }
 
-// Processes returns n process.Info fixtures with sequential PIDs starting at 1
-// and letter names starting at "a".
+// Processes returns the given number of process.Info fixtures with sequential
+// PIDs starting at 1 and letter names starting at "a".
 func Processes(n int) []process.Info {
 	infos := make([]process.Info, n)
 	for i := range infos {

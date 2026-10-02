@@ -1,8 +1,6 @@
 package game
 
 import (
-	"math"
-
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
@@ -30,9 +28,10 @@ func toConfirmViewState(target *game.Target) *outbound.ConfirmViewState {
 }
 
 func toTargetViewState(target *game.Target) outbound.TargetViewState {
+	x, y := target.Motion.Position.Rounded()
 	return outbound.TargetViewState{
-		X:                 int(math.Round(target.Motion.Position.X)),
-		Y:                 int(math.Round(target.Motion.Position.Y)),
+		X:                 x,
+		Y:                 y,
 		Tag:               target.Tag(),
 		Killing:           target.State == game.Killing,
 		Fleeing:           target.State == game.Fleeing,

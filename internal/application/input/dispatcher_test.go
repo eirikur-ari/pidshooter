@@ -1,7 +1,6 @@
 package input
 
 import (
-	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,17 +16,18 @@ func newDispatcher(s *game.Session) *Dispatcher {
 // --- ClickEvent ---
 
 func TestDispatcherClickReturnsHitTarget(t *testing.T) {
-	s := fixture.Game(fixture.Processes(1), game.Config{Speed: 1.0})
+	s := fixture.GameSession(fixture.Processes(1), game.Config{Speed: 1.0})
 	d := newDispatcher(s)
 	tgt := s.Targets()[0]
+	x, y := tgt.Motion.Position.Rounded()
 
-	result := d.Dispatch(ClickEvent{X: int(math.Round(tgt.Motion.Position.X)), Y: int(math.Round(tgt.Motion.Position.Y))})
+	result := d.Dispatch(ClickEvent{X: x, Y: y})
 
 	assert.Equal(t, tgt, result)
 }
 
 func TestDispatcherClickMissReturnsNil(t *testing.T) {
-	s := fixture.Game(nil, game.Config{Speed: 1.0})
+	s := fixture.GameSession(nil, game.Config{Speed: 1.0})
 	d := newDispatcher(s)
 
 	result := d.Dispatch(ClickEvent{X: 0, Y: 0})
@@ -38,7 +38,7 @@ func TestDispatcherClickMissReturnsNil(t *testing.T) {
 // --- QuitEvent ---
 
 func TestDispatcherQuitEventStopsGame(t *testing.T) {
-	s := fixture.Game(nil, game.Config{})
+	s := fixture.GameSession(nil, game.Config{})
 
 	newDispatcher(s).Dispatch(QuitEvent{})
 
@@ -48,7 +48,7 @@ func TestDispatcherQuitEventStopsGame(t *testing.T) {
 // --- ConfirmEvent ---
 
 func TestDispatcherConfirmEventAcceptReturnsConfirmedTarget(t *testing.T) {
-	s := fixture.PendingConfirmGameSession(1)
+	s := fixture.PendingConfirmGameSession()
 	d := newDispatcher(s)
 	tgt := s.Targets()[0]
 
@@ -59,7 +59,7 @@ func TestDispatcherConfirmEventAcceptReturnsConfirmedTarget(t *testing.T) {
 }
 
 func TestDispatcherConfirmEventDeclineCancelsConfirmation(t *testing.T) {
-	s := fixture.PendingConfirmGameSession(1)
+	s := fixture.PendingConfirmGameSession()
 	d := newDispatcher(s)
 
 	d.Dispatch(ConfirmEvent{Accept: false})
@@ -70,7 +70,7 @@ func TestDispatcherConfirmEventDeclineCancelsConfirmation(t *testing.T) {
 // --- SpeedEvent ---
 
 func TestDispatcherSpeedEventFasterIncreasesSpeed(t *testing.T) {
-	s := fixture.Game(nil, game.Config{Speed: 2.0})
+	s := fixture.GameSession(nil, game.Config{Speed: 2.0})
 
 	newDispatcher(s).Dispatch(SpeedEvent{Faster: true})
 
@@ -78,7 +78,7 @@ func TestDispatcherSpeedEventFasterIncreasesSpeed(t *testing.T) {
 }
 
 func TestDispatcherSpeedEventSlowerDecreasesSpeed(t *testing.T) {
-	s := fixture.Game(nil, game.Config{Speed: 2.0})
+	s := fixture.GameSession(nil, game.Config{Speed: 2.0})
 
 	newDispatcher(s).Dispatch(SpeedEvent{Faster: false})
 
