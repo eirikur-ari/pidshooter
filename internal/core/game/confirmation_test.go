@@ -8,38 +8,88 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-func TestConfirmationPendingFalseWhenEmpty(t *testing.T) {
-	c := newConfirmation(true)
-	assert.False(t, c.Pending())
+func TestConfirmation_Pending_IsFalseByDefault(t *testing.T) {
+	// Given
+	confirm := confirmation{}
+
+	// When
+	result := confirm.Pending()
+
+	// Then
+	assert.False(t, result)
 }
 
-func TestConfirmationRequestConfirmModeHoldsTarget(t *testing.T) {
-	c := newConfirmation(true)
-	tgt := &Target{Info: process.NewInfo(1, "x", 0, 0)}
-	result := c.Request(tgt)
+func TestConfirmation_Pending_IsTrueWhenTargetIsSet(t *testing.T) {
+	// Given
+	target := &Target{Info: process.NewInfo(1, "x", 0, 0)}
+	confirm := confirmation{target: target}
+
+	// When
+	result := confirm.Pending()
+
+	// Then
+	assert.True(t, result)
+}
+
+func TestConfirmation_Request_SetsTargetAndReturnsNilWhenConfirmIsTrue(t *testing.T) {
+	// Given
+	confirm := newConfirmation(true)
+	target := &Target{Info: process.NewInfo(1, "x", 0, 0)}
+
+	// When
+	result := confirm.Request(target)
+
+	// Then
 	assert.Nil(t, result)
-	assert.True(t, c.Pending())
+	assert.NotNil(t, confirm.target)
 }
 
-func TestConfirmationRequestPassthroughModeReturnsTarget(t *testing.T) {
-	c := newConfirmation(false)
-	tgt := &Target{Info: process.NewInfo(1, "x", 0, 0)}
-	result := c.Request(tgt)
-	assert.Equal(t, tgt, result)
-	assert.False(t, c.Pending())
+func TestConfirmation_Request_ReturnsTargetWhenConfirmIsFalse(t *testing.T) {
+	// Given
+	confirm := newConfirmation(false)
+	target := &Target{Info: process.NewInfo(1, "x", 0, 0)}
+
+	// When
+	result := confirm.Request(target)
+
+	// Then
+	assert.Equal(t, target, result)
+	assert.Nil(t, confirm.target)
 }
 
-func TestConfirmationAcceptReturnsAndClearsTarget(t *testing.T) {
-	tgt := &Target{Info: process.NewInfo(1, "x", 0, 0)}
-	c := confirmation{target: tgt}
-	result := c.Accept()
-	assert.Equal(t, tgt, result)
-	assert.False(t, c.Pending())
+func TestConfirmation_Accept_ReturnsNilByDefault(t *testing.T) {
+	// Given
+	confirm := newConfirmation(false)
+
+	// When
+	result := confirm.Accept()
+
+	// Then
+	assert.Nil(t, result)
+	assert.Nil(t, confirm.target)
 }
 
-func TestConfirmationCancelClearsPending(t *testing.T) {
-	tgt := &Target{Info: process.NewInfo(1, "x", 0, 0)}
-	c := confirmation{target: tgt}
-	c.Cancel()
-	assert.False(t, c.Pending())
+func TestConfirmation_Accept_ReturnsTargetAndClearsTargetField(t *testing.T) {
+	// Given
+	target := &Target{Info: process.NewInfo(1, "x", 0, 0)}
+	confirm := confirmation{target: target}
+
+	// When
+	result := confirm.Accept()
+
+	// Then
+	assert.Equal(t, target, result)
+	assert.Nil(t, confirm.target)
+}
+
+func TestConfirmation_Cancel_ClearsTargetField(t *testing.T) {
+	// Given
+	target := &Target{Info: process.NewInfo(1, "x", 0, 0)}
+	confirm := confirmation{target: target}
+
+	// When
+	confirm.Cancel()
+
+	// Then
+	assert.Nil(t, confirm.target)
 }

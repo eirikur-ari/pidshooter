@@ -1,7 +1,6 @@
 package game
 
-// confirmation tracks a target pending user confirmation before a kill is issued.
-// When confirm is false, Request passes targets through immediately.
+// confirmation tracks a target pending user confirmation.
 type confirmation struct {
 	target  *Target
 	confirm bool
@@ -15,18 +14,22 @@ func newConfirmation(confirm bool) confirmation {
 // Pending reports whether a target is awaiting confirmation.
 func (c *confirmation) Pending() bool { return c.target != nil }
 
-// Request registers t as pending confirmation (confirm mode) or returns it
-// immediately for killing (passthrough mode).
-func (c *confirmation) Request(t *Target) *Target {
+// Request registers target as pending confirmation and returns nil, or, when
+// confirmation is not required, returns target immediately.
+func (c *confirmation) Request(target *Target) *Target {
 	if c.confirm {
-		c.target = t
+		c.target = target
 		return nil
 	}
-	return t
+	return target
 }
 
-// Accept accepts the pending confirmation, clears it, and returns the target.
-func (c *confirmation) Accept() *Target { t := c.target; c.target = nil; return t }
+// Accept returns the pending target, if any, and clears the pending confirmation.
+func (c *confirmation) Accept() *Target {
+	target := c.target
+	c.target = nil
+	return target
+}
 
-// Cancel cancels the pending confirmation without issuing a kill.
+// Cancel clears the pending confirmation without accepting it.
 func (c *confirmation) Cancel() { c.target = nil }
