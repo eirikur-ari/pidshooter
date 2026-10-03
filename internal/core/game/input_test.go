@@ -71,8 +71,6 @@ func TestInput_OnSpeedUp_IncreasesSpeed(t *testing.T) {
 	assert.Equal(t, 2.5, gameSession.Throttle().Speed())
 }
 
-// --- OnSpeedUp / OnSpeedDown ---
-
 func TestInput_OnSpeedDown_DecreasesSpeed(t *testing.T) {
 	// Given
 	gameSession := fixture.GameSession(nil, game.Config{Speed: 2.0})
