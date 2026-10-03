@@ -1,9 +1,9 @@
-package fake
+package testutil
 
 import "github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 
-// ProcessReporter is a test double for outbound.ProcessReporter.
-type ProcessReporter struct {
+// FakeProcessReporter is a test double for outbound.ProcessReporter.
+type FakeProcessReporter struct {
 	Reported *ProcessReport // captured by the most recent Report call, nil if Report was never called
 }
 
@@ -13,6 +13,6 @@ type ProcessReport struct {
 	Patterns []string
 }
 
-func (r *ProcessReporter) Report(matches []outbound.ProcessInfo, patterns []string) {
+func (r *FakeProcessReporter) Report(matches []outbound.ProcessInfo, patterns []string) {
 	r.Reported = &ProcessReport{Matches: matches, Patterns: patterns}
 }

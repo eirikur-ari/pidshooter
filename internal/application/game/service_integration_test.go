@@ -14,7 +14,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestIntegrationServiceFrameLoopAppliesAsyncKillToResult(t *testing.T) {
@@ -25,13 +25,13 @@ func TestIntegrationServiceFrameLoopAppliesAsyncKillToResult(t *testing.T) {
 	target := session.Targets()[0]
 	x, y := target.Motion.Position.Rounded()
 
-	events := fake.NewInputEventProvider()
+	events := testutil.NewFakeInputEventProvider()
 	events.Ch <- input.ClickEvent{X: x, Y: y}
 
-	killer := fake.ProcessKiller(func(int, string, bool) (bool, error) {
+	killer := FakeProcessKiller(func(int, string, bool) (bool, error) {
 		return false, nil
 	})
-	svc := NewService(killer, &fake.Renderer{}, events)
+	svc := NewService(killer, &testutil.FakeRenderer{}, events)
 	dispatcher := input.NewDispatcher(game.NewInput(session))
 
 	done := make(chan struct{})
@@ -63,16 +63,16 @@ func TestIntegrationServiceFrameLoopWaitsForKillInFlightWhenSessionStops(t *test
 	target := session.Targets()[0]
 	x, y := target.Motion.Position.Rounded()
 
-	events := fake.NewInputEventProvider()
+	events := testutil.NewFakeInputEventProvider()
 	events.Ch <- input.ClickEvent{X: x, Y: y}
 	events.Ch <- input.QuitEvent{}
 
 	const killDelay = 300 * time.Millisecond
-	killer := fake.ProcessKiller(func(int, string, bool) (bool, error) {
+	killer := FakeProcessKiller(func(int, string, bool) (bool, error) {
 		time.Sleep(killDelay)
 		return false, nil
 	})
-	svc := NewService(killer, &fake.Renderer{}, events)
+	svc := NewService(killer, &testutil.FakeRenderer{}, events)
 	dispatcher := input.NewDispatcher(game.NewInput(session))
 
 	done := make(chan struct{})
@@ -110,16 +110,16 @@ func TestIntegrationServiceDrainEventQueueIgnoresDuplicateClicksOnSameTarget(t *
 	target := session.Targets()[0]
 	x, y := target.Motion.Position.Rounded()
 
-	events := fake.NewInputEventProvider()
+	events := testutil.NewFakeInputEventProvider()
 	events.Ch <- input.ClickEvent{X: x, Y: y}
 	events.Ch <- input.ClickEvent{X: x, Y: y}
 
 	var calls atomic.Int32
-	killer := fake.ProcessKiller(func(int, string, bool) (bool, error) {
+	killer := FakeProcessKiller(func(int, string, bool) (bool, error) {
 		calls.Add(1)
 		return false, nil
 	})
-	svc := NewService(killer, &fake.Renderer{}, events)
+	svc := NewService(killer, &testutil.FakeRenderer{}, events)
 	dispatcher := input.NewDispatcher(game.NewInput(session))
 
 	killSignals := make(chan killSignal, 10)

@@ -1,9 +1,9 @@
-package fake
+package testutil
 
 import "github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 
-// Renderer is a test double for outbound.Renderer.
-type Renderer struct {
+// FakeRenderer is a test double for outbound.Renderer.
+type FakeRenderer struct {
 	InitErr error
 	// SizeW, SizeH are returned by WindowSize, overriding the default 80x24
 	// when either is nonzero.
@@ -15,19 +15,19 @@ type Renderer struct {
 	LastFrame *outbound.FrameViewState
 }
 
-func (r *Renderer) Init() error { return r.InitErr }
+func (r *FakeRenderer) Init() error { return r.InitErr }
 
-func (r *Renderer) Cleanup() { r.CleanupCalls++ }
+func (r *FakeRenderer) Cleanup() { r.CleanupCalls++ }
 
-func (r *Renderer) WindowSize() outbound.WindowSize {
+func (r *FakeRenderer) WindowSize() outbound.WindowSize {
 	if r.SizeW != 0 || r.SizeH != 0 {
 		return outbound.WindowSize{Width: r.SizeW, Height: r.SizeH}
 	}
 	return outbound.WindowSize{Width: 80, Height: 24}
 }
 
-func (r *Renderer) ChromeSize() outbound.ChromeSize {
+func (r *FakeRenderer) ChromeSize() outbound.ChromeSize {
 	return outbound.ChromeSize{Top: 1, Bottom: 1}
 }
 
-func (r *Renderer) Render(state outbound.FrameViewState) { r.LastFrame = &state }
+func (r *FakeRenderer) Render(state outbound.FrameViewState) { r.LastFrame = &state }

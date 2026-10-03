@@ -11,16 +11,16 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 // --- Service.loadScoreBoard ---
 
 func TestLoadScoreBoardReturnsMappedEntries(t *testing.T) {
 	date := time.Now()
-	svc := NewService(&fake.Store{Board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
+	svc := NewService(&testutil.FakeStore{Board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
 		{Kills: 8, FreedMem: 1024, Speed: 2.0, Time: 30, Duration: 5, Date: date},
-	}}}, &fake.ScoreReporter{})
+	}}}, &testutil.FakeScoreReporter{})
 
 	board, highScore, err := svc.LoadScoreBoard()
 
@@ -30,7 +30,7 @@ func TestLoadScoreBoardReturnsMappedEntries(t *testing.T) {
 }
 
 func TestLoadScoreBoardReturnsNotFoundErrorWhenScoreBoardIsNotFound(t *testing.T) {
-	svc := NewService(&fake.Store{LoadErr: outbound.NotFoundError{}}, &fake.ScoreReporter{})
+	svc := NewService(&testutil.FakeStore{LoadErr: outbound.NotFoundError{}}, &testutil.FakeScoreReporter{})
 
 	board, highScore, err := svc.LoadScoreBoard()
 
@@ -47,7 +47,7 @@ func TestLoadScoreBoardReturnsNotFoundErrorWhenScoreBoardIsNotFound(t *testing.T
 
 func TestLoadScoreBoardReturnsUnderlyingError(t *testing.T) {
 	cause := errors.New("disk error")
-	svc := NewService(&fake.Store{LoadErr: cause}, &fake.ScoreReporter{})
+	svc := NewService(&testutil.FakeStore{LoadErr: cause}, &testutil.FakeScoreReporter{})
 
 	board, highScore, err := svc.LoadScoreBoard()
 
@@ -64,8 +64,8 @@ func TestLoadScoreBoardReturnsUnderlyingError(t *testing.T) {
 // --- Service.recordScore ---
 
 func TestRecordScoreReturnsNilWhenBoardIsSavedSuccessfully(t *testing.T) {
-	fakeStore := &fake.Store{}
-	svc := NewService(fakeStore, &fake.ScoreReporter{})
+	fakeStore := &testutil.FakeStore{}
+	svc := NewService(fakeStore, &testutil.FakeScoreReporter{})
 	board := score.NewBoard(nil)
 
 	require.Nil(t, svc.RecordScore(board, score.Entry{Kills: 4, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5}, nil))
@@ -83,8 +83,8 @@ func TestRecordScoreReturnsNilWhenBoardIsSavedSuccessfully(t *testing.T) {
 }
 
 func TestRecordScoreDoesNotAddZeroKillEntryToBoardOrSave(t *testing.T) {
-	fakeStore := &fake.Store{}
-	svc := NewService(fakeStore, &fake.ScoreReporter{})
+	fakeStore := &testutil.FakeStore{}
+	svc := NewService(fakeStore, &testutil.FakeScoreReporter{})
 	board := score.NewBoard(nil)
 
 	require.Nil(t, svc.RecordScore(board, score.Entry{Kills: 0, Duration: 1.0}, nil))
@@ -96,8 +96,8 @@ func TestRecordScoreDoesNotAddZeroKillEntryToBoardOrSave(t *testing.T) {
 
 func TestRecordScoreMergesWithConcurrentlyPersistedEntries(t *testing.T) {
 	concurrentEntry := outbound.ScoreEntry{Kills: 20, Date: time.Now()}
-	fakeStore := &fake.Store{Board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{concurrentEntry}}}
-	svc := NewService(fakeStore, &fake.ScoreReporter{})
+	fakeStore := &testutil.FakeStore{Board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{concurrentEntry}}}
+	svc := NewService(fakeStore, &testutil.FakeScoreReporter{})
 	board := score.NewBoard(nil) // this session's board, loaded before concurrentEntry was saved by another process
 
 	require.Nil(t, svc.RecordScore(board, score.Entry{Kills: 5, Duration: 1.0}, nil))
@@ -107,8 +107,8 @@ func TestRecordScoreMergesWithConcurrentlyPersistedEntries(t *testing.T) {
 }
 
 func TestRecordScoreSavesWhenScoreBoardWasNotFound(t *testing.T) {
-	fakeStore := &fake.Store{}
-	svc := NewService(fakeStore, &fake.ScoreReporter{})
+	fakeStore := &testutil.FakeStore{}
+	svc := NewService(fakeStore, &testutil.FakeScoreReporter{})
 	board := score.NewBoard(nil)
 
 	loadErr := apperror.NewError(apperror.CodeStoreLoadFailed, apperror.SeverityWarning, "score board not loaded", outbound.NotFoundError{})
@@ -120,8 +120,8 @@ func TestRecordScoreSavesWhenScoreBoardWasNotFound(t *testing.T) {
 }
 
 func TestRecordScoreSavesWhenScoreBoardWasCorrupted(t *testing.T) {
-	fakeStore := &fake.Store{}
-	svc := NewService(fakeStore, &fake.ScoreReporter{})
+	fakeStore := &testutil.FakeStore{}
+	svc := NewService(fakeStore, &testutil.FakeScoreReporter{})
 	board := score.NewBoard(nil)
 
 	loadErr := apperror.NewError(apperror.CodeStoreLoadFailed, apperror.SeverityWarning, "score board not loaded",
@@ -134,8 +134,8 @@ func TestRecordScoreSavesWhenScoreBoardWasCorrupted(t *testing.T) {
 }
 
 func TestRecordScoreSkipsSaveAndReturnsWarningWhenLoadFailed(t *testing.T) {
-	fakeStore := &fake.Store{}
-	svc := NewService(fakeStore, &fake.ScoreReporter{})
+	fakeStore := &testutil.FakeStore{}
+	svc := NewService(fakeStore, &testutil.FakeScoreReporter{})
 	board := score.NewBoard(nil)
 
 	cause := errors.New("disk error")
@@ -153,8 +153,8 @@ func TestRecordScoreSkipsSaveAndReturnsWarningWhenLoadFailed(t *testing.T) {
 
 func TestRecordScoreSaveErrorReturnsUnderlyingError(t *testing.T) {
 	cause := errors.New("disk full")
-	fakeStore := &fake.Store{SaveErr: cause}
-	svc := NewService(fakeStore, &fake.ScoreReporter{})
+	fakeStore := &testutil.FakeStore{SaveErr: cause}
+	svc := NewService(fakeStore, &testutil.FakeScoreReporter{})
 	board := score.NewBoard(nil)
 
 	err := svc.RecordScore(board, score.Entry{Kills: 1, Duration: 1.0}, nil)
@@ -171,8 +171,8 @@ func TestRecordScoreSaveErrorReturnsUnderlyingError(t *testing.T) {
 func TestReportResultsReportsSummaryViaReporter(t *testing.T) {
 	board := score.NewBoard(nil)
 	board.Add(score.Entry{Kills: 2, Date: time.Now()})
-	reporter := &fake.ScoreReporter{}
-	svc := NewService(&fake.Store{}, reporter)
+	reporter := &testutil.FakeScoreReporter{}
+	svc := NewService(&testutil.FakeStore{}, reporter)
 
 	svc.ReportResults(7.5, 3, 1, 4096, board)
 

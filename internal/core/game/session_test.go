@@ -5,148 +5,177 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-func TestNewSession(t *testing.T) {
-	processes := []process.Info{
-		process.NewInfo(1, "a", 100, 0),
-		process.NewInfo(2, "b", 200, 0),
-	}
-
-	s := NewSession(processes, Config{Confirm: true, Speed: 3.5, TimeLimit: 60})
-
-	assert.True(t, s.cfg.Confirm)
-	assert.Equal(t, 3.5, s.throttle.Speed())
-	assert.Equal(t, 60, s.cfg.TimeLimit)
-	assert.Equal(t, pending, s.currentState())
-}
-
-func TestStartTransitionsToRunning(t *testing.T) {
+func TestSession_Start_TransitionsFromPendingToRunning(t *testing.T) {
+	// Given
 	processes := []process.Info{process.NewInfo(1, "a", 100, 0)}
-	s := NewSession(processes, Config{})
+	session := NewSession(processes, Config{})
+	bounds := movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1})
 
-	s.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
+	// When
+	pendingState := session.currentState()
+	session.Start(bounds)
+	runningState := session.currentState()
+	result := session.IsRunning()
 
-	assert.True(t, s.IsRunning())
-	assert.Len(t, s.roster.targets, 1)
+	// Then
+	assert.Equal(t, pending, pendingState)
+	assert.Equal(t, running, runningState)
+	assert.True(t, result)
 }
 
-func TestStopTransitionsToStopped(t *testing.T) {
-	s := NewSession(nil, Config{})
-	s.Start(movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1}))
+func TestSession_Start_PanicsWhenAlreadyRunning(t *testing.T) {
+	// Given
+	session := NewSession(nil, Config{})
 
-	s.Stop()
+	// When
+	session.Start(movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1}))
 
-	assert.Equal(t, stopped, s.currentState())
-}
-
-func TestStartPanicsWhenRunning(t *testing.T) {
-	s := NewSession(nil, Config{})
-	s.Start(movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1}))
-
+	// Then
 	assert.Panics(t, func() {
-		s.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
+		session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	})
 }
 
-func TestStartPanicsWhenStopped(t *testing.T) {
-	s := NewSession(nil, Config{})
-	s.Start(movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1}))
-	s.Stop()
+func TestSession_Start_PanicsWhenAlreadyStopped(t *testing.T) {
+	// Given
+	session := NewSession(nil, Config{})
 
+	// When
+	session.Start(movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1}))
+	session.Stop()
+
+	// Then
 	assert.Panics(t, func() {
-		s.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
+		session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
 	})
 }
 
-func TestGameTimeLimit(t *testing.T) {
-	s := NewSession(nil, Config{TimeLimit: 30})
-	assert.Equal(t, 30, s.TimeLimit())
+func TestSession_Stop_TransitionsFromRunningToStopped(t *testing.T) {
+	// Given
+	session := NewSession(nil, Config{})
+	bounds := movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1})
+
+	// When
+	session.Start(bounds)
+	runningState := session.currentState()
+	session.Stop()
+	stoppedState := session.currentState()
+	result := session.IsRunning()
+
+	// Then
+	assert.Equal(t, running, runningState)
+	assert.Equal(t, stopped, stoppedState)
+	assert.False(t, result)
 }
 
-func TestGameTargetsEmptyBeforeStart(t *testing.T) {
-	s := NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{})
-	assert.Empty(t, s.Targets())
+func TestSession_Update_AdvancesTargetWhileRunning(t *testing.T) {
+	// Given
+	session := NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{Speed: 1.0})
+	bounds := movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1})
+
+	// When
+	session.Start(bounds)
+	target := session.Targets()[0]
+	target.Motion = movement.Motion{Position: movement.Vector{X: 35, Y: 10}, Velocity: movement.Vector{X: 2.0, Y: 0}}
+
+	session.Update(movement.WindowSize{Width: 40, Height: 24})
+	isRunning := session.IsRunning()
+
+	// Then
+	assert.True(t, isRunning)
+	assert.Equal(t, 35.0, target.Motion.Position.X, "the narrower window passed to Update, not Start, must constrain movement")
+	assert.Less(t, target.Motion.Velocity.X, 0.0, "hitting the new right wall should bounce velocity")
 }
 
-func TestGameTargetsPopulatedAfterStart(t *testing.T) {
-	s := NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{})
-	s.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
-	assert.Len(t, s.Targets(), 1)
+func TestSession_Update_StopsWhenTimeLimitExpired(t *testing.T) {
+	// Given
+	clock := &FakeClock{T: time.Now()}
+	session := &Session{timer: newTimer(1, clock.Now)}
+	bounds := movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1})
+
+	// When
+	session.Start(bounds)
+	clock.Advance(2 * time.Second)
+	session.Update(movement.WindowSize{Width: 80, Height: 24})
+	isRunning := session.IsRunning()
+
+	// Then
+	assert.False(t, isRunning)
 }
 
-func TestGamePendingConfirmNilWhenNoPending(t *testing.T) {
-	s := NewSession(nil, Config{})
-	assert.Nil(t, s.PendingConfirm())
+func TestSession_Update_StopsWhenAllTargetsAreDead(t *testing.T) {
+	// Given
+	target := &Target{Info: process.NewInfo(1, "target", 0, 0), State: Dead}
+	session := &Session{roster: roster{targets: []*Target{target}}, timer: newTimer(0, time.Now), throttle: movement.NewThrottle(movement.MinSpeed)}
+	bounds := movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1})
+
+	// When
+	session.Start(bounds)
+	session.Update(movement.WindowSize{Width: 80, Height: 24})
+
+	// Then
+	assert.False(t, session.IsRunning())
 }
 
-func TestGamePendingConfirmReturnsPendingTarget(t *testing.T) {
-	tgt := &Target{Info: process.NewInfo(42, "suspect", 0, 0)}
-	s := &Session{confirm: confirmation{target: tgt, confirm: true}}
-	assert.Equal(t, tgt, s.PendingConfirm())
+func TestSession_PendingConfirm_ReturnsNilWhenNoPendingTarget(t *testing.T) {
+	// Given
+	session := NewSession(nil, Config{})
+
+	// When
+	result := session.PendingConfirm()
+
+	// Then
+	assert.Nil(t, result)
 }
 
-func TestGameConfirmPendingFalseInitially(t *testing.T) {
-	s := NewSession(nil, Config{})
-	assert.False(t, s.confirm.Pending())
+func TestSession_PendingConfirm_ReturnsPendingTarget(t *testing.T) {
+	// Given
+	target := &Target{Info: process.NewInfo(42, "suspect", 0, 0)}
+	session := &Session{confirm: confirmation{target: target, confirm: true}}
+
+	// When
+	result := session.PendingConfirm()
+
+	// Then
+	assert.Equal(t, target, result)
 }
 
-func TestGameThrottleMutationAffectsSpeed(t *testing.T) {
-	s := NewSession(nil, Config{Speed: 2.0})
-	s.Throttle().Increase()
-	assert.Equal(t, 2.5, s.Throttle().Speed())
+func TestSession_Targets_EmptyByDefault(t *testing.T) {
+	// Given
+	session := NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{})
+
+	// When
+	result := session.Targets()
+
+	// Then
+	assert.Empty(t, result)
 }
 
-func TestGameAvailableTargetsExcludesDeadTargets(t *testing.T) {
-	s := NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{Speed: 1.0})
-	s.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
-	s.roster.targets[0].Kill()
-	for range AnimationDuration {
-		s.Update(movement.WindowSize{Width: 80, Height: 24})
-	}
+func TestSession_Targets_PopulatedAfterStart(t *testing.T) {
+	// Given
+	session := NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{})
+	bounds := movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1})
 
-	targets, alive := s.AvailableTargets()
+	// When
+	session.Start(bounds)
+	result := session.Targets()
 
-	assert.Empty(t, targets)
-	assert.Equal(t, 0, alive)
+	// Then
+	assert.Len(t, result, 1)
 }
 
-func TestGameAvailableTargetsCountsAlive(t *testing.T) {
-	processes := []process.Info{
-		process.NewInfo(1, "a", 0, 0),
-		process.NewInfo(2, "b", 0, 0),
-	}
-	s := NewSession(processes, Config{Speed: 1.0})
-	s.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
-	s.roster.targets[0].Kill()
+func TestSession_Throttle_ReflectsConfiguredSpeed(t *testing.T) {
+	// Given
+	session := NewSession(nil, Config{Speed: 2.0})
 
-	targets, alive := s.AvailableTargets()
+	// When
+	session.Throttle().Increase()
 
-	require.Len(t, targets, 2) // killing + alive both available
-	assert.Equal(t, 1, alive)
-}
-
-func TestUpdateStopsWhenTimeLimitExpired(t *testing.T) {
-	clock := &fakeClock{t: time.Now()}
-	s := &Session{timer: newTimer(1, clock.now)}
-	s.Start(movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1}))
-	clock.advance(2 * time.Second)
-
-	s.Update(movement.WindowSize{Width: 80, Height: 24})
-
-	assert.False(t, s.IsRunning())
-}
-
-func TestUpdateStopsWhenAllTargetsDead(t *testing.T) {
-	tgt := &Target{Info: process.NewInfo(1, "target", 0, 0), State: Dead}
-	s := &Session{roster: roster{targets: []*Target{tgt}}, timer: newTimer(0, time.Now), throttle: movement.NewThrottle(movement.MinSpeed)}
-	s.Start(movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1}))
-
-	s.Update(movement.WindowSize{Width: 80, Height: 24})
-
-	assert.False(t, s.IsRunning())
+	// Then
+	assert.Equal(t, 2.5, session.Throttle().Speed())
 }

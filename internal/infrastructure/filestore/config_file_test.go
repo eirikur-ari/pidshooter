@@ -11,7 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/helper"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestNewConfigFileResolvesDefaultPath(t *testing.T) {
@@ -90,11 +90,11 @@ func TestConfigSaveLoadRoundTrip(t *testing.T) {
 	c := newTempConfig(t)
 	defaults := outbound.Config{
 		Mode:    outbound.ModeGame,
-		Process: outbound.ProcessConfig{IncludeRoot: helper.Pointer(true)},
+		Process: outbound.ProcessConfig{IncludeRoot: testutil.Pointer(true)},
 		Game: outbound.GameConfig{
-			ConfirmMode: helper.Pointer(true),
-			Speed:       helper.Pointer(2.5),
-			TimeLimit:   helper.Pointer(60),
+			ConfirmMode: testutil.Pointer(true),
+			Speed:       testutil.Pointer(2.5),
+			TimeLimit:   testutil.Pointer(60),
 		},
 	}
 
@@ -107,10 +107,10 @@ func TestConfigSaveLoadRoundTrip(t *testing.T) {
 func TestConfigSaveOverwritesPreviousFile(t *testing.T) {
 	c := newTempConfig(t)
 
-	first := outbound.Config{Mode: outbound.ModeGame, Game: outbound.GameConfig{Speed: helper.Pointer(1.0)}}
+	first := outbound.Config{Mode: outbound.ModeGame, Game: outbound.GameConfig{Speed: testutil.Pointer(1.0)}}
 	require.NoError(t, c.Save(first))
 
-	second := outbound.Config{Mode: outbound.ModeLucky, Game: outbound.GameConfig{Speed: helper.Pointer(2.0)}}
+	second := outbound.Config{Mode: outbound.ModeLucky, Game: outbound.GameConfig{Speed: testutil.Pointer(2.0)}}
 	require.NoError(t, c.Save(second))
 
 	loaded, err := c.Load()
@@ -145,11 +145,11 @@ func TestConfigSaveWritesYAMLMatchingOnDiskSchema(t *testing.T) {
 	c := newTempConfig(t)
 	defaults := outbound.Config{
 		Mode:    outbound.ModeGame,
-		Process: outbound.ProcessConfig{IncludeRoot: helper.Pointer(true)},
+		Process: outbound.ProcessConfig{IncludeRoot: testutil.Pointer(true)},
 		Game: outbound.GameConfig{
-			ConfirmMode: helper.Pointer(true),
-			Speed:       helper.Pointer(2.5),
-			TimeLimit:   helper.Pointer(60),
+			ConfirmMode: testutil.Pointer(true),
+			Speed:       testutil.Pointer(2.5),
+			TimeLimit:   testutil.Pointer(60),
 		},
 	}
 	require.NoError(t, c.Save(defaults))

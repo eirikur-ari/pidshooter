@@ -14,13 +14,12 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/helper"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestServiceRunReturnsErrorWhenRunningAsRootWithoutOverride(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0)}}
-	r := newTestServiceWithProcess(&fake.ProcessManager{OwnUIDValue: 0}, []string{"proc"}, opts)
+	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0)}}
+	r := newTestServiceWithProcess(&testutil.FakeProcessManager{OwnUIDValue: 0}, []string{"proc"}, opts)
 
 	err := r.Run()
 
@@ -31,25 +30,25 @@ func TestServiceRunReturnsErrorWhenRunningAsRootWithoutOverride(t *testing.T) {
 }
 
 func TestServiceRunReturnsErrorWhenSpeedTooLow(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(movement.MinSpeed - 0.1)}}
+	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(movement.MinSpeed - 0.1)}}
 	err := newTestService([]string{"proc"}, opts).Run()
 	assertFatal(t, err)
 }
 
 func TestServiceRunReturnsErrorWhenSpeedTooHigh(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(movement.MaxSpeed + 0.1)}}
+	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(movement.MaxSpeed + 0.1)}}
 	err := newTestService([]string{"proc"}, opts).Run()
 	assertFatal(t, err)
 }
 
 func TestServiceRunReturnsErrorWhenTimeLimitIsNegative(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0), TimeLimit: helper.Pointer(-1)}}
+	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0), TimeLimit: testutil.Pointer(-1)}}
 	err := newTestService([]string{"proc"}, opts).Run()
 	assertFatal(t, err)
 }
 
 func TestServiceRunReturnsErrorWhenNoPatternsAreProvided(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0)}}
+	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0)}}
 	err := newTestService(nil, opts).Run()
 	assertFatal(t, err)
 	assert.ErrorContains(t, err, "at least one search pattern is required")
@@ -57,15 +56,15 @@ func TestServiceRunReturnsErrorWhenNoPatternsAreProvided(t *testing.T) {
 
 func TestServiceRunReturnsErrorWhenPatternTooShort(t *testing.T) {
 	for _, p := range []string{"a", "ab"} {
-		opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0)}}
+		opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0)}}
 		err := newTestService([]string{p}, opts).Run()
 		assertFatal(t, err)
 	}
 }
 
 func TestServiceRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0)}}
-	r := newTestServiceWithProcess(&fake.ProcessManager{DiscoverErr: errors.New("ps failed"), OwnUIDValue: 1000}, []string{"proc"}, opts)
+	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0)}}
+	r := newTestServiceWithProcess(&testutil.FakeProcessManager{DiscoverErr: errors.New("ps failed"), OwnUIDValue: 1000}, []string{"proc"}, opts)
 
 	err := r.Run()
 
@@ -76,15 +75,15 @@ func TestServiceRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 }
 
 func newTestService(patterns []string, opts config.Options) *Service {
-	return newTestServiceWithProcess(&fake.ProcessManager{OwnUIDValue: 1000}, patterns, opts)
+	return newTestServiceWithProcess(&testutil.FakeProcessManager{OwnUIDValue: 1000}, patterns, opts)
 }
 
-func newTestServiceWithProcess(proc *fake.ProcessManager, patterns []string, opts config.Options) *Service {
-	configSvc := config.NewService(&fake.ConfigStore{LoadErr: outbound.NotFoundError{}}, opts)
-	processSvc := process.NewService(proc, &fake.ProcessReporter{}, patterns)
-	scoreSvc := score.NewService(&fake.Store{}, &fake.ScoreReporter{})
-	gameSvc := game.NewService(processSvc, &fake.Renderer{}, fake.NewInputEventProvider())
-	errHandler := apperror.NewHandler(&fake.Logger{})
+func newTestServiceWithProcess(proc *testutil.FakeProcessManager, patterns []string, opts config.Options) *Service {
+	configSvc := config.NewService(&testutil.FakeConfigStore{LoadErr: outbound.NotFoundError{}}, opts)
+	processSvc := process.NewService(proc, &testutil.FakeProcessReporter{}, patterns)
+	scoreSvc := score.NewService(&testutil.FakeStore{}, &testutil.FakeScoreReporter{})
+	gameSvc := game.NewService(processSvc, &testutil.FakeRenderer{}, testutil.NewFakeInputEventProvider())
+	errHandler := apperror.NewHandler(&testutil.FakeLogger{})
 	return NewService(configSvc, processSvc, scoreSvc, gameSvc, errHandler)
 }
 

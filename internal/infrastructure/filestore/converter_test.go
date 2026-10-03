@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/helper"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 // --- toScoreBoard ---
@@ -60,20 +60,20 @@ func TestToConfigMapsFields(t *testing.T) {
 		Version: currentConfigSchemaVersion,
 		Mode:    "lucky",
 		Process: processEntry{
-			IncludeRoot: helper.Pointer(true),
+			IncludeRoot: testutil.Pointer(true),
 		},
 		Game: configEntry{
-			ConfirmMode: helper.Pointer(true),
-			Speed:       helper.Pointer(2.5),
-			TimeLimit:   helper.Pointer(60),
+			ConfirmMode: testutil.Pointer(true),
+			Speed:       testutil.Pointer(2.5),
+			TimeLimit:   testutil.Pointer(60),
 		},
 	}
 
 	defaults := toConfig(cd)
 
 	assert.Equal(t, outbound.ModeLucky, defaults.Mode)
-	assert.Equal(t, outbound.ProcessConfig{IncludeRoot: helper.Pointer(true)}, defaults.Process)
-	assert.Equal(t, outbound.GameConfig{ConfirmMode: helper.Pointer(true), Speed: helper.Pointer(2.5), TimeLimit: helper.Pointer(60)}, defaults.Game)
+	assert.Equal(t, outbound.ProcessConfig{IncludeRoot: testutil.Pointer(true)}, defaults.Process)
+	assert.Equal(t, outbound.GameConfig{ConfirmMode: testutil.Pointer(true), Speed: testutil.Pointer(2.5), TimeLimit: testutil.Pointer(60)}, defaults.Game)
 }
 
 func TestToConfigEmptyInput(t *testing.T) {
@@ -87,16 +87,16 @@ func TestToConfigEmptyInput(t *testing.T) {
 func TestToConfigContentMapsFields(t *testing.T) {
 	defaults := outbound.Config{
 		Mode:    outbound.ModeLucky,
-		Process: outbound.ProcessConfig{IncludeRoot: helper.Pointer(true)},
-		Game:    outbound.GameConfig{ConfirmMode: helper.Pointer(true), Speed: helper.Pointer(2.5), TimeLimit: helper.Pointer(60)},
+		Process: outbound.ProcessConfig{IncludeRoot: testutil.Pointer(true)},
+		Game:    outbound.GameConfig{ConfirmMode: testutil.Pointer(true), Speed: testutil.Pointer(2.5), TimeLimit: testutil.Pointer(60)},
 	}
 
 	cd := toConfigContent(defaults)
 
 	assert.Equal(t, currentConfigSchemaVersion, cd.Version)
 	assert.Equal(t, "lucky", cd.Mode)
-	assert.Equal(t, processEntry{IncludeRoot: helper.Pointer(true)}, cd.Process)
-	assert.Equal(t, configEntry{ConfirmMode: helper.Pointer(true), Speed: helper.Pointer(2.5), TimeLimit: helper.Pointer(60)}, cd.Game)
+	assert.Equal(t, processEntry{IncludeRoot: testutil.Pointer(true)}, cd.Process)
+	assert.Equal(t, configEntry{ConfirmMode: testutil.Pointer(true), Speed: testutil.Pointer(2.5), TimeLimit: testutil.Pointer(60)}, cd.Game)
 }
 
 func TestToConfigContentEmptyInput(t *testing.T) {

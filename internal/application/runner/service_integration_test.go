@@ -18,18 +18,17 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/input"
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/helper"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestIntegrationServiceRunIsSuccessful(t *testing.T) {
-	events := fake.NewInputEventProvider()
+	events := testutil.NewFakeInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
-	store := &fake.Store{}
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0), TimeLimit: helper.Pointer(0)}}
+	store := &testutil.FakeStore{}
+	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0), TimeLimit: testutil.Pointer(0)}}
 	r := newService(
-		&fake.ProcessManager{Infos: []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
+		&testutil.FakeProcessManager{Infos: []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
 		store,
 		events,
 		[]string{"target"},
@@ -43,16 +42,16 @@ func TestIntegrationServiceRunIsSuccessful(t *testing.T) {
 }
 
 func TestIntegrationServiceRunAsRootWithOverrideReachesProcessDiscovery(t *testing.T) {
-	events := fake.NewInputEventProvider()
+	events := testutil.NewFakeInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
 	opts := config.Options{
-		Game:    config.GameOptions{Speed: helper.Pointer(2.0), TimeLimit: helper.Pointer(0)},
-		Process: config.ProcessOptions{AllowRoot: helper.Pointer(true)},
+		Game:    config.GameOptions{Speed: testutil.Pointer(2.0), TimeLimit: testutil.Pointer(0)},
+		Process: config.ProcessOptions{AllowRoot: testutil.Pointer(true)},
 	}
 	r := newService(
-		&fake.ProcessManager{Infos: []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024}}, OwnUIDValue: 0},
-		&fake.Store{},
+		&testutil.FakeProcessManager{Infos: []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024}}, OwnUIDValue: 0},
+		&testutil.FakeStore{},
 		events,
 		[]string{"target"},
 		opts,
@@ -64,14 +63,14 @@ func TestIntegrationServiceRunAsRootWithOverrideReachesProcessDiscovery(t *testi
 }
 
 func TestIntegrationServiceIncludeRootFalseExcludesRootOwnedProcess(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0), TimeLimit: helper.Pointer(0)}}
+	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0), TimeLimit: testutil.Pointer(0)}}
 	r := newService(
-		&fake.ProcessManager{
+		&testutil.FakeProcessManager{
 			Infos:       []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024, UID: 0}},
 			OwnUIDValue: 1000,
 		},
-		&fake.Store{},
-		fake.NewInputEventProvider(),
+		&testutil.FakeStore{},
+		testutil.NewFakeInputEventProvider(),
 		[]string{"target"},
 		opts,
 	)
@@ -84,19 +83,19 @@ func TestIntegrationServiceIncludeRootFalseExcludesRootOwnedProcess(t *testing.T
 }
 
 func TestIntegrationServiceIncludeRootTrueIncludesRootOwnedProcess(t *testing.T) {
-	events := fake.NewInputEventProvider()
+	events := testutil.NewFakeInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
 	opts := config.Options{
-		Game:    config.GameOptions{Speed: helper.Pointer(2.0), TimeLimit: helper.Pointer(0)},
-		Process: config.ProcessOptions{IncludeRoot: helper.Pointer(true)},
+		Game:    config.GameOptions{Speed: testutil.Pointer(2.0), TimeLimit: testutil.Pointer(0)},
+		Process: config.ProcessOptions{IncludeRoot: testutil.Pointer(true)},
 	}
 	r := newService(
-		&fake.ProcessManager{
+		&testutil.FakeProcessManager{
 			Infos:       []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024, UID: 0}},
 			OwnUIDValue: 1000,
 		},
-		&fake.Store{},
+		&testutil.FakeStore{},
 		events,
 		[]string{"target"},
 		opts,
@@ -108,22 +107,22 @@ func TestIntegrationServiceIncludeRootTrueIncludesRootOwnedProcess(t *testing.T)
 }
 
 func TestIntegrationServicePersistedIncludeRootIncludesRootOwnedProcess(t *testing.T) {
-	events := fake.NewInputEventProvider()
+	events := testutil.NewFakeInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
-	configStore := &fake.ConfigStore{Config: outbound.Config{Process: outbound.ProcessConfig{IncludeRoot: helper.Pointer(true)}}}
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0), TimeLimit: helper.Pointer(0)}}
+	configStore := &testutil.FakeConfigStore{Config: outbound.Config{Process: outbound.ProcessConfig{IncludeRoot: testutil.Pointer(true)}}}
+	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0), TimeLimit: testutil.Pointer(0)}}
 	r := newServiceWithConfigStore(
-		&fake.ProcessManager{
+		&testutil.FakeProcessManager{
 			Infos:       []outbound.ProcessInfo{{PID: 200, Name: "target", Rss: 1024, UID: 0}},
 			OwnUIDValue: 1000,
 		},
-		&fake.Store{},
+		&testutil.FakeStore{},
 		events,
-		&fake.Renderer{},
+		&testutil.FakeRenderer{},
 		[]string{"target"},
 		opts,
-		configFakes{store: configStore, logger: &fake.Logger{}},
+		configFakes{store: configStore, logger: &testutil.FakeLogger{}},
 	)
 
 	err := r.Run()
@@ -132,15 +131,15 @@ func TestIntegrationServicePersistedIncludeRootIncludesRootOwnedProcess(t *testi
 }
 
 func TestIntegrationServicePersistedTimeLimitQuitsGameplay(t *testing.T) {
-	configStore := &fake.ConfigStore{Config: outbound.Config{Game: outbound.GameConfig{TimeLimit: helper.Pointer(1)}}}
+	configStore := &testutil.FakeConfigStore{Config: outbound.Config{Game: outbound.GameConfig{TimeLimit: testutil.Pointer(1)}}}
 	r := newServiceWithConfigStore(
-		&fake.ProcessManager{Infos: []outbound.ProcessInfo{{PID: 102, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
-		&fake.Store{},
-		fake.NewInputEventProvider(),
-		&fake.Renderer{},
+		&testutil.FakeProcessManager{Infos: []outbound.ProcessInfo{{PID: 102, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
+		&testutil.FakeStore{},
+		testutil.NewFakeInputEventProvider(),
+		&testutil.FakeRenderer{},
 		[]string{"target"},
 		config.Options{},
-		configFakes{store: configStore, logger: &fake.Logger{}},
+		configFakes{store: configStore, logger: &testutil.FakeLogger{}},
 	)
 
 	start := time.Now()
@@ -151,16 +150,16 @@ func TestIntegrationServicePersistedTimeLimitQuitsGameplay(t *testing.T) {
 }
 
 func TestIntegrationServiceFallsBackAndWarnsOnUnreadableConfigStore(t *testing.T) {
-	events := fake.NewInputEventProvider()
+	events := testutil.NewFakeInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
-	configStore := &fake.ConfigStore{LoadErr: outbound.CorruptedDataError{Message: "not valid yaml"}}
-	logger := &fake.Logger{}
+	configStore := &testutil.FakeConfigStore{LoadErr: outbound.CorruptedDataError{Message: "not valid yaml"}}
+	logger := &testutil.FakeLogger{}
 	r := newServiceWithConfigStore(
-		&fake.ProcessManager{Infos: []outbound.ProcessInfo{{PID: 205, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
-		&fake.Store{},
+		&testutil.FakeProcessManager{Infos: []outbound.ProcessInfo{{PID: 205, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
+		&testutil.FakeStore{},
 		events,
-		&fake.Renderer{},
+		&testutil.FakeRenderer{},
 		[]string{"target"},
 		config.Options{},
 		configFakes{store: configStore, logger: logger},
@@ -173,12 +172,12 @@ func TestIntegrationServiceFallsBackAndWarnsOnUnreadableConfigStore(t *testing.T
 }
 
 func TestIntegrationServiceRunReturnsErrorWhenRendererInitFails(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0), TimeLimit: helper.Pointer(0)}}
+	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0), TimeLimit: testutil.Pointer(0)}}
 	r := newServiceWithRenderer(
-		&fake.ProcessManager{Infos: []outbound.ProcessInfo{{PID: 204, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
-		&fake.Store{},
-		fake.NewInputEventProvider(),
-		&fake.Renderer{InitErr: errors.New("terminal not available")},
+		&testutil.FakeProcessManager{Infos: []outbound.ProcessInfo{{PID: 204, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
+		&testutil.FakeStore{},
+		testutil.NewFakeInputEventProvider(),
+		&testutil.FakeRenderer{InitErr: errors.New("terminal not available")},
 		[]string{"target"},
 		opts,
 	)
@@ -192,13 +191,13 @@ func TestIntegrationServiceRunReturnsErrorWhenRendererInitFails(t *testing.T) {
 }
 
 func TestIntegrationServiceRunSkipsSaveWhenLoadingScoreBoardFails(t *testing.T) {
-	events := fake.NewInputEventProvider()
+	events := testutil.NewFakeInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
-	store := &fake.Store{LoadErr: errors.New("json: invalid character")}
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0), TimeLimit: helper.Pointer(0)}}
+	store := &testutil.FakeStore{LoadErr: errors.New("json: invalid character")}
+	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0), TimeLimit: testutil.Pointer(0)}}
 	r := newService(
-		&fake.ProcessManager{Infos: []outbound.ProcessInfo{{PID: 201, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
+		&testutil.FakeProcessManager{Infos: []outbound.ProcessInfo{{PID: 201, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
 		store,
 		events,
 		[]string{"target"},
@@ -212,13 +211,13 @@ func TestIntegrationServiceRunSkipsSaveWhenLoadingScoreBoardFails(t *testing.T) 
 }
 
 func TestIntegrationServiceRunDoesNotFailWhenSavingScoreFails(t *testing.T) {
-	events := fake.NewInputEventProvider()
+	events := testutil.NewFakeInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0), TimeLimit: helper.Pointer(0)}}
+	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0), TimeLimit: testutil.Pointer(0)}}
 	r := newService(
-		&fake.ProcessManager{Infos: []outbound.ProcessInfo{{PID: 202, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
-		&fake.Store{SaveErr: errors.New("disk full")},
+		&testutil.FakeProcessManager{Infos: []outbound.ProcessInfo{{PID: 202, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
+		&testutil.FakeStore{SaveErr: errors.New("disk full")},
 		events,
 		[]string{"target"},
 		opts,
@@ -230,13 +229,13 @@ func TestIntegrationServiceRunDoesNotFailWhenSavingScoreFails(t *testing.T) {
 }
 
 func TestIntegrationServiceRunWillSaveScoreWhenScoreBoardWasNotFound(t *testing.T) {
-	events := fake.NewInputEventProvider()
+	events := testutil.NewFakeInputEventProvider()
 	events.Ch <- input.QuitEvent{}
 
-	store := &fake.Store{LoadErr: outbound.NotFoundError{}}
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0), TimeLimit: helper.Pointer(0)}}
+	store := &testutil.FakeStore{LoadErr: outbound.NotFoundError{}}
+	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0), TimeLimit: testutil.Pointer(0)}}
 	r := newService(
-		&fake.ProcessManager{Infos: []outbound.ProcessInfo{{PID: 203, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
+		&testutil.FakeProcessManager{Infos: []outbound.ProcessInfo{{PID: 203, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
 		store,
 		events,
 		[]string{"target"},
@@ -250,16 +249,16 @@ func TestIntegrationServiceRunWillSaveScoreWhenScoreBoardWasNotFound(t *testing.
 }
 
 func TestIntegrationServiceRunWillQuitOnQuitEvent(t *testing.T) {
-	events := fake.NewInputEventProvider()
+	events := testutil.NewFakeInputEventProvider()
 	go func() {
 		time.Sleep(50 * time.Millisecond)
 		events.Ch <- input.QuitEvent{}
 	}()
 
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0)}}
+	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0)}}
 	r := newService(
-		&fake.ProcessManager{Infos: []outbound.ProcessInfo{{PID: 100, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
-		&fake.Store{},
+		&testutil.FakeProcessManager{Infos: []outbound.ProcessInfo{{PID: 100, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
+		&testutil.FakeStore{},
 		events,
 		[]string{"target"},
 		opts,
@@ -273,11 +272,11 @@ func TestIntegrationServiceRunWillQuitOnQuitEvent(t *testing.T) {
 }
 
 func TestIntegrationServiceRunWillQuitWhenTimeLimitExpires(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0), TimeLimit: helper.Pointer(1)}}
+	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0), TimeLimit: testutil.Pointer(1)}}
 	r := newService(
-		&fake.ProcessManager{Infos: []outbound.ProcessInfo{{PID: 102, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
-		&fake.Store{},
-		fake.NewInputEventProvider(),
+		&testutil.FakeProcessManager{Infos: []outbound.ProcessInfo{{PID: 102, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
+		&testutil.FakeStore{},
+		testutil.NewFakeInputEventProvider(),
 		[]string{"target"},
 		opts,
 	)
@@ -291,15 +290,15 @@ func TestIntegrationServiceRunWillQuitWhenTimeLimitExpires(t *testing.T) {
 // started inside runLoop exits when Run returns, preventing goroutine leaks.
 func TestIntegrationServiceRunSignalGoroutineDoesNotAccumulate(t *testing.T) {
 	runGame := func(pid int) {
-		events := fake.NewInputEventProvider()
+		events := testutil.NewFakeInputEventProvider()
 		go func() {
 			time.Sleep(50 * time.Millisecond)
 			events.Ch <- input.QuitEvent{}
 		}()
-		opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0)}}
+		opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0)}}
 		r := newService(
-			&fake.ProcessManager{Infos: []outbound.ProcessInfo{{PID: pid, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
-			&fake.Store{},
+			&testutil.FakeProcessManager{Infos: []outbound.ProcessInfo{{PID: pid, Name: "target", Rss: 1024, UID: 1000}}, OwnUIDValue: 1000},
+			&testutil.FakeStore{},
 			events,
 			[]string{"target"},
 			opts,
@@ -330,25 +329,25 @@ func TestIntegrationServiceRunSignalGoroutineDoesNotAccumulate(t *testing.T) {
 		before, runtime.NumGoroutine())
 }
 
-func newService(proc *fake.ProcessManager, store *fake.Store, events *fake.InputEventProvider, patterns []string, opts config.Options) *Service {
-	return newServiceWithRenderer(proc, store, events, &fake.Renderer{}, patterns, opts)
+func newService(proc *testutil.FakeProcessManager, store *testutil.FakeStore, events *testutil.FakeInputEventProvider, patterns []string, opts config.Options) *Service {
+	return newServiceWithRenderer(proc, store, events, &testutil.FakeRenderer{}, patterns, opts)
 }
 
-func newServiceWithRenderer(proc *fake.ProcessManager, store *fake.Store, events *fake.InputEventProvider, renderer *fake.Renderer, patterns []string, opts config.Options) *Service {
-	return newServiceWithConfigStore(proc, store, events, renderer, patterns, opts, configFakes{store: &fake.ConfigStore{LoadErr: outbound.NotFoundError{}}, logger: &fake.Logger{}})
+func newServiceWithRenderer(proc *testutil.FakeProcessManager, store *testutil.FakeStore, events *testutil.FakeInputEventProvider, renderer *testutil.FakeRenderer, patterns []string, opts config.Options) *Service {
+	return newServiceWithConfigStore(proc, store, events, renderer, patterns, opts, configFakes{store: &testutil.FakeConfigStore{LoadErr: outbound.NotFoundError{}}, logger: &testutil.FakeLogger{}})
 }
 
 // configFakes bundles the config-store fakes newServiceWithConfigStore
 // wires in, kept together since callers always override both or neither.
 type configFakes struct {
-	store  *fake.ConfigStore
-	logger *fake.Logger
+	store  *testutil.FakeConfigStore
+	logger *testutil.FakeLogger
 }
 
-func newServiceWithConfigStore(proc *fake.ProcessManager, store *fake.Store, events *fake.InputEventProvider, renderer *fake.Renderer, patterns []string, opts config.Options, cfg configFakes) *Service {
+func newServiceWithConfigStore(proc *testutil.FakeProcessManager, store *testutil.FakeStore, events *testutil.FakeInputEventProvider, renderer *testutil.FakeRenderer, patterns []string, opts config.Options, cfg configFakes) *Service {
 	configSvc := config.NewService(cfg.store, opts)
-	processSvc := process.NewService(proc, &fake.ProcessReporter{}, patterns)
-	scoreSvc := score.NewService(store, &fake.ScoreReporter{})
+	processSvc := process.NewService(proc, &testutil.FakeProcessReporter{}, patterns)
+	scoreSvc := score.NewService(store, &testutil.FakeScoreReporter{})
 	gameSvc := game.NewService(processSvc, renderer, events)
 	errHandler := apperror.NewHandler(cfg.logger)
 	return NewService(configSvc, processSvc, scoreSvc, gameSvc, errHandler)

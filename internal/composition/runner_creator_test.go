@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/helper"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestCreateReturnsErrorWhenPSIsNotOnPath(t *testing.T) {
@@ -20,7 +20,7 @@ func TestCreateReturnsErrorWhenPSIsNotOnPath(t *testing.T) {
 }
 
 func TestCreateReturnsErrorWhenTerminalIsUnavailable(t *testing.T) {
-	helper.UnsetEnv(t, "TERM")
+	testutil.UnsetEnv(t, "TERM")
 
 	_, err := NewRunnerCreator().Create(nil, config.Options{})
 

@@ -34,10 +34,10 @@ func TestTimerExpiredFalseBeforeLimit(t *testing.T) {
 }
 
 func TestTimerExpiredTrueWhenLimitReached(t *testing.T) {
-	clock := &fakeClock{t: time.Now()}
-	tr := newTimer(1, clock.now)
+	clock := &FakeClock{T: time.Now()}
+	tr := newTimer(1, clock.Now)
 	tr.Start()
-	clock.advance(2 * time.Second)
+	clock.Advance(2 * time.Second)
 	assert.True(t, tr.Expired())
 }
 
@@ -55,10 +55,10 @@ func TestTimerRemainingWithinLimit(t *testing.T) {
 }
 
 func TestTimerRemainingZeroWhenExpired(t *testing.T) {
-	clock := &fakeClock{t: time.Now()}
-	tr := newTimer(1, clock.now)
+	clock := &FakeClock{T: time.Now()}
+	tr := newTimer(1, clock.Now)
 	tr.Start()
-	clock.advance(2 * time.Second)
+	clock.Advance(2 * time.Second)
 	assert.Equal(t, time.Duration(0), tr.Remaining())
 }
 
@@ -76,28 +76,28 @@ func TestTimerSecondsLeft(t *testing.T) {
 }
 
 func TestTimerSecondsLeftRoundsUpPartialSecond(t *testing.T) {
-	clock := &fakeClock{t: time.Now()}
-	tr := newTimer(5, clock.now)
+	clock := &FakeClock{T: time.Now()}
+	tr := newTimer(5, clock.Now)
 	tr.Start()
-	clock.advance(4100 * time.Millisecond)
+	clock.Advance(4100 * time.Millisecond)
 
 	assert.Equal(t, 1, tr.SecondsLeft(), "0.9s remaining should round up to 1s, not truncate to 0s")
 }
 
 func TestTimerSecondsLeftExactWholeSecondIsUnaffected(t *testing.T) {
-	clock := &fakeClock{t: time.Now()}
-	tr := newTimer(5, clock.now)
+	clock := &FakeClock{T: time.Now()}
+	tr := newTimer(5, clock.Now)
 	tr.Start()
-	clock.advance(2 * time.Second)
+	clock.Advance(2 * time.Second)
 
 	assert.Equal(t, 3, tr.SecondsLeft())
 }
 
 func TestTimerSecondsLeftZeroWhenExpired(t *testing.T) {
-	clock := &fakeClock{t: time.Now()}
-	tr := newTimer(1, clock.now)
+	clock := &FakeClock{T: time.Now()}
+	tr := newTimer(1, clock.Now)
 	tr.Start()
-	clock.advance(2 * time.Second)
+	clock.Advance(2 * time.Second)
 
 	assert.Equal(t, 0, tr.SecondsLeft())
 }
@@ -120,12 +120,3 @@ func TestTimerStartTimeSetAfterStart(t *testing.T) {
 	tr.Start()
 	assert.False(t, tr.StartTime().Before(before))
 }
-
-// fakeClock is a controllable time source for deterministic timer tests.
-type fakeClock struct {
-	t time.Time
-}
-
-func (c *fakeClock) now() time.Time { return c.t }
-
-func (c *fakeClock) advance(d time.Duration) { c.t = c.t.Add(d) }

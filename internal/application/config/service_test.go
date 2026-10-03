@@ -10,16 +10,15 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/helper"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 // --- Service.Load ---
 
 func TestLoadUsesFileDefaultsWhenNoOverrides(t *testing.T) {
-	store := &fake.ConfigStore{Config: outbound.Config{
-		Process: outbound.ProcessConfig{IncludeRoot: helper.Pointer(true)},
-		Game:    outbound.GameConfig{ConfirmMode: helper.Pointer(true), Speed: helper.Pointer(3.0), TimeLimit: helper.Pointer(45)},
+	store := &testutil.FakeConfigStore{Config: outbound.Config{
+		Process: outbound.ProcessConfig{IncludeRoot: testutil.Pointer(true)},
+		Game:    outbound.GameConfig{ConfirmMode: testutil.Pointer(true), Speed: testutil.Pointer(3.0), TimeLimit: testutil.Pointer(45)},
 	}}
 	svc := config.NewService(store, config.Options{})
 
@@ -30,7 +29,7 @@ func TestLoadUsesFileDefaultsWhenNoOverrides(t *testing.T) {
 }
 
 func TestLoadUsesHardcodedDefaultsWhenConfigFileNotFound(t *testing.T) {
-	store := &fake.ConfigStore{LoadErr: outbound.NotFoundError{}}
+	store := &testutil.FakeConfigStore{LoadErr: outbound.NotFoundError{}}
 	svc := config.NewService(store, config.Options{})
 
 	cfg, err := svc.Load()
@@ -41,7 +40,7 @@ func TestLoadUsesHardcodedDefaultsWhenConfigFileNotFound(t *testing.T) {
 
 func TestLoadReturnsWarningAndHardcodedDefaultsOnOtherLoadError(t *testing.T) {
 	cause := errors.New("disk error")
-	store := &fake.ConfigStore{LoadErr: cause}
+	store := &testutil.FakeConfigStore{LoadErr: cause}
 	svc := config.NewService(store, config.Options{})
 
 	cfg, err := svc.Load()
@@ -55,17 +54,17 @@ func TestLoadReturnsWarningAndHardcodedDefaultsOnOtherLoadError(t *testing.T) {
 }
 
 func TestLoadOverridesWinOverFileDefaults(t *testing.T) {
-	store := &fake.ConfigStore{Config: outbound.Config{
-		Process: outbound.ProcessConfig{IncludeRoot: helper.Pointer(false)},
-		Game:    outbound.GameConfig{ConfirmMode: helper.Pointer(false), Speed: helper.Pointer(3.0), TimeLimit: helper.Pointer(45)},
+	store := &testutil.FakeConfigStore{Config: outbound.Config{
+		Process: outbound.ProcessConfig{IncludeRoot: testutil.Pointer(false)},
+		Game:    outbound.GameConfig{ConfirmMode: testutil.Pointer(false), Speed: testutil.Pointer(3.0), TimeLimit: testutil.Pointer(45)},
 	}}
 	svc := config.NewService(store, config.Options{
 		Game: config.GameOptions{
-			ConfirmMode: helper.Pointer(true),
-			Speed:       helper.Pointer(5.0),
-			TimeLimit:   helper.Pointer(60),
+			ConfirmMode: testutil.Pointer(true),
+			Speed:       testutil.Pointer(5.0),
+			TimeLimit:   testutil.Pointer(60),
 		},
-		Process: config.ProcessOptions{IncludeRoot: helper.Pointer(true)},
+		Process: config.ProcessOptions{IncludeRoot: testutil.Pointer(true)},
 	})
 
 	cfg, err := svc.Load()
@@ -75,8 +74,8 @@ func TestLoadOverridesWinOverFileDefaults(t *testing.T) {
 }
 
 func TestLoadOverridesWinOverHardcodedDefaultsWhenFileNotFound(t *testing.T) {
-	store := &fake.ConfigStore{LoadErr: outbound.NotFoundError{}}
-	svc := config.NewService(store, config.Options{Game: config.GameOptions{Speed: helper.Pointer(4.5)}})
+	store := &testutil.FakeConfigStore{LoadErr: outbound.NotFoundError{}}
+	svc := config.NewService(store, config.Options{Game: config.GameOptions{Speed: testutil.Pointer(4.5)}})
 
 	cfg, err := svc.Load()
 
@@ -85,11 +84,11 @@ func TestLoadOverridesWinOverHardcodedDefaultsWhenFileNotFound(t *testing.T) {
 }
 
 func TestLoadPartialOverridesLeaveOtherFileDefaultsIntact(t *testing.T) {
-	store := &fake.ConfigStore{Config: outbound.Config{
-		Process: outbound.ProcessConfig{IncludeRoot: helper.Pointer(true)},
-		Game:    outbound.GameConfig{ConfirmMode: helper.Pointer(true), Speed: helper.Pointer(3.0), TimeLimit: helper.Pointer(45)},
+	store := &testutil.FakeConfigStore{Config: outbound.Config{
+		Process: outbound.ProcessConfig{IncludeRoot: testutil.Pointer(true)},
+		Game:    outbound.GameConfig{ConfirmMode: testutil.Pointer(true), Speed: testutil.Pointer(3.0), TimeLimit: testutil.Pointer(45)},
 	}}
-	svc := config.NewService(store, config.Options{Game: config.GameOptions{Speed: helper.Pointer(1.5)}})
+	svc := config.NewService(store, config.Options{Game: config.GameOptions{Speed: testutil.Pointer(1.5)}})
 
 	cfg, err := svc.Load()
 
@@ -98,11 +97,11 @@ func TestLoadPartialOverridesLeaveOtherFileDefaultsIntact(t *testing.T) {
 }
 
 func TestLoadReturnsInvalidRequestWithoutConsultingConfigFile(t *testing.T) {
-	store := &fake.ConfigStore{Config: outbound.Config{
-		Process: outbound.ProcessConfig{IncludeRoot: helper.Pointer(true)},
-		Game:    outbound.GameConfig{ConfirmMode: helper.Pointer(true), Speed: helper.Pointer(3.0), TimeLimit: helper.Pointer(45)},
+	store := &testutil.FakeConfigStore{Config: outbound.Config{
+		Process: outbound.ProcessConfig{IncludeRoot: testutil.Pointer(true)},
+		Game:    outbound.GameConfig{ConfirmMode: testutil.Pointer(true), Speed: testutil.Pointer(3.0), TimeLimit: testutil.Pointer(45)},
 	}}
-	svc := config.NewService(store, config.Options{Game: config.GameOptions{Speed: helper.Pointer(99.0)}})
+	svc := config.NewService(store, config.Options{Game: config.GameOptions{Speed: testutil.Pointer(99.0)}})
 
 	cfg, err := svc.Load()
 
@@ -114,10 +113,10 @@ func TestLoadReturnsInvalidRequestWithoutConsultingConfigFile(t *testing.T) {
 }
 
 func TestLoadReturnsInvalidRequestTimeLimitWithoutConsultingConfigFile(t *testing.T) {
-	store := &fake.ConfigStore{Config: outbound.Config{
-		Game: outbound.GameConfig{TimeLimit: helper.Pointer(45)},
+	store := &testutil.FakeConfigStore{Config: outbound.Config{
+		Game: outbound.GameConfig{TimeLimit: testutil.Pointer(45)},
 	}}
-	svc := config.NewService(store, config.Options{Game: config.GameOptions{TimeLimit: helper.Pointer(-1)}})
+	svc := config.NewService(store, config.Options{Game: config.GameOptions{TimeLimit: testutil.Pointer(-1)}})
 
 	cfg, err := svc.Load()
 
@@ -129,8 +128,8 @@ func TestLoadReturnsInvalidRequestTimeLimitWithoutConsultingConfigFile(t *testin
 }
 
 func TestLoadClassifiesInvalidFileValueAsWarning(t *testing.T) {
-	store := &fake.ConfigStore{Config: outbound.Config{
-		Game: outbound.GameConfig{Speed: helper.Pointer(99.0)},
+	store := &testutil.FakeConfigStore{Config: outbound.Config{
+		Game: outbound.GameConfig{Speed: testutil.Pointer(99.0)},
 	}}
 	svc := config.NewService(store, config.Options{})
 

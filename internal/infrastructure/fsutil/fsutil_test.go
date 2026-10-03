@@ -11,13 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/eirikur-ari/pidshooter/internal/testutil/helper"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestConfigDirJoinsHomeAndAppName(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	helper.UnsetEnv(t, "XDG_CONFIG_HOME")
+	testutil.UnsetEnv(t, "XDG_CONFIG_HOME")
 
 	dir, err := ConfigDir("pidshooter")
 
@@ -138,8 +138,8 @@ func TestWriteFileAtomicPreservesExistingFileOwnerWhenRunningAsRoot(t *testing.T
 	}
 	// Force the stat-based fallback path, regardless of whether this test
 	// binary was itself launched via sudo (which would otherwise set these).
-	helper.UnsetEnv(t, "SUDO_UID")
-	helper.UnsetEnv(t, "SUDO_GID")
+	testutil.UnsetEnv(t, "SUDO_UID")
+	testutil.UnsetEnv(t, "SUDO_GID")
 
 	path := filepath.Join(t.TempDir(), "scores.json")
 	require.NoError(t, WriteFileAtomic(path, []byte("first"), 0600))

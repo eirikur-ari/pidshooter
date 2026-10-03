@@ -12,17 +12,16 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
 func TestRunNoArgsPrintsUsageAndReturnsNil(t *testing.T) {
-	assert.NoError(t, newTestProgram(&fake.Runner{}).Run([]string{}))
+	assert.NoError(t, newTestProgram(&FakeRunner{}).Run([]string{}))
 }
 
 func TestRunHelpFlagPrintsUsageAndReturnsNil(t *testing.T) {
 	for _, flag := range []string{"--help", "-h"} {
 		t.Run(flag, func(t *testing.T) {
-			assert.NoError(t, newTestProgram(&fake.Runner{}).Run([]string{flag}))
+			assert.NoError(t, newTestProgram(&FakeRunner{}).Run([]string{flag}))
 		})
 	}
 }
@@ -36,7 +35,7 @@ func TestRunHelpWinsRegardlessOfPositionOrOtherErrors(t *testing.T) {
 	}
 	for _, args := range tests {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			assert.NoError(t, newTestProgram(&fake.Runner{}).Run(args))
+			assert.NoError(t, newTestProgram(&FakeRunner{}).Run(args))
 		})
 	}
 }
@@ -52,7 +51,7 @@ func TestRunMalformedFlagReturnsArgumentError(t *testing.T) {
 	}
 	for _, args := range tests {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			err := newTestProgram(&fake.Runner{}).Run(args)
+			err := newTestProgram(&FakeRunner{}).Run(args)
 			require.Error(t, err)
 			assert.True(t, errors.As(err, &ArgumentError{}))
 		})
@@ -60,7 +59,7 @@ func TestRunMalformedFlagReturnsArgumentError(t *testing.T) {
 }
 
 func TestRunBasicPattern(t *testing.T) {
-	runner := &fake.Runner{}
+	runner := &FakeRunner{}
 	program, creator := newTestProgramWithCreator(runner)
 	require.NoError(t, program.Run([]string{"firefox"}))
 	require.Len(t, creator.Patterns, 1)
@@ -71,7 +70,7 @@ func TestRunBasicPattern(t *testing.T) {
 }
 
 func TestRunMultiplePatterns(t *testing.T) {
-	runner := &fake.Runner{}
+	runner := &FakeRunner{}
 	program, creator := newTestProgramWithCreator(runner)
 	require.NoError(t, program.Run([]string{"chrome", "firefox", "node"}))
 	require.Len(t, creator.Patterns, 3)
@@ -81,7 +80,7 @@ func TestRunMultiplePatterns(t *testing.T) {
 }
 
 func TestRunConfirmFlag(t *testing.T) {
-	runner := &fake.Runner{}
+	runner := &FakeRunner{}
 	program, creator := newTestProgramWithCreator(runner)
 	require.NoError(t, program.Run([]string{"sleep", "--confirm"}))
 	require.NotNil(t, creator.Options.Game.ConfirmMode)
@@ -89,7 +88,7 @@ func TestRunConfirmFlag(t *testing.T) {
 }
 
 func TestRunIncludeRootFlag(t *testing.T) {
-	runner := &fake.Runner{}
+	runner := &FakeRunner{}
 	program, creator := newTestProgramWithCreator(runner)
 	require.NoError(t, program.Run([]string{"sleep", "--include-root"}))
 	require.NotNil(t, creator.Options.Process.IncludeRoot)
@@ -97,7 +96,7 @@ func TestRunIncludeRootFlag(t *testing.T) {
 }
 
 func TestRunIncludeRootUnsetWhenFlagAbsent(t *testing.T) {
-	runner := &fake.Runner{}
+	runner := &FakeRunner{}
 	program, creator := newTestProgramWithCreator(runner)
 	require.NoError(t, program.Run([]string{"sleep"}))
 	assert.Nil(t, creator.Options.Process.IncludeRoot)
@@ -143,7 +142,7 @@ func TestRunTimeFlag(t *testing.T) {
 }
 
 func TestRunPatternAfterFlag(t *testing.T) {
-	runner := &fake.Runner{}
+	runner := &FakeRunner{}
 	program, creator := newTestProgramWithCreator(runner)
 	require.NoError(t, program.Run([]string{"chrome", "--confirm", "firefox"}))
 	assert.Equal(t, []string{"chrome", "firefox"}, creator.Patterns)
@@ -152,7 +151,7 @@ func TestRunPatternAfterFlag(t *testing.T) {
 }
 
 func TestRunFlagsSurroundingPatterns(t *testing.T) {
-	runner := &fake.Runner{}
+	runner := &FakeRunner{}
 	program, creator := newTestProgramWithCreator(runner)
 	require.NoError(t, program.Run([]string{"chrome", "--speed", "3.5", "firefox", "node", "--confirm"}))
 	assert.Equal(t, []string{"chrome", "firefox", "node"}, creator.Patterns)
@@ -163,25 +162,25 @@ func TestRunFlagsSurroundingPatterns(t *testing.T) {
 }
 
 func TestRunNoArgsDoesNotConstructRunner(t *testing.T) {
-	creator := &fake.RunnerCreator{}
+	creator := &FakeRunnerCreator{}
 	require.NoError(t, NewProgram(creator).Run([]string{}))
 	assert.Zero(t, creator.Calls)
 }
 
 func TestRunHelpDoesNotConstructRunner(t *testing.T) {
-	creator := &fake.RunnerCreator{}
+	creator := &FakeRunnerCreator{}
 	require.NoError(t, NewProgram(creator).Run([]string{"--help"}))
 	assert.Zero(t, creator.Calls)
 }
 
 func TestRunInvalidFlagsDoesNotConstructRunner(t *testing.T) {
-	creator := &fake.RunnerCreator{}
+	creator := &FakeRunnerCreator{}
 	require.Error(t, NewProgram(creator).Run([]string{"proc", "--unknown"}))
 	assert.Zero(t, creator.Calls)
 }
 
 func TestRunReturnsErrorWhenRunnerCreatorFails(t *testing.T) {
-	creator := &fake.RunnerCreator{Err: errors.New("boom")}
+	creator := &FakeRunnerCreator{Err: errors.New("boom")}
 
 	err := NewProgram(creator).Run([]string{"proc"})
 
@@ -191,7 +190,7 @@ func TestRunReturnsErrorWhenRunnerCreatorFails(t *testing.T) {
 }
 
 func TestRunNoArgsPrintsUsageToStdout(t *testing.T) {
-	program, out, errOut := newCapturingTestProgram(&fake.Runner{})
+	program, out, errOut := newCapturingTestProgram(&FakeRunner{})
 
 	require.NoError(t, program.Run([]string{}))
 
@@ -202,7 +201,7 @@ func TestRunNoArgsPrintsUsageToStdout(t *testing.T) {
 func TestRunHelpPrintsUsageToStdout(t *testing.T) {
 	for _, flag := range []string{"--help", "-h"} {
 		t.Run(flag, func(t *testing.T) {
-			program, out, errOut := newCapturingTestProgram(&fake.Runner{})
+			program, out, errOut := newCapturingTestProgram(&FakeRunner{})
 
 			require.NoError(t, program.Run([]string{flag}))
 
@@ -213,7 +212,7 @@ func TestRunHelpPrintsUsageToStdout(t *testing.T) {
 }
 
 func TestRunUnknownFlagPrintsUsageToStderr(t *testing.T) {
-	program, out, errOut := newCapturingTestProgram(&fake.Runner{})
+	program, out, errOut := newCapturingTestProgram(&FakeRunner{})
 
 	require.Error(t, program.Run([]string{"proc", "--unknown"}))
 
@@ -223,7 +222,7 @@ func TestRunUnknownFlagPrintsUsageToStderr(t *testing.T) {
 
 func TestRunInvalidConfigPrintsUsageToStderr(t *testing.T) {
 	invalid := apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", errors.New("boom"))
-	program, out, errOut := newCapturingTestProgram(&fake.Runner{Err: invalid})
+	program, out, errOut := newCapturingTestProgram(&FakeRunner{Err: invalid})
 
 	require.Error(t, program.Run([]string{"proc"}))
 
@@ -233,7 +232,7 @@ func TestRunInvalidConfigPrintsUsageToStderr(t *testing.T) {
 
 func TestRunReclassifiesInvalidConfigAsArgumentError(t *testing.T) {
 	invalid := apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", errors.New("boom"))
-	runner := &fake.Runner{Err: invalid}
+	runner := &FakeRunner{Err: invalid}
 
 	err := newTestProgram(runner).Run([]string{"proc"})
 
@@ -243,7 +242,7 @@ func TestRunReclassifiesInvalidConfigAsArgumentError(t *testing.T) {
 
 func TestRunDoesNotReclassifyOtherFatalErrorsAsArgumentError(t *testing.T) {
 	fatal := apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "game session failed", errors.New("boom"))
-	runner := &fake.Runner{Err: fatal}
+	runner := &FakeRunner{Err: fatal}
 
 	err := newTestProgram(runner).Run([]string{"proc"})
 
@@ -253,7 +252,7 @@ func TestRunDoesNotReclassifyOtherFatalErrorsAsArgumentError(t *testing.T) {
 
 func TestRunReturnsErrorOnFatal(t *testing.T) {
 	fatal := apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "game session failed", errors.New("boom"))
-	runner := &fake.Runner{Err: fatal}
+	runner := &FakeRunner{Err: fatal}
 
 	err := newTestProgram(runner).Run([]string{"proc"})
 
@@ -263,7 +262,7 @@ func TestRunReturnsErrorOnFatal(t *testing.T) {
 
 func TestRunAbsorbsWarningFromRunner(t *testing.T) {
 	warning := apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, "could not kill target", errors.New("boom"))
-	runner := &fake.Runner{Err: warning}
+	runner := &FakeRunner{Err: warning}
 
 	err := newTestProgram(runner).Run([]string{"proc"})
 
@@ -271,24 +270,24 @@ func TestRunAbsorbsWarningFromRunner(t *testing.T) {
 }
 
 func newTestProgram(runner inbound.Runner) *Program {
-	return NewProgram(&fake.RunnerCreator{Runner: runner})
+	return NewProgram(&FakeRunnerCreator{Runner: runner})
 }
 
-func newTestProgramWithCreator(runner inbound.Runner) (*Program, *fake.RunnerCreator) {
-	creator := &fake.RunnerCreator{Runner: runner}
+func newTestProgramWithCreator(runner inbound.Runner) (*Program, *FakeRunnerCreator) {
+	creator := &FakeRunnerCreator{Runner: runner}
 	return NewProgram(creator), creator
 }
 
 func newCapturingTestProgram(runner inbound.Runner) (program *Program, out, errOut *bytes.Buffer) {
 	out, errOut = &bytes.Buffer{}, &bytes.Buffer{}
-	creator := &fake.RunnerCreator{Runner: runner}
+	creator := &FakeRunnerCreator{Runner: runner}
 	program = &Program{creator: creator, errHandler: creator.ErrHandler(), out: out, errOut: errOut}
 	return program, out, errOut
 }
 
 func assertFlagResult[T any](t *testing.T, arg string, wantErr bool, want T, get func(config.Options) *T) {
 	t.Helper()
-	runner := &fake.Runner{}
+	runner := &FakeRunner{}
 	program, creator := newTestProgramWithCreator(runner)
 	err := program.Run([]string{"proc", arg})
 	if wantErr {

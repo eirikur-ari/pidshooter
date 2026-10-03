@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/helper"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 // --- Result.apply ---
@@ -15,8 +15,8 @@ import (
 func TestResultApplyMapsAllPresentStoredFields(t *testing.T) {
 	cfg := Result{Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
 	stored := outbound.Config{
-		Process: outbound.ProcessConfig{IncludeRoot: helper.Pointer(true)},
-		Game:    outbound.GameConfig{ConfirmMode: helper.Pointer(true), Speed: helper.Pointer(2.5), TimeLimit: helper.Pointer(60)},
+		Process: outbound.ProcessConfig{IncludeRoot: testutil.Pointer(true)},
+		Game:    outbound.GameConfig{ConfirmMode: testutil.Pointer(true), Speed: testutil.Pointer(2.5), TimeLimit: testutil.Pointer(60)},
 	}
 
 	result, err := cfg.apply(stored, Options{})
@@ -36,7 +36,7 @@ func TestResultApplyEmptyInputLeavesCfgUnchanged(t *testing.T) {
 
 func TestResultApplyOnlySpeedSetLeavesTimeLimitAtDefault(t *testing.T) {
 	cfg := Result{Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
-	stored := outbound.Config{Game: outbound.GameConfig{Speed: helper.Pointer(3.0)}}
+	stored := outbound.Config{Game: outbound.GameConfig{Speed: testutil.Pointer(3.0)}}
 
 	result, err := cfg.apply(stored, Options{})
 
@@ -47,7 +47,7 @@ func TestResultApplyOnlySpeedSetLeavesTimeLimitAtDefault(t *testing.T) {
 
 func TestResultApplyRejectsOutOfRangeSpeedAndKeepsDefault(t *testing.T) {
 	cfg := Result{Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
-	stored := outbound.Config{Game: outbound.GameConfig{Speed: helper.Pointer(99.0), TimeLimit: helper.Pointer(60)}}
+	stored := outbound.Config{Game: outbound.GameConfig{Speed: testutil.Pointer(99.0), TimeLimit: testutil.Pointer(60)}}
 
 	result, err := cfg.apply(stored, Options{})
 
@@ -58,7 +58,7 @@ func TestResultApplyRejectsOutOfRangeSpeedAndKeepsDefault(t *testing.T) {
 
 func TestResultApplyRejectsOutOfRangeTimeLimitAndKeepsDefault(t *testing.T) {
 	cfg := Result{Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
-	stored := outbound.Config{Game: outbound.GameConfig{TimeLimit: helper.Pointer(-1)}}
+	stored := outbound.Config{Game: outbound.GameConfig{TimeLimit: testutil.Pointer(-1)}}
 
 	result, err := cfg.apply(stored, Options{})
 
@@ -88,7 +88,7 @@ func TestResultApplyRejectsUnrecognizedStoredModeAndKeepsDefault(t *testing.T) {
 
 func TestResultApplySetsAllowRootFromOptionsOnly(t *testing.T) {
 	cfg := Result{Process: ProcessResult{IncludeRoot: false, AllowRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
-	opts := Options{Process: ProcessOptions{AllowRoot: helper.Pointer(true)}}
+	opts := Options{Process: ProcessOptions{AllowRoot: testutil.Pointer(true)}}
 
 	result, err := cfg.apply(outbound.Config{}, opts)
 
@@ -99,16 +99,16 @@ func TestResultApplySetsAllowRootFromOptionsOnly(t *testing.T) {
 func TestResultApplyOptionsWinOverStored(t *testing.T) {
 	cfg := Result{Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
 	stored := outbound.Config{
-		Process: outbound.ProcessConfig{IncludeRoot: helper.Pointer(false)},
-		Game:    outbound.GameConfig{ConfirmMode: helper.Pointer(false), Speed: helper.Pointer(3.0), TimeLimit: helper.Pointer(45)},
+		Process: outbound.ProcessConfig{IncludeRoot: testutil.Pointer(false)},
+		Game:    outbound.GameConfig{ConfirmMode: testutil.Pointer(false), Speed: testutil.Pointer(3.0), TimeLimit: testutil.Pointer(45)},
 	}
 	opts := Options{
 		Game: GameOptions{
-			ConfirmMode: helper.Pointer(true),
-			Speed:       helper.Pointer(5.0),
-			TimeLimit:   helper.Pointer(60),
+			ConfirmMode: testutil.Pointer(true),
+			Speed:       testutil.Pointer(5.0),
+			TimeLimit:   testutil.Pointer(60),
 		},
-		Process: ProcessOptions{IncludeRoot: helper.Pointer(true)},
+		Process: ProcessOptions{IncludeRoot: testutil.Pointer(true)},
 	}
 
 	result, err := cfg.apply(stored, opts)

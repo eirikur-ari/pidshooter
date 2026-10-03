@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/fixture"
+	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
 func newDispatcher(s *game.Session) *Dispatcher {
@@ -16,7 +16,7 @@ func newDispatcher(s *game.Session) *Dispatcher {
 // --- ClickEvent ---
 
 func TestDispatcherClickReturnsHitTarget(t *testing.T) {
-	s := fixture.GameSession(fixture.Processes(1), game.Config{Speed: 1.0})
+	s := newStartedSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, game.Config{Speed: 1.0})
 	d := newDispatcher(s)
 	tgt := s.Targets()[0]
 	x, y := tgt.Motion.Position.Rounded()
@@ -27,7 +27,7 @@ func TestDispatcherClickReturnsHitTarget(t *testing.T) {
 }
 
 func TestDispatcherClickMissReturnsNil(t *testing.T) {
-	s := fixture.GameSession(nil, game.Config{Speed: 1.0})
+	s := newStartedSession(nil, game.Config{Speed: 1.0})
 	d := newDispatcher(s)
 
 	result := d.Dispatch(ClickEvent{X: 0, Y: 0})
@@ -38,7 +38,7 @@ func TestDispatcherClickMissReturnsNil(t *testing.T) {
 // --- QuitEvent ---
 
 func TestDispatcherQuitEventStopsGame(t *testing.T) {
-	s := fixture.GameSession(nil, game.Config{})
+	s := newStartedSession(nil, game.Config{})
 
 	newDispatcher(s).Dispatch(QuitEvent{})
 
@@ -48,7 +48,7 @@ func TestDispatcherQuitEventStopsGame(t *testing.T) {
 // --- ConfirmEvent ---
 
 func TestDispatcherConfirmEventAcceptReturnsConfirmedTarget(t *testing.T) {
-	s := fixture.PendingConfirmGameSession()
+	s := pendingConfirmSession()
 	d := newDispatcher(s)
 	tgt := s.Targets()[0]
 
@@ -59,7 +59,7 @@ func TestDispatcherConfirmEventAcceptReturnsConfirmedTarget(t *testing.T) {
 }
 
 func TestDispatcherConfirmEventDeclineCancelsConfirmation(t *testing.T) {
-	s := fixture.PendingConfirmGameSession()
+	s := pendingConfirmSession()
 	d := newDispatcher(s)
 
 	d.Dispatch(ConfirmEvent{Accept: false})
@@ -70,7 +70,7 @@ func TestDispatcherConfirmEventDeclineCancelsConfirmation(t *testing.T) {
 // --- SpeedEvent ---
 
 func TestDispatcherSpeedEventFasterIncreasesSpeed(t *testing.T) {
-	s := fixture.GameSession(nil, game.Config{Speed: 2.0})
+	s := newStartedSession(nil, game.Config{Speed: 2.0})
 
 	newDispatcher(s).Dispatch(SpeedEvent{Faster: true})
 
@@ -78,7 +78,7 @@ func TestDispatcherSpeedEventFasterIncreasesSpeed(t *testing.T) {
 }
 
 func TestDispatcherSpeedEventSlowerDecreasesSpeed(t *testing.T) {
-	s := fixture.GameSession(nil, game.Config{Speed: 2.0})
+	s := newStartedSession(nil, game.Config{Speed: 2.0})
 
 	newDispatcher(s).Dispatch(SpeedEvent{Faster: false})
 

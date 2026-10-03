@@ -1,13 +1,14 @@
-package fake
+package cli
 
 import (
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
-// RunnerCreator is a test double that constructs a Runner.
-type RunnerCreator struct {
+// FakeRunnerCreator is a test double that constructs a Runner.
+type FakeRunnerCreator struct {
 	Runner inbound.Runner
 	Err    error
 	// Calls counts how many times Create was called.
@@ -18,7 +19,7 @@ type RunnerCreator struct {
 }
 
 // Create returns Runner and Err, and records the call, patterns, and config.Options.
-func (f *RunnerCreator) Create(patterns []string, opts config.Options) (inbound.Runner, error) {
+func (f *FakeRunnerCreator) Create(patterns []string, opts config.Options) (inbound.Runner, error) {
 	f.Calls++
 	f.Patterns = patterns
 	f.Options = opts
@@ -26,6 +27,6 @@ func (f *RunnerCreator) Create(patterns []string, opts config.Options) (inbound.
 }
 
 // ErrHandler returns a Handler that discards everything it logs.
-func (f *RunnerCreator) ErrHandler() *apperror.Handler {
-	return apperror.NewHandler(&Logger{})
+func (f *FakeRunnerCreator) ErrHandler() *apperror.Handler {
+	return apperror.NewHandler(&testutil.FakeLogger{})
 }
