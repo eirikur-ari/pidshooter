@@ -17,16 +17,12 @@ import (
 // process discovers and manages OS processes using the ps command.
 type process struct {
 	psPath string
-	// timeout bounds how long a single ps invocation may run. A wedged ps
-	// (stalled /proc reader, hung container runtime) would otherwise hang
-	// Discovery at startup with no feedback, or hang LookupName inside the game
-	// loop's killOrReap goroutine, which never reaches its done-channel select.
+	// timeout bounds how long a single ps invocation may run.
 	timeout time.Duration
 }
 
-// NewProcess returns an outbound.ProcessManager backed by the OS ps command.
-// It resolves the absolute path to ps at construction time so the
-// adapter does not depend on $PATH at runtime.
+// NewProcess returns an outbound.ProcessManager backed by the OS ps command,
+// failing if ps is unavailable.
 func NewProcess() (outbound.ProcessManager, error) {
 	path, err := exec.LookPath("ps")
 	if err != nil {
@@ -52,12 +48,9 @@ func (p *process) OwnUID() int {
 	return os.Geteuid()
 }
 
-// LookupName returns the current comm name of pid from the OS, using the same
-// ps flags and parsing as Discover so truncation and whitespace handling are
-// identical between discovery and the kill-time safety recheck. A pid with
-// no live info — because it no longer exists, or because it still holds a
-// PID slot but has become a zombie that can't be usefully signaled again —
-// is reported as NotFoundError rather than as a name.
+// LookupName returns the current command name of pid. A pid with no live
+// process, because it no longer exists or has become a zombie, is reported as
+// NotFoundError rather than a name.
 func (p *process) LookupName(pid int) (string, error) {
 	lookupFailed := func(err error) (string, error) {
 		return "", fmt.Errorf("ps lookup for PID %d failed: %w", pid, err)
@@ -79,18 +72,16 @@ func (p *process) LookupName(pid int) (string, error) {
 	return lookupFailed(outbound.NotFoundError{})
 }
 
-// Pin returns a ProcessHandle to pid, obtained now rather than at kill
-// time, so the eventual Kill signals the exact process pinned here even if
-// pid is later recycled to a different process.
-//
-// On Linux 5.3+, os.FindProcess opens a pidfd for pid, which the kernel
-// guarantees stays bound to that exact process for the handle's lifetime,
-// closing the PID-reuse window entirely. Platforms without a pidfd
-// equivalent (notably macOS) fall back to signaling by bare PID, leaving a
-// narrow window between the caller's LookupName re-verification and the
-// eventual Kill in which pid could theoretically be recycled; this residual
-// risk is accepted given how small the window is.
+// Pin returns a ProcessHandle bound to pid, so the eventual Kill targets the
+// process pinned here.
 func (p *process) Pin(pid int) (outbound.ProcessHandle, error) {
+	// On Linux 5.3+, os.FindProcess opens a pidfd for pid, which the kernel
+	// guarantees stays bound to that exact process for the handle's lifetime,
+	// closing the PID-reuse window entirely. Platforms without a pidfd
+	// equivalent (notably macOS) fall back to signaling by bare PID, leaving a
+	// narrow window between the caller's LookupName re-verification and the
+	// eventual Kill in which pid could theoretically be recycled; this residual
+	// risk is accepted given how small the window is.
 	proc, err := os.FindProcess(pid)
 	if err != nil {
 		return nil, err
@@ -106,44 +97,40 @@ func (p *process) discover() ([]outbound.ProcessInfo, error) {
 	return parseProcesses(output)
 }
 
-// isZombie reports whether row's process state is a zombie (a PID slot that
-// still exists but whose process has already exited and cannot usefully be
-// signaled again). ps's STAT/state column always leads with the state
-// letter and may carry additional single-letter flags after it (e.g. "ZN"),
-// so this checks the leading character rather than an exact match.
-func isZombie(state string) bool {
-	return strings.HasPrefix(state, "Z")
-}
-
-// run executes ps with args, bounded by p.timeout so a wedged ps can't hang
-// its caller indefinitely.
+// run executes ps with args, failing once p.timeout elapses.
 func (p *process) run(args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), p.timeout)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, p.psPath, args...).Output()
 	if err != nil {
-		return nil, withStderr(err)
+		return nil, mapError(err)
 	}
 	return out, nil
 }
 
-// withStderr appends ps's own stderr text to err when available, so a
-// non-zero exit doesn't leave callers with just an opaque exit status.
-func withStderr(err error) error {
+// isZombie reports whether state denotes a zombie process.
+func isZombie(state string) bool {
+	return strings.HasPrefix(state, "Z")
+}
+
+// mapError maps ps's silent exit 1 (no process matched) to NotFoundError, and
+// appends ps's stderr text to any other exit failure.
+func mapError(err error) error {
 	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	if len(exitErr.Stderr) == 0 && exitErr.ExitCode() == 1 {
+		return outbound.NotFoundError{}
+	}
+	if len(exitErr.Stderr) > 0 {
 		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(exitErr.Stderr)))
 	}
 	return err
 }
 
 // processColumnNames returns the comma-separated process attribute columns
-// to query: uid, pid, rss, stat, and a command name. On darwin the command
-// name column is ucomm — the kernel-owned name — rather than comm, which
-// BSD ps instead derives from the process's own, unbounded, spoofable
-// argv[0]; using ucomm keeps the kill-time name recheck honest about which
-// binary is actually running. Elsewhere, comm is already kernel-owned, so
-// no substitution is needed.
+// to query.
 func processColumnNames() string {
 	if runtime.GOOS == "darwin" {
 		return "uid,pid,rss,stat,ucomm"
@@ -151,10 +138,8 @@ func processColumnNames() string {
 	return "uid,pid,rss,stat,comm"
 }
 
-// parseProcesses parses uid/pid/rss/stat/name-formatted ps output, shared by
-// discover() and LookupName so both apply identical truncation and whitespace
-// handling to the same columns. A row with an unparseable uid, pid, or rss
-// is skipped entirely.
+// parseProcesses parses ps output into ProcessInfo values, skipping any row it
+// cannot parse. It fails if the header row is missing or malformed.
 func parseProcesses(output []byte) ([]outbound.ProcessInfo, error) {
 	lines := strings.Split(string(output), "\n")
 	if !isProcessHeader(lines[0]) {
@@ -203,8 +188,7 @@ func parseProcesses(output []byte) ([]outbound.ProcessInfo, error) {
 	return processes, nil
 }
 
-// isProcessHeader reports whether line is the header row ps prints for the
-// uid-led columns processColumnNames requests.
+// isProcessHeader reports whether line is the uid-led header row of ps output.
 func isProcessHeader(line string) bool {
 	fields := strings.Fields(line)
 	return len(fields) > 0 && strings.EqualFold(fields[0], "uid")

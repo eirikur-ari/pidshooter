@@ -94,6 +94,25 @@ func TestLookupNameReportsNotFoundWhenPIDIsMissing(t *testing.T) {
 	assert.ErrorContains(t, err, "ps lookup for PID 4242 failed: not found", "the error should include the PID and NotFoundError in its message")
 }
 
+func TestLookupNameReportsNotFoundWhenPsExitsOneWithoutMatch(t *testing.T) {
+	p := &process{psPath: writeNoMatchPS(t), timeout: 5 * time.Second}
+
+	_, err := p.LookupName(4242)
+
+	require.Error(t, err)
+	assert.ErrorAs(t, err, &outbound.NotFoundError{}, "ps exiting 1 silently means no process matched the PID, so LookupName should report NotFoundError rather than a lookup failure")
+}
+
+func TestLookupNameReportsFailureWhenPsExitsOneWithStderr(t *testing.T) {
+	p := &process{psPath: writeFailingPS(t), timeout: 5 * time.Second}
+
+	_, err := p.LookupName(4242)
+
+	require.Error(t, err)
+	assert.NotErrorAs(t, err, &outbound.NotFoundError{}, "an exit 1 that explains itself on stderr is a real ps failure, not a missing PID")
+	assert.ErrorContains(t, err, "permission denied", "the error should surface ps's own stderr text")
+}
+
 func TestDiscoverTimesOutWhenPsHangs(t *testing.T) {
 	p := &process{psPath: writeHangingPS(t), timeout: 50 * time.Millisecond}
 
@@ -159,6 +178,14 @@ func writeEmptyResultPS(t *testing.T) string {
 	t.Helper()
 	scriptPath := filepath.Join(t.TempDir(), "ps")
 	script := "#!/bin/sh\nprintf '  UID   PID    RSS STAT COMM\\n'\n"
+	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0o755))
+	return scriptPath
+}
+
+func writeNoMatchPS(t *testing.T) string {
+	t.Helper()
+	scriptPath := filepath.Join(t.TempDir(), "ps")
+	script := "#!/bin/sh\nprintf '  UID   PID    RSS STAT COMM\\n'\nexit 1\n"
 	require.NoError(t, os.WriteFile(scriptPath, []byte(script), 0o755))
 	return scriptPath
 }
