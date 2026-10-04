@@ -6,9 +6,9 @@ type speed struct {
 	lowest  float64
 }
 
-// newSpeed returns a speed initialised to the given value.
-func newSpeed(v float64) speed {
-	return speed{current: v, lowest: v}
+// newSpeed returns a speed initialized to the given value.
+func newSpeed(initial float64) speed {
+	return speed{current: initial, lowest: initial}
 }
 
 // Current returns the current speed value.
@@ -18,9 +18,9 @@ func (s *speed) Current() float64 { return s.current }
 func (s *speed) Lowest() float64 { return s.lowest }
 
 // Set updates the current value and tracks the lowest value reached.
-func (s *speed) Set(v float64) {
-	s.current = v
-	if v < s.lowest {
-		s.lowest = v
+func (s *speed) Set(value float64) {
+	s.current = value
+	if value < s.lowest {
+		s.lowest = value
 	}
 }
