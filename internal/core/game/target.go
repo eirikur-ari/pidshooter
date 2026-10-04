@@ -148,7 +148,7 @@ func (t *Target) move(bounds movement.Bounds, speed float64) {
 		return
 	}
 
-	t.Motion.Move(bounds, speed, float64(utf8.RuneCountInString(tagFor(t.Info))))
+	t.Motion.Move(bounds, speed, utf8.RuneCountInString(tagFor(t.Info)))
 }
 
 func tagFor(info process.Info) string {

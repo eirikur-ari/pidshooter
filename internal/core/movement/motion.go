@@ -15,31 +15,31 @@ func (v Vector) Rounded() (x, y int) {
 	return int(math.Round(v.X)), int(math.Round(v.Y))
 }
 
-// Motion holds the position and velocity of a moving entity and encapsulates its physics.
+// Motion holds the position and velocity of a moving object.
 type Motion struct {
 	Position Vector
 	Velocity Vector
 }
 
 // NewMotion returns a Motion with a random position within bounds and a random velocity.
-// tagWidth is the rune width of the entity's display tag, used to constrain spawn position.
-func NewMotion(bounds Bounds, tagWidth int) Motion {
+// width is the horizontal extent of what is moving, used to constrain spawn position.
+func NewMotion(bounds Bounds, width int) Motion {
 	return Motion{
-		Position: newRandomPosition(bounds, tagWidth),
+		Position: newRandomPosition(bounds, width),
 		Velocity: newRandomVelocity(),
 	}
 }
 
-// Move advances Position by Velocity scaled by speed, then bounces off the frame walls.
-// tagWidth is the current rune width of the entity's display tag.
-func (m *Motion) Move(bounds Bounds, speed, tagWidth float64) {
+// Move advances Position by Velocity scaled by speed, then bounces off the bounds' walls.
+// width is the horizontal extent of what is moving.
+func (m *Motion) Move(bounds Bounds, speed float64, width int) {
 	m.Position.X += m.Velocity.X * speed
 	m.Position.Y += m.Velocity.Y * speed
-	bounds.bounce(&m.Position, &m.Velocity, tagWidth)
+	bounds.bounce(&m.Position, &m.Velocity, width)
 }
 
-func newRandomPosition(bounds Bounds, tagWidth int) Vector {
-	x := max(bounds.window.Width-tagWidth-1, 1)
+func newRandomPosition(bounds Bounds, width int) Vector {
+	x := max(bounds.window.Width-width-1, 1)
 	y := max(bounds.window.Height-bounds.chrome.Top-bounds.chrome.Bottom, 1)
 	return Vector{X: float64(rand.Intn(x) + 1), Y: float64(rand.Intn(y) + bounds.chrome.Top)}
 }

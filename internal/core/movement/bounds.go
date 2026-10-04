@@ -34,7 +34,7 @@ func (b Bounds) Update(window WindowSize) Bounds {
 // bounce adjusts position and velocity so the position stays within the
 // bounds, reversing the relevant velocity component on each wall hit. width
 // is the horizontal extent of what is moving.
-func (b Bounds) bounce(position, velocity *Vector, width float64) {
+func (b Bounds) bounce(position, velocity *Vector, width int) {
 	b.bounceLeft(position, velocity)
 	b.bounceRight(position, velocity, width)
 	b.bounceTop(position, velocity)
@@ -50,11 +50,8 @@ func (b Bounds) bounceLeft(position, velocity *Vector) {
 	}
 }
 
-func (b Bounds) bounceRight(position, velocity *Vector, width float64) {
-	bound := float64(b.window.Width) - width
-	if bound < 0 {
-		bound = 0
-	}
+func (b Bounds) bounceRight(position, velocity *Vector, width int) {
+	bound := float64(max(b.window.Width-width, 0))
 	if position.X > bound {
 		position.X = bound
 		if velocity.X > 0 {
