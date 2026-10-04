@@ -7,7 +7,7 @@ type WindowSize struct {
 }
 
 // ChromeSize is the number of rows reserved at the top and bottom edges of
-// that area that movement must keep clear.
+// the window that movement must keep clear.
 type ChromeSize struct {
 	Top, Bottom int
 }
@@ -31,57 +31,58 @@ func (b Bounds) Update(window WindowSize) Bounds {
 	return Bounds{window: window, chrome: b.chrome}
 }
 
-// bounce adjusts position and velocity so the target stays within the frame,
-// reversing the relevant velocity component on each wall hit.
-func (b Bounds) bounce(pos, vel *Vector, tagWidth float64) {
-	b.bounceLeft(pos, vel)
-	b.bounceRight(pos, vel, tagWidth)
-	b.bounceTop(pos, vel)
-	b.bounceBottom(pos, vel)
+// bounce adjusts position and velocity so the position stays within the
+// bounds, reversing the relevant velocity component on each wall hit. width
+// is the horizontal extent of what is moving.
+func (b Bounds) bounce(position, velocity *Vector, width float64) {
+	b.bounceLeft(position, velocity)
+	b.bounceRight(position, velocity, width)
+	b.bounceTop(position, velocity)
+	b.bounceBottom(position, velocity)
 }
 
-func (b Bounds) bounceLeft(pos, vel *Vector) {
-	if pos.X < 0 {
-		pos.X = 0
-		if vel.X < 0 {
-			vel.X = -vel.X
+func (b Bounds) bounceLeft(position, velocity *Vector) {
+	if position.X < 0 {
+		position.X = 0
+		if velocity.X < 0 {
+			velocity.X = -velocity.X
 		}
 	}
 }
 
-func (b Bounds) bounceRight(pos, vel *Vector, tagWidth float64) {
-	bound := float64(b.window.Width) - tagWidth
+func (b Bounds) bounceRight(position, velocity *Vector, width float64) {
+	bound := float64(b.window.Width) - width
 	if bound < 0 {
 		bound = 0
 	}
-	if pos.X > bound {
-		pos.X = bound
-		if vel.X > 0 {
-			vel.X = -vel.X
+	if position.X > bound {
+		position.X = bound
+		if velocity.X > 0 {
+			velocity.X = -velocity.X
 		}
 	}
 }
 
-func (b Bounds) bounceTop(pos, vel *Vector) {
+func (b Bounds) bounceTop(position, velocity *Vector) {
 	bound := float64(b.chrome.Top)
-	if pos.Y < bound {
-		pos.Y = bound
-		if vel.Y < 0 {
-			vel.Y = -vel.Y
+	if position.Y < bound {
+		position.Y = bound
+		if velocity.Y < 0 {
+			velocity.Y = -velocity.Y
 		}
 	}
 }
 
-func (b Bounds) bounceBottom(pos, vel *Vector) {
+func (b Bounds) bounceBottom(position, velocity *Vector) {
 	const lastRowIndexOffset = 1 // b.window.Height is a row count; row indices are zero-based
 	bound := float64(b.window.Height - lastRowIndexOffset - b.chrome.Bottom)
 	if bound < float64(b.chrome.Top) {
 		bound = float64(b.chrome.Top) // don't fight bounceTop's reserved rows on very short windows
 	}
-	if pos.Y > bound {
-		pos.Y = bound
-		if vel.Y > 0 {
-			vel.Y = -vel.Y
+	if position.Y > bound {
+		position.Y = bound
+		if velocity.Y > 0 {
+			velocity.Y = -velocity.Y
 		}
 	}
 }
