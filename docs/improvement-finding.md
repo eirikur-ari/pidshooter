@@ -9,3 +9,15 @@ Everything still genuinely open, deferred to already-planned future work. Nothin
 `config.Result.Mode` (`ModeGame`/`ModeYolo`/`ModeList`) already resolves through the config pipeline, but nothing reads `cfg.Mode` anywhere yet — no list-only or dry-run behavior is wired up. Pattern matching is also undocumented case-insensitive substring matching, with no way to preview what a pattern will match before entering the game screen where a click is fatal.
 
 **Deferred to:** the planned list/yolo CLI-modes work (`Mode` already anticipates this).
+
+---
+
+### 2. `Board.highScore` is hidden state that lags one `Add` behind
+
+`score.Board` keeps a `highScore` field that `Add` sets to the best kill count *before* the new entry is inserted, so `IsNewHighScore(kills)` only makes sense when asked right after that entry was added. `application/score.Service.RecordScore` adds the entry first and `ReportResults` asks the question afterwards, which is the only reason the snapshot exists. The method therefore answers "is this above the previous high score?", not "is this a record on the board right now?" — e.g. on a board holding 3 and 7, `IsNewHighScore(5)` is true.
+
+Planned change: drop the `highScore` field and let `Board.IsNewHighScore(kills)` compare against the current best (`kills > 0 && kills > killScore()`), asked *before* the entry is added. `RecordScore` (the score service owns the rule, not the runner) evaluates it before `board.Add(entry)` and returns it with the error — `RecordScore(board, entry, err) (newHighScore bool, saveErr error)`. The runner only forwards the flag into `ReportResults`, and `toScoreSummary` takes it as a parameter instead of querying the board afterwards. A service field remembering the flag between the two calls was rejected, since it recreates the same hidden coupling.
+
+Touches `core/score/board.go` (field, `Add`, `NewBoard` seeding, tests built around the snapshot), `application/score` (`RecordScore`, `ReportResults`, `toScoreSummary` and their tests) and `application/runner/service.go`.
+
+**Deferred to:** a follow-up after the testing audit; the current behavior is correct for the runner's call order.

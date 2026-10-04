@@ -93,15 +93,15 @@ func TestBounds_bounce_ReflectsAtBottomWall(t *testing.T) {
 
 func TestBounds_bounce_ClampsPositionButKeepsVelocityWhenAlreadyHeadingAwayFromWall(t *testing.T) {
 	tests := []struct {
-		name         string
-		position     Vector
-		velocity     Vector
-		wantPosition Vector
+		name     string
+		position Vector
+		velocity Vector
+		expected Vector
 	}{
-		{name: "left wall", position: Vector{X: -1, Y: 5}, velocity: Vector{X: 1, Y: 0}, wantPosition: Vector{X: 0, Y: 5}},
-		{name: "right wall", position: Vector{X: 76, Y: 5}, velocity: Vector{X: -1, Y: 0}, wantPosition: Vector{X: 75, Y: 5}},
-		{name: "top wall", position: Vector{X: 5, Y: -1}, velocity: Vector{X: 0, Y: 1}, wantPosition: Vector{X: 5, Y: 1}},
-		{name: "bottom wall", position: Vector{X: 5, Y: 23}, velocity: Vector{X: 0, Y: -1}, wantPosition: Vector{X: 5, Y: 22}},
+		{name: "left wall", position: Vector{X: -1, Y: 5}, velocity: Vector{X: 1, Y: 0}, expected: Vector{X: 0, Y: 5}},
+		{name: "right wall", position: Vector{X: 76, Y: 5}, velocity: Vector{X: -1, Y: 0}, expected: Vector{X: 75, Y: 5}},
+		{name: "top wall", position: Vector{X: 5, Y: -1}, velocity: Vector{X: 0, Y: 1}, expected: Vector{X: 5, Y: 1}},
+		{name: "bottom wall", position: Vector{X: 5, Y: 23}, velocity: Vector{X: 0, Y: -1}, expected: Vector{X: 5, Y: 22}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -113,7 +113,7 @@ func TestBounds_bounce_ClampsPositionButKeepsVelocityWhenAlreadyHeadingAwayFromW
 			bounds.bounce(&position, &velocity, 5)
 
 			// Then
-			assert.Equal(t, tt.wantPosition, position)
+			assert.Equal(t, tt.expected, position)
 			assert.Equal(t, tt.velocity, velocity, "velocity already pointing away from the wall must not be flipped back")
 		})
 	}

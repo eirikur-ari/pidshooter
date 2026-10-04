@@ -9,16 +9,16 @@ import (
 
 func TestVector_Rounded_RoundsEachComponentToNearestCellWithHalvesAwayFromZero(t *testing.T) {
 	tests := []struct {
-		name  string
-		input Vector
-		wantX int
-		wantY int
+		name      string
+		input     Vector
+		expectedX int
+		expectedY int
 	}{
-		{name: "below half rounds down", input: Vector{X: 2.4, Y: 5.4}, wantX: 2, wantY: 5},
-		{name: "above half rounds up", input: Vector{X: 10.6, Y: 5.6}, wantX: 11, wantY: 6},
-		{name: "exactly half rounds up", input: Vector{X: 0.5, Y: 1.5}, wantX: 1, wantY: 2},
-		{name: "negative half rounds away from zero", input: Vector{X: -0.5, Y: -1.5}, wantX: -1, wantY: -2},
-		{name: "whole numbers are unchanged", input: Vector{X: 3, Y: 7}, wantX: 3, wantY: 7},
+		{name: "below half rounds down", input: Vector{X: 2.4, Y: 5.4}, expectedX: 2, expectedY: 5},
+		{name: "above half rounds up", input: Vector{X: 10.6, Y: 5.6}, expectedX: 11, expectedY: 6},
+		{name: "exactly half rounds up", input: Vector{X: 0.5, Y: 1.5}, expectedX: 1, expectedY: 2},
+		{name: "negative half rounds away from zero", input: Vector{X: -0.5, Y: -1.5}, expectedX: -1, expectedY: -2},
+		{name: "whole numbers are unchanged", input: Vector{X: 3, Y: 7}, expectedX: 3, expectedY: 7},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -26,8 +26,8 @@ func TestVector_Rounded_RoundsEachComponentToNearestCellWithHalvesAwayFromZero(t
 			x, y := tt.input.Rounded()
 
 			// Then
-			assert.Equal(t, tt.wantX, x)
-			assert.Equal(t, tt.wantY, y)
+			assert.Equal(t, tt.expectedX, x)
+			assert.Equal(t, tt.expectedY, y)
 		})
 	}
 }

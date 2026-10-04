@@ -1,4 +1,3 @@
-// Package score manages high-score ranking logic.
 package score
 
 import (
@@ -43,7 +42,8 @@ func (e Entry) beats(other Entry) bool {
 }
 
 // isScore reports whether entry represents a genuine, storable score. A
-// session with no kills isn't a score, and FreedMem can never be negative.
+// session with no kills isn't a score, and Duds and FreedMem can never be
+// negative.
 func (e Entry) isScore() bool {
-	return e.Kills > 0 && e.FreedMem >= 0
+	return e.Kills > 0 && e.Duds >= 0 && e.FreedMem >= 0
 }

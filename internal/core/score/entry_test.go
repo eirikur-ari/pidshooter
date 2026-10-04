@@ -2,61 +2,91 @@ package score
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-// --- Entry.beats ---
+func TestEntry_beats_RanksByKillsThenDudsThenSpeedThenDurationThenFreedMem(t *testing.T) {
+	tests := []struct {
+		name   string
+		winner Entry
+		loser  Entry
+	}{
+		{
+			name:   "more kills wins regardless of every other field",
+			winner: Entry{Kills: 10, FreedMem: 100},
+			loser:  Entry{Kills: 5, Duds: 9, Speed: 5.0, FreedMem: 9000},
+		},
+		{
+			name:   "more duds wins a kills tie regardless of speed or freed memory",
+			winner: Entry{Kills: 5, Duds: 3, Speed: 1.0, FreedMem: 1000},
+			loser:  Entry{Kills: 5, Duds: 1, Speed: 5.0, FreedMem: 9000},
+		},
+		{
+			name:   "higher speed wins a kills and duds tie regardless of freed memory",
+			winner: Entry{Kills: 5, Speed: 3.0, FreedMem: 1000},
+			loser:  Entry{Kills: 5, Speed: 2.0, FreedMem: 9000},
+		},
+		{
+			name:   "shorter duration wins a kills, duds and speed tie regardless of freed memory",
+			winner: Entry{Kills: 5, Speed: 2.0, Duration: 10.0, FreedMem: 1000},
+			loser:  Entry{Kills: 5, Speed: 2.0, Duration: 20.0, FreedMem: 9000},
+		},
+		{
+			name:   "more freed memory wins when every other ranked field ties",
+			winner: Entry{Kills: 5, FreedMem: 2000},
+			loser:  Entry{Kills: 5, FreedMem: 1000},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// When
+			winnerBeatsLoser := tt.winner.beats(tt.loser)
+			loserBeatsWinner := tt.loser.beats(tt.winner)
 
-func TestEntryBeatsByKills(t *testing.T) {
-	high := Entry{Kills: 10, FreedMem: 100}
-	low := Entry{Kills: 5, FreedMem: 9000}
-	assert.True(t, high.beats(low), "expected higher kills to win regardless of freed mem")
-	assert.False(t, low.beats(high), "expected lower kills to lose")
+			// Then
+			assert.True(t, winnerBeatsLoser)
+			assert.False(t, loserBeatsWinner)
+		})
+	}
 }
 
-func TestEntryBeatsTiebreakByDuds(t *testing.T) {
-	fewerDuds := Entry{Kills: 5, Duds: 1, Speed: 5.0, FreedMem: 9000}
-	moreDuds := Entry{Kills: 5, Duds: 3, Speed: 1.0, FreedMem: 1000}
-	assert.True(t, moreDuds.beats(fewerDuds), "expected more duds to win on kills tie, regardless of speed or freed mem")
-	assert.False(t, fewerDuds.beats(moreDuds), "expected fewer duds to lose on kills tie")
+func TestEntry_beats_IsFalseBothWaysWhenAllRankedFieldsMatch(t *testing.T) {
+	// Given
+	entry := newEntryFixture()
+	other := newEntryFixture()
+	other.Date = entry.Date.Add(time.Hour)
+
+	// Then
+	assert.False(t, entry.beats(other), "date is not a ranked field")
+	assert.False(t, other.beats(entry), "date is not a ranked field")
 }
 
-func TestEntryBeatsTiebreakBySpeed(t *testing.T) {
-	faster := Entry{Kills: 5, Speed: 3.0, FreedMem: 1000}
-	slower := Entry{Kills: 5, Speed: 2.0, FreedMem: 9000}
-	assert.True(t, faster.beats(slower), "expected higher speed to win on kills tie, regardless of freed mem")
-	assert.False(t, slower.beats(faster), "expected lower speed to lose on kills tie")
-}
+func TestEntry_isScore_IsTrueOnlyForGenuineScores(t *testing.T) {
+	tests := []struct {
+		name     string
+		mutate   func(*Entry)
+		expected bool
+	}{
+		{name: "positive kills", mutate: func(e *Entry) {}, expected: true},
+		{name: "zero duds and zero freed memory", mutate: func(e *Entry) { e.Duds, e.FreedMem = 0, 0 }, expected: true},
+		{name: "zero kills", mutate: func(e *Entry) { e.Kills = 0 }, expected: false},
+		{name: "negative kills", mutate: func(e *Entry) { e.Kills = -1 }, expected: false},
+		{name: "negative duds", mutate: func(e *Entry) { e.Duds = -1 }, expected: false},
+		{name: "negative freed memory", mutate: func(e *Entry) { e.FreedMem = -1 }, expected: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			entry := newEntryFixture()
+			tt.mutate(&entry)
 
-func TestEntryBeatsTiebreakByDuration(t *testing.T) {
-	quicker := Entry{Kills: 5, Speed: 2.0, Duration: 10.0, FreedMem: 1000}
-	slower := Entry{Kills: 5, Speed: 2.0, Duration: 20.0, FreedMem: 9000}
-	assert.True(t, quicker.beats(slower), "expected shorter duration to win on kills and speed tie")
-	assert.False(t, slower.beats(quicker), "expected longer duration to lose on kills and speed tie")
-}
+			// When
+			genuine := entry.isScore()
 
-func TestEntryBeatsTiebreakByFreedMem(t *testing.T) {
-	more := Entry{Kills: 5, FreedMem: 2000}
-	less := Entry{Kills: 5, FreedMem: 1000}
-	assert.True(t, more.beats(less), "expected higher freed mem to win on kills, speed, and duration tie")
-	assert.False(t, less.beats(more), "expected lower freed mem to lose on kills, speed, and duration tie")
-}
-
-// --- Entry.isScore ---
-
-func TestEntryIsScoreTrueForPositiveKillsAndFreedMem(t *testing.T) {
-	assert.True(t, Entry{Kills: 1, FreedMem: 0}.isScore())
-}
-
-func TestEntryIsScoreFalseForZeroKills(t *testing.T) {
-	assert.False(t, Entry{Kills: 0, FreedMem: 100}.isScore())
-}
-
-func TestEntryIsScoreFalseForNegativeKills(t *testing.T) {
-	assert.False(t, Entry{Kills: -1, FreedMem: 100}.isScore())
-}
-
-func TestEntryIsScoreFalseForNegativeFreedMem(t *testing.T) {
-	assert.False(t, Entry{Kills: 5, FreedMem: -1}.isScore(), "a real session can never free negative memory")
+			// Then
+			assert.Equal(t, tt.expected, genuine)
+		})
+	}
 }

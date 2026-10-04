@@ -5,200 +5,308 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestValidatePatternsNoPatterns(t *testing.T) {
-	assert.ErrorContains(t, ValidatePatterns(nil), "at least one search pattern is required")
-	assert.ErrorContains(t, ValidatePatterns([]string{}), "at least one search pattern is required")
-}
+func TestInfo_IsProtected_IsTrueOnlyForPIDsAtOrBelowOne(t *testing.T) {
+	tests := []struct {
+		name     string
+		pid      int
+		expected bool
+	}{
+		{name: "negative PID", pid: -1, expected: true},
+		{name: "PID 0", pid: 0, expected: true},
+		{name: "PID 1", pid: 1, expected: true},
+		{name: "PID 2", pid: 2, expected: false},
+		{name: "ordinary PID", pid: 100, expected: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			info := newInfoFixture()
+			info.PID = tt.pid
 
-func TestValidatePatternsTooShort(t *testing.T) {
-	for _, p := range []string{"", "a", "ab"} {
-		assert.Error(t, ValidatePatterns([]string{p}), "expected error for pattern %q shorter than minPatternLength", p)
+			// When
+			protected := info.IsProtected()
+
+			// Then
+			assert.Equal(t, tt.expected, protected)
+		})
 	}
 }
 
-func TestValidatePatternsExactMinLength(t *testing.T) {
-	p := strings.Repeat("a", minPatternLength)
-	assert.NoError(t, ValidatePatterns([]string{p}), "expected no error for min-length pattern")
+func TestInfo_IsKillableBy_FollowsOwnershipAndRootRules(t *testing.T) {
+	tests := []struct {
+		name        string
+		processUID  int
+		ownUID      int
+		includeRoot bool
+		expected    bool
+	}{
+		{name: "caller owns the process", processUID: 1000, ownUID: 1000, expected: true},
+		{name: "another user owns the process", processUID: 1000, ownUID: 2000, expected: false},
+		{name: "root caller may kill any process", processUID: 1000, ownUID: 0, expected: true},
+		{name: "root caller may kill root-owned process", processUID: 0, ownUID: 0, expected: true},
+		{name: "non-root caller may not kill root-owned process", processUID: 0, ownUID: 1000, expected: false},
+		{name: "includeRoot lets non-root caller kill root-owned process", processUID: 0, ownUID: 1000, includeRoot: true, expected: true},
+		{name: "includeRoot does not grant another non-root user's process", processUID: 1000, ownUID: 2000, includeRoot: true, expected: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			info := newInfoFixture()
+			info.UID = tt.processUID
+
+			// When
+			killable := info.IsKillableBy(tt.ownUID, tt.includeRoot)
+
+			// Then
+			assert.Equal(t, tt.expected, killable)
+		})
+	}
 }
 
-func TestValidatePatternsValid(t *testing.T) {
-	assert.NoError(t, ValidatePatterns([]string{"firefox"}))
+func TestFind_MatchesProcessNamesByPattern(t *testing.T) {
+	tests := []struct {
+		name      string
+		processes []Info
+		patterns  []string
+		expected  []int
+	}{
+		{
+			name:      "exact name",
+			processes: []Info{newInfoFixtureFor(100, "myapp"), newInfoFixtureFor(200, "worker")},
+			patterns:  []string{"myapp"},
+			expected:  []int{100},
+		},
+		{
+			name:      "substring of the name",
+			processes: []Info{newInfoFixtureFor(100, "myapp-worker")},
+			patterns:  []string{"app"},
+			expected:  []int{100},
+		},
+		{
+			name:      "uppercase process name",
+			processes: []Info{newInfoFixtureFor(100, "MyApp")},
+			patterns:  []string{"myapp"},
+			expected:  []int{100},
+		},
+		{
+			name:      "uppercase pattern",
+			processes: []Info{newInfoFixtureFor(100, "myapp")},
+			patterns:  []string{"MYAPP"},
+			expected:  []int{100},
+		},
+		{
+			name:      "multiple patterns keep input order",
+			processes: []Info{newInfoFixtureFor(100, "myapp"), newInfoFixtureFor(200, "worker"), newInfoFixtureFor(300, "other")},
+			patterns:  []string{"worker", "myapp"},
+			expected:  []int{100, 200},
+		},
+		{
+			name:      "no match",
+			processes: []Info{newInfoFixtureFor(100, "myapp")},
+			patterns:  []string{"worker"},
+		},
+		{
+			name:      "no patterns",
+			processes: []Info{newInfoFixtureFor(100, "myapp")},
+			patterns:  nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// When
+			result := Find(tt.processes, tt.patterns, 999, 1000, false)
+
+			// Then
+			assert.Equal(t, tt.expected, newPidsFixtureOf(result))
+		})
+	}
 }
 
-func TestValidatePatternsExactMaxLength(t *testing.T) {
-	p := strings.Repeat("a", maxPatternLength)
-	assert.NoError(t, ValidatePatterns([]string{p}), "expected no error for max-length pattern")
+func TestFind_DoesNotListSameProcessTwiceWhenItMatchesSeveralPatterns(t *testing.T) {
+	// Given
+	processes := []Info{newInfoFixtureFor(100, "myapp")}
+
+	// When
+	result := Find(processes, []string{"app", "my"}, 999, 1000, false)
+
+	// Then
+	assert.Equal(t, []int{100}, newPidsFixtureOf(result))
 }
 
-func TestValidatePatternsTooLong(t *testing.T) {
-	p := strings.Repeat("a", maxPatternLength+1)
-	assert.Error(t, ValidatePatterns([]string{p}), "expected error for pattern exceeding maxPatternLength")
+func TestFind_ExcludesOwnPID(t *testing.T) {
+	// Given
+	const ownPID = 999
+	processes := []Info{newInfoFixtureFor(ownPID, "testprocess"), newInfoFixtureFor(100, "testprocess")}
+
+	// When
+	result := Find(processes, []string{"testprocess"}, ownPID, 1000, false)
+
+	// Then
+	assert.Equal(t, []int{100}, newPidsFixtureOf(result))
 }
 
-func TestValidateProcessesEmpty(t *testing.T) {
-	assert.ErrorContains(t, ValidateProcesses(nil), "no processes found")
+func TestFind_ExcludesProtectedProcesses(t *testing.T) {
+	// Given
+	processes := []Info{newInfoFixtureFor(0, "swapper"), newInfoFixtureFor(1, "init"), newInfoFixtureFor(100, "myapp")}
+
+	// When
+	result := Find(processes, []string{"swapper", "init", "myapp"}, 999, 1000, false)
+
+	// Then
+	assert.Equal(t, []int{100}, newPidsFixtureOf(result))
 }
 
-func TestValidateProcessesNonEmpty(t *testing.T) {
-	assert.NoError(t, ValidateProcesses([]Info{NewInfo(100, "target", 4096, 0)}))
+func TestFind_IncludesRootOwnedProcessesWhenIncludeRootIsSet(t *testing.T) {
+	// Given
+	rootOwned := newInfoFixtureFor(200, "sshd")
+	rootOwned.UID = 0
+	processes := []Info{newInfoFixtureFor(100, "myapp"), rootOwned}
+
+	// When
+	result := Find(processes, []string{"app", "sshd"}, 999, 1000, true)
+
+	// Then
+	assert.Equal(t, []int{100, 200}, newPidsFixtureOf(result))
 }
 
-func TestValidateNameMismatch(t *testing.T) {
+func TestFind_ExcludesRootOwnedProcessesWhenIncludeRootIsNotSet(t *testing.T) {
+	// Given
+	rootOwned := newInfoFixtureFor(200, "sshd")
+	rootOwned.UID = 0
+	processes := []Info{newInfoFixtureFor(100, "myapp"), rootOwned}
+
+	// When
+	result := Find(processes, []string{"app", "sshd"}, 999, 1000, false)
+
+	// Then
+	assert.Equal(t, []int{100}, newPidsFixtureOf(result))
+}
+
+func TestValidateProcesses_RejectsEmptyList(t *testing.T) {
+	tests := map[string][]Info{
+		"nil list":   nil,
+		"empty list": {},
+	}
+	for name, processes := range tests {
+		t.Run(name, func(t *testing.T) {
+			// When
+			err := ValidateProcesses(processes)
+
+			// Then
+			assert.ErrorContains(t, err, "no processes found")
+		})
+	}
+}
+
+func TestValidateProcesses_AcceptsNonEmptyList(t *testing.T) {
+	// When
+	err := ValidateProcesses([]Info{newInfoFixture()})
+
+	// Then
+	assert.NoError(t, err)
+}
+
+func TestValidatePatterns_RejectsEmptyList(t *testing.T) {
+	tests := map[string][]string{
+		"nil list":   nil,
+		"empty list": {},
+	}
+	for name, patterns := range tests {
+		t.Run(name, func(t *testing.T) {
+			// When
+			err := ValidatePatterns(patterns)
+
+			// Then
+			assert.ErrorContains(t, err, "at least one search pattern is required")
+		})
+	}
+}
+
+func TestValidatePatterns_RejectsPatternsOutsideLengthRange(t *testing.T) {
+	tests := []struct {
+		name     string
+		patterns []string
+		expected string
+	}{
+		{name: "empty pattern", patterns: []string{""}, expected: "must be at least"},
+		{name: "below min", patterns: []string{strings.Repeat("a", minPatternLength-1)}, expected: "must be at least"},
+		{name: "above max", patterns: []string{strings.Repeat("a", maxPatternLength+1)}, expected: "exceeds maximum length"},
+		{name: "one bad pattern among valid ones", patterns: []string{"firefox", "ab", "chrome"}, expected: `"ab"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// When
+			err := ValidatePatterns(tt.patterns)
+
+			// Then
+			assert.ErrorContains(t, err, tt.expected)
+		})
+	}
+}
+
+func TestValidatePatterns_AcceptsPatternsWithinLengthRange(t *testing.T) {
+	tests := []struct {
+		name     string
+		patterns []string
+	}{
+		{name: "min length", patterns: []string{strings.Repeat("a", minPatternLength)}},
+		{name: "max length", patterns: []string{strings.Repeat("a", maxPatternLength)}},
+		{name: "mid range", patterns: []string{"firefox"}},
+		{name: "several valid patterns", patterns: []string{"firefox", "chrome"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// When
+			err := ValidatePatterns(tt.patterns)
+
+			// Then
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateName_RejectsMismatch(t *testing.T) {
+	// When
 	err := ValidateName("target", "somethingElse")
+
+	// Then
 	assert.ErrorContains(t, err, `expected "target"`)
 	assert.ErrorContains(t, err, `got "somethingElse"`)
 }
 
-func TestValidateNameMatch(t *testing.T) {
-	assert.NoError(t, ValidateName("target", "target"))
+func TestValidateName_AcceptsMatch(t *testing.T) {
+	// When
+	err := ValidateName("target", "target")
+
+	// Then
+	assert.NoError(t, err)
 }
 
-func TestValidateRootRefusesRootWithoutOverride(t *testing.T) {
-	assert.ErrorContains(t, ValidateRoot(0, false), "refusing to run as root")
-}
-
-func TestValidateRootAllowsRootWithOverride(t *testing.T) {
-	assert.NoError(t, ValidateRoot(0, true))
-}
-
-func TestValidateRootAllowsNonRoot(t *testing.T) {
-	assert.NoError(t, ValidateRoot(1000, false))
-}
-
-func TestInfoIsProtected(t *testing.T) {
-	assert.True(t, NewInfo(0, "swapper", 0, 0).IsProtected())
-	assert.True(t, NewInfo(1, "init", 0, 0).IsProtected())
-	assert.False(t, NewInfo(2, "init", 0, 0).IsProtected())
-	assert.False(t, NewInfo(100, "myapp", 0, 0).IsProtected())
-}
-
-func TestInfoIsKillableBy(t *testing.T) {
-	owned := NewInfo(100, "myapp", 0, 1000)
-	assert.True(t, owned.IsKillableBy(1000, false), "caller should be able to kill a process it owns")
-	assert.False(t, owned.IsKillableBy(2000, false), "caller should not be able to kill a process owned by someone else")
-	assert.True(t, owned.IsKillableBy(0, false), "root should be able to kill any process")
-
-	rootOwned := NewInfo(100, "sshd", 0, 0)
-	assert.True(t, rootOwned.IsKillableBy(0, false), "root should be able to kill its own processes")
-	assert.False(t, rootOwned.IsKillableBy(1000, false), "non-root caller should not be able to kill a root-owned process")
-	assert.True(t, rootOwned.IsKillableBy(1000, true), "non-root caller with includeRoot should be able to target a root-owned process")
-
-	assert.False(t, owned.IsKillableBy(2000, true), "includeRoot does not grant access to another non-root user's process")
-}
-
-func TestFindIncludeRootIncludesRootOwnedProcesses(t *testing.T) {
-	infos := []Info{
-		NewInfo(100, "myapp", 1024, 1000),
-		NewInfo(200, "sshd", 1024, 0),
+func TestValidateRoot_RefusesOnlyRootWithoutOverride(t *testing.T) {
+	tests := []struct {
+		name      string
+		ownUID    int
+		allowRoot bool
+		expected  bool
+	}{
+		{name: "root without override", ownUID: 0, allowRoot: false, expected: true},
+		{name: "root with override", ownUID: 0, allowRoot: true},
+		{name: "non-root without override", ownUID: 1000, allowRoot: false},
+		{name: "non-root with override", ownUID: 1000, allowRoot: true},
 	}
-	result := Find(infos, []string{"app", "sshd"}, 0, 1000, true)
-	assert.Len(t, result, 2, "includeRoot should surface the root-owned process alongside the caller's own")
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// When
+			err := ValidateRoot(tt.ownUID, tt.allowRoot)
 
-func TestFindWithoutIncludeRootExcludesRootOwnedProcesses(t *testing.T) {
-	infos := []Info{
-		NewInfo(100, "myapp", 1024, 1000),
-		NewInfo(200, "sshd", 1024, 0),
+			// Then
+			if tt.expected {
+				assert.ErrorContains(t, err, "refusing to run as root")
+				return
+			}
+			assert.NoError(t, err)
+		})
 	}
-	result := Find(infos, []string{"app", "sshd"}, 0, 1000, false)
-	require.Len(t, result, 1)
-	assert.Equal(t, 100, result[0].PID)
-}
-
-func TestFindExcludesProcessesNotOwnedByCaller(t *testing.T) {
-	infos := []Info{
-		NewInfo(100, "myapp", 1024, 1000),
-		NewInfo(200, "otherapp", 1024, 2000),
-	}
-	result := Find(infos, []string{"app"}, 0, 1000, false)
-	require.Len(t, result, 1)
-	assert.Equal(t, 100, result[0].PID)
-}
-
-func TestFindAsRootIncludesProcessesOwnedByAnyUser(t *testing.T) {
-	infos := []Info{
-		NewInfo(100, "myapp", 1024, 1000),
-		NewInfo(200, "otherapp", 1024, 2000),
-	}
-	result := Find(infos, []string{"app"}, 0, 0, false)
-	assert.Len(t, result, 2, "root should see processes regardless of owner")
-}
-
-func TestFindMatchesByName(t *testing.T) {
-	infos := []Info{
-		NewInfo(100, "myapp", 1024, 0),
-		NewInfo(200, "worker", 2048, 0),
-	}
-	result := Find(infos, []string{"myapp"}, 0, 0, false)
-	require.Len(t, result, 1)
-	assert.Equal(t, 100, result[0].PID)
-}
-
-func TestFindSubstringMatch(t *testing.T) {
-	infos := []Info{NewInfo(100, "myapp-worker", 1024, 0)}
-	result := Find(infos, []string{"app"}, 0, 0, false)
-	assert.Len(t, result, 1)
-}
-
-func TestFindCaseInsensitive(t *testing.T) {
-	infos := []Info{NewInfo(100, "MyApp", 1024, 0)}
-	result := Find(infos, []string{"myapp"}, 0, 0, false)
-	assert.Len(t, result, 1)
-}
-
-func TestFindMultipleTerms(t *testing.T) {
-	infos := []Info{
-		NewInfo(100, "myapp", 1024, 0),
-		NewInfo(200, "worker", 2048, 0),
-		NewInfo(300, "other", 512, 0),
-	}
-	result := Find(infos, []string{"myapp", "worker"}, 0, 0, false)
-	assert.Len(t, result, 2)
-}
-
-func TestFindNoMatch(t *testing.T) {
-	infos := []Info{NewInfo(100, "myapp", 1024, 0)}
-	result := Find(infos, []string{"worker"}, 0, 0, false)
-	assert.Empty(t, result)
-}
-
-func TestFindExcludesPID1(t *testing.T) {
-	infos := []Info{
-		NewInfo(1, "init", 512, 0),
-		NewInfo(100, "myapp", 1024, 0),
-	}
-	result := Find(infos, []string{"init", "myapp"}, 0, 0, false)
-	for _, p := range result {
-		assert.NotEqual(t, 1, p.PID, "should not include PID 1")
-	}
-}
-
-func TestFindExcludesOwnPID(t *testing.T) {
-	const ownPID = 999
-	infos := []Info{
-		NewInfo(ownPID, "testprocess", 1024, 0),
-		NewInfo(100, "testprocess", 2048, 0),
-	}
-	result := Find(infos, []string{"testprocess"}, ownPID, 0, false)
-	for _, p := range result {
-		assert.NotEqual(t, ownPID, p.PID, "should not include own PID")
-	}
-	require.Len(t, result, 1)
-	assert.Equal(t, 100, result[0].PID)
-}
-
-func TestFindExcludesPID0(t *testing.T) {
-	infos := []Info{
-		NewInfo(0, "swapper", 0, 0),
-		NewInfo(100, "myapp", 1024, 0),
-	}
-	result := Find(infos, []string{"swapper", "myapp"}, -1, 0, false)
-	for _, p := range result {
-		assert.Greater(t, p.PID, 1, "filter should exclude PID %d", p.PID)
-	}
-	require.Len(t, result, 1)
-	assert.Equal(t, 100, result[0].PID)
 }

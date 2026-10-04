@@ -23,18 +23,19 @@ func NewBoard(entries []Entry) *Board {
 	return b
 }
 
-// HighScore returns the board's current best kill count, or 0 if none.
-func (b *Board) HighScore() int {
-	return b.killScore()
-}
-
 // Add inserts a new score entry and keeps only the top N. An entry that
-// isn't a genuine score is silently ignored.
+// isn't a genuine score is silently ignored, and a negative speed or duration
+// is stored as 0.
 func (b *Board) Add(entry Entry) {
 	topScore := b.killScore()
 	if b.insert(entry) {
 		b.highScore = topScore
 	}
+}
+
+// HighScore returns the board's current high score, or 0 if none.
+func (b *Board) HighScore() int {
+	return b.killScore()
 }
 
 // IsNewHighScore reports whether kills is strictly higher than the board's
@@ -53,12 +54,15 @@ func (b *Board) killScore() int {
 }
 
 // insert ranks entry on the board and keeps only the top N, reporting whether
-// it was stored. An entry that isn't a genuine score is ignored.
+// it was stored. An entry that isn't a genuine score is ignored, and a negative
+// speed or duration is stored as 0.
 func (b *Board) insert(entry Entry) bool {
 	if !entry.isScore() {
 		return false
 	}
 
+	entry.Speed = max(entry.Speed, 0)
+	entry.Duration = max(entry.Duration, 0)
 	b.Scores = append(b.Scores, entry)
 	b.sortByRank()
 
