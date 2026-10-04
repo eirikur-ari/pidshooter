@@ -8,18 +8,18 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-// State represents the current state of a process entity.
+// State represents the current state of a Target.
 type State int
 
 const (
-	// Alive means the entity is flying around normally.
+	// Alive means the target is flying around normally.
 	Alive State = iota
 	// Killing means the kill animation is playing.
 	Killing
 	// Fleeing means the flee animation is playing, for a target whose
 	// backing process was found already gone before a kill could land.
 	Fleeing
-	// Dead means the entity has been removed.
+	// Dead means the target has been removed.
 	Dead
 )
 
@@ -27,6 +27,7 @@ const (
 // plays before the target disappears.
 const AnimationDuration = 36
 
+// Target is a running process as it appears in the game.
 type Target struct {
 	Info          process.Info
 	Motion        movement.Motion
@@ -35,7 +36,7 @@ type Target struct {
 	shotFired     bool
 }
 
-// NewTarget creates a new entity at a random position with random velocity.
+// NewTarget creates an Alive Target for info within bounds.
 func NewTarget(info process.Info, bounds movement.Bounds) *Target {
 	return &Target{
 		Info:   info,
@@ -55,8 +56,8 @@ func (t *Target) Tag() string {
 }
 
 // AnimationProgress reports how far through its kill or flee animation this
-// target is, as a fraction from 0 to 1. Zero when neither Killing nor
-// Fleeing is true.
+// target is, as a fraction from 0 to 1. Zero when the target is neither
+// Killing nor Fleeing.
 func (t *Target) AnimationProgress() float64 {
 	if t.State != Killing && t.State != Fleeing {
 		return 0
@@ -65,7 +66,7 @@ func (t *Target) AnimationProgress() float64 {
 	return float64(t.AnimationTick) / float64(AnimationDuration)
 }
 
-// Update advances the kill or flee animation, or moves the entity and bounces off walls.
+// Update advances the kill or flee animation, or moves the target and bounces off walls.
 func (t *Target) Update(bounds movement.Bounds, speed float64) {
 	switch t.State {
 	case Killing, Fleeing:
@@ -77,7 +78,7 @@ func (t *Target) Update(bounds movement.Bounds, speed float64) {
 	}
 }
 
-// Kill transitions the target to the dying state and returns true.
+// Kill transitions the target to the Killing state and returns true.
 // Returns false without changing state if the target is not alive.
 func (t *Target) Kill() bool {
 	if !t.isAlive() {
@@ -89,11 +90,10 @@ func (t *Target) Kill() bool {
 	return true
 }
 
-// Reap transitions the target to the fleeing state, skipping the kill
+// Reap transitions the target to the Fleeing state, skipping the kill
 // animation, for a target whose backing process already exited outside the
-// game. The target plays its flee animation before disappearing, the same
-// as a confirmed kill does. Returns false without changing state if the
-// target is not alive.
+// game, and returns true. Returns false without changing state if the target
+// is not alive.
 func (t *Target) Reap() bool {
 	if !t.isAlive() {
 		return false
@@ -132,6 +132,8 @@ func (t *Target) isHitAt(x, y int) bool {
 	return y == row && x >= col && x < col+width
 }
 
+// doomsdayTick advances the kill or flee animation by one tick, marking the
+// target Dead once the animation completes.
 func (t *Target) doomsdayTick() {
 	t.AnimationTick++
 	if t.AnimationTick >= AnimationDuration {

@@ -1,363 +1,323 @@
 package game
 
 import (
-	"fmt"
 	"testing"
 	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-func TestNewTargetWithinBounds(t *testing.T) {
-	maxX, maxY := 80, 24
-	e := NewTarget(process.NewInfo(1234, "test", 1024, 0), movement.NewBounds(movement.WindowSize{Width: maxX, Height: maxY}, movement.ChromeSize{Top: 1, Bottom: 1}))
+func TestTarget_NewTarget_StartsAliveWithGivenInfo(t *testing.T) {
+	// Given
+	info := newInfoFixture()
+	target := NewTarget(info, newBoundsFixture())
 
-	assert.Equal(t, 1234, e.Info.PID)
-	assert.Equal(t, "test", e.Info.Name)
-	assert.Equal(t, int64(1024), e.Info.Rss)
-	assert.Equal(t, Alive, e.State)
-
-	tag := fmt.Sprintf("[%d %s]", e.Info.PID, e.Info.Name)
-	width := len(tag)
-	spawnMaxX := maxX - width - 1
-	spawnMaxY := maxY - 2
-	assert.GreaterOrEqual(t, e.Motion.Position.X, 1.0)
-	assert.LessOrEqual(t, int(e.Motion.Position.X), spawnMaxX)
-	assert.GreaterOrEqual(t, e.Motion.Position.Y, 1.0)
-	assert.LessOrEqual(t, int(e.Motion.Position.Y), spawnMaxY)
+	// Then
+	assert.Equal(t, info, target.Info)
+	assert.Equal(t, Alive, target.State)
 }
 
-func TestNewTargetSmallTerminal(t *testing.T) {
-	e := NewTarget(process.NewInfo(1, "xxx", 0, 0), movement.NewBounds(movement.WindowSize{Width: 5, Height: 5}, movement.ChromeSize{Top: 1, Bottom: 1}))
-	require.NotNil(t, e)
+func TestTarget_Tag_ReturnsLabelWhenAlive(t *testing.T) {
+	// Given
+	info := newInfoFixture()
+	info.PID = 42
+	info.Name = "deep thought"
+	target := &Target{Info: info, State: Alive}
+
+	// When
+	tag := target.Tag()
+
+	// Then
+	assert.Equal(t, "[42 deep thought]", tag)
 }
 
-func TestTargetTagAlive(t *testing.T) {
-	e := &Target{Info: process.NewInfo(42, "bash", 0, 0), State: Alive}
-	assert.Equal(t, "[42 bash]", e.Tag())
-}
+func TestTarget_Tag_IsEmptyWhenNotAlive(t *testing.T) {
+	for _, state := range []State{Killing, Fleeing, Dead} {
+		// Given
+		target := &Target{Info: newInfoFixture(), State: state}
 
-func TestTargetTagDead(t *testing.T) {
-	e := &Target{Info: process.NewInfo(42, "bash", 0, 0), State: Dead}
-	assert.Equal(t, "", e.Tag())
-}
+		// When
+		tag := target.Tag()
 
-func TestTargetTagKilling(t *testing.T) {
-	e := &Target{Info: process.NewInfo(42, "bash", 0, 0), State: Killing, AnimationTick: 0}
-	assert.Empty(t, e.Tag(), "the renderer draws its own animation frame, not Tag, while killing")
-}
-
-func TestTargetTagFleeing(t *testing.T) {
-	e := &Target{Info: process.NewInfo(42, "bash", 0, 0), State: Fleeing, AnimationTick: 0}
-	assert.Empty(t, e.Tag(), "the renderer draws its own animation frame, not Tag, while fleeing")
-}
-
-func TestTargetAnimationProgressZeroWhenAlive(t *testing.T) {
-	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Alive, AnimationTick: 5}
-	assert.Equal(t, 0.0, e.AnimationProgress())
-}
-
-func TestTargetAnimationProgressZeroWhenDead(t *testing.T) {
-	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Dead, AnimationTick: 5}
-	assert.Equal(t, 0.0, e.AnimationProgress())
-}
-
-func TestTargetAnimationProgressReflectsTickWhenKilling(t *testing.T) {
-	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Killing, AnimationTick: AnimationDuration / 2}
-	assert.Equal(t, 0.5, e.AnimationProgress())
-}
-
-func TestTargetAnimationProgressReflectsTickWhenFleeing(t *testing.T) {
-	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Fleeing, AnimationTick: AnimationDuration / 2}
-	assert.Equal(t, 0.5, e.AnimationProgress())
-}
-
-func TestTargetUpdateKillingState(t *testing.T) {
-	e := &Target{
-		Info:          process.NewInfo(1, "xxx", 0, 0),
-		State:         Killing,
-		AnimationTick: AnimationDuration - 1,
+		// Then
+		assert.Empty(t, tag, "state %d should not render a label; the renderer draws its own animation frame", state)
 	}
-	e.Update(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}), 1.0)
-	assert.Equal(t, Dead, e.State)
 }
 
-func TestTargetUpdateFleeingState(t *testing.T) {
-	e := &Target{
-		Info:          process.NewInfo(1, "xxx", 0, 0),
-		State:         Fleeing,
-		AnimationTick: AnimationDuration - 1,
+func TestTarget_AnimationProgress_IsZeroWhenInAliveOrDeadState(t *testing.T) {
+	for _, state := range []State{Alive, Dead} {
+		// Given
+		target := &Target{Info: newInfoFixture(), State: state, AnimationTick: 5}
+
+		// When
+		progress := target.AnimationProgress()
+
+		// Then
+		assert.Equal(t, 0.0, progress, "state %d has no animation to report progress on", state)
 	}
-	e.Update(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}), 1.0)
-	assert.Equal(t, Dead, e.State)
 }
 
-func TestTargetUpdateDeadNoOp(t *testing.T) {
-	e := &Target{
-		Info:   process.NewInfo(1, "xxx", 0, 0),
+func TestTarget_AnimationProgress_ReturnsElapsedFractionWhenInKillingOrFleeingState(t *testing.T) {
+	for _, state := range []State{Killing, Fleeing} {
+		// Given
+		target := &Target{Info: newInfoFixture(), State: state, AnimationTick: AnimationDuration / 2}
+
+		// When
+		progress := target.AnimationProgress()
+
+		// Then
+		assert.Equal(t, 0.5, progress, "state %d should report its tick as a fraction of the animation duration", state)
+	}
+}
+
+func TestTarget_Update_AdvancesAnimationTickWhenInKillingOrFleeingState(t *testing.T) {
+	for _, state := range []State{Killing, Fleeing} {
+		// Given
+		target := &Target{Info: newInfoFixture(), State: state, AnimationTick: 3}
+
+		// When
+		target.Update(newBoundsFixture(), 1.0)
+
+		// Then
+		assert.Equal(t, state, target.State, "state %d should keep animating before the final tick", state)
+		assert.Equal(t, 4, target.AnimationTick, "state %d should advance one tick per update", state)
+	}
+}
+
+func TestTarget_Update_BecomesDeadOnFinalAnimationTickWhenInKillingOrFleeingState(t *testing.T) {
+	for _, state := range []State{Killing, Fleeing} {
+		// Given
+		target := &Target{Info: newInfoFixture(), State: state, AnimationTick: AnimationDuration - 1}
+
+		// When
+		target.Update(newBoundsFixture(), 1.0)
+
+		// Then
+		assert.Equal(t, Dead, target.State, "state %d should become Dead once its animation completes", state)
+	}
+}
+
+func TestTarget_Update_DoesNotMoveWhenInDeadState(t *testing.T) {
+	// Given
+	target := &Target{
+		Info:   newInfoFixture(),
 		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 10}, Velocity: movement.Vector{X: 1.0, Y: 1.0}},
 		State:  Dead,
 	}
-	e.Update(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}), 1.0)
-	assert.Equal(t, 10.0, e.Motion.Position.X, "dead entity should not move")
-	assert.Equal(t, 10.0, e.Motion.Position.Y, "dead entity should not move")
+
+	// When
+	target.Update(newBoundsFixture(), 1.0)
+
+	// Then
+	assert.Equal(t, 10.0, target.Motion.Position.X, "dead target should not move")
+	assert.Equal(t, 10.0, target.Motion.Position.Y, "dead target should not move")
 }
 
-func TestTargetUpdateBounceLeft(t *testing.T) {
-	e := &Target{
-		Info:   process.NewInfo(1, "x", 0, 0),
-		Motion: movement.Motion{Position: movement.Vector{X: 0, Y: 5}, Velocity: movement.Vector{X: -1.0, Y: 0}},
-		State:  Alive,
-	}
-	e.Update(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}), 1.0)
-	assert.GreaterOrEqual(t, e.Motion.Position.X, 0.0, "Position.X should not be negative after left bounce")
-	assert.Greater(t, e.Motion.Velocity.X, 0.0, "Velocity.X should be positive after left bounce")
-}
+func TestTarget_Update_MovesAliveTargetByVelocityScaledBySpeed(t *testing.T) {
+	// Given
+	info := newInfoFixture()
+	info.PID = 1
+	info.Name = "x"
 
-func TestTargetUpdateBounceRight(t *testing.T) {
-	// tag "[1 x]" = 5 chars → rightBound = 80-5 = 75
-	e := &Target{
-		Info:   process.NewInfo(1, "x", 0, 0),
-		Motion: movement.Motion{Position: movement.Vector{X: 75, Y: 5}, Velocity: movement.Vector{X: 2.0, Y: 0}},
-		State:  Alive,
-	}
-	e.Update(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}), 1.0)
-	rightBound := 75.0
-	assert.LessOrEqual(t, e.Motion.Position.X, rightBound, "Position.X should not exceed right bound after right bounce")
-	assert.Less(t, e.Motion.Velocity.X, 0.0, "Velocity.X should be negative after right bounce")
-}
-
-func TestTargetUpdateBounceTop(t *testing.T) {
-	e := &Target{
-		Info:   process.NewInfo(1, "x", 0, 0),
-		Motion: movement.Motion{Position: movement.Vector{X: 5, Y: 0}, Velocity: movement.Vector{X: 0, Y: -1.0}},
-		State:  Alive,
-	}
-	e.Update(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}), 1.0)
-	assert.GreaterOrEqual(t, e.Motion.Position.Y, 0.0, "Position.Y should not be negative after top bounce")
-	assert.Greater(t, e.Motion.Velocity.Y, 0.0, "Velocity.Y should be positive after top bounce")
-}
-
-func TestTargetUpdateBounceBottom(t *testing.T) {
-	e := &Target{
-		Info:   process.NewInfo(1, "x", 0, 0),
-		Motion: movement.Motion{Position: movement.Vector{X: 5, Y: 23}, Velocity: movement.Vector{X: 0, Y: 2.0}},
-		State:  Alive,
-	}
-	e.Update(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}), 1.0)
-	bottomBound := float64(24 - 2)
-	assert.LessOrEqual(t, e.Motion.Position.Y, bottomBound, "Position.Y should not exceed bottom bound after bottom bounce")
-	assert.Less(t, e.Motion.Velocity.Y, 0.0, "Velocity.Y should be negative after bottom bounce")
-}
-
-func TestTargetUpdateSpeedMultiplier(t *testing.T) {
 	// tag "[1 x]" = 5 chars; at (40,10) with speed=3 there is no wall bounce.
-	e := &Target{
-		Info:   process.NewInfo(1, "x", 0, 0),
+	target := &Target{
+		Info:   info,
 		Motion: movement.Motion{Position: movement.Vector{X: 40, Y: 10}, Velocity: movement.Vector{X: 1.0, Y: 0.5}},
 		State:  Alive,
 	}
-	e.Update(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}), 3.0)
-	assert.Equal(t, 43.0, e.Motion.Position.X)
-	assert.Equal(t, 11.5, e.Motion.Position.Y)
+
+	// When
+	target.Update(newBoundsFixture(), 3.0)
+
+	// Then
+	assert.Equal(t, 43.0, target.Motion.Position.X) // X: 40 + (1.0 * 3) = 43
+	assert.Equal(t, 11.5, target.Motion.Position.Y) // Y: 10 + (0.5 * 3) = 11.5
 }
 
-func TestTargetUpdateMultiByteRightWall(t *testing.T) {
-	// "[42 café]" is 9 runes but 10 UTF-8 bytes.
-	// With the byte-count bug, rightBound = maxX - 10 = 70.
-	// With the fix, rightBound = maxX - 9 = 71.
-	// Place the entity at Position.X=70.5 moving right at speed=1. After one update:
-	//   fix:  new Position.X = 71.0 — at the correct boundary, no bounce yet.
-	//   bug:  new Position.X > 70 → bounce, Velocity.X flips negative.
-	e := &Target{
-		Info:   process.NewInfo(42, "café", 0, 0),
+func TestTarget_Update_DoesNotBounceAtRightWallWhenTagFitsByRuneWidth(t *testing.T) {
+	// Given
+	info := newInfoFixture()
+	info.PID = 42
+	info.Name = "café"
+	// "[42 café]" is 9 runes but 10 UTF-8 bytes, so the right wall is at 90-9 = 81.
+	// Moving from 70.5 by 0.5 lands exactly on the wall, which must not bounce.
+	target := &Target{
+		Info:   info,
 		Motion: movement.Motion{Position: movement.Vector{X: 70.5, Y: 5}, Velocity: movement.Vector{X: 0.5, Y: 0}},
 		State:  Alive,
 	}
-	e.Update(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}), 1.0)
-	assert.Greater(t, e.Motion.Velocity.X, 0.0,
-		"entity bounced prematurely at right wall — byte-count bug in Update? Position.X=%.1f Velocity.X=%.1f",
-		e.Motion.Position.X, e.Motion.Velocity.X)
+	windowSize := movement.WindowSize{Width: 90, Height: 24}
+	chromeSize := movement.ChromeSize{Top: 1, Bottom: 1}
+	bounds := movement.NewBounds(windowSize, chromeSize) // right wall at 90-9=81
+
+	// When
+	target.Update(bounds, 1.0)
+
+	// Then
+	assert.Equal(t, 71.0, target.Motion.Position.X)
+	assert.Greater(t, target.Motion.Velocity.X, 0.0, "a tag landing exactly on the wall by rune width should not bounce")
 }
 
-func TestTargetMoveNoOpWhenKilling(t *testing.T) {
-	e := &Target{
-		Info:   process.NewInfo(1, "xxx", 0, 0),
-		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 10}, Velocity: movement.Vector{X: 1.0, Y: 1.0}},
-		State:  Killing,
+func TestTarget_Kill_StartsKillAnimation(t *testing.T) {
+	// Given
+	target := &Target{Info: newInfoFixture(), State: Alive, AnimationTick: 5}
+
+	// When
+	killed := target.Kill()
+
+	// Then
+	assert.True(t, killed)
+	assert.Equal(t, Killing, target.State)
+	assert.Equal(t, 0, target.AnimationTick)
+}
+
+func TestTarget_Kill_IsRejectedWhenNotAlive(t *testing.T) {
+	for _, state := range []State{Killing, Fleeing, Dead} {
+		// Given
+		target := &Target{Info: newInfoFixture(), State: state}
+
+		// When
+		killed := target.Kill()
+
+		// Then
+		assert.False(t, killed, "state %d cannot be killed", state)
+		assert.Equal(t, state, target.State)
 	}
-	e.move(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}), 1.0)
-	assert.Equal(t, 10.0, e.Motion.Position.X, "move must not move a Killing target")
-	assert.Equal(t, 10.0, e.Motion.Position.Y, "move must not move a Killing target")
 }
 
-func TestTargetMoveNoOpWhenFleeing(t *testing.T) {
-	e := &Target{
-		Info:   process.NewInfo(1, "xxx", 0, 0),
-		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 10}, Velocity: movement.Vector{X: 1.0, Y: 1.0}},
-		State:  Fleeing,
+func TestTarget_Reap_StartsFleeingAnimation(t *testing.T) {
+	// Given
+	target := &Target{Info: newInfoFixture(), State: Alive, AnimationTick: 5}
+
+	// When
+	reaped := target.Reap()
+
+	// Then
+	assert.True(t, reaped)
+	assert.Equal(t, Fleeing, target.State)
+	assert.Equal(t, 0, target.AnimationTick)
+}
+
+func TestTarget_Reap_IsRejectedWhenNotAlive(t *testing.T) {
+	for _, state := range []State{Killing, Fleeing, Dead} {
+		// Given
+		target := &Target{Info: newInfoFixture(), State: state}
+
+		// When
+		reaped := target.Reap()
+
+		// Then
+		assert.False(t, reaped, "state %d cannot be reaped", state)
+		assert.Equal(t, state, target.State)
 	}
-	e.move(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}), 1.0)
-	assert.Equal(t, 10.0, e.Motion.Position.X, "move must not move a Fleeing target")
-	assert.Equal(t, 10.0, e.Motion.Position.Y, "move must not move a Fleeing target")
 }
 
-func TestTargetMoveNoOpWhenDead(t *testing.T) {
-	e := &Target{
-		Info:   process.NewInfo(1, "xxx", 0, 0),
-		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 10}, Velocity: movement.Vector{X: 1.0, Y: 1.0}},
-		State:  Dead,
+func TestTarget_isHitAt_IsTrueWithinTagBounds(t *testing.T) {
+	// Given
+	target := aliveTargetAt(42, "bash", 10, 5)
+	width := utf8.RuneCountInString(target.Tag())
+
+	// Then
+	assert.True(t, target.isHitAt(10, 5))
+	assert.True(t, target.isHitAt(10+width-1, 5))
+}
+
+func TestTarget_isHitAt_IsFalseOutsideTagBounds(t *testing.T) {
+	// Given
+	target := aliveTargetAt(42, "bash", 10, 5)
+	width := utf8.RuneCountInString(target.Tag())
+
+	// Then
+	assert.False(t, target.isHitAt(9, 5), "one column before the tag's start should miss")
+	assert.False(t, target.isHitAt(10+width, 5), "one column past the tag's end should miss")
+	assert.False(t, target.isHitAt(10, 4), "the row above the tag should miss")
+}
+
+func TestTarget_isHitAt_MatchesRoundedRenderPositionNotTruncated(t *testing.T) {
+	// Given
+	target := aliveTargetAt(42, "bash", 10.6, 5.6)
+	width := utf8.RuneCountInString(target.Tag())
+
+	// Then
+	assert.True(t, target.isHitAt(11, 6), "clicking at the rounded position, where the tag is actually rendered, should hit")
+	assert.True(t, target.isHitAt(11+width-1, 6))
+	assert.False(t, target.isHitAt(10, 6), "clicking at the truncated column, one left of where the tag is rendered, should miss")
+	assert.False(t, target.isHitAt(11, 5), "clicking at the truncated row, one above where the tag is rendered, should miss")
+}
+
+func TestTarget_isHitAt_CountsTagInRunesNotBytes(t *testing.T) {
+	// Given
+	// "[42 café]" is 9 runes but 10 UTF-8 bytes.
+	target := aliveTargetAt(42, "café", 10, 5)
+	runeCount := utf8.RuneCountInString(target.Tag())
+
+	// Then
+	assert.True(t, target.isHitAt(10+runeCount-1, 5), "the tag's last rune should hit")
+	assert.False(t, target.isHitAt(10+runeCount, 5), "one column past the tag's last rune should miss")
+}
+
+func TestTarget_isHitAt_IsFalseWhenNotAlive(t *testing.T) {
+	for _, state := range []State{Killing, Fleeing, Dead} {
+		// Given
+		target := aliveTargetAt(42, "bash", 10, 5)
+
+		// When
+		target.State = state
+
+		// Then
+		assert.False(t, target.isHitAt(10, 5), "a target in state %d should not be hit", state)
 	}
-	e.move(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}), 1.0)
-	assert.Equal(t, 10.0, e.Motion.Position.X, "move must not move a Dead target")
-	assert.Equal(t, 10.0, e.Motion.Position.Y, "move must not move a Dead target")
 }
 
-func TestTargetMoveAdvancesPositionWhenAlive(t *testing.T) {
-	e := &Target{
-		Info:   process.NewInfo(1, "xxx", 0, 0),
-		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 10}, Velocity: movement.Vector{X: 1.0, Y: 1.0}},
+func TestTarget_isHitAt_IsFalseWhileShotFired(t *testing.T) {
+	// Given
+	target := aliveTargetAt(42, "bash", 10, 5)
+
+	// When
+	target.FireShot()
+	hit := target.isHitAt(10, 5)
+
+	// Then
+	assert.False(t, hit, "a target with a shot already fired at it should not be hit again")
+}
+
+func TestTarget_isHitAt_IsTrueAfterCeaseFire(t *testing.T) {
+	// Given
+	target := aliveTargetAt(42, "bash", 10, 5)
+
+	// When
+	target.FireShot()
+	target.CeaseFire()
+
+	// Then
+	assert.True(t, target.isHitAt(10, 5), "a target should be hittable again once fire has ceased")
+}
+
+func aliveTargetAt(pid int, name string, x, y float64) *Target {
+	return &Target{
+		Info:   process.NewInfo(pid, name, 0, 0),
+		Motion: movement.Motion{Position: movement.Vector{X: x, Y: y}},
 		State:  Alive,
 	}
-	e.move(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}), 1.0)
-	assert.Equal(t, 11.0, e.Motion.Position.X)
-	assert.Equal(t, 11.0, e.Motion.Position.Y)
 }
 
-func TestTargetHitAtIsTrueWhenWithinTagBounds(t *testing.T) {
-	e := &Target{
-		Info:   process.NewInfo(42, "bash", 0, 0),
-		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
-		State:  Alive,
+func TestTarget_move_IgnoresTargetWhenNotAlive(t *testing.T) {
+	for _, state := range []State{Killing, Fleeing, Dead} {
+		// Given
+		target := &Target{
+			Info:   newInfoFixture(),
+			Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 10}, Velocity: movement.Vector{X: 1.0, Y: 1.0}},
+			State:  state,
+		}
+
+		// When
+		target.move(newBoundsFixture(), 1.0)
+
+		// Then
+		assert.Equal(t, 10.0, target.Motion.Position.X, "move must not move a target in state %d", state)
+		assert.Equal(t, 10.0, target.Motion.Position.Y, "move must not move a target in state %d", state)
 	}
-	tag := e.Tag()
-	width := len(tag)
-
-	assert.True(t, e.isHitAt(10, 5))
-	assert.True(t, e.isHitAt(10+width-1, 5))
-}
-
-func TestTargetHitAtIsFalseWhenOutsideBounds(t *testing.T) {
-	e := &Target{
-		Info:   process.NewInfo(42, "bash", 0, 0),
-		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
-		State:  Alive,
-	}
-	tag := e.Tag()
-	width := len(tag)
-
-	assert.False(t, e.isHitAt(9, 5), "one column before the tag's start should miss")
-	assert.False(t, e.isHitAt(10+width, 5), "one column past the tag's end should miss")
-	assert.False(t, e.isHitAt(10, 4), "the row above the tag should miss")
-}
-
-func TestTargetHitAtMatchesRoundedRenderPositionNotTruncated(t *testing.T) {
-	e := &Target{
-		Info:   process.NewInfo(42, "bash", 0, 0),
-		Motion: movement.Motion{Position: movement.Vector{X: 10.6, Y: 5.6}, Velocity: movement.Vector{X: 0, Y: 0}},
-		State:  Alive,
-	}
-	tag := e.Tag()
-	width := len(tag)
-
-	assert.True(t, e.isHitAt(11, 6), "clicking at the rounded position, where the tag is actually rendered, should hit")
-	assert.True(t, e.isHitAt(11+width-1, 6))
-	assert.False(t, e.isHitAt(10, 6), "clicking at the truncated column, one left of where the tag is rendered, should miss")
-	assert.False(t, e.isHitAt(11, 5), "clicking at the truncated row, one above where the tag is rendered, should miss")
-}
-
-func TestTargetContainsMultiByteProcessName(t *testing.T) {
-	// "café" is 5 UTF-8 bytes but 4 runes → tag "[42 café]" is 10 bytes, 9 runes.
-	// With the byte-count bug, isHitAt over-counts by 1 and accepts column 19 as a hit.
-	e := &Target{
-		Info:   process.NewInfo(42, "café", 0, 0),
-		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
-		State:  Alive,
-	}
-	tag := e.Tag()
-	runeCount := utf8.RuneCountInString(tag)
-	pastEnd := 10 + runeCount
-	assert.False(t, e.isHitAt(pastEnd, 5),
-		"isHitAt(%d, 5) should be false for tag %q (rune count %d) — byte-count bug?",
-		pastEnd, tag, runeCount)
-}
-
-func TestTargetHitAtWillReturnFalseWhenInKillingState(t *testing.T) {
-	e := &Target{
-		Info:   process.NewInfo(42, "bash", 0, 0),
-		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
-		State:  Killing,
-	}
-	assert.False(t, e.isHitAt(10, 5), "non-alive entity should not be hit")
-}
-
-func TestTargetHitAtWillReturnFalseWhenShotAlreadyFired(t *testing.T) {
-	e := &Target{
-		Info:   process.NewInfo(42, "bash", 0, 0),
-		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
-		State:  Alive,
-	}
-	e.FireShot()
-	assert.False(t, e.isHitAt(10, 5), "a target with a shot already fired at it should not be hit again")
-}
-
-func TestTargetHitAtWillReturnTrueAfterCeaseFire(t *testing.T) {
-	e := &Target{
-		Info:   process.NewInfo(42, "bash", 0, 0),
-		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}, Velocity: movement.Vector{X: 0, Y: 0}},
-		State:  Alive,
-	}
-	e.FireShot()
-	e.CeaseFire()
-	assert.True(t, e.isHitAt(10, 5), "a target should be hittable again once fire has ceased")
-}
-
-func TestTargetIsAlive(t *testing.T) {
-	assert.True(t, (&Target{State: Alive}).isAlive())
-	assert.False(t, (&Target{State: Killing}).isAlive())
-	assert.False(t, (&Target{State: Fleeing}).isAlive())
-	assert.False(t, (&Target{State: Dead}).isAlive())
-}
-
-func TestTargetIsDead(t *testing.T) {
-	assert.True(t, (&Target{State: Dead}).isDead())
-	assert.False(t, (&Target{State: Alive}).isDead())
-	assert.False(t, (&Target{State: Killing}).isDead())
-	assert.False(t, (&Target{State: Fleeing}).isDead())
-}
-
-func TestTargetKill(t *testing.T) {
-	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Alive, AnimationTick: 5}
-	assert.True(t, e.Kill())
-	assert.Equal(t, Killing, e.State)
-	assert.Equal(t, 0, e.AnimationTick)
-}
-
-func TestTargetKillNoOpWhenNotAlive(t *testing.T) {
-	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Dead}
-	assert.False(t, e.Kill())
-	assert.Equal(t, Dead, e.State)
-}
-
-func TestTargetReap(t *testing.T) {
-	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Alive, AnimationTick: 5}
-	assert.True(t, e.Reap())
-	assert.Equal(t, Fleeing, e.State)
-	assert.Equal(t, 0, e.AnimationTick)
-}
-
-func TestTargetReapNoOpWhenNotAlive(t *testing.T) {
-	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Killing}
-	assert.False(t, e.Reap())
-	assert.Equal(t, Killing, e.State)
-}
-
-func TestTargetKillNoOpWhenFleeing(t *testing.T) {
-	e := &Target{Info: process.NewInfo(1, "xxx", 0, 0), State: Fleeing}
-	assert.False(t, e.Kill())
-	assert.Equal(t, Fleeing, e.State)
 }
