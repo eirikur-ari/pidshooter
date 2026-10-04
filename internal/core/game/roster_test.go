@@ -29,12 +29,12 @@ func TestRoster_Spawn_CreatesTargetForEachProcess(t *testing.T) {
 func TestRoster_Move_AdvancesTargets(t *testing.T) {
 	// Given
 	target := &Target{
-		Info:   process.NewInfo(1, "x", 0, 0),
+		Info:   newInfoFixture(),
 		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 10}, Velocity: movement.Vector{X: 2.0, Y: 1.0}},
 		State:  Alive,
 	}
 	r := roster{targets: []*Target{target}}
-	bounds := movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1})
+	bounds := newBoundsFixture()
 
 	// When
 	r.move(bounds, 3.0)
@@ -86,7 +86,7 @@ func TestRoster_AllDead_ReturnsFalseWhenRosterHasSpawnedTargetThatIsStillAlive(t
 func TestRoster_HitAt_ReturnsTargetOnHit(t *testing.T) {
 	// Given
 	target := &Target{
-		Info:   process.NewInfo(1, "x", 0, 0),
+		Info:   newInfoFixture(),
 		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}},
 		State:  Alive,
 	}
@@ -102,7 +102,7 @@ func TestRoster_HitAt_ReturnsTargetOnHit(t *testing.T) {
 func TestRoster_HitAt_ReturnsNilWhenShotHasAlreadyBeenFired(t *testing.T) {
 	// Given
 	target := &Target{
-		Info:   process.NewInfo(1, "x", 0, 0),
+		Info:   newInfoFixture(),
 		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}},
 		State:  Alive,
 	}
@@ -119,7 +119,7 @@ func TestRoster_HitAt_ReturnsNilWhenShotHasAlreadyBeenFired(t *testing.T) {
 func TestRoster_HitAt_ReturnsNilOnMiss(t *testing.T) {
 	// Given
 	target := &Target{
-		Info:   process.NewInfo(1, "x", 0, 0),
+		Info:   newInfoFixture(),
 		Motion: movement.Motion{Position: movement.Vector{X: 10, Y: 5}},
 		State:  Alive,
 	}
@@ -135,7 +135,7 @@ func TestRoster_HitAt_ReturnsNilOnMiss(t *testing.T) {
 func TestRoster_Available_ExcludesDeadTargets(t *testing.T) {
 	// Given
 	r := roster{targets: []*Target{
-		{Info: process.NewInfo(1, "a", 0, 0), State: Dead},
+		{Info: newInfoFixture(), State: Dead},
 	}}
 
 	// When

@@ -12,13 +12,12 @@ import (
 
 func TestSession_Start_TransitionsFromPendingToRunning(t *testing.T) {
 	// Given
-	processes := []process.Info{process.NewInfo(1, "a", 100, 0)}
+	processes := []process.Info{newInfoFixture()}
 	session := NewSession(processes, Config{})
-	bounds := movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1})
 
 	// When
 	pendingState := session.currentState()
-	session.Start(bounds)
+	session.Start(newBoundsFixture())
 	runningState := session.currentState()
 	result := session.IsRunning()
 
@@ -33,11 +32,11 @@ func TestSession_Start_PanicsWhenAlreadyRunning(t *testing.T) {
 	session := NewSession(nil, Config{})
 
 	// When
-	session.Start(movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1}))
+	session.Start(newBoundsFixture())
 
 	// Then
 	assert.Panics(t, func() {
-		session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
+		session.Start(newBoundsFixture())
 	})
 }
 
@@ -46,19 +45,19 @@ func TestSession_Start_PanicsWhenAlreadyStopped(t *testing.T) {
 	session := NewSession(nil, Config{})
 
 	// When
-	session.Start(movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1}))
+	session.Start(newBoundsFixture())
 	session.Stop()
 
 	// Then
 	assert.Panics(t, func() {
-		session.Start(movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
+		session.Start(newBoundsFixture())
 	})
 }
 
 func TestSession_Stop_TransitionsFromRunningToStopped(t *testing.T) {
 	// Given
 	session := NewSession(nil, Config{})
-	bounds := movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1})
+	bounds := newBoundsFixture()
 
 	// When
 	session.Start(bounds)
@@ -75,8 +74,11 @@ func TestSession_Stop_TransitionsFromRunningToStopped(t *testing.T) {
 
 func TestSession_Update_AdvancesTargetWhileRunning(t *testing.T) {
 	// Given
-	session := NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{Speed: 1.0})
-	bounds := movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1})
+	info := newInfoFixture()
+	info.PID = 1
+	info.Name = "x"
+	session := NewSession([]process.Info{info}, Config{Speed: 1.0})
+	bounds := newBoundsFixture()
 
 	// When
 	session.Start(bounds)
@@ -96,12 +98,12 @@ func TestSession_Update_StopsWhenTimeLimitExpired(t *testing.T) {
 	// Given
 	clock := &FakeClock{T: time.Now()}
 	session := &Session{timer: newTimer(1, clock.Now)}
-	bounds := movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1})
+	bounds := newBoundsFixture()
 
 	// When
 	session.Start(bounds)
 	clock.Advance(2 * time.Second)
-	session.Update(movement.WindowSize{Width: 80, Height: 24})
+	session.Update(windowSizeFixture())
 	isRunning := session.IsRunning()
 
 	// Then
@@ -110,13 +112,14 @@ func TestSession_Update_StopsWhenTimeLimitExpired(t *testing.T) {
 
 func TestSession_Update_StopsWhenAllTargetsAreDead(t *testing.T) {
 	// Given
-	target := &Target{Info: process.NewInfo(1, "target", 0, 0), State: Dead}
-	session := &Session{roster: roster{targets: []*Target{target}}, timer: newTimer(0, time.Now), throttle: movement.NewThrottle(movement.MinSpeed)}
-	bounds := movement.NewBounds(movement.WindowSize{Width: 0, Height: 0}, movement.ChromeSize{Top: 1, Bottom: 1})
+	target := &Target{Info: newInfoFixture(), State: Dead}
+	clock := &FakeClock{T: time.Now()}
+	session := &Session{roster: roster{targets: []*Target{target}}, timer: newTimer(0, clock.Now), throttle: movement.NewThrottle(movement.MinSpeed)}
+	bounds := newBoundsFixture()
 
 	// When
 	session.Start(bounds)
-	session.Update(movement.WindowSize{Width: 80, Height: 24})
+	session.Update(windowSizeFixture())
 
 	// Then
 	assert.False(t, session.IsRunning())
@@ -135,7 +138,7 @@ func TestSession_PendingConfirm_ReturnsNilWhenNoPendingTarget(t *testing.T) {
 
 func TestSession_PendingConfirm_ReturnsPendingTarget(t *testing.T) {
 	// Given
-	target := &Target{Info: process.NewInfo(42, "suspect", 0, 0)}
+	target := &Target{Info: newInfoFixture()}
 	session := &Session{confirm: confirmation{target: target, confirm: true}}
 
 	// When
@@ -147,7 +150,7 @@ func TestSession_PendingConfirm_ReturnsPendingTarget(t *testing.T) {
 
 func TestSession_Targets_EmptyByDefault(t *testing.T) {
 	// Given
-	session := NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{})
+	session := NewSession([]process.Info{newInfoFixture()}, Config{})
 
 	// When
 	result := session.Targets()
@@ -158,8 +161,8 @@ func TestSession_Targets_EmptyByDefault(t *testing.T) {
 
 func TestSession_Targets_PopulatedAfterStart(t *testing.T) {
 	// Given
-	session := NewSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{})
-	bounds := movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1})
+	session := NewSession([]process.Info{newInfoFixture()}, Config{})
+	bounds := newBoundsFixture()
 
 	// When
 	session.Start(bounds)

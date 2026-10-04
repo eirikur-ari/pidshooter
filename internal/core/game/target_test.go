@@ -150,7 +150,7 @@ func TestTarget_Update_DoesNotBounceAtRightWallWhenTagFitsByRuneWidth(t *testing
 		State:  Alive,
 	}
 	windowSize := movement.WindowSize{Width: 90, Height: 24}
-	chromeSize := movement.ChromeSize{Top: 1, Bottom: 1}
+	chromeSize := chromeSizeFixture()
 	bounds := movement.NewBounds(windowSize, chromeSize) // right wall at 90-9=81
 
 	// When

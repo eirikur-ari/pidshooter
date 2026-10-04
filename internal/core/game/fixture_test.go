@@ -26,11 +26,19 @@ func pendingConfirmSession() *Session {
 
 func newBoundsFixture() movement.Bounds {
 	return movement.NewBounds(
-		movement.WindowSize{Width: 80, Height: 24},
-		movement.ChromeSize{Top: 1, Bottom: 1},
+		windowSizeFixture(),
+		chromeSizeFixture(),
 	)
 }
 
 func newInfoFixture() process.Info {
 	return process.NewInfo(1234, "test", 1024, 0)
+}
+
+func windowSizeFixture() movement.WindowSize {
+	return movement.WindowSize{Width: 80, Height: 24}
+}
+
+func chromeSizeFixture() movement.ChromeSize {
+	return movement.ChromeSize{Top: 1, Bottom: 1}
 }
