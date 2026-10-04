@@ -37,7 +37,7 @@ func NewTUI(screen tcell.Screen) *TUI {
 	}
 }
 
-// Init initialises the screen and starts the event polling goroutine.
+// Init initializes the screen and starts the event polling goroutine.
 func (t *TUI) Init() error {
 	if t.initialized {
 		return errors.New("already initialized")

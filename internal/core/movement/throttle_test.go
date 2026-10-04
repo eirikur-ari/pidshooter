@@ -7,83 +7,101 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestValidateSpeedTooLow(t *testing.T) {
-	assert.Error(t, ValidateSpeed(MinSpeed-0.1))
+func TestThrottle_LowestSpeed_KeepsFlooredValueAfterIncrease(t *testing.T) {
+	// Given
+	throttle := NewThrottle(0.8)
+
+	// When
+	throttle.Decrease()
+	throttle.Increase()
+
+	// Then
+	assert.Equal(t, 1.0, throttle.Speed())
+	assert.Equal(t, MinSpeed, throttle.LowestSpeed(), "the lowest speed is the floored value, not the unclamped 0.3")
 }
 
-func TestValidateSpeedTooHigh(t *testing.T) {
-	assert.Error(t, ValidateSpeed(MaxSpeed+0.1))
+func TestThrottle_Increase_AddsOneStepCappedAtMax(t *testing.T) {
+	tests := []struct {
+		name  string
+		start float64
+		speed float64
+	}{
+		{name: "adds one step", start: 2.0, speed: 2.5},
+		{name: "landing exactly on max", start: 4.5, speed: MaxSpeed},
+		{name: "capped when a step would pass max", start: 4.8, speed: MaxSpeed},
+		{name: "stays at max", start: MaxSpeed, speed: MaxSpeed},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			throttle := NewThrottle(tt.start)
+
+			// When
+			throttle.Increase()
+
+			// Then
+			assert.Equal(t, tt.speed, throttle.Speed())
+		})
+	}
 }
 
-func TestValidateSpeedNaN(t *testing.T) {
-	assert.Error(t, ValidateSpeed(math.NaN()))
+func TestThrottle_Decrease_SubtractsOneStepFlooredAtMin(t *testing.T) {
+	tests := []struct {
+		name  string
+		start float64
+		speed float64
+	}{
+		{name: "subtracts one step", start: 2.0, speed: 1.5},
+		{name: "landing exactly on min", start: 1.0, speed: MinSpeed},
+		{name: "floored when a step would pass min", start: 0.8, speed: MinSpeed},
+		{name: "stays at min", start: MinSpeed, speed: MinSpeed},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			throttle := NewThrottle(tt.start)
+
+			// When
+			throttle.Decrease()
+
+			// Then
+			assert.Equal(t, tt.speed, throttle.Speed())
+		})
+	}
 }
 
-func TestValidateSpeedPositiveInf(t *testing.T) {
-	assert.Error(t, ValidateSpeed(math.Inf(1)))
+func TestValidateSpeed_RejectsOutOfRangeAndNonFiniteValues(t *testing.T) {
+	tests := map[string]float64{
+		"just below min": math.Nextafter(MinSpeed, 0),
+		"just above max": math.Nextafter(MaxSpeed, math.Inf(1)),
+		"NaN":            math.NaN(),
+		"positive Inf":   math.Inf(1),
+		"negative Inf":   math.Inf(-1),
+	}
+	for name, value := range tests {
+		t.Run(name, func(t *testing.T) {
+			// When
+			err := ValidateSpeed(value)
+
+			// Then
+			assert.Error(t, err)
+		})
+	}
 }
 
-func TestValidateSpeedNegativeInf(t *testing.T) {
-	assert.Error(t, ValidateSpeed(math.Inf(-1)))
-}
+func TestValidateSpeed_AcceptsValuesFromMinToMax(t *testing.T) {
+	tests := map[string]float64{
+		"min boundary": MinSpeed,
+		"max boundary": MaxSpeed,
+		"mid range":    2.0,
+	}
+	for name, value := range tests {
+		t.Run(name, func(t *testing.T) {
+			// When
+			err := ValidateSpeed(value)
 
-func TestValidateSpeedMinBoundary(t *testing.T) {
-	assert.NoError(t, ValidateSpeed(MinSpeed))
-}
-
-func TestValidateSpeedMaxBoundary(t *testing.T) {
-	assert.NoError(t, ValidateSpeed(MaxSpeed))
-}
-
-func TestNewThrottle(t *testing.T) {
-	v := NewThrottle(2.0)
-	assert.Equal(t, 2.0, v.Speed())
-}
-
-func TestThrottleIncrease(t *testing.T) {
-	v := NewThrottle(2.0)
-	v.Increase()
-	assert.Equal(t, 2.5, v.Speed())
-}
-
-func TestThrottleDecrease(t *testing.T) {
-	v := NewThrottle(2.0)
-	v.Decrease()
-	assert.Equal(t, 1.5, v.Speed())
-}
-
-func TestThrottleIncreaseCapsAtMax(t *testing.T) {
-	v := NewThrottle(4.8)
-	v.Increase()
-	assert.Equal(t, MaxSpeed, v.Speed())
-	v.Increase()
-	assert.Equal(t, MaxSpeed, v.Speed(), "expected speed to remain %f", MaxSpeed)
-}
-
-func TestThrottleDecreaseFloorsAtMin(t *testing.T) {
-	v := NewThrottle(0.8)
-	v.Decrease()
-	assert.Equal(t, MinSpeed, v.Speed())
-	v.Decrease()
-	assert.Equal(t, MinSpeed, v.Speed(), "expected speed to remain %f", MinSpeed)
-}
-
-func TestThrottleLowestSpeedStartsAtInitialSpeed(t *testing.T) {
-	v := NewThrottle(2.0)
-	assert.Equal(t, 2.0, v.LowestSpeed())
-}
-
-func TestThrottleLowestSpeedTracksDecreases(t *testing.T) {
-	v := NewThrottle(2.0)
-	v.Decrease()
-	v.Increase()
-	v.Increase()
-	assert.Equal(t, 1.5, v.LowestSpeed(), "expected lowest speed to remain the smallest value ever reached")
-}
-
-func TestThrottleLowestSpeedUnaffectedByIncreaseOnly(t *testing.T) {
-	v := NewThrottle(2.0)
-	v.Increase()
-	v.Increase()
-	assert.Equal(t, 2.0, v.LowestSpeed())
+			// Then
+			assert.NoError(t, err)
+		})
+	}
 }

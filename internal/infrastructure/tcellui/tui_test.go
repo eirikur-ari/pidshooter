@@ -61,7 +61,7 @@ func TestRenderClearsStaleContentFromPreviousFrame(t *testing.T) {
 		"a target drawn in a previous frame must not linger once it's no longer in the frame state")
 }
 
-// newTUI creates an initialised TUI backed by a simulation screen and registers
+// newTUI creates an initialized TUI backed by a simulation screen and registers
 // Cleanup to call ui.Cleanup when the test ends.
 func newTUI(t *testing.T) (*tcellui.TUI, tcell.SimulationScreen) {
 	t.Helper()

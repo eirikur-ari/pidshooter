@@ -77,7 +77,7 @@ func TestDrawStatusBarConfirmingLongNameIsTruncatedWithEllipsis(t *testing.T) {
 	})
 	_, _, h := screen.GetContents()
 	got := rowContent(screen, h-1)
-	assert.Contains(t, got, "…", "a truncated name should be signalled with an ellipsis")
+	assert.Contains(t, got, "…", "a truncated name should be signaled with an ellipsis")
 	assert.NotContains(t, got, "com.apple.WebKit", "the full name should not fit at this width")
 }
 

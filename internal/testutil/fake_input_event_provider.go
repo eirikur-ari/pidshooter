@@ -3,7 +3,7 @@ package testutil
 import "github.com/eirikur-ari/pidshooter/internal/application/input"
 
 // FakeInputEventProvider is a test double for outbound.InputEventProvider.
-// Push events onto Ch to drive test behaviour.
+// Push events onto Ch to drive test behavior.
 type FakeInputEventProvider struct {
 	Ch chan input.EventDispatcher
 }
