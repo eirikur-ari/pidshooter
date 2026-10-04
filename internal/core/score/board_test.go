@@ -114,6 +114,29 @@ func TestNewBoardPopulatesEntries(t *testing.T) {
 	assert.Equal(t, 5, b.HighScore())
 }
 
+func TestNewBoardSeedsHighScoreFromEntries(t *testing.T) {
+	tests := []struct {
+		name    string
+		entries []Entry
+	}{
+		{name: "single entry", entries: []Entry{{Kills: 5}}},
+		{name: "high score entry first", entries: []Entry{{Kills: 7}, {Kills: 3}}},
+		{name: "high score entry last", entries: []Entry{{Kills: 3}, {Kills: 7}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			b := NewBoard(tt.entries)
+			highScore := b.HighScore()
+
+			// Then
+			assert.False(t, b.IsNewHighScore(highScore-1), "fewer kills than the current high score entry is not a new high score")
+			assert.False(t, b.IsNewHighScore(highScore), "tying the current high score entry is not a new high score")
+			assert.True(t, b.IsNewHighScore(highScore+1), "more kills than the current high score entry is a new high score")
+		})
+	}
+}
+
 func TestNewBoardEmptyEntriesSeedsZeroHighScore(t *testing.T) {
 	b := NewBoard(nil)
 
@@ -131,7 +154,7 @@ func TestNewBoardDropsEntriesThatAreNotGenuineScores(t *testing.T) {
 
 	b := NewBoard(entries)
 
-	require.Len(t, b.Scores, 1, "a hand-edited or corrupted file must not durably persist bogus entries")
+	require.Len(t, b.Scores, 1, "entries that aren't genuine scores must be dropped")
 	assert.Equal(t, 100, int(b.Scores[0].FreedMem))
 }
 
@@ -143,8 +166,8 @@ func TestNewBoardSortsAndCapsOversizedUnsortedInput(t *testing.T) {
 
 	b := NewBoard(entries)
 
-	require.Len(t, b.Scores, maxScores, "a persisted file longer than maxScores must be truncated on load, not just on the next Add")
-	assert.Equal(t, maxScores+4, b.Scores[0].Kills, "entries must be ranked on load, not trusted to already be in on-disk order")
+	require.Len(t, b.Scores, maxScores, "more than maxScores entries must be capped")
+	assert.Equal(t, maxScores+4, b.Scores[0].Kills, "entries must be ranked, not trusted to arrive in order")
 	assert.Equal(t, 5, b.Scores[len(b.Scores)-1].Kills)
 }
 
@@ -171,12 +194,12 @@ func TestBoardIsNewHighScoreFalseWhenZeroKills(t *testing.T) {
 	assert.False(t, b.IsNewHighScore(0))
 }
 
-func TestBoardIsNewHighScoreTrueWhenTiesRecord(t *testing.T) {
+func TestBoardIsNewHighScoreFalseWhenTiesRecord(t *testing.T) {
 	b := &Board{}
 	b.Add(Entry{Kills: 5, Date: time.Now()}) // b.highScore = 0 before append
 	b.Add(Entry{Kills: 3, Date: time.Now()}) // b.highScore = 5 before append
 
-	assert.True(t, b.IsNewHighScore(5), "expected true when tying the high score")
+	assert.False(t, b.IsNewHighScore(5), "tying the high score is not a new high score")
 }
 
 func TestBoardIsNewHighScoreTrueForFirstEntry(t *testing.T) {
