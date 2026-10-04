@@ -7,116 +7,199 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestValidateTimeLimitNegative(t *testing.T) {
-	assert.Error(t, ValidateTimeLimit(-1))
-}
+func TestTimer_Expired_IsFalseWhileAnyTimeRemains(t *testing.T) {
+	// Given
+	tr, clock := newStartedTimer(60)
 
-func TestValidateTimeLimitZeroIsUnlimited(t *testing.T) {
-	assert.NoError(t, ValidateTimeLimit(0))
-}
+	// When
+	clock.Advance(60*time.Second - time.Millisecond)
 
-func TestValidateTimeLimitPositive(t *testing.T) {
-	assert.NoError(t, ValidateTimeLimit(30))
-}
-
-func TestValidateTimeLimitMaxBoundary(t *testing.T) {
-	assert.NoError(t, ValidateTimeLimit(maxTimeLimitSeconds))
-}
-
-func TestValidateTimeLimitExceedsMax(t *testing.T) {
-	assert.Error(t, ValidateTimeLimit(maxTimeLimitSeconds+1))
-}
-
-func TestTimerExpiredFalseBeforeLimit(t *testing.T) {
-	tr := newTimer(60, time.Now)
-	tr.Start()
+	// Then
 	assert.False(t, tr.Expired())
 }
 
-func TestTimerExpiredTrueWhenLimitReached(t *testing.T) {
-	clock := &FakeClock{T: time.Now()}
-	tr := newTimer(1, clock.Now)
-	tr.Start()
-	clock.Advance(2 * time.Second)
+func TestTimer_Expired_IsTrueOnceLimitIsReached(t *testing.T) {
+	// Given
+	tr, clock := newStartedTimer(60)
+
+	// When
+	clock.Advance(60 * time.Second)
+
+	// Then
 	assert.True(t, tr.Expired())
 }
 
-func TestTimerExpiredFalseWhenUnlimited(t *testing.T) {
-	tr := newTimer(0, time.Now)
+func TestTimer_Expired_ReturnsFalseWhenTimeIsUnlimited(t *testing.T) {
+	// Given
+	tr, clock := newStartedTimer(0)
+
+	// When
+	clock.Advance(time.Hour)
+
+	// Then
 	assert.False(t, tr.Expired())
 }
 
-func TestTimerRemainingWithinLimit(t *testing.T) {
-	tr := newTimer(60, time.Now)
-	tr.Start()
-	r := tr.Remaining()
-	assert.Greater(t, r, time.Duration(0))
-	assert.LessOrEqual(t, r, 60*time.Second)
+func TestTimer_Remaining_ReturnsTimeLeftWithinTimeLimit(t *testing.T) {
+	// Given
+	tr, clock := newStartedTimer(60)
+
+	// When
+	clock.Advance(10 * time.Second)
+
+	// Then
+	assert.Equal(t, 50*time.Second, tr.Remaining())
 }
 
-func TestTimerRemainingZeroWhenExpired(t *testing.T) {
-	clock := &FakeClock{T: time.Now()}
-	tr := newTimer(1, clock.Now)
-	tr.Start()
+func TestTimer_Remaining_IsZeroAfterTimeLimitPassed(t *testing.T) {
+	// Given
+	tr, clock := newStartedTimer(1)
+
+	// When
 	clock.Advance(2 * time.Second)
+
+	// Then
 	assert.Equal(t, time.Duration(0), tr.Remaining())
 }
 
-func TestTimerRemainingZeroWhenUnlimited(t *testing.T) {
-	tr := newTimer(0, time.Now)
-	tr.Start()
+func TestTimer_Remaining_IsZeroWhenTimeIsUnlimited(t *testing.T) {
+	// Given
+	tr, clock := newStartedTimer(0)
+
+	// When
+	clock.Advance(time.Hour)
+
+	// Then
 	assert.Equal(t, time.Duration(0), tr.Remaining())
 }
 
-func TestTimerSecondsLeft(t *testing.T) {
-	tr := newTimer(60, time.Now)
-	tr.Start()
-	assert.LessOrEqual(t, tr.SecondsLeft(), 60)
-	assert.Greater(t, tr.SecondsLeft(), 0)
+func TestTimer_SecondsLeft_ReturnsWholeLimitAtStart(t *testing.T) {
+	// Given
+	tr, _ := newStartedTimer(60)
+
+	// When
+	result := tr.SecondsLeft()
+
+	// Then
+	assert.Equal(t, 60, result)
 }
 
-func TestTimerSecondsLeftRoundsUpPartialSecond(t *testing.T) {
-	clock := &FakeClock{T: time.Now()}
-	tr := newTimer(5, clock.Now)
-	tr.Start()
+func TestTimer_SecondsLeft_RoundsUpPartialSecond(t *testing.T) {
+	// Given
+	tr, clock := newStartedTimer(5)
+
+	// When
 	clock.Advance(4100 * time.Millisecond)
 
+	// When
 	assert.Equal(t, 1, tr.SecondsLeft(), "0.9s remaining should round up to 1s, not truncate to 0s")
 }
 
-func TestTimerSecondsLeftExactWholeSecondIsUnaffected(t *testing.T) {
-	clock := &FakeClock{T: time.Now()}
-	tr := newTimer(5, clock.Now)
-	tr.Start()
+func TestTimer_SecondsLeft_IsUnaffectedWhenRemainingIsWholeSeconds(t *testing.T) {
+	// Given
+	tr, clock := newStartedTimer(5)
+
+	// When
 	clock.Advance(2 * time.Second)
 
+	// Then
 	assert.Equal(t, 3, tr.SecondsLeft())
 }
 
-func TestTimerSecondsLeftZeroWhenExpired(t *testing.T) {
-	clock := &FakeClock{T: time.Now()}
-	tr := newTimer(1, clock.Now)
-	tr.Start()
+func TestTimer_SecondsLeft_IsZeroAfterLimitPassed(t *testing.T) {
+	// Given
+	tr, clock := newStartedTimer(1)
+
+	// When
 	clock.Advance(2 * time.Second)
 
+	// Then
 	assert.Equal(t, 0, tr.SecondsLeft())
 }
 
-func TestTimerLimitSeconds(t *testing.T) {
-	tr30 := newTimer(30, time.Now)
-	assert.Equal(t, 30, tr30.LimitSeconds())
-	tr0 := newTimer(0, time.Now)
-	assert.Equal(t, 0, tr0.LimitSeconds())
+func TestTimer_SecondsLeft_IsZeroWhenUnlimited(t *testing.T) {
+	// Given
+	tr, clock := newStartedTimer(0)
+
+	// When
+	clock.Advance(time.Hour)
+
+	// Then
+	assert.Equal(t, 0, tr.SecondsLeft())
 }
 
-func TestTimerStartTimeZeroBeforeStart(t *testing.T) {
+func TestTimer_LimitSeconds_ReturnsConfiguredLimit(t *testing.T) {
+	for name, limit := range map[string]int{
+		"limited":   30,
+		"unlimited": 0,
+	} {
+		t.Run(name, func(t *testing.T) {
+			// Given
+			tr := newTimer(limit, time.Now)
+
+			// When
+			result := tr.LimitSeconds()
+
+			// Then
+			assert.Equal(t, limit, result)
+		})
+	}
+}
+
+func TestTimer_StartTime_IsZeroBeforeStart(t *testing.T) {
+	// Given
 	tr := newTimer(60, time.Now)
+
+	// Then
 	assert.True(t, tr.StartTime().IsZero())
 }
 
-func TestTimerStartTimeSetAfterStart(t *testing.T) {
-	tr := newTimer(60, time.Now)
-	before := time.Now()
+func TestTimer_StartTime_ReturnsInitialStartTime(t *testing.T) {
+	// Given
+	tr, clock := newStartedTimer(60)
+	startedAt := clock.Now()
+
+	// When
+	clock.Advance(10 * time.Second)
+
+	// Then
+	assert.Equal(t, startedAt, tr.StartTime())
+}
+
+func TestValidateTimeLimit_RejectsNegativeAndAboveMax(t *testing.T) {
+	for name, limit := range map[string]int{
+		"negative":  -1,
+		"above max": maxTimeLimitSeconds + 1,
+	} {
+		t.Run(name, func(t *testing.T) {
+			// When
+			err := ValidateTimeLimit(limit)
+
+			// Then
+			assert.Error(t, err)
+		})
+	}
+}
+
+func TestValidateTimeLimit_AcceptsZeroAndUpToMax(t *testing.T) {
+	for name, limit := range map[string]int{
+		"zero is unlimited": 0,
+		"positive":          30,
+		"max boundary":      maxTimeLimitSeconds,
+	} {
+		t.Run(name, func(t *testing.T) {
+			// When
+			err := ValidateTimeLimit(limit)
+
+			// Then
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func newStartedTimer(limitSeconds int) (*timer, *FakeClock) {
+	clock := &FakeClock{T: time.Date(2026, time.October, 4, 12, 0, 0, 0, time.UTC)}
+	tr := newTimer(limitSeconds, clock.Now)
 	tr.Start()
-	assert.False(t, tr.StartTime().Before(before))
+	return &tr, clock
 }
