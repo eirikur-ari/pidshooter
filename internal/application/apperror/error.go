@@ -32,13 +32,15 @@ const (
 	SeverityUnknown Severity = iota
 	// SeverityFatal marks an error that aborts the operation.
 	SeverityFatal
-	// SeverityError marks a non-fatal error that ends the current operation early.
+	// SeverityError marks a non-fatal error that ends the current operation
+	// early.
 	SeverityError
-	// SeverityWarning marks a non-fatal error reported alongside a completed operation.
+	// SeverityWarning marks a non-fatal error reported alongside a completed
+	// operation.
 	SeverityWarning
 )
 
-// Error is a classified application error that wraps an underlying cause.
+// Error classifies a failure and wraps its underlying cause.
 type Error struct {
 	Code     Code
 	Severity Severity
