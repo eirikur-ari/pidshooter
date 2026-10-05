@@ -11,7 +11,7 @@ import (
 
 func TestInput_OnQuit_StopsGameSessionWhenThereIsNoPendingKillConfirmation(t *testing.T) {
 	// Given
-	gameSession := newStartedSession(nil, Config{})
+	gameSession := newSessionFixture(nil, Config{})
 
 	// When
 	NewInput(gameSession).OnQuit()
@@ -22,7 +22,7 @@ func TestInput_OnQuit_StopsGameSessionWhenThereIsNoPendingKillConfirmation(t *te
 
 func TestInput_OnQuit_CancelsPendingKillConfirmation(t *testing.T) {
 	// Given
-	gameSession := pendingConfirmSession()
+	gameSession := pendingConfirmSessionFixture()
 	input := NewInput(gameSession)
 
 	// When
@@ -35,7 +35,7 @@ func TestInput_OnQuit_CancelsPendingKillConfirmation(t *testing.T) {
 
 func TestInput_OnYes_AcceptsPendingKillConfirmationAndReturnsTargetToKill(t *testing.T) {
 	// Given
-	gameSession := pendingConfirmSession()
+	gameSession := pendingConfirmSessionFixture()
 	input := NewInput(gameSession)
 
 	// When
@@ -48,7 +48,7 @@ func TestInput_OnYes_AcceptsPendingKillConfirmationAndReturnsTargetToKill(t *tes
 
 func TestInput_OnNo_CancelsPendingKillConfirmation(t *testing.T) {
 	// Given
-	gameSession := pendingConfirmSession()
+	gameSession := pendingConfirmSessionFixture()
 	input := NewInput(gameSession)
 
 	// When
@@ -61,7 +61,7 @@ func TestInput_OnNo_CancelsPendingKillConfirmation(t *testing.T) {
 
 func TestInput_OnSpeedUp_IncreasesSpeed(t *testing.T) {
 	// Given
-	gameSession := newStartedSession(nil, Config{Speed: 2.0})
+	gameSession := newSessionFixture(nil, Config{Speed: 2.0})
 
 	// When
 	NewInput(gameSession).OnSpeedUp()
@@ -72,7 +72,7 @@ func TestInput_OnSpeedUp_IncreasesSpeed(t *testing.T) {
 
 func TestInput_OnSpeedDown_DecreasesSpeed(t *testing.T) {
 	// Given
-	gameSession := newStartedSession(nil, Config{Speed: 2.0})
+	gameSession := newSessionFixture(nil, Config{Speed: 2.0})
 
 	// When
 	NewInput(gameSession).OnSpeedDown()
@@ -83,7 +83,7 @@ func TestInput_OnSpeedDown_DecreasesSpeed(t *testing.T) {
 
 func TestInput_OnClickAt_ReturnsTargetOnHitWhenThereIsNoPendingKillConfirmation(t *testing.T) {
 	// Given
-	gameSession := newStartedSession([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{Speed: 1.0})
+	gameSession := newSessionFixture([]process.Info{process.NewInfo(1, "a", 0, 0)}, Config{Speed: 1.0})
 	target := gameSession.Targets()[0]
 	x, y := target.Motion.Position.Rounded()
 
@@ -96,7 +96,7 @@ func TestInput_OnClickAt_ReturnsTargetOnHitWhenThereIsNoPendingKillConfirmation(
 
 func TestInput_OnClickAt_ReturnsNilWhenHitAtIsAMiss(t *testing.T) {
 	// Given
-	gameSession := newStartedSession(nil, Config{Speed: 1.0})
+	gameSession := newSessionFixture(nil, Config{Speed: 1.0})
 
 	// When
 	result := NewInput(gameSession).OnClickAt(0, 0)
@@ -107,7 +107,7 @@ func TestInput_OnClickAt_ReturnsNilWhenHitAtIsAMiss(t *testing.T) {
 
 func TestInput_OnClickAt_NoOpWhenAlreadyConfirming(t *testing.T) {
 	// Given
-	gameSession := pendingConfirmSession()
+	gameSession := pendingConfirmSessionFixture()
 	input := NewInput(gameSession)
 	target := gameSession.Targets()[0]
 

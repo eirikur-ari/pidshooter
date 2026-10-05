@@ -7,8 +7,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
-// flagMapper maps the confirm, speed, time, include-root, and i-am-root
-// flags the caller actually passed to a config.Options.
+// flagMapper maps the flags the caller actually passed to config options.
 type flagMapper struct {
 	flagSet     *flag.FlagSet
 	confirm     *bool
@@ -18,8 +17,7 @@ type flagMapper struct {
 	allowRoot   *bool
 }
 
-// newFlagMapper returns a flagMapper for flagSet's confirm, speed, time,
-// include-root, and i-am-root flags.
+// newFlagMapper returns a flagMapper that defines its flags on flagSet.
 func newFlagMapper(flagSet *flag.FlagSet) *flagMapper {
 	return &flagMapper{
 		flagSet:     flagSet,
@@ -31,24 +29,23 @@ func newFlagMapper(flagSet *flag.FlagSet) *flagMapper {
 	}
 }
 
-// toConfigOptions returns the config.Options built from the flags the
-// caller actually passed — an omitted flag stays nil, leaving it to the
-// resolved defaults.
+// toConfigOptions returns the config options built from the flags the
+// caller actually passed — an omitted flag stays nil.
 func (m *flagMapper) toConfigOptions() config.Options {
-	var opts config.Options
-	m.flagSet.Visit(func(f *flag.Flag) {
-		switch f.Name {
+	var options config.Options
+	m.flagSet.Visit(func(passedFlag *flag.Flag) {
+		switch passedFlag.Name {
 		case "confirm":
-			opts.Game.ConfirmMode = util.ClonePointer(m.confirm)
+			options.Game.ConfirmMode = util.ClonePointer(m.confirm)
 		case "speed":
-			opts.Game.Speed = util.ClonePointer(m.speed)
+			options.Game.Speed = util.ClonePointer(m.speed)
 		case "time":
-			opts.Game.TimeLimit = util.ClonePointer(m.timeLimit)
+			options.Game.TimeLimit = util.ClonePointer(m.timeLimit)
 		case "include-root":
-			opts.Process.IncludeRoot = util.ClonePointer(m.includeRoot)
+			options.Process.IncludeRoot = util.ClonePointer(m.includeRoot)
 		case "i-am-root":
-			opts.Process.AllowRoot = util.ClonePointer(m.allowRoot)
+			options.Process.AllowRoot = util.ClonePointer(m.allowRoot)
 		}
 	})
-	return opts
+	return options
 }
