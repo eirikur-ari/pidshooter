@@ -34,8 +34,10 @@ func (c RunnerCreator) ErrHandler() *apperror.Handler {
 	return c.errHandler
 }
 
-// Create builds a Runner for patterns and opts, along with every adapter it depends on.
-func (c RunnerCreator) Create(patterns []string, opts config.Options) (inbound.Runner, error) {
+// Create builds a Runner that targets processes matching patterns, configured
+// by options, along with everything it depends on. It returns an error if any
+// of those dependencies cannot be set up.
+func (c RunnerCreator) Create(patterns []string, options config.Options) (inbound.Runner, error) {
 	manager, err := osprocess.NewProcess()
 	if err != nil {
 		return nil, err
@@ -58,7 +60,7 @@ func (c RunnerCreator) Create(patterns []string, opts config.Options) (inbound.R
 
 	ui := tcellui.NewTUI(screen)
 
-	configSvc := config.NewService(configStore, opts)
+	configSvc := config.NewService(configStore, options)
 	processSvc := process.NewService(manager, console.NewProcessReporter(), patterns)
 	scoreSvc := score.NewService(scoreStore, console.NewScoreReporter())
 	gameSvc := game.NewService(processSvc, ui, ui.InputEvents())

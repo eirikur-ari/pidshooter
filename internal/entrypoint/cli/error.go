@@ -1,12 +1,17 @@
 package cli
 
-// ArgumentError indicates the given input was malformed. Callers detect
-// it with errors.As(err, &ArgumentError{}), which matches by type only,
-// regardless of Cause.
+// ArgumentError indicates the given input was malformed.
 type ArgumentError struct {
 	Cause error
 }
 
-func (e ArgumentError) Error() string { return e.Cause.Error() }
+// Error returns the message of the Cause, or a generic message if there is none.
+func (e ArgumentError) Error() string {
+	if e.Cause == nil {
+		return "invalid arguments"
+	}
+	return e.Cause.Error()
+}
 
+// Unwrap returns the Cause.
 func (e ArgumentError) Unwrap() error { return e.Cause }
