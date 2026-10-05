@@ -21,3 +21,11 @@ Planned change: drop the `highScore` field and let `Board.IsNewHighScore(kills)`
 Touches `core/score/board.go` (field, `Add`, `NewBoard` seeding, tests built around the snapshot), `application/score` (`RecordScore`, `ReportResults`, `toScoreSummary` and their tests) and `application/runner/service.go`.
 
 **Deferred to:** a follow-up after the testing audit; the current behavior is correct for the runner's call order.
+
+---
+
+### 3. A negative flag value given as a separate argument reports a misleading error
+
+`flagSplitter.split` treats any argument starting with `-` (other than a lone `-`) as a flag. `--speed -3` therefore fails with "flag needs an argument: -speed" even though a value was supplied, while `--speed=-3` is accepted by the splitter and rejected later by range validation. The `flag` package itself would take `-3` as the value. Both inputs are out of range today, so the only effect is the wrong message, but a future flag with a legitimately negative value would be unusable in the separate-argument form.
+
+**Deferred to:** whenever a flag that accepts negative values is added, or the splitter is next reworked.
