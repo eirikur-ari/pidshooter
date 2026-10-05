@@ -7,7 +7,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
-// flagMapper maps the flags the caller actually passed to config options.
+// flagMapper maps the flags actually passed to config options.
 type flagMapper struct {
 	flagSet     *flag.FlagSet
 	confirm     *bool
@@ -29,8 +29,8 @@ func newFlagMapper(flagSet *flag.FlagSet) *flagMapper {
 	}
 }
 
-// toConfigOptions returns the config options built from the flags the
-// caller actually passed — an omitted flag stays nil.
+// toConfigOptions returns the config options built from the flags actually
+// passed — an omitted flag stays nil.
 func (m *flagMapper) toConfigOptions() config.Options {
 	var options config.Options
 	m.flagSet.Visit(func(passedFlag *flag.Flag) {

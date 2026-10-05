@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -40,28 +39,41 @@ Config file:
   e.g. --include-root=false overrides a persisted "include_root: true".
 `
 
-// Program translates command-line arguments to application calls.
+// Program runs pidshooter from command-line arguments.
 type Program struct {
-	creator    runnerCreator
+	creator    RunnerCreator
 	errHandler *apperror.Handler
+	parser     *flagParser
 	out        io.Writer
 	errOut     io.Writer
 }
 
-// runnerCreator constructs a Runner, deferring any expensive or fallible
-// setup until a Runner is actually needed, and provides a Handler for
-// logging errors.
-type runnerCreator interface {
-	Create(patterns []string, opts config.Options) (inbound.Runner, error)
+// RunnerCreator builds a Runner for the given patterns and options, and
+// provides the Handler used to log errors.
+type RunnerCreator interface {
+	// Create returns a Runner that targets processes matching patterns,
+	// configured by options. It returns an error if the Runner cannot be built.
+	Create(patterns []string, options config.Options) (inbound.Runner, error)
+	// ErrHandler returns the Handler used to log errors.
 	ErrHandler() *apperror.Handler
 }
 
-// NewProgram returns a Program that builds its application service via creator.
-func NewProgram(creator runnerCreator) *Program {
-	return &Program{creator: creator, errHandler: creator.ErrHandler(), out: os.Stdout, errOut: os.Stderr}
+// NewProgram returns a Program that creates its Runner with creator.
+func NewProgram(creator RunnerCreator) *Program {
+	return &Program{
+		creator:    creator,
+		errHandler: creator.ErrHandler(),
+		parser:     newFlagParser(),
+		out:        os.Stdout,
+		errOut:     os.Stderr,
+	}
 }
 
-// Run parses args and calls the application service.
+// Run runs pidshooter with the given command-line arguments and returns the
+// error it ended with, if any. A warning is not treated as an error. With no
+// arguments or a help flag it prints usage text to standard output. When the
+// arguments are malformed it returns an ArgumentError and prints usage text to
+// standard error.
 func (p *Program) Run(args []string) error {
 	showUsage, err := p.run(args)
 	err = p.errHandler.Handle(err)
@@ -70,12 +82,12 @@ func (p *Program) Run(args []string) error {
 }
 
 func (p *Program) run(args []string) (showUsage bool, err error) {
-	patterns, opts, showUsage, err := p.prepare(args)
+	patterns, options, showUsage, err := p.prepare(args)
 	if showUsage || err != nil {
 		return showUsage, err
 	}
 
-	runner, err := p.creator.Create(patterns, opts)
+	runner, err := p.creator.Create(patterns, options)
 	if err != nil {
 		return false, err
 	}
@@ -90,10 +102,9 @@ func (p *Program) run(args []string) (showUsage bool, err error) {
 	return false, nil
 }
 
-// prepare parses args into patterns and config.Options. showUsage reports
-// whether usage text should be shown, independent of whether err is also
-// set.
-func (p *Program) prepare(args []string) (patterns []string, opts config.Options, showUsage bool, err error) {
+// prepare parses the arguments into patterns and config options. showUsage
+// reports whether usage text should be shown, whether or not err is set.
+func (p *Program) prepare(args []string) (patterns []string, options config.Options, showUsage bool, err error) {
 	if len(args) == 0 {
 		return nil, config.Options{}, true, nil
 	}
@@ -101,27 +112,12 @@ func (p *Program) prepare(args []string) (patterns []string, opts config.Options
 		return nil, config.Options{}, true, nil
 	}
 
-	flagSet := flag.NewFlagSet("pidshooter", flag.ContinueOnError)
-	flagSet.SetOutput(io.Discard)
-	mapper := newFlagMapper(flagSet)
-
-	patterns, flagArgs, err := newFlagSplitter(flagSet).split(args)
+	patterns, options, err = p.parser.parse(args)
 	if err != nil {
-		return nil, config.Options{}, true, ArgumentError{Cause: err}
+		return nil, config.Options{}, true, err
 	}
 
-	if err := flagSet.Parse(flagArgs); err != nil {
-		return nil, config.Options{}, true, ArgumentError{Cause: err}
-	}
-	// split has already classified every token as a pattern or as part of
-	// flagArgs, so flagSet.Parse can never stop early on a leftover
-	// positional. This holds unconditionally today; guarded defensively
-	// in case a future change to split ever breaks it.
-	if flagSet.NArg() > 0 {
-		return nil, config.Options{}, true, ArgumentError{Cause: fmt.Errorf("unexpected argument: %s", flagSet.Arg(0))}
-	}
-
-	return patterns, mapper.toConfigOptions(), false, nil
+	return patterns, options, false, nil
 }
 
 func (p *Program) printUsageText(printUsage bool, err error) {
@@ -136,8 +132,7 @@ func (p *Program) printUsageText(printUsage bool, err error) {
 	_, _ = fmt.Fprint(out, usageText)
 }
 
-// help reports whether args contains -h or --help, regardless of its
-// position among other arguments or any parse error elsewhere in args.
+// help reports whether the arguments contain -h or --help anywhere.
 func help(args []string) bool {
 	for _, arg := range args {
 		if arg == "-h" || arg == "--help" {

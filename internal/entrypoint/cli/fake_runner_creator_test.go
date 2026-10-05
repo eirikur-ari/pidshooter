@@ -13,16 +13,18 @@ type FakeRunnerCreator struct {
 	Err    error
 	// Calls counts how many times Create was called.
 	Calls int
-	// Patterns and Options capture the arguments Create was most recently called with.
+	// Patterns and Options capture the arguments Create was most recently
+	// called with.
 	Patterns []string
 	Options  config.Options
 }
 
-// Create returns Runner and Err, and records the call, patterns, and config.Options.
-func (f *FakeRunnerCreator) Create(patterns []string, opts config.Options) (inbound.Runner, error) {
+// Create returns Runner and Err, and records the call, patterns, and
+// config.Options.
+func (f *FakeRunnerCreator) Create(patterns []string, options config.Options) (inbound.Runner, error) {
 	f.Calls++
 	f.Patterns = patterns
-	f.Options = opts
+	f.Options = options
 	return f.Runner, f.Err
 }
 

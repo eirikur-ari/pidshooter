@@ -64,7 +64,8 @@ func (s flagSplitter) split(args []string) (patterns, flagArgs []string, err err
 	return patterns, flagArgs, nil
 }
 
-// looksLikeFlag reports whether the argument starts with "-" and is not a lone "-".
+// looksLikeFlag reports whether the argument starts with "-" and is not a lone
+// "-".
 func looksLikeFlag(arg string) bool {
 	return arg != "-" && strings.HasPrefix(arg, "-")
 }
