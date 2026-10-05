@@ -10,7 +10,7 @@ import (
 )
 
 func TestTranslateKeyEvent(t *testing.T) {
-	tests := newTranslateKeyEventTestCases()
+	tests := newTranslateKeyEventTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -25,7 +25,7 @@ func TestTranslateKeyEvent(t *testing.T) {
 }
 
 func TestTranslateMouseEvent(t *testing.T) {
-	tests := newTranslateMouseEventTestCases()
+	tests := newTranslateMouseEventTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -57,7 +57,7 @@ func TestTranslateMouseEventDragOnlyFiresOnPressNotMotion(t *testing.T) {
 	assert.Equal(t, input.ClickEvent{X: 3, Y: 1}, tr.event)
 }
 
-func newTranslateKeyEventTestCases() []struct {
+func newTranslateKeyEventTestCase() []struct {
 	name   string
 	key    tcell.Key
 	r      rune
@@ -89,7 +89,7 @@ func newTranslateKeyEventTestCases() []struct {
 	return tests
 }
 
-func newTranslateMouseEventTestCases() []struct {
+func newTranslateMouseEventTestCase() []struct {
 	name   string
 	x, y   int
 	button tcell.ButtonMask

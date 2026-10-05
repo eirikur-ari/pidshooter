@@ -6,93 +6,169 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
-func TestHandleAbsorbsWarningSeverity(t *testing.T) {
-	input := NewError(CodeStoreLoadFailed, SeverityWarning, "could not load scores", errors.New("disk full"))
+func TestHandler_Handle_ReturnsOrAbsorbsBySeverity(t *testing.T) {
+	tests := newHandleReturnedTestCase()
 
-	err := newTestHandler().Handle(input)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			handler := NewHandler(&testutil.FakeLogger{})
 
-	assert.NoError(t, err)
+			// When
+			err := handler.Handle(test.err)
+
+			// Then
+			assert.Equal(t, test.expected, err)
+		})
+	}
 }
 
-func TestHandleAbsorbsErrorSeverity(t *testing.T) {
-	input := NewError(CodeProcessNotFound, SeverityError, "no processes found", nil)
+func TestHandler_Handle_LogsAsWarningBySeverity(t *testing.T) {
+	tests := newHandleWarnedTestCase()
 
-	err := newTestHandler().Handle(input)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			logger := &testutil.FakeLogger{}
+			handler := NewHandler(logger)
 
-	assert.NoError(t, err)
+			// When
+			_ = handler.Handle(test.err)
+
+			// Then
+			assert.Equal(t, test.expected, logger.Warned)
+		})
+	}
 }
 
-func TestHandleReturnsFatalSeverityError(t *testing.T) {
-	input := NewError(CodeGameFailed, SeverityFatal, "game session failed", errors.New("boom"))
+func TestHandler_Handle_LogsAsErrorBySeverity(t *testing.T) {
+	tests := newHandleErroredTestCase()
 
-	err := newTestHandler().Handle(input)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			logger := &testutil.FakeLogger{}
+			handler := NewHandler(logger)
 
-	require.Error(t, err)
-	assert.Same(t, input, err)
+			// When
+			_ = handler.Handle(test.err)
+
+			// Then
+			assert.Equal(t, test.expected, logger.Errored)
+		})
+	}
 }
 
-func TestHandlePropagatesUnknownSeverity(t *testing.T) {
-	input := errors.New("plain error")
+func TestHandler_Handle_LogsAnErrorOnlyOnce(t *testing.T) {
+	tests := []struct {
+		name   string
+		newErr func() error
+	}{
+		{"error", func() error { return newErrorFixtureFor(SeverityFatal) }},
+		{"wrapped error", func() error { return fmt.Errorf("wrapped: %w", newErrorFixtureFor(SeverityFatal)) }},
+	}
 
-	err := newTestHandler().Handle(input)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			err := test.newErr()
+			logger := &testutil.FakeLogger{}
+			handler := NewHandler(logger)
+			first := handler.Handle(err)
 
-	require.Error(t, err)
-	assert.Same(t, input, err)
+			// When
+			second := handler.Handle(err)
+
+			// Then
+			assert.Same(t, err, first)
+			assert.Same(t, err, second)
+			assert.Len(t, logger.Errored, 1)
+		})
+	}
 }
 
-func TestHandleLogsFatalErrorOnlyOnce(t *testing.T) {
-	fatal := NewError(CodeGameFailed, SeverityFatal, "game session failed", errors.New("boom"))
-	assert.False(t, fatal.logged, "logged should start false")
-	handler := newTestHandler()
+func newHandleReturnedTestCase() []struct {
+	name     string
+	err      error
+	expected error
+} {
+	warning := newErrorFixtureFor(SeverityWarning)
+	nonFatal := newErrorFixtureFor(SeverityError)
+	fatal := newErrorFixtureFor(SeverityFatal)
+	unknown := newErrorFixture()
+	plain := errors.New("plain error")
+	wrappedWarning := fmt.Errorf("wrapped: %w", newErrorFixtureFor(SeverityWarning))
+	wrappedFatal := fmt.Errorf("wrapped: %w", newErrorFixtureFor(SeverityFatal))
 
-	first := handler.Handle(fatal)
-	assert.True(t, fatal.logged, "logged should be set after the first Handle call")
-
-	second := handler.Handle(fatal)
-
-	require.Error(t, first)
-	require.Error(t, second)
-	assert.Same(t, fatal, first)
-	assert.Same(t, fatal, second)
+	tests := []struct {
+		name     string
+		err      error
+		expected error
+	}{
+		{"warning severity is absorbed", warning, nil},
+		{"error severity is absorbed", nonFatal, nil},
+		{"fatal severity is returned", fatal, fatal},
+		{"unknown severity is returned", unknown, unknown},
+		{"not an Error is returned", plain, plain},
+		{"wrapped warning is absorbed", wrappedWarning, nil},
+		{"wrapped fatal is returned", wrappedFatal, wrappedFatal},
+		{"nil error is absorbed", nil, nil},
+	}
+	return tests
 }
 
-func TestHandleReturnsWrappedFatalError(t *testing.T) {
-	fatal := NewError(CodeGameFailed, SeverityFatal, "game session failed", errors.New("boom"))
-	wrapped := fmt.Errorf("during Play: %w", fatal)
+func newHandleWarnedTestCase() []struct {
+	name     string
+	err      error
+	expected []string
+} {
+	warning := newErrorFixtureFor(SeverityWarning)
+	wrappedWarning := fmt.Errorf("wrapped: %w", newErrorFixtureFor(SeverityWarning))
 
-	err := newTestHandler().Handle(wrapped)
-
-	require.Error(t, err)
-	assert.Same(t, wrapped, err, "Handle returns whatever it was given, not a re-derived error")
+	tests := []struct {
+		name     string
+		err      error
+		expected []string
+	}{
+		{"warning severity", warning, []string{warning.Error()}},
+		{"wrapped warning", wrappedWarning, []string{wrappedWarning.Error()}},
+		{"error severity", newErrorFixtureFor(SeverityError), nil},
+		{"fatal severity", newErrorFixtureFor(SeverityFatal), nil},
+		{"unknown severity", newErrorFixture(), nil},
+		{"not an Error", errors.New("plain error"), nil},
+		{"nil error", nil, nil},
+	}
+	return tests
 }
 
-func TestHandleAbsorbsWrappedWarning(t *testing.T) {
-	warning := NewError(CodeStoreLoadFailed, SeverityWarning, "score not loaded", errors.New("disk full"))
-	wrapped := fmt.Errorf("during LoadScoreBoard: %w", warning)
+func newHandleErroredTestCase() []struct {
+	name     string
+	err      error
+	expected []string
+} {
+	nonFatal := newErrorFixtureFor(SeverityError)
+	fatal := newErrorFixtureFor(SeverityFatal)
+	unknown := newErrorFixture()
+	plain := errors.New("plain error")
+	wrappedFatal := fmt.Errorf("wrapped: %w", newErrorFixtureFor(SeverityFatal))
 
-	err := newTestHandler().Handle(wrapped)
-
-	assert.NoError(t, err)
+	tests := []struct {
+		name     string
+		err      error
+		expected []string
+	}{
+		{"error severity", nonFatal, []string{nonFatal.Error()}},
+		{"fatal severity", fatal, []string{fatal.Error()}},
+		{"unknown severity", unknown, []string{unknown.Error()}},
+		{"not an Error", plain, []string{plain.Error()}},
+		{"wrapped fatal", wrappedFatal, []string{wrappedFatal.Error()}},
+		{"warning severity", newErrorFixtureFor(SeverityWarning), nil},
+		{"wrapped warning", fmt.Errorf("wrapped: %w", newErrorFixtureFor(SeverityWarning)), nil},
+		{"nil error", nil, nil},
+	}
+	return tests
 }
-
-func TestHandleReturnsNilErrorWhenGivenNil(t *testing.T) {
-	err := newTestHandler().Handle(nil)
-
-	assert.NoError(t, err)
-}
-
-func newTestHandler() *Handler {
-	return NewHandler(noopLogger{})
-}
-
-// noopLogger discards every message. error_handler_test.go cannot use
-// testutil/fake.Logger here: fake also imports application/config, which
-// imports apperror, and pulling fake into apperror's white-box test would
-// create an import cycle.
-type noopLogger struct{}
-
-func (noopLogger) Warn(string)  {}
-func (noopLogger) Error(string) {}

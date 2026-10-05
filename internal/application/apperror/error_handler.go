@@ -6,8 +6,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
-// Handler logs errors passed to Handle and decides whether the caller must
-// still treat the operation as failed.
+// Handler logs errors according to their severity.
 type Handler struct {
 	logger outbound.Logger
 }
@@ -17,11 +16,10 @@ func NewHandler(logger outbound.Logger) *Handler {
 	return &Handler{logger: logger}
 }
 
-// Handle logs err at the level its Severity calls for, then reports whether
-// the caller must still treat the operation as failed: a Warning- or
-// Error-severity err is absorbed (nil); a Fatal-severity err, or one of
-// unknown severity, is returned unchanged. Safe to call more than once on
-// the same err — it is logged only once.
+// Handle logs the given error at the level its Severity calls for, then reports
+// whether the caller must still treat the operation as failed: an error of
+// Warning or Error severity is absorbed (nil); one of Fatal or unknown severity
+// is returned unchanged. An Error handled more than once is logged only once.
 func (h *Handler) Handle(err error) error {
 	if err == nil {
 		return nil
@@ -43,11 +41,10 @@ func (h *Handler) Handle(err error) error {
 	return nil
 }
 
-// logOnce logs err at the level severity calls for, and marks appErr, if
-// non-nil, as logged.
+// logOnce logs the error at the level its severity calls for, and marks the
+// Error, if any, as logged.
 func (h *Handler) logOnce(err error, severity Severity, appErr *Error) {
 	switch severity {
-
 	case SeverityWarning:
 		h.logger.Warn(err.Error())
 	default:

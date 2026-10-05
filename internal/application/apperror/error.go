@@ -16,63 +16,62 @@ const (
 	CodeStoreSaveFailed
 )
 
-// In reports whether error is, or directly wraps as a plain error, an *Error
-// with this Code. A Code nested deeper inside another *Error's own Cause
-// does not count — that Cause is context for a different, already-classified
-// problem, not a second classification of err itself.
+// In reports whether the given error is an Error with this Code. It looks
+// through plain wrapping but not into the cause of another Error, which is a
+// separately classified problem.
 func (c Code) In(err error) bool {
 	var appErr *Error
 	return errors.As(err, &appErr) && appErr.Code == c
 }
 
-// Severity tells the caller whether an Error should abort its operation,
-// end it early while being logged as an error, or merely be reported
-// alongside a completed one.
+// Severity tells the caller how an Error affects the operation it occurred in.
 type Severity int
 
 const (
+	// SeverityUnknown marks an error of undetermined severity.
+	SeverityUnknown Severity = iota
 	// SeverityFatal marks an error that aborts the operation.
-	SeverityFatal Severity = iota
+	SeverityFatal
 	// SeverityError marks a non-fatal error that ends the current operation early.
 	SeverityError
 	// SeverityWarning marks a non-fatal error reported alongside a completed operation.
 	SeverityWarning
-	// SeverityUnknown marks an error of undetermined severity.
-	SeverityUnknown
 )
 
-// Error wraps an underlying error with a Code, a Severity, and a
-// human-readable Message.
+// Error is a classified application error that wraps an underlying cause.
 type Error struct {
 	Code     Code
 	Severity Severity
-	Message  string
-	Cause    error
+	message  string
+	cause    error
 	logged   bool
 }
 
-// NewError constructs an Error wrapping error cause with the given error code, error severity, and error message.
+// NewError returns an Error that wraps cause.
 func NewError(code Code, severity Severity, message string, cause error) *Error {
-	return &Error{Code: code, Severity: severity, Message: message, Cause: cause}
+	return &Error{Code: code, Severity: severity, message: message, cause: cause}
 }
 
+// Error returns the message and the cause joined as "message: cause", or
+// whichever of them is present.
 func (e *Error) Error() string {
-	if e.Cause == nil {
-		return e.Message
+	if e.cause == nil {
+		return e.message
 	}
 
-	if e.Message == "" {
-		return e.Cause.Error()
+	if e.message == "" {
+		return e.cause.Error()
 	}
 
-	return e.Message + ": " + e.Cause.Error()
+	return e.message + ": " + e.cause.Error()
 }
 
+// Unwrap returns the cause.
 func (e *Error) Unwrap() error {
-	return e.Cause
+	return e.cause
 }
 
-// severity reports e's Severity, or SeverityUnknown if e is nil.
+// severity returns the Severity, or SeverityUnknown if the Error is nil.
 func (e *Error) severity() Severity {
 	if e == nil {
 		return SeverityUnknown

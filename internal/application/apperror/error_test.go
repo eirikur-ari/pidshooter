@@ -8,107 +8,98 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCodeInReturnsTrueWhenErrHasMatchingCode(t *testing.T) {
-	err := NewError(CodeInvalidConfig, SeverityFatal, "invalid configuration", nil)
+func TestCode_In_ReportsWhetherErrIsAnErrorWithCode(t *testing.T) {
+	nested := NewError(CodeKillFailed, SeverityWarning, "could not kill target",
+		NewError(CodeInvalidConfig, SeverityFatal, "invalid configuration", nil))
 
-	assert.True(t, CodeInvalidConfig.In(err))
-}
-
-func TestCodeInReturnsFalseWhenErrHasDifferentCode(t *testing.T) {
-	err := NewError(CodeGameFailed, SeverityFatal, "game session failed", nil)
-
-	assert.False(t, CodeInvalidConfig.In(err))
-}
-
-func TestCodeInReturnsTrueWhenErrWrapsMatchingError(t *testing.T) {
-	appErr := NewError(CodeInvalidConfig, SeverityFatal, "invalid configuration", nil)
-	err := fmt.Errorf("wrapped: %w", appErr)
-
-	assert.True(t, CodeInvalidConfig.In(err))
-}
-
-func TestCodeInReturnsFalseWhenErrIsNotAnError(t *testing.T) {
-	assert.False(t, CodeInvalidConfig.In(errors.New("boom")))
-}
-
-func TestCodeInReturnsFalseWhenErrIsNil(t *testing.T) {
-	assert.False(t, CodeInvalidConfig.In(nil))
-}
-
-func TestErrorUnwrapReturnsErrorCause(t *testing.T) {
-	cause := errors.New("disk full")
-	err := NewError(CodeStoreSaveFailed, SeverityWarning, "score not saved", cause)
-
-	assert.Equal(t, cause, err.Unwrap())
-	assert.Same(t, cause, err.Unwrap())
-	assert.ErrorIs(t, err, cause)
-}
-
-func TestErrorUnwrapReturnsNilWithNoErrorCause(t *testing.T) {
-	err := NewError(CodeInvalidConfig, SeverityFatal, "invalid configuration", nil)
-
-	assert.Nil(t, err.Unwrap())
-}
-
-func TestErrorNewError(t *testing.T) {
-	tests := newErrorTestCases()
+	tests := []struct {
+		name     string
+		err      error
+		code     Code
+		expected bool
+	}{
+		{"matching code", NewError(CodeInvalidConfig, SeverityFatal, "invalid configuration", nil), CodeInvalidConfig, true},
+		{"different code", NewError(CodeGameFailed, SeverityFatal, "game session failed", nil), CodeInvalidConfig, false},
+		{"wrapped matching error", fmt.Errorf("wrapped: %w", NewError(CodeInvalidConfig, SeverityFatal, "invalid configuration", nil)), CodeInvalidConfig, true},
+		{"plain error", errors.New("boom"), CodeInvalidConfig, false},
+		{"nil error", nil, CodeInvalidConfig, false},
+		{"outer code of nested errors", nested, CodeKillFailed, true},
+		{"cause code of nested errors", nested, CodeInvalidConfig, false},
+	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := NewError(test.errCode, test.errSeverity, test.errMessage, test.errCause)
-			assert.Equal(t, test.expected, err.Error())
+			// When
+			actual := test.code.In(test.err)
+
+			// Then
+			assert.Equal(t, test.expected, actual)
 		})
 	}
 }
 
-func newErrorTestCases() []struct {
-	name        string
-	errCode     Code
-	errSeverity Severity
-	errMessage  string
-	errCause    error
-	expected    string
-} {
+func TestNewError_SetsFields(t *testing.T) {
+	// Given
+	cause := errors.New("disk full")
+
+	// When
+	err := NewError(CodeStoreSaveFailed, SeverityWarning, "score not saved", cause)
+
+	// Then
+	assert.Equal(t, CodeStoreSaveFailed, err.Code)
+	assert.Equal(t, SeverityWarning, err.Severity)
+	assert.Equal(t, "score not saved", err.message)
+	assert.Same(t, cause, err.cause)
+	assert.False(t, err.logged)
+}
+
+func TestError_Error_FormatsMessageAndCause(t *testing.T) {
 	tests := []struct {
-		name        string
-		errCode     Code
-		errSeverity Severity
-		errMessage  string
-		errCause    error
-		expected    string
+		name     string
+		message  string
+		cause    error
+		expected string
 	}{
-		{
-			name:        "with both message and cause",
-			errCode:     CodeStoreLoadFailed,
-			errSeverity: SeverityWarning,
-			errMessage:  "score not loaded",
-			errCause:    errors.New("disk full"),
-			expected:    "score not loaded: disk full",
-		},
-		{
-			name:        "with message only",
-			errCode:     CodeInvalidConfig,
-			errSeverity: SeverityFatal,
-			errMessage:  "invalid configuration",
-			errCause:    nil,
-			expected:    "invalid configuration",
-		},
-		{
-			name:        "with cause only",
-			errCode:     CodeProcessNotFound,
-			errSeverity: SeverityFatal,
-			errMessage:  "",
-			errCause:    errors.New("no processes found"),
-			expected:    "no processes found",
-		},
-		{
-			name:        "with neither message nor cause",
-			errCode:     CodeUnknown,
-			errSeverity: SeverityUnknown,
-			errMessage:  "",
-			errCause:    nil,
-			expected:    "",
-		},
+		{"message and cause", "score not loaded", errors.New("disk full"), "score not loaded: disk full"},
+		{"message only", "invalid configuration", nil, "invalid configuration"},
+		{"cause only", "", errors.New("no processes found"), "no processes found"},
+		{"neither message nor cause", "", nil, ""},
 	}
-	return tests
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			err := NewError(CodeUnknown, SeverityUnknown, test.message, test.cause)
+
+			// When
+			actual := err.Error()
+
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
+}
+
+func TestError_Unwrap_ReturnsCause(t *testing.T) {
+	// Given
+	cause := errors.New("disk full")
+	err := NewError(CodeStoreSaveFailed, SeverityWarning, "score not saved", cause)
+
+	// When
+	unwrapped := err.Unwrap()
+
+	// Then
+	assert.Same(t, cause, unwrapped)
+	assert.ErrorIs(t, err, cause)
+}
+
+func TestError_Unwrap_ReturnsNilWhenThereIsNoCause(t *testing.T) {
+	// Given
+	err := NewError(CodeInvalidConfig, SeverityFatal, "invalid configuration", nil)
+
+	// When
+	unwrapped := err.Unwrap()
+
+	// Then
+	assert.Nil(t, unwrapped)
 }

@@ -102,8 +102,9 @@ func (p *Program) run(args []string) (showUsage bool, err error) {
 	return false, nil
 }
 
-// prepare parses the arguments into patterns and config options. showUsage
-// reports whether usage text should be shown, whether or not err is set.
+// prepare parses the arguments into patterns and config options. It also
+// reports whether usage text should be shown, whether or not it returns an
+// error.
 func (p *Program) prepare(args []string) (patterns []string, options config.Options, showUsage bool, err error) {
 	if len(args) == 0 {
 		return nil, config.Options{}, true, nil
