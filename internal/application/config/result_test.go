@@ -10,109 +10,194 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
-// --- Result.apply ---
+func TestNewResult_ReturnsBaselineDefaults(t *testing.T) {
+	// When
+	result := newResult()
 
-func TestResultApplyMapsAllPresentStoredFields(t *testing.T) {
-	cfg := Result{Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
-	stored := outbound.Config{
-		Process: outbound.ProcessConfig{IncludeRoot: testutil.Pointer(true)},
-		Game:    outbound.GameConfig{ConfirmMode: testutil.Pointer(true), Speed: testutil.Pointer(2.5), TimeLimit: testutil.Pointer(60)},
-	}
-
-	result, err := cfg.apply(stored, Options{})
-
-	require.NoError(t, err)
-	assert.Equal(t, Result{Process: ProcessResult{IncludeRoot: true}, Game: GameResult{ConfirmMode: true, Speed: 2.5, TimeLimit: 60}}, result)
+	// Then
+	assert.Equal(t, Result{
+		Mode:    outbound.ModeGame,
+		Process: ProcessResult{IncludeRoot: false, AllowRoot: false},
+		Game:    GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30},
+	}, result)
 }
 
-func TestResultApplyEmptyInputLeavesCfgUnchanged(t *testing.T) {
-	cfg := Result{Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
+func TestResult_apply_OverlaysAllPresentStoredFields(t *testing.T) {
+	// Given
+	stored := newStoredConfigFixture()
+	stored.Mode = outbound.ModeLucky
 
-	result, err := cfg.apply(outbound.Config{}, Options{})
+	expected := newResult()
+	expected.Mode = outbound.ModeLucky
+	expected.Process.IncludeRoot = true
+	expected.Game = GameResult{ConfirmMode: true, Speed: 3.0, TimeLimit: 45}
 
+	// When
+	actual, err := newResult().apply(stored, Options{})
+
+	// Then
 	require.NoError(t, err)
-	assert.Equal(t, cfg, result)
+	assert.Equal(t, expected, actual)
 }
 
-func TestResultApplyOnlySpeedSetLeavesTimeLimitAtDefault(t *testing.T) {
-	cfg := Result{Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
+func TestResult_apply_LeavesResultUnchangedWhenNothingIsProvided(t *testing.T) {
+	// When
+	actual, err := newResult().apply(outbound.Config{}, Options{})
+
+	// Then
+	require.NoError(t, err)
+	assert.Equal(t, newResult(), actual)
+}
+
+func TestResult_apply_KeepsExistingValuesForFieldsNotStored(t *testing.T) {
+	// Given
 	stored := outbound.Config{Game: outbound.GameConfig{Speed: testutil.Pointer(3.0)}}
+	expected := newResult()
+	expected.Game.Speed = 3.0
 
-	result, err := cfg.apply(stored, Options{})
+	// When
+	actual, err := newResult().apply(stored, Options{})
 
+	// Then
 	require.NoError(t, err)
-	assert.Equal(t, 3.0, result.Game.Speed)
-	assert.Equal(t, 30, result.Game.TimeLimit, "TimeLimit must keep its hardcoded default when the file doesn't set it")
+	assert.Equal(t, expected, actual)
 }
 
-func TestResultApplyRejectsOutOfRangeSpeedAndKeepsDefault(t *testing.T) {
-	cfg := Result{Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
-	stored := outbound.Config{Game: outbound.GameConfig{Speed: testutil.Pointer(99.0), TimeLimit: testutil.Pointer(60)}}
+func TestResult_apply_SkipsInvalidStoredFields(t *testing.T) {
+	tests := newApplySkippedTestCases()
 
-	result, err := cfg.apply(stored, Options{})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual, _ := newResult().apply(test.stored, Options{})
 
-	assert.Equal(t, 2.0, result.Game.Speed, "an out-of-range file speed must not override the hardcoded default")
-	assert.Equal(t, 60, result.Game.TimeLimit, "a valid field must still apply even when a sibling field is rejected")
-	assert.ErrorContains(t, err, "speed")
-}
-
-func TestResultApplyRejectsOutOfRangeTimeLimitAndKeepsDefault(t *testing.T) {
-	cfg := Result{Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
-	stored := outbound.Config{Game: outbound.GameConfig{TimeLimit: testutil.Pointer(-1)}}
-
-	result, err := cfg.apply(stored, Options{})
-
-	assert.Equal(t, 30, result.Game.TimeLimit, "an out-of-range file time limit must not override the hardcoded default")
-	assert.ErrorContains(t, err, "time_limit")
-}
-
-func TestResultApplyOverlaysValidStoredMode(t *testing.T) {
-	cfg := Result{Mode: outbound.ModeGame, Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
-	stored := outbound.Config{Mode: outbound.ModeLucky}
-
-	result, err := cfg.apply(stored, Options{})
-
-	require.NoError(t, err)
-	assert.Equal(t, outbound.ModeLucky, result.Mode)
-}
-
-func TestResultApplyRejectsUnrecognizedStoredModeAndKeepsDefault(t *testing.T) {
-	cfg := Result{Mode: outbound.ModeGame, Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
-	stored := outbound.Config{Mode: outbound.Mode("wobble")}
-
-	result, err := cfg.apply(stored, Options{})
-
-	assert.Equal(t, outbound.ModeGame, result.Mode, "an unrecognized stored mode must not override the default")
-	assert.ErrorContains(t, err, "mode")
-}
-
-func TestResultApplySetsAllowRootFromOptionsOnly(t *testing.T) {
-	cfg := Result{Process: ProcessResult{IncludeRoot: false, AllowRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
-	opts := Options{Process: ProcessOptions{AllowRoot: testutil.Pointer(true)}}
-
-	result, err := cfg.apply(outbound.Config{}, opts)
-
-	require.NoError(t, err)
-	assert.True(t, result.Process.AllowRoot, "AllowRoot must be settable from options even though it is never read from the config file")
-}
-
-func TestResultApplyOptionsWinOverStored(t *testing.T) {
-	cfg := Result{Process: ProcessResult{IncludeRoot: false}, Game: GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30}}
-	stored := outbound.Config{
-		Process: outbound.ProcessConfig{IncludeRoot: testutil.Pointer(false)},
-		Game:    outbound.GameConfig{ConfirmMode: testutil.Pointer(false), Speed: testutil.Pointer(3.0), TimeLimit: testutil.Pointer(45)},
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
 	}
-	opts := Options{
-		Game: GameOptions{
-			ConfirmMode: testutil.Pointer(true),
-			Speed:       testutil.Pointer(5.0),
-			TimeLimit:   testutil.Pointer(60),
+}
+
+func TestResult_apply_ReportsInvalidStoredFields(t *testing.T) {
+	tests := newApplyReportedTestCases()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			_, err := newResult().apply(test.stored, Options{})
+
+			// Then
+			require.Error(t, err)
+			for _, fieldName := range test.expected {
+				assert.ErrorContains(t, err, fieldName)
+			}
+		})
+	}
+}
+
+func TestResult_apply_OptionsOverrideStoredConfig(t *testing.T) {
+	// Given
+	stored := newStoredConfigFixture()
+	stored.Process.IncludeRoot = testutil.Pointer(false)
+	stored.Game.ConfirmMode = testutil.Pointer(false)
+
+	expected := newResult()
+	expected.Process.IncludeRoot = true
+	expected.Game = GameResult{ConfirmMode: true, Speed: 5.0, TimeLimit: 60}
+
+	// When
+	actual, err := newResult().apply(stored, newOptionsFixture())
+
+	// Then
+	require.NoError(t, err)
+	assert.Equal(t, expected, actual)
+}
+
+func TestResult_apply_SetsAllowRootFromOptionsOnly(t *testing.T) {
+	// Given
+	options := Options{Process: ProcessOptions{AllowRoot: testutil.Pointer(true)}}
+
+	// When
+	actual, err := newResult().apply(outbound.Config{}, options)
+
+	// Then
+	require.NoError(t, err)
+	assert.True(t, actual.Process.AllowRoot)
+}
+
+func newApplySkippedTestCases() []struct {
+	name     string
+	stored   outbound.Config
+	expected Result
+} {
+	unchanged := newResult()
+	withValidTimeLimit := newResult()
+	withValidTimeLimit.Game.TimeLimit = 60
+
+	tests := []struct {
+		name     string
+		stored   outbound.Config
+		expected Result
+	}{
+		{
+			"out-of-range speed leaves a valid sibling applied",
+			outbound.Config{Game: outbound.GameConfig{Speed: testutil.Pointer(99.0), TimeLimit: testutil.Pointer(60)}},
+			withValidTimeLimit,
 		},
-		Process: ProcessOptions{IncludeRoot: testutil.Pointer(true)},
+		{
+			"out-of-range time limit",
+			outbound.Config{Game: outbound.GameConfig{TimeLimit: testutil.Pointer(-1)}},
+			unchanged,
+		},
+		{
+			"unrecognized mode",
+			outbound.Config{Mode: outbound.Mode("wobble")},
+			unchanged,
+		},
+		{
+			"every validated field invalid",
+			outbound.Config{
+				Mode: outbound.Mode("wobble"),
+				Game: outbound.GameConfig{Speed: testutil.Pointer(99.0), TimeLimit: testutil.Pointer(-1)},
+			},
+			unchanged,
+		},
 	}
+	return tests
+}
 
-	result, err := cfg.apply(stored, opts)
-
-	require.NoError(t, err)
-	assert.Equal(t, Result{Process: ProcessResult{IncludeRoot: true}, Game: GameResult{ConfirmMode: true, Speed: 5.0, TimeLimit: 60}}, result)
+func newApplyReportedTestCases() []struct {
+	name     string
+	stored   outbound.Config
+	expected []string
+} {
+	tests := []struct {
+		name     string
+		stored   outbound.Config
+		expected []string
+	}{
+		{
+			"out-of-range speed",
+			outbound.Config{Game: outbound.GameConfig{Speed: testutil.Pointer(99.0)}},
+			[]string{speedFieldName},
+		},
+		{
+			"out-of-range time limit",
+			outbound.Config{Game: outbound.GameConfig{TimeLimit: testutil.Pointer(-1)}},
+			[]string{timeLimitFieldName},
+		},
+		{
+			"unrecognized mode",
+			outbound.Config{Mode: outbound.Mode("wobble")},
+			[]string{modeFieldName},
+		},
+		{
+			"every validated field invalid",
+			outbound.Config{
+				Mode: outbound.Mode("wobble"),
+				Game: outbound.GameConfig{Speed: testutil.Pointer(99.0), TimeLimit: testutil.Pointer(-1)},
+			},
+			[]string{modeFieldName, speedFieldName, timeLimitFieldName},
+		},
+	}
+	return tests
 }

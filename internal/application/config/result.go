@@ -21,7 +21,7 @@ type GameResult struct {
 // ProcessResult holds process-discovery run parameters.
 type ProcessResult struct {
 	// IncludeRoot additionally permits root-owned processes as targets,
-	// regardless of the caller's own effective UID.
+	// regardless of which user is running pidshooter.
 	IncludeRoot bool
 	// AllowRoot permits running pidshooter itself as root; never populated
 	// from the stored config.
@@ -35,22 +35,22 @@ type Result struct {
 	Game    GameResult
 }
 
-// defaultSpeed and defaultTimeLimit are this application's baseline gameplay
-// parameters, used when neither the stored config nor options override them.
+// defaultSpeed and defaultTimeLimit are the baseline gameplay parameters, used
+// when neither the stored config nor the options override them.
 const (
 	defaultSpeed     = 2.0
 	defaultTimeLimit = 30
 )
 
-// Stored field names shared between validateStore and fromStore.
+// Names of the stored fields that are validated.
 const (
-	fieldMode      = "mode"
-	fieldSpeed     = "speed"
-	fieldTimeLimit = "time_limit"
+	modeFieldName      = "mode"
+	speedFieldName     = "speed"
+	timeLimitFieldName = "time_limit"
 )
 
-// newResult returns a Result populated with this application's default
-// gameplay and process-discovery parameters.
+// newResult returns a Result populated with the default gameplay and
+// process-discovery parameters.
 func newResult() Result {
 	return Result{
 		Mode: outbound.ModeGame,
@@ -66,65 +66,63 @@ func newResult() Result {
 	}
 }
 
-// apply overlays stored's and then opts's explicitly-provided fields onto
-// cfg, in that priority order — opts always wins over stored. A stored
-// field that fails domain validation is skipped, keeping cfg's existing
-// value. The returned error is nil, or a plain error naming every
-// skipped stored field.
-func (cfg Result) apply(stored outbound.Config, opts Options) (Result, error) {
-	cfg, err := cfg.fromStore(stored)
-	return cfg.fromOptions(opts), err
+// apply overlays the stored config and then the options onto the Result; the
+// options always win over the stored config. A stored field that fails
+// validation is skipped, keeping the existing value. The returned error is
+// nil, or an error naming every skipped stored field.
+func (result Result) apply(stored outbound.Config, options Options) (Result, error) {
+	result, err := result.fromStore(stored)
+	return result.fromOptions(options), err
 }
 
-// fromStore overlays stored's present fields onto cfg, skipping any field
-// whose persisted value fails domain validation. The returned error is
-// nil, or a plain error naming every skipped field and why.
-func (cfg Result) fromStore(stored outbound.Config) (Result, error) {
-	g := stored.Game
+// fromStore overlays the present fields of the stored config onto the Result,
+// skipping any field whose stored value fails validation. The returned error is
+// nil, or an error naming every skipped field and why.
+func (result Result) fromStore(stored outbound.Config) (Result, error) {
+	storedGame := stored.Game
 	rejected, err := validateStore(stored)
 
-	if stored.Mode != "" && !slices.Contains(rejected, fieldMode) {
-		cfg.Mode = stored.Mode
+	if stored.Mode != "" && !slices.Contains(rejected, modeFieldName) {
+		result.Mode = stored.Mode
 	}
-	if g.ConfirmMode != nil {
-		cfg.Game.ConfirmMode = *g.ConfirmMode
+	if storedGame.ConfirmMode != nil {
+		result.Game.ConfirmMode = *storedGame.ConfirmMode
 	}
-	if g.Speed != nil && !slices.Contains(rejected, fieldSpeed) {
-		cfg.Game.Speed = *g.Speed
+	if storedGame.Speed != nil && !slices.Contains(rejected, speedFieldName) {
+		result.Game.Speed = *storedGame.Speed
 	}
-	if g.TimeLimit != nil && !slices.Contains(rejected, fieldTimeLimit) {
-		cfg.Game.TimeLimit = *g.TimeLimit
+	if storedGame.TimeLimit != nil && !slices.Contains(rejected, timeLimitFieldName) {
+		result.Game.TimeLimit = *storedGame.TimeLimit
 	}
 	if stored.Process.IncludeRoot != nil {
-		cfg.Process.IncludeRoot = *stored.Process.IncludeRoot
+		result.Process.IncludeRoot = *stored.Process.IncludeRoot
 	}
 
-	return cfg, err
+	return result, err
 }
 
-// fromOptions overlays opts's explicitly-provided fields onto cfg.
-func (cfg Result) fromOptions(opts Options) Result {
-	if opts.Game.ConfirmMode != nil {
-		cfg.Game.ConfirmMode = *opts.Game.ConfirmMode
+// fromOptions overlays the explicitly provided options onto the Result.
+func (result Result) fromOptions(options Options) Result {
+	if options.Game.ConfirmMode != nil {
+		result.Game.ConfirmMode = *options.Game.ConfirmMode
 	}
-	if opts.Game.Speed != nil {
-		cfg.Game.Speed = *opts.Game.Speed
+	if options.Game.Speed != nil {
+		result.Game.Speed = *options.Game.Speed
 	}
-	if opts.Game.TimeLimit != nil {
-		cfg.Game.TimeLimit = *opts.Game.TimeLimit
+	if options.Game.TimeLimit != nil {
+		result.Game.TimeLimit = *options.Game.TimeLimit
 	}
-	if opts.Process.IncludeRoot != nil {
-		cfg.Process.IncludeRoot = *opts.Process.IncludeRoot
+	if options.Process.IncludeRoot != nil {
+		result.Process.IncludeRoot = *options.Process.IncludeRoot
 	}
-	if opts.Process.AllowRoot != nil {
-		cfg.Process.AllowRoot = *opts.Process.AllowRoot
+	if options.Process.AllowRoot != nil {
+		result.Process.AllowRoot = *options.Process.AllowRoot
 	}
-	return cfg
+	return result
 }
 
-// validateStore reports every present field in stored that fails domain
-// validation. The returned error is nil, or a plain error naming every
-// invalid field and why.
+// validateStore returns the names of the stored fields that fail validation,
+// along with an error naming each of them and why, or nil if all are valid.
 func validateStore(stored outbound.Config) (rejected []string, err error) {
 	var causes []error
 
@@ -132,21 +130,21 @@ func validateStore(stored outbound.Config) (rejected []string, err error) {
 		switch stored.Mode {
 		case outbound.ModeGame, outbound.ModeLucky, outbound.ModeList:
 		default:
-			rejected = append(rejected, fieldMode)
+			rejected = append(rejected, modeFieldName)
 			causes = append(causes, fmt.Errorf("mode must be one of %q, %q, %q, got: %q", outbound.ModeGame, outbound.ModeLucky, outbound.ModeList, stored.Mode))
 		}
 	}
 
-	config := stored.Game
-	if config.Speed != nil {
-		if validationErr := movement.ValidateSpeed(*config.Speed); validationErr != nil {
-			rejected = append(rejected, fieldSpeed)
+	storedGame := stored.Game
+	if storedGame.Speed != nil {
+		if validationErr := movement.ValidateSpeed(*storedGame.Speed); validationErr != nil {
+			rejected = append(rejected, speedFieldName)
 			causes = append(causes, validationErr)
 		}
 	}
-	if config.TimeLimit != nil {
-		if validationErr := game.ValidateTimeLimit(*config.TimeLimit); validationErr != nil {
-			rejected = append(rejected, fieldTimeLimit)
+	if storedGame.TimeLimit != nil {
+		if validationErr := game.ValidateTimeLimit(*storedGame.TimeLimit); validationErr != nil {
+			rejected = append(rejected, timeLimitFieldName)
 			causes = append(causes, validationErr)
 		}
 	}
