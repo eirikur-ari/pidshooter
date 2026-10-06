@@ -1,6 +1,10 @@
 package game
 
 import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
@@ -34,10 +38,11 @@ func newTargetFixtureFor(pid int, name string) *game.Target {
 	return game.NewTarget(process.NewInfo(pid, name, 4096, 0), newBoundsFixture())
 }
 
-func newClickableSessionFixture() (session *game.Session, x, y int) {
-	session = newSessionFixture(game.Config{Speed: 1.0})
-	x, y = session.Targets()[0].Motion.Position.Rounded()
-	return session, x, y
+func newPlaySessionFixture(t *testing.T, killer processKiller, renderer outbound.Renderer, events outbound.InputEventProvider, config game.Config) *playSession {
+	t.Helper()
+	play, err := newPlaySession(renderer, events, killer, defaultKillGracePeriod, newSessionFixture(config), newKillTracker(0))
+	require.NoError(t, err)
+	return play
 }
 
 func newSessionFixture(config game.Config) *game.Session {

@@ -34,10 +34,10 @@ Touches `core/score/board.go` (field, `Add`, `NewBoard` seeding, tests built aro
 
 ### 4. A failed play session discards the kills already made
 
-When `game.Service.Play` fails mid-session (for example the input event channel closes), `frameLoop` stops the session and returns the error without waiting for in-flight kills, and `Play` returns an empty `PlayResult{}` with a `CodeGameFailed` error. Processes that were already killed (or whose kill is still in flight) are therefore reported nowhere: no kills, freed memory, duds or failures reach the runner, the score board or the log, even though the processes are really gone.
+When `game.Service.Play` fails mid-session (for example the input event channel closes), `playSession.frameLoop` stops the session and returns the error without waiting for in-flight kills, and `Play` returns an empty `PlayResult{}` with a `CodeGameFailed` error. Processes that were already killed (or whose kill is still in flight) are therefore reported nowhere: no kills, freed memory, duds or failures reach the runner, the score board or the log, even though the processes are really gone.
 
 Waiting for in-flight kills before returning the error would not help on its own, since the result is dropped either way. The fix is to return the partial `PlayResult` alongside the error and let the runner decide what to log and whether to record a score for an aborted session, which also needs a decision on whether an aborted session counts as a score at all.
 
-Touches `application/game/service.go` (`Play`, `frameLoop`, `runLoop`) and `application/runner/service.go`.
+Touches `application/game/service.go` (`Play`), `application/game/play_session.go` (`run`, `frameLoop`, `result`) and `application/runner/service.go`.
 
 **Deferred to:** whenever aborted-session handling is designed; today the only abort path is an input source that died unexpectedly.
