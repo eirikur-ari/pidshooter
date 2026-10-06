@@ -79,7 +79,7 @@ func (s *Service) Run() error {
 // logKillFailures reports each target the run could not kill.
 func (s *Service) logKillFailures(failures []game.KillFailure) {
 	for _, f := range failures {
-		msg := fmt.Sprintf("could not kill %s (PID %d)", f.Target, f.PID)
+		msg := fmt.Sprintf("could not kill %s (PID %d)", f.Name, f.PID)
 		_ = s.errHandler.Handle(apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, msg, f.Err))
 	}
 }
@@ -88,7 +88,7 @@ func (s *Service) logKillFailures(failures []game.KillFailure) {
 // before a kill could land on it.
 func (s *Service) logDuds(duds []game.KillDud) {
 	for _, d := range duds {
-		msg := fmt.Sprintf("%s (PID %d) ran away before it could be killed", d.Target, d.PID)
+		msg := fmt.Sprintf("%s (PID %d) ran away before it could be killed", d.Name, d.PID)
 		_ = s.errHandler.Handle(apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, msg, nil))
 	}
 }

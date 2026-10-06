@@ -6,20 +6,19 @@ import (
 
 // KillFailure records a target that was not killed, along with the error that caused the failure.
 type KillFailure struct {
-	Target string
-	PID    int
-	Err    error
+	Name string
+	PID  int
+	Err  error
 }
 
 // KillDud records a target whose backing process was already gone before a
 // kill could land on it.
 type KillDud struct {
-	Target string
-	PID    int
+	Name string
+	PID  int
 }
 
-// killTracker accumulates state of a single game session: score progress,
-// kill attempts that failed to kill their targets, and duds.
+// killTracker holds the progress of a single game session.
 type killTracker struct {
 	score   killScoreTracker
 	failure killFailureTracker
@@ -37,8 +36,7 @@ type killFailureTracker struct {
 	pids     map[int]struct{}
 }
 
-// newKillTracker returns a killTracker seeded with the caller's
-// persisted high score.
+// newKillTracker returns a killTracker whose high score starts at highScore.
 func newKillTracker(highScore int) *killTracker {
 	return &killTracker{
 		score:   killScoreTracker{highScore: highScore},
@@ -61,11 +59,19 @@ func (t *killTracker) recordFailure(target *game.Target, err error) {
 		return
 	}
 	t.failure.pids[target.Info.PID] = struct{}{}
-	t.failure.failures = append(t.failure.failures, KillFailure{Target: target.Info.Name, PID: target.Info.PID, Err: err})
+	t.failure.failures = append(t.failure.failures, KillFailure{Name: target.Info.Name, PID: target.Info.PID, Err: err})
 }
 
 // recordDud records a target whose backing process was already gone before
 // a kill could land on it.
 func (t *killTracker) recordDud(target *game.Target) {
-	t.duds = append(t.duds, KillDud{Target: target.Info.Name, PID: target.Info.PID})
+	t.duds = append(t.duds, KillDud{Name: target.Info.Name, PID: target.Info.PID})
 }
+
+func (t *killTracker) kills() int { return t.score.kills }
+
+func (t *killTracker) freedMem() int64 { return t.score.freedMem }
+
+func (t *killTracker) highScore() int { return t.score.highScore }
+
+func (t *killTracker) failures() []KillFailure { return t.failure.failures }

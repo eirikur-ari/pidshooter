@@ -29,3 +29,15 @@ Touches `core/score/board.go` (field, `Add`, `NewBoard` seeding, tests built aro
 `flagSplitter.split` treats any argument starting with `-` (other than a lone `-`) as a flag. `--speed -3` therefore fails with "flag needs an argument: -speed" even though a value was supplied, while `--speed=-3` is accepted by the splitter and rejected later by range validation. The `flag` package itself would take `-3` as the value. Both inputs are out of range today, so the only effect is the wrong message, but a future flag with a legitimately negative value would be unusable in the separate-argument form.
 
 **Deferred to:** whenever a flag that accepts negative values is added, or the splitter is next reworked.
+
+---
+
+### 4. A failed play session discards the kills already made
+
+When `game.Service.Play` fails mid-session (for example the input event channel closes), `frameLoop` stops the session and returns the error without waiting for in-flight kills, and `Play` returns an empty `PlayResult{}` with a `CodeGameFailed` error. Processes that were already killed (or whose kill is still in flight) are therefore reported nowhere: no kills, freed memory, duds or failures reach the runner, the score board or the log, even though the processes are really gone.
+
+Waiting for in-flight kills before returning the error would not help on its own, since the result is dropped either way. The fix is to return the partial `PlayResult` alongside the error and let the runner decide what to log and whether to record a score for an aborted session, which also needs a decision on whether an aborted session counts as a score at all.
+
+Touches `application/game/service.go` (`Play`, `frameLoop`, `runLoop`) and `application/runner/service.go`.
+
+**Deferred to:** whenever aborted-session handling is designed; today the only abort path is an input source that died unexpectedly.

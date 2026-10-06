@@ -5,84 +5,98 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
-	"github.com/eirikur-ari/pidshooter/internal/core/movement"
-	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-func TestKillTrackerCreatesNewKillTracker(t *testing.T) {
-	tr := newKillTracker(5)
-	assert.Equal(t, 5, tr.score.highScore)
-	assert.Equal(t, 0, tr.score.kills)
-	assert.Equal(t, int64(0), tr.score.freedMem)
-	assert.NotNil(t, tr.failure.pids)
+func TestKillTracker_recordKill_AccumulatesKillsAndFreedMemory(t *testing.T) {
+	// Given
+	tracker := newKillTracker(0)
+
+	// When
+	tracker.recordKill(1024)
+	tracker.recordKill(2048)
+
+	// Then
+	assert.Equal(t, 2, tracker.score.kills)
+	assert.Equal(t, int64(3072), tracker.score.freedMem)
 }
 
-func TestKillTrackerRecordKillAccumulates(t *testing.T) {
-	tr := newKillTracker(0)
+func TestKillTracker_recordKill_RaisesHighScoreOnlyOnceKillsExceedIt(t *testing.T) {
+	// Given
+	tracker := newKillTracker(1)
 
-	tr.recordKill(1024)
-	tr.recordKill(2048)
+	// When
+	tracker.recordKill(0)
 
-	assert.Equal(t, 2, tr.score.kills)
-	assert.Equal(t, int64(3072), tr.score.freedMem)
+	// Then
+	assert.Equal(t, 1, tracker.score.highScore, "kills equal to the high score do not raise it")
+
+	// When
+	tracker.recordKill(0)
+
+	// Then
+	assert.Equal(t, 2, tracker.score.highScore, "kills above the high score raise it")
 }
 
-func TestKillTrackerRecordKillRaisesHighScore(t *testing.T) {
-	tr := newKillTracker(1)
+func TestKillTracker_recordFailure_RecordsNamePIDAndCause(t *testing.T) {
+	tests := newRecordFailureTestCase()
 
-	tr.recordKill(0)
-	assert.Equal(t, 1, tr.score.highScore, "kills should not exceed the seeded high score yet")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			tracker := newKillTracker(0)
 
-	tr.recordKill(0)
-	assert.Equal(t, 2, tr.score.highScore, "high score should rise once kills exceed it")
+			// When
+			tracker.recordFailure(test.target, test.cause)
+
+			// Then
+			assert.Equal(t, []KillFailure{test.expected}, tracker.failure.failures)
+		})
+	}
 }
 
-func TestKillTrackerRecordFailureAddsFailedKillWithNoCause(t *testing.T) {
-	tr := newKillTracker(0)
+func TestKillTracker_recordFailure_RecordsFailuresOfDistinctPIDs(t *testing.T) {
+	// Given
+	tracker := newKillTracker(0)
 
-	tr.recordFailure(newTrackerTestTarget(100, "target"), nil)
+	// When
+	tracker.recordFailure(newTargetFixtureFor(100, "one"), errors.New("boom"))
+	tracker.recordFailure(newTargetFixtureFor(101, "two"), errors.New("another boom"))
 
-	require.Len(t, tr.failure.failures, 1)
-	failure := tr.failure.failures[0]
-	assert.Equal(t, "target", failure.Target)
-	assert.Equal(t, 100, failure.PID)
+	// Then
+	assert.Len(t, tracker.failure.failures, 2)
 }
 
-func TestKillTrackerRecordFailureAddsFailedKillWithCause(t *testing.T) {
-	tr := newKillTracker(0)
+func TestKillTracker_recordFailure_IgnoresRepeatFailureOfSamePID(t *testing.T) {
+	// Given
+	tracker := newKillTracker(0)
+	target := newTargetFixture()
+	first := errors.New("boom")
+
+	// When
+	tracker.recordFailure(target, first)
+	tracker.recordFailure(target, errors.New("boom again"))
+
+	// Then
+	assert.Equal(t, []KillFailure{{Name: "target", PID: 100, Err: first}}, tracker.failure.failures)
+}
+
+func newRecordFailureTestCase() []struct {
+	name     string
+	target   *game.Target
+	cause    error
+	expected KillFailure
+} {
 	cause := errors.New("operation not permitted")
 
-	tr.recordFailure(newTrackerTestTarget(100, "target"), cause)
-
-	require.Len(t, tr.failure.failures, 1)
-	failure := tr.failure.failures[0]
-	assert.Equal(t, cause, failure.Err)
-}
-
-func TestKillTrackerRecordFailureAccumulatesDistinctPIDs(t *testing.T) {
-	tr := newKillTracker(0)
-
-	tr.recordFailure(newTrackerTestTarget(100, "one"), errors.New("boom"))
-	tr.recordFailure(newTrackerTestTarget(101, "two"), errors.New("another boom"))
-
-	assert.Len(t, tr.failure.failures, 2)
-}
-
-func TestKillTrackerRecordFailureDeduplicatesSamePID(t *testing.T) {
-	tr := newKillTracker(0)
-	target := newTrackerTestTarget(100, "target")
-	err := errors.New("boom")
-
-	tr.recordFailure(target, err)
-	tr.recordFailure(target, errors.New("boom again"))
-
-	assert.Len(t, tr.failure.failures, 1, "a repeat failure for the same PID should not add a second entry")
-	assert.Equal(t, err, tr.failure.failures[0].Err, "the second call should be a no-op, not an update")
-}
-
-func newTrackerTestTarget(pid int, name string) *game.Target {
-	return game.NewTarget(process.NewInfo(pid, name, 4096, 0), movement.NewBounds(movement.WindowSize{Width: 80, Height: 24}, movement.ChromeSize{Top: 1, Bottom: 1}))
+	return []struct {
+		name     string
+		target   *game.Target
+		cause    error
+		expected KillFailure
+	}{
+		{"without cause", newTargetFixtureFor(100, "target"), nil, KillFailure{Name: "target", PID: 100}},
+		{"with cause", newTargetFixtureFor(200, "other"), cause, KillFailure{Name: "other", PID: 200, Err: cause}},
+	}
 }
