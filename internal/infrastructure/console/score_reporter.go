@@ -19,14 +19,14 @@ func NewScoreReporter() *ScoreReporter {
 	return &ScoreReporter{writer: os.Stdout}
 }
 
-// Report writes the game-over summary, a trophy line if summary.NewHighScore,
-// and the high-score table (or a "no high scores yet" message) to the
-// underlying writer.
+// Report writes the game-over summary, a congratulation line if the session
+// achieved the top score, and the high-score table (or a "no high scores
+// yet" message) to the underlying writer.
 func (r *ScoreReporter) Report(summary outbound.ScoreSummary) {
 	_, _ = fmt.Fprintf(r.writer, "\n  Game Over! Kills: %d | Duds: %d | Freed: %s | Time: %.1fs\n",
 		summary.Kills, summary.Duds, util.FormatBytes(summary.FreedMem), summary.Duration)
 
-	if summary.NewHighScore {
+	if summary.IsTopScore {
 		_, _ = fmt.Fprintln(r.writer, "  🏆 New high score!")
 	}
 

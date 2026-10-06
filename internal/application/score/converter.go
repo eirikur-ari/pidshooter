@@ -42,12 +42,12 @@ func toScoreBoard(board *score.Board) outbound.ScoreBoard {
 
 func toScoreSummary(duration float64, kills, duds int, freedMem int64, board *score.Board) outbound.ScoreSummary {
 	return outbound.ScoreSummary{
-		Kills:        kills,
-		Duds:         duds,
-		FreedMem:     freedMem,
-		Duration:     duration,
-		NewHighScore: board.IsNewHighScore(kills),
-		Entries:      toScoreEntries(board.Scores),
+		Kills:      kills,
+		Duds:       duds,
+		FreedMem:   freedMem,
+		Duration:   duration,
+		IsTopScore: board.IsNewHighScore(kills),
+		Entries:    toScoreEntries(board.Scores),
 	}
 }
 

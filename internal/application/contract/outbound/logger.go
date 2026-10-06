@@ -1,6 +1,6 @@
 package outbound
 
-// Logger is the outbound port for reporting leveled diagnostic messages.
+// Logger reports leveled diagnostic messages.
 type Logger interface {
 	// Warn reports msg as a warning.
 	Warn(msg string)

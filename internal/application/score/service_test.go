@@ -181,6 +181,6 @@ func TestReportResultsReportsSummaryViaReporter(t *testing.T) {
 	assert.Equal(t, 1, reporter.Reported.Duds)
 	assert.Equal(t, int64(4096), reporter.Reported.FreedMem)
 	assert.Equal(t, 7.5, reporter.Reported.Duration)
-	assert.True(t, reporter.Reported.NewHighScore)
+	assert.True(t, reporter.Reported.IsTopScore)
 	assert.Len(t, reporter.Reported.Entries, 1)
 }

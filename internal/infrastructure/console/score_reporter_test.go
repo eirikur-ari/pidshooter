@@ -26,7 +26,7 @@ func TestReportPrintsTrophyWhenNewHighScore(t *testing.T) {
 	var buf bytes.Buffer
 	r := &ScoreReporter{writer: &buf}
 
-	r.Report(outbound.ScoreSummary{NewHighScore: true})
+	r.Report(outbound.ScoreSummary{IsTopScore: true})
 
 	assert.Contains(t, buf.String(), "New high score")
 }
@@ -35,7 +35,7 @@ func TestReportOmitsTrophyWhenNotNewHighScore(t *testing.T) {
 	var buf bytes.Buffer
 	r := &ScoreReporter{writer: &buf}
 
-	r.Report(outbound.ScoreSummary{NewHighScore: false})
+	r.Report(outbound.ScoreSummary{IsTopScore: false})
 
 	assert.NotContains(t, buf.String(), "New high score")
 }

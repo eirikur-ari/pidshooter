@@ -1,51 +1,44 @@
 package outbound
 
-// ProcessInfo describes a single process discovered on the host.
+// ProcessInfo describes a single process.
 type ProcessInfo struct {
-	UID   int
-	PID   int
-	Rss   int64
+	// UID is the ID of the user that owns the process.
+	UID int
+	PID int
+	// Rss is the process's resident memory, in bytes.
+	Rss int64
+	// State is the process's current state.
 	State string
 	Name  string
 }
 
-// ProcessHandle references a specific process obtained via
-// ProcessManager.Pin, pinning its identity so a later Kill call cannot be
-// redirected to a different process that has since reused the same PID.
+// ProcessHandle references one specific process. Kill acts on that process
+// even if its PID has since been reused by another.
 type ProcessHandle interface {
-	// Kill terminates the process this ProcessHandle refers to. If the
-	// process no longer exists, Kill returns a NotFoundError instead of
-	// treating it as a failure.
+	// Kill terminates the referenced process. If the process no longer
+	// exists, Kill returns a NotFoundError.
 	Kill() error
-	// Release releases any resources held by this ProcessHandle. Callers
-	// must call Release exactly once when finished with the handle, whether
-	// or not Kill was called.
+	// Release frees the resources held by the handle.
 	Release() error
 }
 
-// ProcessManager is the outbound port for process discovery and termination on the host.
+// ProcessManager provides access to running processes.
 type ProcessManager interface {
-	// Discover returns the processes currently running on the host.
+	// Discover returns the processes currently running.
 	Discover() ([]ProcessInfo, error)
-	// OwnPID returns the PID of the calling process.
+	// OwnPID returns the PID of the running program.
 	OwnPID() int
-	// OwnUID returns the effective UID of the calling process, used to
-	// determine which discovered processes the caller is permitted to kill.
+	// OwnUID returns the effective user ID of the running program.
 	OwnUID() int
 	// LookupName returns the current name of the process with the given pid.
-	// If the process no longer exists, LookupName returns a NotFoundError
-	// instead of treating it as any other failure.
+	// If the process no longer exists, LookupName returns a NotFoundError.
 	LookupName(pid int) (string, error)
-	// Pin returns a ProcessHandle to the process with the given pid. Callers
-	// should Pin a pid before verifying it via LookupName and hold the
-	// resulting ProcessHandle through to Kill, rather than re-resolving pid
-	// at kill time, so identity is pinned across the verify-then-kill
-	// sequence.
+	// Pin returns a ProcessHandle to the process with the given pid, bound
+	// to that process's identity at the time of the call.
 	Pin(pid int) (ProcessHandle, error)
 }
 
-// ProcessReporter is the outbound port for reporting which processes
-// matched the requested search patterns.
+// ProcessReporter reports which processes matched a set of search patterns.
 type ProcessReporter interface {
 	// Report displays matches, the processes that matched patterns.
 	Report(matches []ProcessInfo, patterns []string)
