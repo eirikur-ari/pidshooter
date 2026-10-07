@@ -7,7 +7,7 @@ import (
 )
 
 // runeBindings maps a rune to the input event it produces.
-var runeBindings = map[rune]input.EventDispatcher{
+var runeBindings = map[rune]input.Event{
 	'q': input.QuitEvent{},
 	'Q': input.QuitEvent{},
 	'y': input.ConfirmEvent{Accept: true},
@@ -22,7 +22,7 @@ var runeBindings = map[rune]input.EventDispatcher{
 
 // controlKeyBindings maps a non-rune control key to the input event it
 // produces.
-var controlKeyBindings = map[tcell.Key]input.EventDispatcher{
+var controlKeyBindings = map[tcell.Key]input.Event{
 	tcell.KeyEscape: input.QuitEvent{},
 	tcell.KeyCtrlC:  input.QuitEvent{},
 	tcell.KeyCtrlZ:  input.QuitEvent{},
@@ -32,7 +32,7 @@ var controlKeyBindings = map[tcell.Key]input.EventDispatcher{
 // represents.
 type translator struct {
 	screen      tcell.Screen
-	event       input.EventDispatcher
+	event       input.Event
 	prevButtons tcell.ButtonMask
 }
 

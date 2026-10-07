@@ -2,20 +2,25 @@ package input
 
 import "github.com/eirikur-ari/pidshooter/internal/core/game"
 
-// EventDispatcher is implemented by all user input events.
-type EventDispatcher interface {
-	// dispatch routes the event to the appropriate call on input.
+// Event is implemented by all user input events.
+type Event interface {
+	// dispatch applies the event to input and returns the target it affected, or nil if none.
 	dispatch(input *game.Input) *game.Target
 }
 
-// ClickEvent represents a mouse click at terminal coordinates.
-type ClickEvent struct{ X, Y int }
+// ClickEvent represents a click at a position.
+type ClickEvent struct {
+	// X is the horizontal position of the click.
+	X int
+	// Y is the vertical position of the click.
+	Y int
+}
 
 func (e ClickEvent) dispatch(input *game.Input) *game.Target {
 	return input.OnClickAt(e.X, e.Y)
 }
 
-// QuitEvent requests that the game stop running.
+// QuitEvent represents a request to stop the game.
 type QuitEvent struct{}
 
 func (QuitEvent) dispatch(input *game.Input) *game.Target {
@@ -23,8 +28,11 @@ func (QuitEvent) dispatch(input *game.Input) *game.Target {
 	return nil
 }
 
-// ConfirmEvent answers a pending kill confirmation.
-type ConfirmEvent struct{ Accept bool }
+// ConfirmEvent represents an answer to a confirmation request.
+type ConfirmEvent struct {
+	// Accept is true to accept, false to decline.
+	Accept bool
+}
 
 func (e ConfirmEvent) dispatch(input *game.Input) *game.Target {
 	if e.Accept {
@@ -34,7 +42,7 @@ func (e ConfirmEvent) dispatch(input *game.Input) *game.Target {
 	return nil
 }
 
-// SpeedEvent requests a one-step change to the game speed.
+// SpeedEvent represents a request to change the game speed by one step.
 type SpeedEvent struct {
 	// Faster is true to speed up, false to slow down.
 	Faster bool

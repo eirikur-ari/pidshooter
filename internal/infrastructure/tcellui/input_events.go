@@ -14,6 +14,6 @@ type inputEvents struct {
 }
 
 // Events returns the channel of translated input events.
-func (e *inputEvents) Events() <-chan input.EventDispatcher {
+func (e *inputEvents) Events() <-chan input.Event {
 	return e.poller.events()
 }

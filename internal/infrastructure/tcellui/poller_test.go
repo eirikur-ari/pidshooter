@@ -68,7 +68,7 @@ func TestPollForwardsTranslatedEventToChannel(t *testing.T) {
 
 // nextEvent reads one event from events with a timeout so tests fail fast
 // instead of blocking forever if the expected event is never produced.
-func nextEvent(t *testing.T, events outbound.InputEventProvider) input.EventDispatcher {
+func nextEvent(t *testing.T, events outbound.InputEventProvider) input.Event {
 	t.Helper()
 	select {
 	case ev := <-events.Events():

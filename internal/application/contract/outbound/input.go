@@ -6,5 +6,5 @@ import "github.com/eirikur-ari/pidshooter/internal/application/input"
 type InputEventProvider interface {
 	// Events returns the channel of input events.
 	// The channel is closed once no further events will be produced.
-	Events() <-chan input.EventDispatcher
+	Events() <-chan input.Event
 }

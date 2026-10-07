@@ -62,14 +62,14 @@ func newTranslateKeyEventTestCase() []struct {
 	key    tcell.Key
 	r      rune
 	wantOK bool
-	want   input.EventDispatcher
+	want   input.Event
 } {
 	tests := []struct {
 		name   string
 		key    tcell.Key
 		r      rune
 		wantOK bool
-		want   input.EventDispatcher
+		want   input.Event
 	}{
 		{"escape quits", tcell.KeyEscape, 0, true, input.QuitEvent{}},
 		{"ctrl+c quits", tcell.KeyCtrlC, 0, true, input.QuitEvent{}},
@@ -94,14 +94,14 @@ func newTranslateMouseEventTestCase() []struct {
 	x, y   int
 	button tcell.ButtonMask
 	wantOK bool
-	want   input.EventDispatcher
+	want   input.Event
 } {
 	tests := []struct {
 		name   string
 		x, y   int
 		button tcell.ButtonMask
 		wantOK bool
-		want   input.EventDispatcher
+		want   input.Event
 	}{
 		{"button1 emits click", 5, 10, tcell.Button1, true, input.ClickEvent{X: 5, Y: 10}},
 		{"non-button1 dropped", 5, 10, tcell.Button2, false, nil},

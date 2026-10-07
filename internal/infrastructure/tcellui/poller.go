@@ -14,7 +14,7 @@ const eventQueueCapacity = 10
 // events.
 type poller struct {
 	screen     tcell.Screen
-	eventQueue chan input.EventDispatcher
+	eventQueue chan input.Event
 	translator translator
 	// Reads as poller is done, writes as poller is stopping.
 	done chan struct{}
@@ -25,7 +25,7 @@ type poller struct {
 func newPoller(screen tcell.Screen) poller {
 	return poller{
 		screen:     screen,
-		eventQueue: make(chan input.EventDispatcher, eventQueueCapacity),
+		eventQueue: make(chan input.Event, eventQueueCapacity),
 		translator: newTranslator(screen),
 		done:       make(chan struct{}),
 	}
@@ -55,6 +55,6 @@ func (p *poller) stop() {
 }
 
 // events returns the channel of translated input events.
-func (p *poller) events() <-chan input.EventDispatcher {
+func (p *poller) events() <-chan input.Event {
 	return p.eventQueue
 }
