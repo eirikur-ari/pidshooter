@@ -43,10 +43,10 @@ func TestNewError_SetsFields(t *testing.T) {
 	cause := errors.New("disk full")
 
 	// When
-	err := NewError(CodeStoreSaveFailed, SeverityWarning, "score not saved", cause)
+	err := NewError(CodeStoreFailed, SeverityWarning, "score not saved", cause)
 
 	// Then
-	assert.Equal(t, CodeStoreSaveFailed, err.Code)
+	assert.Equal(t, CodeStoreFailed, err.Code)
 	assert.Equal(t, SeverityWarning, err.Severity)
 	assert.Equal(t, "score not saved", err.message)
 	assert.Same(t, cause, err.cause)
@@ -83,7 +83,7 @@ func TestError_Error_FormatsMessageAndCause(t *testing.T) {
 func TestError_Unwrap_ReturnsCause(t *testing.T) {
 	// Given
 	cause := errors.New("disk full")
-	err := NewError(CodeStoreSaveFailed, SeverityWarning, "score not saved", cause)
+	err := NewError(CodeStoreFailed, SeverityWarning, "score not saved", cause)
 
 	// When
 	unwrapped := err.Unwrap()

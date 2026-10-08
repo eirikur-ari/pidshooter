@@ -11,8 +11,7 @@ const (
 	CodeProcessNotFound
 	CodeGameFailed
 	CodeKillFailed
-	CodeStoreLoadFailed
-	CodeStoreSaveFailed
+	CodeStoreFailed
 )
 
 // In reports whether the given error is an Error with this Code. It looks

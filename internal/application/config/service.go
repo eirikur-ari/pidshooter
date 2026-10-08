@@ -61,7 +61,7 @@ func (s *Service) Load() (Result, error) {
 	case errors.As(err, &outbound.NotFoundError{}):
 		return newResult().fromOptions(s.options), nil
 	default:
-		return newResult().fromOptions(s.options), apperror.NewError(apperror.CodeStoreLoadFailed, apperror.SeverityWarning, "config store not loaded", err)
+		return newResult().fromOptions(s.options), apperror.NewError(apperror.CodeStoreFailed, apperror.SeverityWarning, "config store not loaded", err)
 	}
 }
 

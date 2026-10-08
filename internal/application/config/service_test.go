@@ -78,7 +78,7 @@ func TestService_Load_ReturnsWarningAndAppliesOptionsWhenStoreLoadFails(t *testi
 	// Then
 	assert.Equal(t, expected, actual)
 	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeStoreLoadFailed, appErr.Code)
+	assert.Equal(t, apperror.CodeStoreFailed, appErr.Code)
 	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorIs(t, err, cause)
 }
