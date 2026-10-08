@@ -103,3 +103,25 @@ func TestError_Unwrap_ReturnsNilWhenThereIsNoCause(t *testing.T) {
 	// Then
 	assert.Nil(t, unwrapped)
 }
+
+func TestError_severity_ReturnsSeverity(t *testing.T) {
+	// Given
+	err := NewError(CodeInvalidConfig, SeverityFatal, "invalid configuration", nil)
+
+	// When
+	actual := err.severity()
+
+	// Then
+	assert.Equal(t, SeverityFatal, actual)
+}
+
+func TestError_severity_ReturnsUnknownForNilError(t *testing.T) {
+	// Given
+	var err *Error
+
+	// When
+	actual := err.severity()
+
+	// Then
+	assert.Equal(t, SeverityUnknown, actual)
+}

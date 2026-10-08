@@ -4,76 +4,73 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-// --- toInfo ---
+func TestToInfo_MapsEveryField(t *testing.T) {
+	// When
+	actual := toInfo(outbound.ProcessInfo{PID: 42, Name: "suspect", Rss: 1024, UID: 1000})
 
-func TestToInfoMapsFields(t *testing.T) {
-	info := toInfo(outbound.ProcessInfo{PID: 42, Name: "suspect", Rss: 1024, UID: 1000})
-
-	assert.Equal(t, 42, info.PID)
-	assert.Equal(t, "suspect", info.Name)
-	assert.Equal(t, int64(1024), info.Rss)
-	assert.Equal(t, 1000, info.UID)
+	// Then
+	assert.Equal(t, process.NewInfo(42, "suspect", 1024, 1000), actual)
 }
 
-// --- toInfos ---
+func TestToInfos_MapsEveryElementInOrder(t *testing.T) {
+	// Given
+	expected := []process.Info{
+		process.NewInfo(1, "a", 100, 1000),
+		process.NewInfo(2, "b", 200, 2000),
+	}
 
-func TestToInfosMapsAll(t *testing.T) {
-	infos := toInfos([]outbound.ProcessInfo{
-		{PID: 1, Name: "a", Rss: 100},
-		{PID: 2, Name: "b", Rss: 200},
+	// When
+	actual := toInfos([]outbound.ProcessInfo{
+		{PID: 1, Name: "a", Rss: 100, UID: 1000},
+		{PID: 2, Name: "b", Rss: 200, UID: 2000},
 	})
 
-	require.Len(t, infos, 2)
-	assert.Equal(t, 1, infos[0].PID)
-	assert.Equal(t, "a", infos[0].Name)
-	assert.Equal(t, int64(100), infos[0].Rss)
-	assert.Equal(t, 2, infos[1].PID)
-	assert.Equal(t, "b", infos[1].Name)
-	assert.Equal(t, int64(200), infos[1].Rss)
+	// Then
+	assert.Equal(t, expected, actual)
 }
 
-func TestToInfosEmptyInput(t *testing.T) {
-	infos := toInfos(nil)
+func TestToInfos_ReturnsEmptyForNoInfos(t *testing.T) {
+	// When
+	actual := toInfos(nil)
 
-	assert.Empty(t, infos)
+	// Then
+	assert.Empty(t, actual)
 }
 
-// --- toProcessInfo ---
+func TestToProcessInfo_MapsEveryField(t *testing.T) {
+	// When
+	actual := toProcessInfo(process.NewInfo(42, "suspect", 1024, 1000))
 
-func TestToProcessInfoMapsFields(t *testing.T) {
-	info := toProcessInfo(process.NewInfo(42, "suspect", 1024, 1000))
-
-	assert.Equal(t, 42, info.PID)
-	assert.Equal(t, "suspect", info.Name)
-	assert.Equal(t, int64(1024), info.Rss)
-	assert.Equal(t, 1000, info.UID)
+	// Then
+	assert.Equal(t, outbound.ProcessInfo{PID: 42, Name: "suspect", Rss: 1024, UID: 1000}, actual)
 }
 
-// --- toProcessInfos ---
+func TestToProcessInfos_MapsEveryElementInOrder(t *testing.T) {
+	// Given
+	expected := []outbound.ProcessInfo{
+		{PID: 1, Name: "a", Rss: 100, UID: 1000},
+		{PID: 2, Name: "b", Rss: 200, UID: 2000},
+	}
 
-func TestToProcessInfosMapsAll(t *testing.T) {
-	infos := toProcessInfos([]process.Info{
-		process.NewInfo(1, "a", 100, 0),
-		process.NewInfo(2, "b", 200, 0),
+	// When
+	actual := toProcessInfos([]process.Info{
+		process.NewInfo(1, "a", 100, 1000),
+		process.NewInfo(2, "b", 200, 2000),
 	})
 
-	require.Len(t, infos, 2)
-	assert.Equal(t, 1, infos[0].PID)
-	assert.Equal(t, "a", infos[0].Name)
-	assert.Equal(t, int64(100), infos[0].Rss)
-	assert.Equal(t, 2, infos[1].PID)
-	assert.Equal(t, "b", infos[1].Name)
-	assert.Equal(t, int64(200), infos[1].Rss)
+	// Then
+	assert.Equal(t, expected, actual)
 }
 
-func TestToProcessInfosEmptyInput(t *testing.T) {
-	infos := toProcessInfos(nil)
+func TestToProcessInfos_ReturnsEmptyForNoInfos(t *testing.T) {
+	// When
+	actual := toProcessInfos(nil)
 
-	assert.Empty(t, infos)
+	// Then
+	assert.Empty(t, actual)
 }

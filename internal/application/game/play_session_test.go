@@ -68,7 +68,7 @@ func TestPlaySession_drainEventQueue_IgnoresSecondClickOnTargetWithKillInFlight(
 	// Given
 	events := testutil.NewFakeInputEventProvider()
 	killer := &MockProcessKiller{}
-	killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
+	killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	play := newPlaySessionFixture(t, killer, nil, events, game.Config{Speed: 1.0})
 	x, y := play.session.Targets()[0].Motion.Position.Rounded()
 	events.Ch <- input.ClickEvent{X: x, Y: y}
@@ -89,7 +89,7 @@ func TestPlaySession_frameLoop_AppliesKillToTrackerOnceItsAnimationFinishes(t *t
 		// Given
 		events := testutil.NewFakeInputEventProvider()
 		killer := &MockProcessKiller{}
-		killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
+		killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		play := newPlaySessionFixture(t, killer, &testutil.FakeRenderer{}, events, game.Config{Speed: 1.0})
 		x, y := play.session.Targets()[0].Motion.Position.Rounded()
 		events.Ch <- input.ClickEvent{X: x, Y: y}
@@ -111,7 +111,7 @@ func TestPlaySession_frameLoop_WaitsForKillInFlightWhenSessionStops(t *testing.T
 		const killDelay = 300 * time.Millisecond
 		events := testutil.NewFakeInputEventProvider()
 		killer := &MockProcessKiller{}
-		killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(false, nil).After(killDelay)
+		killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(nil).After(killDelay)
 		play := newPlaySessionFixture(t, killer, &testutil.FakeRenderer{}, events, game.Config{Speed: 1.0})
 		x, y := play.session.Targets()[0].Motion.Position.Rounded()
 		events.Ch <- input.ClickEvent{X: x, Y: y}

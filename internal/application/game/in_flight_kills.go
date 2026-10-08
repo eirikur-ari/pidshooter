@@ -7,17 +7,11 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 )
 
-// processKiller kills the process behind a target. shouldReap is true when
-// that process was already gone, so the target should be reaped instead.
+// processKiller kills the process behind a target. Kill returns an error with
+// code apperror.CodeProcessNotFound if and only if that process was already gone,
+// so the target should be reaped instead.
 type processKiller interface {
-	Kill(pid int, name string, protected bool) (shouldReap bool, err error)
-}
-
-// killResult is the result of one kill attempt on a target.
-type killResult struct {
-	target     *game.Target
-	shouldReap bool
-	err        error // non-nil when the kill failed and the target must stay alive
+	Kill(pid int, name string, protected bool) error
 }
 
 // inFlightKills runs kills in the background and applies their results to a tracker.
@@ -51,15 +45,7 @@ func (k *inFlightKills) start(target *game.Target) {
 
 // killOrReap kills target and reports the result, unless the kills have been closed first.
 func (k *inFlightKills) killOrReap(target *game.Target) {
-	shouldReap, err := k.killer.Kill(target.Info.PID, target.Info.Name, target.Info.IsProtected())
-
-	result := killResult{target: target}
-	switch {
-	case shouldReap:
-		result.shouldReap = true
-	case err != nil:
-		result.err = err
-	}
+	result := killResult{target: target, err: k.killer.Kill(target.Info.PID, target.Info.Name, target.Info.IsProtected())}
 
 	select {
 	case k.results <- result:
@@ -107,23 +93,6 @@ func (k *inFlightKills) applyFinished() {
 			result.applyTo(k.tracker)
 		default:
 			return
-		}
-	}
-}
-
-// applyTo applies the result to its target and the tracker.
-func (r killResult) applyTo(tracker *killTracker) {
-	r.target.CeaseFire()
-	switch {
-	case r.err != nil:
-		tracker.recordFailure(r.target, r.err)
-	case r.shouldReap:
-		if r.target.Reap() {
-			tracker.recordDud(r.target)
-		}
-	default:
-		if r.target.Kill() {
-			tracker.recordKill(r.target.Info.Rss)
 		}
 	}
 }

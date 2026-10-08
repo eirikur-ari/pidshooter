@@ -9,34 +9,31 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-// Service discovers and terminates OS processes.
+// Service discovers and kills processes.
 type Service struct {
 	manager  outbound.ProcessManager
 	reporter outbound.ProcessReporter
 	patterns []string
 }
 
-// NewService constructs a Service with all required outbound ports injected, to discover processes matching patterns.
+// NewService returns a Service that finds processes matching patterns.
 func NewService(manager outbound.ProcessManager, reporter outbound.ProcessReporter, patterns []string) *Service {
 	return &Service{manager: manager, reporter: reporter, patterns: patterns}
 }
 
-// FindRequest carries the root-handling parameters for a single
-// FindProcesses call.
+// FindRequest holds the root-handling options for finding processes.
 type FindRequest struct {
-	// IncludeRoot additionally permits root-owned processes as matches,
-	// regardless of the caller's own effective UID.
+	// IncludeRoot is true to also match processes owned by root.
 	IncludeRoot bool
-	// AllowRoot permits running pidshooter itself as root; never populated
-	// from the persisted config file.
+	// AllowRoot is true to permit running as root.
 	AllowRoot bool
 }
 
-// FindProcesses discovers running processes matching the patterns s was
-// constructed with, refusing when the caller is root and req.AllowRoot is
-// false.
-func (s *Service) FindProcesses(req FindRequest) ([]process.Info, error) {
-	if err := process.ValidateRoot(s.manager.OwnUID(), req.AllowRoot); err != nil {
+// FindProcesses returns the processes matching the Service's patterns and reports them.
+// It returns an error if running as root without request.AllowRoot, if the patterns are invalid,
+// if process discovery fails, or if no process matches.
+func (s *Service) FindProcesses(request FindRequest) ([]process.Info, error) {
+	if err := process.ValidateRoot(s.manager.OwnUID(), request.AllowRoot); err != nil {
 		return nil, apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "", err)
 	}
 	if err := process.ValidatePatterns(s.patterns); err != nil {
@@ -45,10 +42,10 @@ func (s *Service) FindProcesses(req FindRequest) ([]process.Info, error) {
 
 	processes, err := s.manager.Discover()
 	if err != nil {
-		return nil, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityFatal, "process discovery failed", err)
+		return nil, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "process discovery failed", err)
 	}
 
-	matches := process.Find(toInfos(processes), s.patterns, s.manager.OwnPID(), s.manager.OwnUID(), req.IncludeRoot)
+	matches := process.Find(toInfos(processes), s.patterns, s.manager.OwnPID(), s.manager.OwnUID(), request.IncludeRoot)
 	if err := process.ValidateProcesses(matches); err != nil {
 		return nil, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "", err)
 	}
@@ -58,38 +55,39 @@ func (s *Service) FindProcesses(req FindRequest) ([]process.Info, error) {
 	return matches, nil
 }
 
-// Kill pins pid, re-verifies its name, then kills it through that same
-// pinned reference — so a PID recycled by the OS to a different process
-// between verification and kill cannot be silently signaled in the
-// original's place. shouldReap reports whether the caller should treat the
-// process as already gone rather than as a failed kill.
-func (s *Service) Kill(pid int, procName string, protected bool) (shouldReap bool, err error) {
+// Kill kills the process with the given pid if it is still named name.
+// It returns an error if protected is true or if the process cannot be verified or killed.
+// The error has code apperror.CodeProcessNotFound if and only if the process is gone or no longer has that name.
+func (s *Service) Kill(pid int, name string, protected bool) error {
 	if protected {
-		return false, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("refusing to kill PID %d", pid), nil)
+		return apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, fmt.Sprintf("refusing to kill PID %d", pid), nil)
 	}
 	handle, err := s.manager.Pin(pid)
+	if errors.As(err, &outbound.NotFoundError{}) {
+		return apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, fmt.Sprintf("PID %d already exited", pid), err)
+	}
 	if err != nil {
-		return true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not pin PID %d", pid), err)
+		return apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, fmt.Sprintf("could not pin PID %d", pid), err)
 	}
 	defer func() { _ = handle.Release() }()
 
 	currentName, err := s.manager.LookupName(pid)
 	if err != nil {
 		if errors.As(err, &outbound.NotFoundError{}) {
-			return true, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, fmt.Sprintf("PID %d already exited", pid), err)
+			return apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, fmt.Sprintf("PID %d already exited", pid), err)
 		}
-		return false, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, fmt.Sprintf("could not verify PID %d", pid), err)
+		return apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, fmt.Sprintf("could not verify PID %d", pid), err)
 	}
-	if err := process.ValidateName(procName, currentName); err != nil {
-		return true, apperror.NewError(apperror.CodeProcessDiscoveryFailed, apperror.SeverityWarning, "", err)
+	if err := process.ValidateName(name, currentName); err != nil {
+		return apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, fmt.Sprintf("PID %d now belongs to another process", pid), err)
 	}
 
 	err = handle.Kill()
 	if errors.As(err, &outbound.NotFoundError{}) {
-		return true, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, fmt.Sprintf("PID %d already exited", pid), err)
+		return apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, fmt.Sprintf("PID %d already exited", pid), err)
 	}
 	if err != nil {
-		return false, apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, fmt.Sprintf("failed to kill PID %d", pid), err)
+		return apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, fmt.Sprintf("failed to kill PID %d", pid), err)
 	}
-	return false, nil
+	return nil
 }

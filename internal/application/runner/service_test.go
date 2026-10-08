@@ -70,7 +70,7 @@ func TestServiceRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
 
 	var appErr *apperror.Error
 	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeProcessDiscoveryFailed, appErr.Code)
+	assert.Equal(t, apperror.CodeProcessNotFound, appErr.Code)
 	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
 }
 

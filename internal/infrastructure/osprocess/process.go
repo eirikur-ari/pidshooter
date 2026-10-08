@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
@@ -73,7 +74,7 @@ func (p *process) LookupName(pid int) (string, error) {
 }
 
 // Pin returns a ProcessHandle bound to pid, so the eventual Kill targets the
-// process pinned here.
+// process pinned here. A pid with no process is reported as NotFoundError.
 func (p *process) Pin(pid int) (outbound.ProcessHandle, error) {
 	// On Linux 5.3+, os.FindProcess opens a pidfd for pid, which the kernel
 	// guarantees stays bound to that exact process for the handle's lifetime,
@@ -85,6 +86,12 @@ func (p *process) Pin(pid int) (outbound.ProcessHandle, error) {
 	proc, err := os.FindProcess(pid)
 	if err != nil {
 		return nil, err
+	}
+	// FindProcess succeeds for a pid with no process, so signal 0, which only
+	// checks existence, tells whether there is anything to pin.
+	if err := proc.Signal(syscall.Signal(0)); errors.Is(err, os.ErrProcessDone) {
+		_ = proc.Release()
+		return nil, outbound.NotFoundError{}
 	}
 	return &processHandle{proc: proc}, nil
 }

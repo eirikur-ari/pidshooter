@@ -8,7 +8,6 @@ type Code int
 const (
 	CodeUnknown Code = iota
 	CodeInvalidConfig
-	CodeProcessDiscoveryFailed
 	CodeProcessNotFound
 	CodeGameFailed
 	CodeKillFailed

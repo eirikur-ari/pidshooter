@@ -35,6 +35,7 @@ type ProcessManager interface {
 	LookupName(pid int) (string, error)
 	// Pin returns a ProcessHandle to the process with the given pid, bound
 	// to that process's identity at the time of the call.
+	// If the process does not exist, Pin returns a NotFoundError.
 	Pin(pid int) (ProcessHandle, error)
 }
 

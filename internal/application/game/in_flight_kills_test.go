@@ -1,7 +1,6 @@
 package game
 
 import (
-	"errors"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -9,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 )
 
@@ -19,7 +19,7 @@ func TestInFlightKills_start_ReportsKillerResultToTracker(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			killer := &MockProcessKiller{}
-			killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(test.shouldReap, test.err)
+			killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(test.err)
 			tracker := newKillTracker(0)
 			kills := newInFlightKills(killer, defaultKillGracePeriod, tracker)
 
@@ -42,7 +42,7 @@ func TestInFlightKills_start_PassesTargetDetailsToKiller(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			killer := &MockProcessKiller{}
-			killer.On("Kill", test.expected.pid, test.expected.name, test.expected.protected).Return(false, nil)
+			killer.On("Kill", test.expected.pid, test.expected.name, test.expected.protected).Return(nil)
 			kills := newInFlightKills(killer, defaultKillGracePeriod, newKillTracker(0))
 
 			// When
@@ -59,7 +59,7 @@ func TestInFlightKills_applyFinished_AppliesFinishedKills(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		// Given
 		killer := &MockProcessKiller{}
-		killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
+		killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		tracker := newKillTracker(0)
 		kills := newInFlightKills(killer, defaultKillGracePeriod, tracker)
 		kills.start(newTargetFixture())
@@ -77,7 +77,7 @@ func TestInFlightKills_applyFinished_ReturnsWithoutBlockingWhenNothingHasFinishe
 	synctest.Test(t, func(t *testing.T) {
 		// Given
 		killer := &MockProcessKiller{}
-		killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(false, nil).After(time.Hour)
+		killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(nil).After(time.Hour)
 		tracker := newKillTracker(0)
 		kills := newInFlightKills(killer, defaultKillGracePeriod, tracker)
 		kills.start(newTargetFixture())
@@ -97,7 +97,7 @@ func TestInFlightKills_awaitRemaining_WaitsForSlowKill(t *testing.T) {
 		// Given
 		const killDelay = 300 * time.Millisecond
 		killer := &MockProcessKiller{}
-		killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(false, nil).After(killDelay)
+		killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(nil).After(killDelay)
 		tracker := newKillTracker(0)
 		kills := newInFlightKills(killer, time.Second, tracker)
 		kills.start(newTargetFixture())
@@ -117,7 +117,7 @@ func TestInFlightKills_awaitRemaining_GivesUpOnceGracePeriodElapses(t *testing.T
 		// Given
 		const gracePeriod = 20 * time.Millisecond
 		killer := &MockProcessKiller{}
-		killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(false, nil).After(time.Hour)
+		killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(nil).After(time.Hour)
 		tracker := newKillTracker(0)
 		kills := newInFlightKills(killer, gracePeriod, tracker)
 		kills.start(newTargetFixture())
@@ -137,7 +137,7 @@ func TestInFlightKills_close_ReleasesKillsWaitingToReportTheirResult(t *testing.
 	synctest.Test(t, func(t *testing.T) {
 		// Given
 		killer := &MockProcessKiller{}
-		killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(false, nil)
+		killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		kills := newInFlightKills(killer, defaultKillGracePeriod, newKillTracker(0))
 		target := newTargetFixture()
 		kickedOff := cap(kills.results) + 1
@@ -155,93 +155,21 @@ func TestInFlightKills_close_ReleasesKillsWaitingToReportTheirResult(t *testing.
 	})
 }
 
-func TestKillResult_applyTo_KillsTargetWhoseKillSucceeded(t *testing.T) {
-	// Given
-	target := newTargetFixture()
-	tracker := newKillTracker(0)
-
-	// When
-	killResult{target: target}.applyTo(tracker)
-
-	// Then
-	assert.Equal(t, game.Killing, target.State)
-	assert.Equal(t, 1, tracker.score.kills)
-	assert.Equal(t, int64(4096), tracker.score.freedMem)
-}
-
-func TestKillResult_applyTo_ReapsTargetWhoseProcessWasAlreadyGone(t *testing.T) {
-	// Given
-	target := newTargetFixture()
-	tracker := newKillTracker(0)
-
-	// When
-	killResult{target: target, shouldReap: true}.applyTo(tracker)
-
-	// Then
-	assert.Equal(t, game.Fleeing, target.State)
-	assert.Equal(t, 0, tracker.score.kills)
-	assert.Equal(t, []KillDud{{Name: "target", PID: 100}}, tracker.duds)
-}
-
-func TestKillResult_applyTo_IgnoresReapOfTargetThatIsNotAlive(t *testing.T) {
-	// Given
-	target := newTargetFixture()
-	target.Kill()
-	tracker := newKillTracker(0)
-
-	// When
-	killResult{target: target, shouldReap: true}.applyTo(tracker)
-
-	// Then
-	assert.Equal(t, game.Killing, target.State)
-	assert.Empty(t, tracker.duds)
-}
-
-func TestKillResult_applyTo_RecordsFailureAndLeavesTargetAlive(t *testing.T) {
-	// Given
-	target := newTargetFixture()
-	cause := errors.New("operation not permitted")
-	tracker := newKillTracker(0)
-
-	// When
-	killResult{target: target, err: cause}.applyTo(tracker)
-
-	// Then
-	assert.Equal(t, game.Alive, target.State)
-	assert.Equal(t, 0, tracker.score.kills)
-	assert.Equal(t, []KillFailure{{Name: "target", PID: 100, Err: cause}}, tracker.failure.failures)
-}
-
-func TestKillResult_applyTo_RecordsRepeatedFailuresOfSamePIDOnce(t *testing.T) {
-	// Given
-	target := newTargetFixture()
-	tracker := newKillTracker(0)
-
-	// When
-	killResult{target: target, err: errors.New("operation not permitted")}.applyTo(tracker)
-	killResult{target: target, err: errors.New("operation not permitted")}.applyTo(tracker)
-
-	// Then
-	assert.Len(t, tracker.failure.failures, 1)
-}
-
 func newKillerResultTestCase() []struct {
-	name       string
-	shouldReap bool
-	err        error
-	expected   struct{ kills, duds, failures int }
+	name     string
+	err      error
+	expected struct{ kills, duds, failures int }
 } {
 	type counts = struct{ kills, duds, failures int }
 
 	return []struct {
-		name       string
-		shouldReap bool
-		err        error
-		expected   counts
+		name     string
+		err      error
+		expected counts
 	}{
-		{"kill succeeded", false, nil, counts{kills: 1}},
-		{"kill failed", false, errors.New("refusing to kill PID 100"), counts{failures: 1}},
-		{"process already gone drops the verification error", true, errors.New("could not verify PID 100: process not found"), counts{duds: 1}},
+		{"kill succeeded", nil, counts{kills: 1}},
+		{"kill failed", apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, "refusing to kill PID 100", nil), counts{failures: 1}},
+		{"process already gone drops the not found error", apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, "PID 100 already exited", nil), counts{duds: 1}},
 	}
 }
 
