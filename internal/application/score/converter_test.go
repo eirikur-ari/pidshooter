@@ -2,7 +2,6 @@ package score
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -131,23 +130,15 @@ func newToEntriesTestCase() []struct {
 	entries  []BoardEntry
 	expected []score.Entry
 } {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-
 	return []struct {
 		name     string
 		entries  []BoardEntry
 		expected []score.Entry
 	}{
 		{
-			name: "several entries",
-			entries: []BoardEntry{
-				{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-				{Kills: 3, Duds: 2},
-			},
-			expected: []score.Entry{
-				{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-				{Kills: 3, Duds: 2},
-			},
+			name:     "several entries",
+			entries:  []BoardEntry{newBoardEntryFixture(), {Kills: 3, Duds: 2}},
+			expected: []score.Entry{newEntryFixture(), {Kills: 3, Duds: 2}},
 		},
 		{name: "no entries", entries: nil, expected: []score.Entry{}},
 	}
@@ -158,23 +149,15 @@ func newToBoardEntriesTestCase() []struct {
 	entries  []score.Entry
 	expected []BoardEntry
 } {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-
 	return []struct {
 		name     string
 		entries  []score.Entry
 		expected []BoardEntry
 	}{
 		{
-			name: "several entries",
-			entries: []score.Entry{
-				{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-				{Kills: 3, Duds: 2},
-			},
-			expected: []BoardEntry{
-				{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-				{Kills: 3, Duds: 2},
-			},
+			name:     "several entries",
+			entries:  []score.Entry{newEntryFixture(), {Kills: 3, Duds: 2}},
+			expected: []BoardEntry{newBoardEntryFixture(), {Kills: 3, Duds: 2}},
 		},
 		{name: "no entries", entries: nil, expected: []BoardEntry{}},
 	}
@@ -186,8 +169,6 @@ func newToBoardTestCase() []struct {
 	expectedScores    []score.Entry
 	expectedHighScore int
 } {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-
 	return []struct {
 		name              string
 		board             outbound.ScoreBoard
@@ -195,11 +176,9 @@ func newToBoardTestCase() []struct {
 		expectedHighScore int
 	}{
 		{
-			name: "stored scores",
-			board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
-				{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-			}},
-			expectedScores:    []score.Entry{{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}},
+			name:              "stored scores",
+			board:             outbound.ScoreBoard{Scores: []outbound.ScoreEntry{newScoreEntryFixture()}},
+			expectedScores:    []score.Entry{newEntryFixture()},
 			expectedHighScore: 5,
 		},
 		{name: "no stored scores", board: outbound.ScoreBoard{}},
@@ -211,8 +190,6 @@ func newToLoadResultTestCase() []struct {
 	board    outbound.ScoreBoard
 	expected LoadResult
 } {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-
 	return []struct {
 		name     string
 		board    outbound.ScoreBoard
@@ -221,14 +198,11 @@ func newToLoadResultTestCase() []struct {
 		{
 			name: "stored scores",
 			board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
-				{Kills: 3, Duds: 2, Date: date},
-				{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
+				{Kills: 3, Duds: 2, Date: dateFixture()},
+				newScoreEntryFixture(),
 			}},
 			expected: LoadResult{
-				Entries: []BoardEntry{
-					{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-					{Kills: 3, Duds: 2, Date: date},
-				},
+				Entries:   []BoardEntry{newBoardEntryFixture(), {Kills: 3, Duds: 2, Date: dateFixture()}},
 				HighScore: 5,
 			},
 		},
@@ -242,10 +216,6 @@ func newToRecordResultTestCase() []struct {
 	kills    int
 	expected RecordResult
 } {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	best := score.Entry{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}
-	expectedBest := BoardEntry{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}
-
 	return []struct {
 		name     string
 		board    *score.Board
@@ -254,15 +224,15 @@ func newToRecordResultTestCase() []struct {
 	}{
 		{
 			name:     "kills beat the best entry",
-			board:    score.NewBoard([]score.Entry{best}),
+			board:    score.NewBoard([]score.Entry{newEntryFixture()}),
 			kills:    6,
-			expected: RecordResult{Entries: []BoardEntry{expectedBest}, NewHighScore: true},
+			expected: RecordResult{Entries: []BoardEntry{newBoardEntryFixture()}, NewHighScore: true},
 		},
 		{
 			name:     "kills do not beat the best entry",
-			board:    score.NewBoard([]score.Entry{best}),
+			board:    score.NewBoard([]score.Entry{newEntryFixture()}),
 			kills:    5,
-			expected: RecordResult{Entries: []BoardEntry{expectedBest}},
+			expected: RecordResult{Entries: []BoardEntry{newBoardEntryFixture()}},
 		},
 		{
 			name:     "empty board",
@@ -278,21 +248,15 @@ func newToScoreBoardTestCase() []struct {
 	entries  []BoardEntry
 	expected outbound.ScoreBoard
 } {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-
 	return []struct {
 		name     string
 		entries  []BoardEntry
 		expected outbound.ScoreBoard
 	}{
 		{
-			name: "entries",
-			entries: []BoardEntry{
-				{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-			},
-			expected: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
-				{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-			}},
+			name:     "entries",
+			entries:  []BoardEntry{newBoardEntryFixture()},
+			expected: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{newScoreEntryFixture()}},
 		},
 		{name: "no entries", entries: nil, expected: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{}}},
 	}
@@ -303,9 +267,8 @@ func newToScoreSummaryTestCase() []struct {
 	request  ReportRequest
 	expected outbound.ScoreSummary
 } {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	entries := []BoardEntry{{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}}
-	expectedEntries := []outbound.ScoreEntry{{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}}
+	entries := []BoardEntry{newBoardEntryFixture()}
+	expectedEntries := []outbound.ScoreEntry{newScoreEntryFixture()}
 
 	return []struct {
 		name     string
