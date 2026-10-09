@@ -1,95 +1,160 @@
 package runner
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
-	"github.com/eirikur-ari/pidshooter/internal/core/movement"
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
-func TestServiceRunReturnsErrorWhenRunningAsRootWithoutOverride(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0)}}
-	r := newTestServiceWithProcess(&testutil.FakeProcessManager{OwnUIDValue: 0}, []string{"proc"}, opts)
+func TestService_Run_ReturnsFatalErrorAndStopsAtFailingStage(t *testing.T) {
+	tests := newFailingStageTestCases()
 
-	err := r.Run()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			fixture := newRunFixture()
+			fatal := newFatalError(test.name)
+			fixture.expectRunFailingAt(test.failingStage, fatal)
 
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeInvalidConfig, appErr.Code)
-	assert.ErrorContains(t, err, "refusing to run as root")
-}
+			// When
+			err := fixture.service.Run()
 
-func TestServiceRunReturnsErrorWhenSpeedTooLow(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(movement.MinSpeed - 0.1)}}
-	err := newTestService([]string{"proc"}, opts).Run()
-	assertFatal(t, err)
-}
-
-func TestServiceRunReturnsErrorWhenSpeedTooHigh(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(movement.MaxSpeed + 0.1)}}
-	err := newTestService([]string{"proc"}, opts).Run()
-	assertFatal(t, err)
-}
-
-func TestServiceRunReturnsErrorWhenTimeLimitIsNegative(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0), TimeLimit: testutil.Pointer(-1)}}
-	err := newTestService([]string{"proc"}, opts).Run()
-	assertFatal(t, err)
-}
-
-func TestServiceRunReturnsErrorWhenNoPatternsAreProvided(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0)}}
-	err := newTestService(nil, opts).Run()
-	assertFatal(t, err)
-	assert.ErrorContains(t, err, "at least one search pattern is required")
-}
-
-func TestServiceRunReturnsErrorWhenPatternTooShort(t *testing.T) {
-	for _, p := range []string{"a", "ab"} {
-		opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0)}}
-		err := newTestService([]string{p}, opts).Run()
-		assertFatal(t, err)
+			// Then
+			assert.ErrorIs(t, err, fatal)
+			assert.Equal(t, []string{test.name}, fixture.logger.Errored)
+		})
 	}
 }
 
-func TestServiceRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: testutil.Pointer(2.0)}}
-	r := newTestServiceWithProcess(&testutil.FakeProcessManager{DiscoverErr: errors.New("ps failed"), OwnUIDValue: 1000}, []string{"proc"}, opts)
+func TestService_Run_ContinuesAfterNonFatalConfigLoadError(t *testing.T) {
+	// Given
+	fixture := newRunFixture()
+	loadErr := newWarning("config store not loaded")
+	fixture.config.On("Load").Return(fixture.configResult, loadErr)
+	fixture.expectSessionAfterConfig(game.PlayResult{})
 
-	err := r.Run()
+	// When
+	err := fixture.service.Run()
 
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeProcessNotFound, appErr.Code)
-	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
+	// Then
+	require.NoError(t, err)
+	assert.Equal(t, []string{"config store not loaded"}, fixture.logger.Warned)
+	fixture.game.AssertCalled(t, "Play", mock.Anything)
 }
 
-func newTestService(patterns []string, opts config.Options) *Service {
-	return newTestServiceWithProcess(&testutil.FakeProcessManager{OwnUIDValue: 1000}, patterns, opts)
+func TestService_Run_ContinuesAfterNonFatalRecordScoreError(t *testing.T) {
+	// Given
+	fixture := newRunFixture()
+	recordErr := newWarning("score board not saved")
+	fixture.config.On("Load").Return(fixture.configResult, nil)
+	fixture.processes.On("FindProcesses", mock.Anything).Return(fixture.found, nil)
+	fixture.scores.On("LoadScoreBoard").Return(fixture.board, nil)
+	fixture.game.On("Play", mock.Anything).Return(game.PlayResult{}, nil)
+	fixture.scores.On("RecordScore", mock.Anything, mock.Anything).Return(score.RecordResult{}, recordErr)
+	fixture.scores.On("ReportResults", mock.Anything).Return()
+
+	// When
+	err := fixture.service.Run()
+
+	// Then
+	require.NoError(t, err)
+	assert.Equal(t, []string{"score board not saved"}, fixture.logger.Warned)
+	fixture.scores.AssertCalled(t, "ReportResults", mock.Anything)
 }
 
-func newTestServiceWithProcess(proc *testutil.FakeProcessManager, patterns []string, opts config.Options) *Service {
-	configSvc := config.NewService(&testutil.FakeConfigStore{LoadErr: outbound.NotFoundError{}}, opts)
-	processSvc := process.NewService(proc, &testutil.FakeProcessReporter{}, patterns)
-	scoreSvc := score.NewService(&testutil.FakeStore{}, &testutil.FakeScoreReporter{})
-	gameSvc := game.NewService(processSvc, &testutil.FakeRenderer{}, testutil.NewFakeInputEventProvider())
-	errHandler := apperror.NewHandler(&testutil.FakeLogger{})
-	return NewService(configSvc, processSvc, scoreSvc, gameSvc, errHandler)
+func TestService_Run_PassesEachStepsResultToTheNext(t *testing.T) {
+	// Given
+	fixture := newRunFixture()
+	fixture.configResult = config.Result{
+		Process: config.ProcessResult{IncludeRoot: true},
+		Game:    config.GameResult{ConfirmMode: true, Speed: 3.5, TimeLimit: 45},
+	}
+	board := score.LoadResult{Entries: []score.BoardEntry{{Kills: 4}}, HighScore: 4}
+	result := game.PlayResult{Duration: 12.5, LowestSpeed: 2.5, Kills: 3, Duds: 1, FreedMem: 8192}
+	recorded := score.RecordResult{Entries: []score.BoardEntry{{Kills: 4}, {Kills: 3}}, NewHighScore: true}
+	fixture.config.On("Load").Return(fixture.configResult, nil)
+	fixture.processes.On("FindProcesses", process.FindRequest{IncludeRoot: true}).Return(fixture.found, nil)
+	fixture.scores.On("LoadScoreBoard").Return(board, nil)
+	fixture.game.On("Play", game.PlayRequest{
+		ConfirmMode: true, Speed: 3.5, TimeLimit: 45,
+		Processes: []game.ProcessRequest{{PID: 200, Name: "target", Rss: 1024, UID: 1000}},
+		HighScore: 4,
+	}).Return(result, nil)
+	fixture.scores.On("RecordScore", score.RecordRequest{
+		Entries: board.Entries, Kills: 3, Duds: 1, FreedMem: 8192, LowestSpeed: 2.5, TimeLimit: 45, Duration: 12.5,
+	}, nil).Return(recorded, nil)
+	fixture.scores.On("ReportResults", score.ReportRequest{
+		Duration: 12.5, Kills: 3, Duds: 1, FreedMem: 8192, Entries: recorded.Entries, NewHighScore: true,
+	}).Return()
+
+	// When
+	err := fixture.service.Run()
+
+	// Then
+	require.NoError(t, err)
+	fixture.config.AssertExpectations(t)
+	fixture.processes.AssertExpectations(t)
+	fixture.scores.AssertExpectations(t)
+	fixture.game.AssertExpectations(t)
 }
 
-func assertFatal(t *testing.T, err error) {
-	t.Helper()
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
+func TestService_Run_PassesScoreBoardLoadErrorToRecordScore(t *testing.T) {
+	// Given
+	fixture := newRunFixture()
+	loadErr := newWarning("score board not loaded")
+	fixture.config.On("Load").Return(fixture.configResult, nil)
+	fixture.processes.On("FindProcesses", mock.Anything).Return(fixture.found, nil)
+	fixture.scores.On("LoadScoreBoard").Return(fixture.board, loadErr)
+	fixture.game.On("Play", mock.Anything).Return(game.PlayResult{}, nil)
+	fixture.scores.On("RecordScore", mock.Anything, loadErr).Return(score.RecordResult{}, nil)
+	fixture.scores.On("ReportResults", mock.Anything).Return()
+
+	// When
+	err := fixture.service.Run()
+
+	// Then
+	require.NoError(t, err)
+	assert.Equal(t, []string{"score board not loaded"}, fixture.logger.Warned)
+	fixture.scores.AssertExpectations(t)
+}
+
+func TestService_Run_HandlesEachPlayErrorWithoutFailing(t *testing.T) {
+	// Given
+	fixture := newRunFixture()
+	fixture.config.On("Load").Return(fixture.configResult, nil)
+	fixture.expectSessionAfterConfig(game.PlayResult{
+		Errors: []error{newWarning("could not kill stubborn (PID 200)"), newWarning("gone (PID 300) ran away")},
+	})
+
+	// When
+	err := fixture.service.Run()
+
+	// Then
+	require.NoError(t, err)
+	assert.Equal(t, []string{"could not kill stubborn (PID 200)", "gone (PID 300) ran away"}, fixture.logger.Warned)
+	assert.Empty(t, fixture.logger.Errored)
+}
+
+func newFailingStageTestCases() []struct {
+	name         string
+	failingStage stage
+} {
+	return []struct {
+		name         string
+		failingStage stage
+	}{
+		{"config load", stageConfigLoad},
+		{"process search", stageProcessSearch},
+		{"score board load", stageScoreBoardLoad},
+		{"game play", stageGamePlay},
+		{"game play result", stageGamePlayResult},
+		{"score recording", stageScoreRecording},
+	}
 }

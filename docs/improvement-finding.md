@@ -41,3 +41,13 @@ Waiting for in-flight kills before returning the error would not help on its own
 Touches `application/game/service.go` (`Play`), `application/game/play_session.go` (`run`, `frameLoop`, `result`) and `application/runner/service.go`.
 
 **Deferred to:** whenever aborted-session handling is designed; today the only abort path is an input source that died unexpectedly.
+
+---
+
+### 5. The process killing chain may be wired the wrong way around
+
+`composition.RunnerCreator.Create` builds `osprocess.NewProcess()` (returned as `outbound.ProcessManager`), wraps it in `process.Service`, and passes that same `processSvc` into `game.NewService` as its `processKiller`. The game's kill path therefore goes through a service that also owns process discovery, and `runner.Service` holds the same `*process.Service` for `FindProcesses`. The current shape has an argument in its favor: `ProcessManager` has no `Kill`, so `process.Service.Kill` is real orchestration (pin, verify, kill, translate errors) rather than a pass-through, and `processKiller` is a narrow interface defined by the game. Even so, the chain looks wrong, but what exactly is wrong has not been pinned down yet.
+
+To analyze before any redesign: who should own pin/verify/kill, whether discovery and killing belong in one service, whether the game should depend on an application service at all, and whether any alternative is actually better than the current wiring. This should be settled before adding consumer-side interfaces around `process.Service` in `runner`, since those would move with it.
+
+**Deferred to:** an analysis of whether a change makes sense; no redesign is decided.

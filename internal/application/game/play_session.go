@@ -75,12 +75,12 @@ func (p *playSession) run() (time.Time, error) {
 // result returns the outcome of the session, given the time its frame loop ended.
 func (p *playSession) result(endTime time.Time) PlayResult {
 	return PlayResult{
-		Duration:     endTime.Sub(p.session.StartTime()).Seconds(),
-		LowestSpeed:  p.session.Throttle().LowestSpeed(),
-		Kills:        p.tracker.kills(),
-		FreedMem:     p.tracker.freedMem(),
-		KillFailures: p.tracker.failures(),
-		Duds:         p.tracker.duds,
+		Duration:    endTime.Sub(p.session.StartTime()).Seconds(),
+		LowestSpeed: p.session.Throttle().LowestSpeed(),
+		Kills:       p.tracker.kills(),
+		FreedMem:    p.tracker.freedMem(),
+		Duds:        len(p.tracker.duds),
+		Errors:      p.tracker.errors(),
 	}
 }
 

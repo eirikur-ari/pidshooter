@@ -41,6 +41,20 @@ func (h *Handler) Handle(err error) error {
 	return nil
 }
 
+// HandleAll handles each of the given errors as Handle does, and returns the
+// first one the caller must still treat as a failure, or nil if there is none.
+// Every error is handled, even after one that is returned.
+func (h *Handler) HandleAll(errs []error) error {
+	var first error
+	for _, err := range errs {
+		if failure := h.Handle(err); failure != nil && first == nil {
+			first = failure
+		}
+	}
+
+	return first
+}
+
 // logOnce logs the error at the level its severity calls for, and marks the
 // Error, if any, as logged.
 func (h *Handler) logOnce(err error, severity Severity, appErr *Error) {

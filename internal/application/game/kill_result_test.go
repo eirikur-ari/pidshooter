@@ -36,7 +36,7 @@ func TestKillResult_applyTo_ReapsTargetWhoseProcessWasAlreadyGone(t *testing.T) 
 	// Then
 	assert.Equal(t, game.Fleeing, target.State)
 	assert.Equal(t, 0, tracker.score.kills)
-	assert.Equal(t, []KillDud{{Name: "target", PID: 100}}, tracker.duds)
+	assert.Equal(t, []killDud{{Name: "target", PID: 100}}, tracker.duds)
 }
 
 func TestKillResult_applyTo_IgnoresReapOfTargetThatIsNotAlive(t *testing.T) {
@@ -66,7 +66,7 @@ func TestKillResult_applyTo_RecordsFailureAndLeavesTargetAlive(t *testing.T) {
 	// Then
 	assert.Equal(t, game.Alive, target.State)
 	assert.Equal(t, 0, tracker.score.kills)
-	assert.Equal(t, []KillFailure{{Name: "target", PID: 100, Err: cause}}, tracker.failure.failures)
+	assert.Equal(t, []killFailure{{Name: "target", PID: 100, Err: cause}}, tracker.failure.failures)
 }
 
 func TestKillResult_applyTo_RecordsRepeatedFailuresOfSamePIDOnce(t *testing.T) {

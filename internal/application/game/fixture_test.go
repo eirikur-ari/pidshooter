@@ -30,6 +30,10 @@ func newInfoFixture() process.Info {
 	return process.NewInfo(100, "target", 4096, 0)
 }
 
+func newProcessRequestFixture() ProcessRequest {
+	return ProcessRequest{PID: 100, Name: "target", Rss: 4096}
+}
+
 func newTargetFixture() *game.Target {
 	return game.NewTarget(newInfoFixture(), newBoundsFixture())
 }

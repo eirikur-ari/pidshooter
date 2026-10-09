@@ -91,6 +91,60 @@ func TestHandler_Handle_LogsAnErrorOnlyOnce(t *testing.T) {
 	}
 }
 
+func TestHandler_HandleAll_ReturnsFirstErrorTheCallerMustTreatAsFailure(t *testing.T) {
+	// Given
+	firstFatal := newErrorFixtureFor(SeverityFatal)
+	handler := NewHandler(&testutil.FakeLogger{})
+
+	// When
+	err := handler.HandleAll([]error{
+		newErrorFixtureFor(SeverityWarning),
+		firstFatal,
+		newErrorFixtureFor(SeverityFatal),
+	})
+
+	// Then
+	assert.Same(t, firstFatal, err)
+}
+
+func TestHandler_HandleAll_ReturnsNilWhenEveryErrorIsAbsorbed(t *testing.T) {
+	tests := []struct {
+		name string
+		errs []error
+	}{
+		{"warnings and errors", []error{newErrorFixtureFor(SeverityWarning), newErrorFixtureFor(SeverityError)}},
+		{"no errors", nil},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			handler := NewHandler(&testutil.FakeLogger{})
+
+			// When
+			err := handler.HandleAll(test.errs)
+
+			// Then
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestHandler_HandleAll_LogsEveryErrorEvenAfterOneIsReturned(t *testing.T) {
+	// Given
+	fatal := newErrorFixtureFor(SeverityFatal)
+	warning := newErrorFixtureFor(SeverityWarning)
+	logger := &testutil.FakeLogger{}
+	handler := NewHandler(logger)
+
+	// When
+	_ = handler.HandleAll([]error{fatal, warning})
+
+	// Then
+	assert.Equal(t, []string{fatal.Error()}, logger.Errored)
+	assert.Equal(t, []string{warning.Error()}, logger.Warned)
+}
+
 func newHandleReturnedTestCase() []struct {
 	name     string
 	err      error

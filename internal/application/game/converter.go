@@ -4,11 +4,21 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
+	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
 // toGameConfig converts a PlayRequest to a game.Config.
 func toGameConfig(req PlayRequest) game.Config {
 	return game.Config{Confirm: req.ConfirmMode, Speed: req.Speed, TimeLimit: req.TimeLimit}
+}
+
+// toInfos converts processes to process.Infos.
+func toInfos(processes []ProcessRequest) []process.Info {
+	infos := make([]process.Info, len(processes))
+	for i, p := range processes {
+		infos[i] = process.NewInfo(p.PID, p.Name, p.Rss, p.UID)
+	}
+	return infos
 }
 
 // toWindowSize converts an outbound.WindowSize to a movement.WindowSize.

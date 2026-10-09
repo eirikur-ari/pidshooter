@@ -4,25 +4,11 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 )
 
-// KillFailure records a target that was not killed, along with the error that caused the failure.
-type KillFailure struct {
-	Name string
-	PID  int
-	Err  error
-}
-
-// KillDud records a target whose backing process was already gone before a
-// kill could land on it.
-type KillDud struct {
-	Name string
-	PID  int
-}
-
 // killTracker holds the progress of a single game session.
 type killTracker struct {
 	score   killScoreTracker
 	failure killFailureTracker
-	duds    []KillDud
+	duds    []killDud
 }
 
 type killScoreTracker struct {
@@ -32,7 +18,7 @@ type killScoreTracker struct {
 }
 
 type killFailureTracker struct {
-	failures []KillFailure
+	failures []killFailure
 	pids     map[int]struct{}
 }
 
@@ -59,13 +45,13 @@ func (t *killTracker) recordFailure(target *game.Target, err error) {
 		return
 	}
 	t.failure.pids[target.Info.PID] = struct{}{}
-	t.failure.failures = append(t.failure.failures, KillFailure{Name: target.Info.Name, PID: target.Info.PID, Err: err})
+	t.failure.failures = append(t.failure.failures, killFailure{Name: target.Info.Name, PID: target.Info.PID, Err: err})
 }
 
 // recordDud records a target whose backing process was already gone before
 // a kill could land on it.
 func (t *killTracker) recordDud(target *game.Target) {
-	t.duds = append(t.duds, KillDud{Name: target.Info.Name, PID: target.Info.PID})
+	t.duds = append(t.duds, killDud{Name: target.Info.Name, PID: target.Info.PID})
 }
 
 func (t *killTracker) kills() int { return t.score.kills }
@@ -74,4 +60,14 @@ func (t *killTracker) freedMem() int64 { return t.score.freedMem }
 
 func (t *killTracker) highScore() int { return t.score.highScore }
 
-func (t *killTracker) failures() []KillFailure { return t.failure.failures }
+// errors returns an error for each recorded failure, followed by one for each recorded dud.
+func (t *killTracker) errors() []error {
+	var errs []error
+	for _, failure := range t.failure.failures {
+		errs = append(errs, failure.toError())
+	}
+	for _, dud := range t.duds {
+		errs = append(errs, dud.toError())
+	}
+	return errs
+}

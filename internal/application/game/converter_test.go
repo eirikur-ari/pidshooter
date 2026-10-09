@@ -10,7 +10,22 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
+
+func TestToInfos_MapsEveryProcessInOrder(t *testing.T) {
+	tests := newToInfosTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toInfos(test.processes)
+
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
+}
 
 func TestToGameConfig_MapsEveryRequestField(t *testing.T) {
 	// When
@@ -39,19 +54,18 @@ func TestToBounds_MapsWindowAndChromeSizes(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
-func TestToConfirmViewState_ReturnsNilWhenTargetIsNil(t *testing.T) {
-	assert.Nil(t, toConfirmViewState(nil))
-}
+func TestToConfirmViewState_MapsTargetToConfirmation(t *testing.T) {
+	tests := newConfirmViewStateTestCase()
 
-func TestToConfirmViewState_MapsPIDAndName(t *testing.T) {
-	// Given
-	target := newTargetFixtureFor(42, "dummy")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toConfirmViewState(test.target)
 
-	// When
-	actual := toConfirmViewState(target)
-
-	// Then
-	assert.Equal(t, &outbound.ConfirmViewState{PID: 42, Name: "dummy"}, actual)
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
 }
 
 func TestToTargetViewState_MapsTargetState(t *testing.T) {
@@ -69,97 +83,45 @@ func TestToTargetViewState_MapsTargetState(t *testing.T) {
 }
 
 func TestToTargetViewStates_MapsEveryTargetInOrder(t *testing.T) {
-	// Given
-	targets := []*game.Target{
-		{Info: process.NewInfo(1, "a", 0, 0), State: game.Alive},
-		{Info: process.NewInfo(2, "b", 0, 0), State: game.Alive},
-		{Info: process.NewInfo(3, "c", 0, 0), State: game.Alive},
+	tests := newTargetViewStatesTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toTargetViewStates(test.targets)
+
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
 	}
-
-	// When
-	actual := toTargetViewStates(targets)
-
-	// Then
-	require.Len(t, actual, 3)
-	assert.Equal(t, "[1 a]", actual[0].Tag)
-	assert.Equal(t, "[2 b]", actual[1].Tag)
-	assert.Equal(t, "[3 c]", actual[2].Tag)
-}
-
-func TestToTargetViewStates_ReturnsEmptySliceWhenTargetsAreNil(t *testing.T) {
-	assert.Empty(t, toTargetViewStates(nil))
-}
-
-func TestToTargetViewStates_MapsNilTargetToEmptyView(t *testing.T) {
-	// Given
-	targets := []*game.Target{newTargetFixtureFor(1, "a"), nil}
-
-	// When
-	actual := toTargetViewStates(targets)
-
-	// Then
-	require.Len(t, actual, 2)
-	assert.Equal(t, "[1 a]", actual[0].Tag)
-	assert.Equal(t, outbound.TargetViewState{}, actual[1])
-}
-
-func TestToHUDViewState_ReturnsEmptyViewWhenTrackerIsNil(t *testing.T) {
-	assert.Equal(t, outbound.HUDViewState{}, toHUDViewState(nil))
 }
 
 func TestToHUDViewState_MapsTrackerProgress(t *testing.T) {
-	// Given
-	tracker := newKillTracker(5)
-	tracker.recordKill(2048)
-	tracker.recordKill(2048)
+	tests := newHUDViewStateTestCase()
 
-	// When
-	actual := toHUDViewState(tracker)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toHUDViewState(test.tracker)
 
-	// Then
-	assert.Equal(t, outbound.HUDViewState{FreedMem: 4096, Kills: 2, HighScore: 5}, actual)
-}
-
-func TestToStatusViewState_ReturnsEmptyViewWhenSessionIsNil(t *testing.T) {
-	assert.Equal(t, outbound.StatusViewState{}, toStatusViewState(nil, 3))
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
 }
 
 func TestToStatusViewState_MapsSessionState(t *testing.T) {
-	// Given
-	session := newSessionFixture(game.Config{Speed: 2.0, TimeLimit: 30})
+	tests := newStatusViewStateTestCase()
 
-	// When
-	actual := toStatusViewState(session, 3)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toStatusViewState(test.session, test.alive)
 
-	// Then
-	require.NotNil(t, actual.TimeLeft)
-	assert.Equal(t, 3, actual.Alive)
-	assert.Equal(t, 2.0, actual.Speed)
-	assert.Equal(t, 30, *actual.TimeLeft)
-	assert.Nil(t, actual.Confirming)
-}
-
-func TestToStatusViewState_LeavesTimeLeftNilWhenUntimed(t *testing.T) {
-	// Given
-	session := newSessionFixture(game.Config{Speed: 2.0})
-
-	// When
-	actual := toStatusViewState(session, 1)
-
-	// Then
-	assert.Nil(t, actual.TimeLeft)
-}
-
-func TestToStatusViewState_IncludesPendingConfirmation(t *testing.T) {
-	// Given
-	session := newSessionFixture(game.Config{Confirm: true, Speed: 1.0})
-	session.RequestConfirm(session.Targets()[0])
-
-	// When
-	actual := toStatusViewState(session, 1)
-
-	// Then
-	assert.Equal(t, &outbound.ConfirmViewState{PID: 100, Name: "target"}, actual.Confirming)
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
 }
 
 func TestToFrameViewState_CombinesTargetsHUDAndStatusBar(t *testing.T) {
@@ -172,9 +134,10 @@ func TestToFrameViewState_CombinesTargetsHUDAndStatusBar(t *testing.T) {
 	actual := toFrameViewState(session, tracker)
 
 	// Then
-	assert.Len(t, actual.Targets, 1)
+	require.Len(t, actual.Targets, 1)
+	assert.Equal(t, "[100 target]", actual.Targets[0].Tag)
 	assert.Equal(t, outbound.HUDViewState{FreedMem: 2048, Kills: 1, HighScore: 5}, actual.HUD)
-	assert.Equal(t, 1, actual.StatusBar.Alive)
+	assert.Equal(t, outbound.StatusViewState{Alive: 1, Speed: 1.0}, actual.StatusBar)
 }
 
 func TestToFrameViewState_KeepsHUDWhenSessionIsNil(t *testing.T) {
@@ -186,26 +149,10 @@ func TestToFrameViewState_KeepsHUDWhenSessionIsNil(t *testing.T) {
 	actual := toFrameViewState(nil, tracker)
 
 	// Then
-	assert.Empty(t, actual.Targets)
-	assert.Equal(t, outbound.HUDViewState{FreedMem: 2048, Kills: 1, HighScore: 5}, actual.HUD)
-	assert.Equal(t, outbound.StatusViewState{}, actual.StatusBar)
-}
-
-func TestToFrameViewState_KeepsTargetsAndStatusBarWhenTrackerIsNil(t *testing.T) {
-	// Given
-	session := newSessionFixture(game.Config{Speed: 1.0})
-
-	// When
-	actual := toFrameViewState(session, nil)
-
-	// Then
-	assert.Len(t, actual.Targets, 1)
-	assert.Equal(t, outbound.HUDViewState{}, actual.HUD)
-	assert.Equal(t, 1, actual.StatusBar.Alive)
-}
-
-func TestToFrameViewState_LeavesPartsEmptyWhenSessionAndTrackerAreNil(t *testing.T) {
-	assert.Equal(t, outbound.FrameViewState{Targets: []outbound.TargetViewState{}}, toFrameViewState(nil, nil))
+	assert.Equal(t, outbound.FrameViewState{
+		Targets: []outbound.TargetViewState{},
+		HUD:     outbound.HUDViewState{FreedMem: 2048, Kills: 1, HighScore: 5},
+	}, actual)
 }
 
 func newTargetViewStateTestCase() []struct {
@@ -249,6 +196,130 @@ func newTargetViewStateTestCase() []struct {
 				AnimationTick: game.AnimationDuration / 2,
 			},
 			outbound.TargetViewState{Fleeing: true, AnimationProgress: 0.5},
+		},
+	}
+}
+
+func newToInfosTestCase() []struct {
+	name      string
+	processes []ProcessRequest
+	expected  []process.Info
+} {
+	return []struct {
+		name      string
+		processes []ProcessRequest
+		expected  []process.Info
+	}{
+		{
+			name: "several processes",
+			processes: []ProcessRequest{
+				{PID: 1, Name: "a", Rss: 100, UID: 1000},
+				{PID: 2, Name: "b", Rss: 200, UID: 2000},
+			},
+			expected: []process.Info{
+				process.NewInfo(1, "a", 100, 1000),
+				process.NewInfo(2, "b", 200, 2000),
+			},
+		},
+		{name: "no processes", processes: nil, expected: []process.Info{}},
+	}
+}
+
+func newConfirmViewStateTestCase() []struct {
+	name     string
+	target   *game.Target
+	expected *outbound.ConfirmViewState
+} {
+	return []struct {
+		name     string
+		target   *game.Target
+		expected *outbound.ConfirmViewState
+	}{
+		{"nil target", nil, nil},
+		{"target", newTargetFixtureFor(42, "dummy"), &outbound.ConfirmViewState{PID: 42, Name: "dummy"}},
+	}
+}
+
+func newTargetViewStatesTestCase() []struct {
+	name     string
+	targets  []*game.Target
+	expected []outbound.TargetViewState
+} {
+	return []struct {
+		name     string
+		targets  []*game.Target
+		expected []outbound.TargetViewState
+	}{
+		{"no targets", nil, []outbound.TargetViewState{}},
+		{
+			name: "several targets",
+			targets: []*game.Target{
+				{Info: process.NewInfo(1, "a", 0, 0), State: game.Alive},
+				{Info: process.NewInfo(2, "b", 0, 0), State: game.Alive},
+				{Info: process.NewInfo(3, "c", 0, 0), State: game.Alive},
+			},
+			expected: []outbound.TargetViewState{{Tag: "[1 a]"}, {Tag: "[2 b]"}, {Tag: "[3 c]"}},
+		},
+		{
+			name:     "a nil target among targets",
+			targets:  []*game.Target{{Info: process.NewInfo(1, "a", 0, 0), State: game.Alive}, nil},
+			expected: []outbound.TargetViewState{{Tag: "[1 a]"}, {}},
+		},
+	}
+}
+
+func newHUDViewStateTestCase() []struct {
+	name     string
+	tracker  *killTracker
+	expected outbound.HUDViewState
+} {
+	tracker := newKillTracker(5)
+	tracker.recordKill(2048)
+	tracker.recordKill(2048)
+
+	return []struct {
+		name     string
+		tracker  *killTracker
+		expected outbound.HUDViewState
+	}{
+		{"nil tracker", nil, outbound.HUDViewState{}},
+		{"tracker with kills", tracker, outbound.HUDViewState{FreedMem: 4096, Kills: 2, HighScore: 5}},
+	}
+}
+
+func newStatusViewStateTestCase() []struct {
+	name     string
+	session  *game.Session
+	alive    int
+	expected outbound.StatusViewState
+} {
+	confirming := newSessionFixture(game.Config{Confirm: true, Speed: 1.0})
+	confirming.RequestConfirm(confirming.Targets()[0])
+
+	return []struct {
+		name     string
+		session  *game.Session
+		alive    int
+		expected outbound.StatusViewState
+	}{
+		{"nil session", nil, 3, outbound.StatusViewState{}},
+		{
+			name:     "timed session",
+			session:  newSessionFixture(game.Config{Speed: 2.0, TimeLimit: 30}),
+			alive:    3,
+			expected: outbound.StatusViewState{Alive: 3, Speed: 2.0, TimeLeft: testutil.Pointer(30)},
+		},
+		{
+			name:     "untimed session",
+			session:  newSessionFixture(game.Config{Speed: 2.0}),
+			alive:    1,
+			expected: outbound.StatusViewState{Alive: 1, Speed: 2.0},
+		},
+		{
+			name:     "session with a pending confirmation",
+			session:  confirming,
+			alive:    1,
+			expected: outbound.StatusViewState{Alive: 1, Speed: 1.0, Confirming: &outbound.ConfirmViewState{PID: 100, Name: "target"}},
 		},
 	}
 }

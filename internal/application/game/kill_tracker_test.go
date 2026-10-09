@@ -51,7 +51,7 @@ func TestKillTracker_recordFailure_RecordsNamePIDAndCause(t *testing.T) {
 			tracker.recordFailure(test.target, test.cause)
 
 			// Then
-			assert.Equal(t, []KillFailure{test.expected}, tracker.failure.failures)
+			assert.Equal(t, []killFailure{test.expected}, tracker.failure.failures)
 		})
 	}
 }
@@ -79,14 +79,41 @@ func TestKillTracker_recordFailure_IgnoresRepeatFailureOfSamePID(t *testing.T) {
 	tracker.recordFailure(target, errors.New("boom again"))
 
 	// Then
-	assert.Equal(t, []KillFailure{{Name: "target", PID: 100, Err: first}}, tracker.failure.failures)
+	assert.Equal(t, []killFailure{{Name: "target", PID: 100, Err: first}}, tracker.failure.failures)
+}
+
+func TestKillTracker_errors_ReturnsFailuresThenDuds(t *testing.T) {
+	// Given
+	tracker := newKillTracker(0)
+	tracker.recordDud(newTargetFixtureFor(300, "gone"))
+	tracker.recordFailure(newTargetFixtureFor(200, "stubborn"), assert.AnError)
+
+	// When
+	actual := tracker.errors()
+
+	// Then
+	assert.Equal(t, []error{
+		killFailure{Name: "stubborn", PID: 200, Err: assert.AnError}.toError(),
+		killDud{Name: "gone", PID: 300}.toError(),
+	}, actual)
+}
+
+func TestKillTracker_errors_ReturnsNothingWhenNothingWasRecorded(t *testing.T) {
+	// Given
+	tracker := newKillTracker(0)
+
+	// When
+	actual := tracker.errors()
+
+	// Then
+	assert.Empty(t, actual)
 }
 
 func newRecordFailureTestCase() []struct {
 	name     string
 	target   *game.Target
 	cause    error
-	expected KillFailure
+	expected killFailure
 } {
 	cause := errors.New("operation not permitted")
 
@@ -94,9 +121,9 @@ func newRecordFailureTestCase() []struct {
 		name     string
 		target   *game.Target
 		cause    error
-		expected KillFailure
+		expected killFailure
 	}{
-		{"without cause", newTargetFixtureFor(100, "target"), nil, KillFailure{Name: "target", PID: 100}},
-		{"with cause", newTargetFixtureFor(200, "other"), cause, KillFailure{Name: "other", PID: 200, Err: cause}},
+		{"without cause", newTargetFixtureFor(100, "target"), nil, killFailure{Name: "target", PID: 100}},
+		{"with cause", newTargetFixtureFor(200, "other"), cause, killFailure{Name: "other", PID: 200, Err: cause}},
 	}
 }

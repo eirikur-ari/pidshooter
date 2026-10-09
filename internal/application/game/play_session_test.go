@@ -42,13 +42,14 @@ func TestPlaySession_result_MapsSessionAndTrackerState(t *testing.T) {
 
 	// Then
 	assert.Equal(t, PlayResult{
-		Duration:     1.5,
-		LowestSpeed:  2.0,
-		Kills:        1,
-		FreedMem:     2048,
-		KillFailures: []KillFailure{{Name: "stubborn", PID: 200, Err: assert.AnError}},
-		Duds:         []KillDud{{Name: "gone", PID: 300}},
+		Duration:    1.5,
+		LowestSpeed: 2.0,
+		Kills:       1,
+		FreedMem:    2048,
+		Duds:        1,
+		Errors:      play.tracker.errors(),
 	}, actual)
+	assert.Len(t, actual.Errors, 2)
 }
 
 func TestPlaySession_drainEventQueue_ReturnsErrorWhenEventChannelCloses(t *testing.T) {
@@ -144,6 +145,23 @@ func TestPlaySession_frameLoop_StopsSessionWhenTermSignalFires(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, play.session.IsRunning())
 		assert.Equal(t, time.Duration(0), time.Since(start), "the session must stop at the signal, not run to its time limit")
+	})
+}
+
+func TestPlaySession_frameLoop_StopsWhenTimeLimitExpires(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// Given
+		const timeLimit = 1
+		play := newPlaySessionFixture(t, nil, &testutil.FakeRenderer{}, testutil.NewFakeInputEventProvider(), game.Config{Speed: 1.0, TimeLimit: timeLimit})
+		start := time.Now()
+
+		// When
+		_, err := play.frameLoop(nil)
+
+		// Then
+		require.NoError(t, err)
+		assert.False(t, play.session.IsRunning())
+		assert.Equal(t, timeLimit*time.Second, time.Since(start), "the session must run for exactly its time limit")
 	})
 }
 

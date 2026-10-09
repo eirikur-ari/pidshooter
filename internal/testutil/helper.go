@@ -1,7 +1,10 @@
 package testutil
 
 import (
+	"context"
 	"os"
+	"os/signal"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -26,4 +29,12 @@ func UnsetEnv(t *testing.T, key string) {
 			_ = os.Setenv(key, prev)
 		}
 	})
+}
+
+// WarmUpSignalPackage starts the signal package's process-wide goroutine, so
+// that a testing/synctest bubble created afterward does not own it. Call it
+// before synctest.Test when the code under test watches for signals.
+func WarmUpSignalPackage() {
+	_, stop := signal.NotifyContext(context.Background(), syscall.SIGINT)
+	stop()
 }

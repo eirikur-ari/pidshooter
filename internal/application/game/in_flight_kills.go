@@ -8,8 +8,7 @@ import (
 )
 
 // processKiller kills the process behind a target. Kill returns an error with
-// code apperror.CodeProcessNotFound if and only if that process was already gone,
-// so the target should be reaped instead.
+// code apperror.CodeProcessNotFound if and only if that process was already gone.
 type processKiller interface {
 	Kill(pid int, name string, protected bool) error
 }

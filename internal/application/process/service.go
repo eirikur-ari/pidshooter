@@ -29,10 +29,20 @@ type FindRequest struct {
 	AllowRoot bool
 }
 
+// FindResult describes a process that matched the Service's patterns.
+type FindResult struct {
+	PID  int
+	Name string
+	// Rss is the process's resident memory, in bytes.
+	Rss int64
+	// UID is the ID of the user that owns the process.
+	UID int
+}
+
 // FindProcesses returns the processes matching the Service's patterns and reports them.
 // It returns an error if running as root without request.AllowRoot, if the patterns are invalid,
 // if process discovery fails, or if no process matches.
-func (s *Service) FindProcesses(request FindRequest) ([]process.Info, error) {
+func (s *Service) FindProcesses(request FindRequest) ([]FindResult, error) {
 	if err := process.ValidateRoot(s.manager.OwnUID(), request.AllowRoot); err != nil {
 		return nil, apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "", err)
 	}
@@ -52,7 +62,7 @@ func (s *Service) FindProcesses(request FindRequest) ([]process.Info, error) {
 
 	s.reporter.Report(toProcessInfos(matches), s.patterns)
 
-	return matches, nil
+	return toFindResults(matches), nil
 }
 
 // Kill kills the process with the given pid if it is still named name.
