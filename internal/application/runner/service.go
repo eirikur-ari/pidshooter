@@ -25,10 +25,9 @@ type scoreKeeper interface {
 	// LoadScoreBoard returns the persisted score board, or an empty board
 	// with an error if it cannot be loaded.
 	LoadScoreBoard() (score.LoadResult, error)
-	// RecordScore records a session on the request's score board. loadErr is
-	// the error from loading the board, or nil if it loaded. The result is
-	// returned even when the error is not nil.
-	RecordScore(request score.RecordRequest, loadErr error) (score.RecordResult, error)
+	// RecordScore records a session on the request's score board. The result
+	// is returned even when the error is not nil.
+	RecordScore(request score.RecordRequest) (score.RecordResult, error)
 	// ReportResults reports the outcome of a session against its score board.
 	ReportResults(request score.ReportRequest)
 }
@@ -71,32 +70,32 @@ func NewService(
 // Run returns nil unless the failure was Fatal, in which case it's
 // returned too so the caller can terminate the program.
 func (s *Service) Run() error {
-	cfg, loadErr := s.configSvc.Load()
+	cfg, cfgErr := s.configSvc.Load()
+	if err := s.errHandler.Handle(cfgErr); err != nil {
+		return err
+	}
+
+	found, findErr := s.processSvc.FindProcesses(toFindRequest(cfg.Process))
+	if findErr != nil {
+		return s.errHandler.Handle(findErr)
+	}
+
+	loaded, loadErr := s.scoreSvc.LoadScoreBoard()
 	if err := s.errHandler.Handle(loadErr); err != nil {
 		return err
 	}
 
-	found, err := s.processSvc.FindProcesses(toFindRequest(cfg.Process))
-	if err != nil {
-		return s.errHandler.Handle(err)
-	}
-
-	scoreBoard, scoreLoadErr := s.scoreSvc.LoadScoreBoard()
-	if err := s.errHandler.Handle(scoreLoadErr); err != nil {
-		return err
-	}
-
-	result, err := s.gameSvc.Play(toPlayRequest(cfg.Game, found, scoreBoard.HighScore))
-	if err != nil {
-		return s.errHandler.Handle(err)
+	result, playErr := s.gameSvc.Play(toPlayRequest(cfg.Game, found, loaded.HighScore))
+	if playErr != nil {
+		return s.errHandler.Handle(playErr)
 	}
 
 	if err := s.errHandler.HandleAll(result.Errors); err != nil {
 		return err
 	}
 
-	recorded, recErr := s.scoreSvc.RecordScore(toRecordRequest(scoreBoard, result, cfg.Game.TimeLimit), scoreLoadErr)
-	if err := s.errHandler.Handle(recErr); err != nil {
+	recorded, recordErr := s.scoreSvc.RecordScore(toRecordRequest(loaded, result, cfg.Game.TimeLimit))
+	if err := s.errHandler.Handle(recordErr); err != nil {
 		return err
 	}
 

@@ -14,8 +14,8 @@ func (m *MockScoreKeeper) LoadScoreBoard() (score.LoadResult, error) {
 	return args.Get(0).(score.LoadResult), args.Error(1)
 }
 
-func (m *MockScoreKeeper) RecordScore(request score.RecordRequest, loadErr error) (score.RecordResult, error) {
-	args := m.Called(request, loadErr)
+func (m *MockScoreKeeper) RecordScore(request score.RecordRequest) (score.RecordResult, error) {
+	args := m.Called(request)
 	return args.Get(0).(score.RecordResult), args.Error(1)
 }
 

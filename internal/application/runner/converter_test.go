@@ -41,11 +41,11 @@ func TestToFindRequest_MapsProcessConfig(t *testing.T) {
 
 func TestToRecordRequest_MapsLoadedEntriesAndPlayedSession(t *testing.T) {
 	// Given
-	board := score.LoadResult{Entries: []score.BoardEntry{{Kills: 4}}, HighScore: 4}
+	loaded := score.LoadResult{Entries: []score.BoardEntry{{Kills: 4}}, HighScore: 4}
 	result := game.PlayResult{Duration: 12.5, LowestSpeed: 2.5, Kills: 3, Duds: 1, FreedMem: 8192}
 
 	// When
-	actual := toRecordRequest(board, result, 45)
+	actual := toRecordRequest(loaded, result, 45)
 
 	// Then
 	assert.Equal(t, score.RecordRequest{

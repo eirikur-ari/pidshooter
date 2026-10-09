@@ -5,19 +5,19 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
 )
 
-// --- toCoreEntry ---
-
-func TestToCoreEntryMapsFields(t *testing.T) {
+func TestToEntry_MapsRequestToEntry(t *testing.T) {
+	// Given
 	request := RecordRequest{Kills: 5, Duds: 2, FreedMem: 2048, LowestSpeed: 2.5, TimeLimit: 30, Duration: 12.5}
 
-	entry := toCoreEntry(request)
+	// When
+	entry := toEntry(request)
 
+	// Then
 	assert.Equal(t, 5, entry.Kills)
 	assert.Equal(t, 2, entry.Duds)
 	assert.Equal(t, int64(2048), entry.FreedMem)
@@ -27,110 +27,304 @@ func TestToCoreEntryMapsFields(t *testing.T) {
 	assert.False(t, entry.Date.IsZero())
 }
 
-// --- toCoreEntries ---
+func TestToEntries_MapsEveryEntryInOrder(t *testing.T) {
+	tests := newToEntriesTestCase()
 
-func TestToCoreEntriesMapsFieldsInOrder(t *testing.T) {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toEntries(test.entries)
 
-	entries := toCoreEntries([]BoardEntry{
-		{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-		{Kills: 3},
-	})
-
-	assert.Equal(t, []score.Entry{
-		{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-		{Kills: 3},
-	}, entries)
-}
-
-func TestToCoreEntriesEmptyInput(t *testing.T) {
-	assert.Empty(t, toCoreEntries(nil))
-}
-
-// --- toEntries ---
-
-func TestToEntriesMapsFieldsInOrder(t *testing.T) {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-
-	entries := toEntries([]score.Entry{
-		{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-		{Kills: 3},
-	})
-
-	assert.Equal(t, []BoardEntry{
-		{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-		{Kills: 3},
-	}, entries)
-}
-
-func TestToEntriesEmptyInput(t *testing.T) {
-	assert.Empty(t, toEntries(nil))
-}
-
-// --- toBoard ---
-
-func TestToBoardMapsFields(t *testing.T) {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	sb := outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
-		{Kills: 5, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-	}}
-
-	b := toBoard(sb)
-
-	require.Len(t, b.Scores, 1)
-	assert.Equal(t, score.Entry{Kills: 5, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}, b.Scores[0])
-	assert.Equal(t, 5, b.HighScore())
-}
-
-func TestToBoardEmptyInput(t *testing.T) {
-	b := toBoard(outbound.ScoreBoard{})
-
-	assert.Empty(t, b.Scores)
-	assert.Equal(t, 0, b.HighScore())
-}
-
-// --- toScoreBoard ---
-
-func TestToScoreBoardMapsFields(t *testing.T) {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	b := &score.Board{Scores: []score.Entry{
-		{Kills: 5, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-	}}
-
-	sb := toScoreBoard(b)
-
-	require.Len(t, sb.Scores, 1)
-	assert.Equal(t, outbound.ScoreEntry{Kills: 5, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}, sb.Scores[0])
-}
-
-func TestToScoreBoardEmptyInput(t *testing.T) {
-	sb := toScoreBoard(&score.Board{})
-
-	assert.Empty(t, sb.Scores)
-}
-
-// --- toScoreSummary ---
-
-func TestToScoreSummaryMapsFields(t *testing.T) {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	request := ReportRequest{
-		Duration: 7.5, Kills: 3, Duds: 2, FreedMem: 4096,
-		Entries:      []BoardEntry{{Kills: 5, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}},
-		NewHighScore: true,
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
 	}
-
-	summary := toScoreSummary(request)
-
-	assert.Equal(t, 3, summary.Kills)
-	assert.Equal(t, 2, summary.Duds)
-	assert.Equal(t, int64(4096), summary.FreedMem)
-	assert.Equal(t, 7.5, summary.Duration)
-	assert.True(t, summary.IsTopScore)
-	assert.Equal(t, []outbound.ScoreEntry{{Kills: 5, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}}, summary.Entries)
 }
 
-func TestToScoreSummaryIsTopScoreFalseWhenNotANewHighScore(t *testing.T) {
-	summary := toScoreSummary(ReportRequest{Kills: 5})
+func TestToBoardEntries_MapsEveryEntryInOrder(t *testing.T) {
+	tests := newToBoardEntriesTestCase()
 
-	assert.False(t, summary.IsTopScore)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toBoardEntries(test.entries)
+
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
+}
+
+func TestToBoard_MapsStoredScoresToBoard(t *testing.T) {
+	tests := newToBoardTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toBoard(test.board)
+
+			// Then
+			assert.Equal(t, test.expectedScores, actual.Scores)
+			assert.Equal(t, test.expectedHighScore, actual.HighScore())
+		})
+	}
+}
+
+func TestToLoadResult_MapsStoredScoresToRankedEntriesAndHighScore(t *testing.T) {
+	tests := newToLoadResultTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toLoadResult(test.board)
+
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
+}
+
+func TestToRecordResult_MapsBoardAndFlagsNewHighScore(t *testing.T) {
+	tests := newToRecordResultTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toRecordResult(test.board, test.kills)
+
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
+}
+
+func TestToScoreBoard_MapsEntriesToStoredScores(t *testing.T) {
+	tests := newToScoreBoardTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toScoreBoard(test.entries)
+
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
+}
+
+func TestToScoreSummary_MapsReportRequest(t *testing.T) {
+	tests := newToScoreSummaryTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toScoreSummary(test.request)
+
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
+}
+
+func newToEntriesTestCase() []struct {
+	name     string
+	entries  []BoardEntry
+	expected []score.Entry
+} {
+	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
+	return []struct {
+		name     string
+		entries  []BoardEntry
+		expected []score.Entry
+	}{
+		{
+			name: "several entries",
+			entries: []BoardEntry{
+				{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
+				{Kills: 3, Duds: 2},
+			},
+			expected: []score.Entry{
+				{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
+				{Kills: 3, Duds: 2},
+			},
+		},
+		{name: "no entries", entries: nil, expected: []score.Entry{}},
+	}
+}
+
+func newToBoardEntriesTestCase() []struct {
+	name     string
+	entries  []score.Entry
+	expected []BoardEntry
+} {
+	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
+	return []struct {
+		name     string
+		entries  []score.Entry
+		expected []BoardEntry
+	}{
+		{
+			name: "several entries",
+			entries: []score.Entry{
+				{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
+				{Kills: 3, Duds: 2},
+			},
+			expected: []BoardEntry{
+				{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
+				{Kills: 3, Duds: 2},
+			},
+		},
+		{name: "no entries", entries: nil, expected: []BoardEntry{}},
+	}
+}
+
+func newToBoardTestCase() []struct {
+	name              string
+	board             outbound.ScoreBoard
+	expectedScores    []score.Entry
+	expectedHighScore int
+} {
+	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
+	return []struct {
+		name              string
+		board             outbound.ScoreBoard
+		expectedScores    []score.Entry
+		expectedHighScore int
+	}{
+		{
+			name: "stored scores",
+			board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
+				{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
+			}},
+			expectedScores:    []score.Entry{{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}},
+			expectedHighScore: 5,
+		},
+		{name: "no stored scores", board: outbound.ScoreBoard{}},
+	}
+}
+
+func newToLoadResultTestCase() []struct {
+	name     string
+	board    outbound.ScoreBoard
+	expected LoadResult
+} {
+	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
+	return []struct {
+		name     string
+		board    outbound.ScoreBoard
+		expected LoadResult
+	}{
+		{
+			name: "stored scores",
+			board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
+				{Kills: 3, Duds: 2, Date: date},
+				{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
+			}},
+			expected: LoadResult{
+				Entries: []BoardEntry{
+					{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
+					{Kills: 3, Duds: 2, Date: date},
+				},
+				HighScore: 5,
+			},
+		},
+		{name: "no stored scores", board: outbound.ScoreBoard{}, expected: LoadResult{Entries: []BoardEntry{}}},
+	}
+}
+
+func newToRecordResultTestCase() []struct {
+	name     string
+	board    *score.Board
+	kills    int
+	expected RecordResult
+} {
+	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	best := score.Entry{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}
+	expectedBest := BoardEntry{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}
+
+	return []struct {
+		name     string
+		board    *score.Board
+		kills    int
+		expected RecordResult
+	}{
+		{
+			name:     "kills beat the best entry",
+			board:    score.NewBoard([]score.Entry{best}),
+			kills:    6,
+			expected: RecordResult{Entries: []BoardEntry{expectedBest}, NewHighScore: true},
+		},
+		{
+			name:     "kills do not beat the best entry",
+			board:    score.NewBoard([]score.Entry{best}),
+			kills:    5,
+			expected: RecordResult{Entries: []BoardEntry{expectedBest}},
+		},
+		{
+			name:     "empty board",
+			board:    score.NewBoard(nil),
+			kills:    0,
+			expected: RecordResult{Entries: []BoardEntry{}},
+		},
+	}
+}
+
+func newToScoreBoardTestCase() []struct {
+	name     string
+	entries  []BoardEntry
+	expected outbound.ScoreBoard
+} {
+	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+
+	return []struct {
+		name     string
+		entries  []BoardEntry
+		expected outbound.ScoreBoard
+	}{
+		{
+			name: "entries",
+			entries: []BoardEntry{
+				{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
+			},
+			expected: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
+				{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
+			}},
+		},
+		{name: "no entries", entries: nil, expected: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{}}},
+	}
+}
+
+func newToScoreSummaryTestCase() []struct {
+	name     string
+	request  ReportRequest
+	expected outbound.ScoreSummary
+} {
+	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	entries := []BoardEntry{{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}}
+	expectedEntries := []outbound.ScoreEntry{{Kills: 5, Duds: 1, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}}
+
+	return []struct {
+		name     string
+		request  ReportRequest
+		expected outbound.ScoreSummary
+	}{
+		{
+			name:    "new high score",
+			request: ReportRequest{Duration: 7.5, Kills: 3, Duds: 2, FreedMem: 4096, Entries: entries, NewHighScore: true},
+			expected: outbound.ScoreSummary{
+				Kills: 3, Duds: 2, FreedMem: 4096, Duration: 7.5, IsTopScore: true, Entries: expectedEntries,
+			},
+		},
+		{
+			name:    "not a new high score",
+			request: ReportRequest{Duration: 7.5, Kills: 3, Duds: 2, FreedMem: 4096, Entries: entries},
+			expected: outbound.ScoreSummary{
+				Kills: 3, Duds: 2, FreedMem: 4096, Duration: 7.5, Entries: expectedEntries,
+			},
+		},
+	}
 }

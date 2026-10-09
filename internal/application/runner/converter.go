@@ -29,9 +29,9 @@ func toFindRequest(cfg config.ProcessResult) process.FindRequest {
 	}
 }
 
-func toRecordRequest(board score.LoadResult, result game.PlayResult, timeLimit int) score.RecordRequest {
+func toRecordRequest(loaded score.LoadResult, result game.PlayResult, timeLimit int) score.RecordRequest {
 	return score.RecordRequest{
-		Entries:     board.Entries,
+		Entries:     loaded.Entries,
 		Kills:       result.Kills,
 		Duds:        result.Duds,
 		FreedMem:    result.FreedMem,

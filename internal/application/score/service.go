@@ -9,15 +9,13 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
 )
 
-// Service loads and persists the score board via the injected
-// outbound.ScoreStore, and reports session results via the injected
-// outbound.ScoreReporter.
+// Service loads, records and reports scores.
 type Service struct {
 	store    outbound.ScoreStore
 	reporter outbound.ScoreReporter
 }
 
-// NewService constructs a Service wrapping the given outbound.ScoreStore and outbound.ScoreReporter.
+// NewService returns a Service that persists scores in store and reports them through reporter.
 func NewService(store outbound.ScoreStore, reporter outbound.ScoreReporter) *Service {
 	return &Service{store: store, reporter: reporter}
 }
@@ -89,25 +87,23 @@ func (s *Service) LoadScoreBoard() (LoadResult, error) {
 	if err != nil {
 		return LoadResult{}, apperror.NewError(apperror.CodeStoreFailed, apperror.SeverityWarning, "score board not loaded", err)
 	}
-	board := toBoard(sb)
-	return LoadResult{Entries: toEntries(board.Scores), HighScore: board.HighScore()}, nil
+	return toLoadResult(sb), nil
 }
 
-// RecordScore records the session on the request's board and persists it.
-// loadErr is the error from loading the board, or nil if it loaded. The board
-// is persisted unless loadErr reports a failure that leaves the persisted data
-// still intact and recoverable, in which case persisting is skipped and loadErr
-// is returned as the reason. The result is returned even when the error is not
-// nil. Any save failure is classified as CodeStoreFailed and SeverityWarning.
-func (s *Service) RecordScore(request RecordRequest, loadErr error) (RecordResult, error) {
-	board := score.NewBoard(toCoreEntries(request.Entries))
-	entry := toCoreEntry(request)
+// RecordScore records the session on the request's board and persists it on
+// top of the latest persisted board. Nothing is persisted if the latest
+// persisted board cannot be read. The result is returned even when the error
+// is not nil. A failure to read or save the board is classified as
+// CodeStoreFailed and SeverityWarning.
+func (s *Service) RecordScore(request RecordRequest) (RecordResult, error) {
+	board := score.NewBoard(toEntries(request.Entries))
+	entry := toEntry(request)
 	board.Add(entry)
-	result := RecordResult{Entries: toEntries(board.Scores), NewHighScore: board.IsNewHighScore(entry.Kills)}
+	result := toRecordResult(board, entry.Kills)
 
-	err := loadErr
-	if err == nil || errors.As(err, &outbound.NotFoundError{}) || errors.As(err, &outbound.CorruptedDataError{}) {
-		err = s.store.Save(toScoreBoard(s.mergeWithLatest(entry, board)))
+	latest, err := s.mergeWithLatest(entry)
+	if err == nil {
+		err = s.store.Save(toScoreBoard(toBoardEntries(latest.Scores)))
 	}
 
 	if err != nil {
@@ -116,21 +112,19 @@ func (s *Service) RecordScore(request RecordRequest, loadErr error) (RecordResul
 	return result, nil
 }
 
-// ReportResults reports the session's outcome and the board's current
-// high scores via the injected outbound.ScoreReporter.
+// ReportResults reports the session's outcome and the board's current high scores.
 func (s *Service) ReportResults(request ReportRequest) {
 	s.reporter.Report(toScoreSummary(request))
 }
 
-// mergeWithLatest re-loads the persisted board and appends entry to it,
-// falling back to board if the reload fails for any reason other than no
-// board being persisted yet or the persisted data being unparseable.
-func (s *Service) mergeWithLatest(entry score.Entry, board *score.Board) *score.Board {
+// mergeWithLatest returns the latest persisted board with entry added, or an error if that board cannot be read.
+// A board that is missing or corrupted counts as empty.
+func (s *Service) mergeWithLatest(entry score.Entry) (*score.Board, error) {
 	sb, err := s.store.Load()
 	if err != nil && !errors.As(err, &outbound.NotFoundError{}) && !errors.As(err, &outbound.CorruptedDataError{}) {
-		return board
+		return nil, err
 	}
 	latest := toBoard(sb)
 	latest.Add(entry)
-	return latest
+	return latest, nil
 }

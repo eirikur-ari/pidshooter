@@ -55,9 +55,9 @@ func TestService_Run_ContinuesAfterNonFatalRecordScoreError(t *testing.T) {
 	recordErr := newWarning("score board not saved")
 	fixture.config.On("Load").Return(fixture.configResult, nil)
 	fixture.processes.On("FindProcesses", mock.Anything).Return(fixture.found, nil)
-	fixture.scores.On("LoadScoreBoard").Return(fixture.board, nil)
+	fixture.scores.On("LoadScoreBoard").Return(fixture.loaded, nil)
 	fixture.game.On("Play", mock.Anything).Return(game.PlayResult{}, nil)
-	fixture.scores.On("RecordScore", mock.Anything, mock.Anything).Return(score.RecordResult{}, recordErr)
+	fixture.scores.On("RecordScore", mock.Anything).Return(score.RecordResult{}, recordErr)
 	fixture.scores.On("ReportResults", mock.Anything).Return()
 
 	// When
@@ -76,20 +76,20 @@ func TestService_Run_PassesEachStepsResultToTheNext(t *testing.T) {
 		Process: config.ProcessResult{IncludeRoot: true},
 		Game:    config.GameResult{ConfirmMode: true, Speed: 3.5, TimeLimit: 45},
 	}
-	board := score.LoadResult{Entries: []score.BoardEntry{{Kills: 4}}, HighScore: 4}
+	loaded := score.LoadResult{Entries: []score.BoardEntry{{Kills: 4}}, HighScore: 4}
 	result := game.PlayResult{Duration: 12.5, LowestSpeed: 2.5, Kills: 3, Duds: 1, FreedMem: 8192}
 	recorded := score.RecordResult{Entries: []score.BoardEntry{{Kills: 4}, {Kills: 3}}, NewHighScore: true}
 	fixture.config.On("Load").Return(fixture.configResult, nil)
 	fixture.processes.On("FindProcesses", process.FindRequest{IncludeRoot: true}).Return(fixture.found, nil)
-	fixture.scores.On("LoadScoreBoard").Return(board, nil)
+	fixture.scores.On("LoadScoreBoard").Return(loaded, nil)
 	fixture.game.On("Play", game.PlayRequest{
 		ConfirmMode: true, Speed: 3.5, TimeLimit: 45,
 		Processes: []game.ProcessRequest{{PID: 200, Name: "target", Rss: 1024, UID: 1000}},
 		HighScore: 4,
 	}).Return(result, nil)
 	fixture.scores.On("RecordScore", score.RecordRequest{
-		Entries: board.Entries, Kills: 3, Duds: 1, FreedMem: 8192, LowestSpeed: 2.5, TimeLimit: 45, Duration: 12.5,
-	}, nil).Return(recorded, nil)
+		Entries: loaded.Entries, Kills: 3, Duds: 1, FreedMem: 8192, LowestSpeed: 2.5, TimeLimit: 45, Duration: 12.5,
+	}).Return(recorded, nil)
 	fixture.scores.On("ReportResults", score.ReportRequest{
 		Duration: 12.5, Kills: 3, Duds: 1, FreedMem: 8192, Entries: recorded.Entries, NewHighScore: true,
 	}).Return()
@@ -105,15 +105,15 @@ func TestService_Run_PassesEachStepsResultToTheNext(t *testing.T) {
 	fixture.game.AssertExpectations(t)
 }
 
-func TestService_Run_PassesScoreBoardLoadErrorToRecordScore(t *testing.T) {
+func TestService_Run_ContinuesAfterNonFatalScoreBoardLoadError(t *testing.T) {
 	// Given
 	fixture := newRunFixture()
 	loadErr := newWarning("score board not loaded")
 	fixture.config.On("Load").Return(fixture.configResult, nil)
 	fixture.processes.On("FindProcesses", mock.Anything).Return(fixture.found, nil)
-	fixture.scores.On("LoadScoreBoard").Return(fixture.board, loadErr)
+	fixture.scores.On("LoadScoreBoard").Return(fixture.loaded, loadErr)
 	fixture.game.On("Play", mock.Anything).Return(game.PlayResult{}, nil)
-	fixture.scores.On("RecordScore", mock.Anything, loadErr).Return(score.RecordResult{}, nil)
+	fixture.scores.On("RecordScore", mock.Anything).Return(score.RecordResult{}, nil)
 	fixture.scores.On("ReportResults", mock.Anything).Return()
 
 	// When

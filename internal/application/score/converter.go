@@ -7,7 +7,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
 )
 
-func toCoreEntry(request RecordRequest) score.Entry {
+func toEntry(request RecordRequest) score.Entry {
 	return score.Entry{
 		Kills:    request.Kills,
 		Duds:     request.Duds,
@@ -19,7 +19,7 @@ func toCoreEntry(request RecordRequest) score.Entry {
 	}
 }
 
-func toCoreEntries(entries []BoardEntry) []score.Entry {
+func toEntries(entries []BoardEntry) []score.Entry {
 	out := make([]score.Entry, len(entries))
 	for i, entry := range entries {
 		out[i] = score.Entry{
@@ -35,7 +35,7 @@ func toCoreEntries(entries []BoardEntry) []score.Entry {
 	return out
 }
 
-func toEntries(entries []score.Entry) []BoardEntry {
+func toBoardEntries(entries []score.Entry) []BoardEntry {
 	out := make([]BoardEntry, len(entries))
 	for i, entry := range entries {
 		out[i] = BoardEntry{
@@ -67,8 +67,17 @@ func toBoard(board outbound.ScoreBoard) *score.Board {
 	return score.NewBoard(entries)
 }
 
-func toScoreBoard(board *score.Board) outbound.ScoreBoard {
-	return outbound.ScoreBoard{Scores: toScoreEntries(board.Scores)}
+func toLoadResult(board outbound.ScoreBoard) LoadResult {
+	ranked := toBoard(board)
+	return LoadResult{Entries: toBoardEntries(ranked.Scores), HighScore: ranked.HighScore()}
+}
+
+func toRecordResult(board *score.Board, kills int) RecordResult {
+	return RecordResult{Entries: toBoardEntries(board.Scores), NewHighScore: board.IsNewHighScore(kills)}
+}
+
+func toScoreBoard(entries []BoardEntry) outbound.ScoreBoard {
+	return outbound.ScoreBoard{Scores: toScoreEntries(entries)}
 }
 
 func toScoreSummary(request ReportRequest) outbound.ScoreSummary {
@@ -78,27 +87,11 @@ func toScoreSummary(request ReportRequest) outbound.ScoreSummary {
 		FreedMem:   request.FreedMem,
 		Duration:   request.Duration,
 		IsTopScore: request.NewHighScore,
-		Entries:    toSummaryEntries(request.Entries),
+		Entries:    toScoreEntries(request.Entries),
 	}
 }
 
-func toScoreEntries(entries []score.Entry) []outbound.ScoreEntry {
-	result := make([]outbound.ScoreEntry, len(entries))
-	for i, entry := range entries {
-		result[i] = outbound.ScoreEntry{
-			Kills:    entry.Kills,
-			Duds:     entry.Duds,
-			FreedMem: entry.FreedMem,
-			Speed:    entry.Speed,
-			Time:     entry.Time,
-			Duration: entry.Duration,
-			Date:     entry.Date,
-		}
-	}
-	return result
-}
-
-func toSummaryEntries(entries []BoardEntry) []outbound.ScoreEntry {
+func toScoreEntries(entries []BoardEntry) []outbound.ScoreEntry {
 	result := make([]outbound.ScoreEntry, len(entries))
 	for i, entry := range entries {
 		result[i] = outbound.ScoreEntry{

@@ -32,7 +32,7 @@ type runFixture struct {
 	logger       *testutil.FakeLogger
 	configResult config.Result
 	found        []process.FindResult
-	board        score.LoadResult
+	loaded       score.LoadResult
 }
 
 func newRunFixture() *runFixture {
@@ -43,7 +43,7 @@ func newRunFixture() *runFixture {
 		game:      &MockGamePlayer{},
 		logger:    &testutil.FakeLogger{},
 		found:     []process.FindResult{{PID: 200, Name: "target", Rss: 1024, UID: 1000}},
-		board:     score.LoadResult{},
+		loaded:    score.LoadResult{},
 	}
 	fixture.service = NewService(fixture.config, fixture.processes, fixture.scores, fixture.game, apperror.NewHandler(fixture.logger))
 	return fixture
@@ -52,9 +52,9 @@ func newRunFixture() *runFixture {
 // expectSessionAfterConfig expects every step after the configuration load to succeed.
 func (f *runFixture) expectSessionAfterConfig(result game.PlayResult) {
 	f.processes.On("FindProcesses", mock.Anything).Return(f.found, nil)
-	f.scores.On("LoadScoreBoard").Return(f.board, nil)
+	f.scores.On("LoadScoreBoard").Return(f.loaded, nil)
 	f.game.On("Play", mock.Anything).Return(result, nil)
-	f.scores.On("RecordScore", mock.Anything, mock.Anything).Return(score.RecordResult{}, nil)
+	f.scores.On("RecordScore", mock.Anything).Return(score.RecordResult{}, nil)
 	f.scores.On("ReportResults", mock.Anything).Return()
 }
 
@@ -74,10 +74,10 @@ func (f *runFixture) expectRunFailingAt(failing stage, err error) {
 	f.processes.On("FindProcesses", mock.Anything).Return(f.found, nil)
 
 	if failing == stageScoreBoardLoad {
-		f.scores.On("LoadScoreBoard").Return(f.board, err)
+		f.scores.On("LoadScoreBoard").Return(f.loaded, err)
 		return
 	}
-	f.scores.On("LoadScoreBoard").Return(f.board, nil)
+	f.scores.On("LoadScoreBoard").Return(f.loaded, nil)
 
 	if failing == stageGamePlay {
 		f.game.On("Play", mock.Anything).Return(game.PlayResult{}, err)
@@ -89,7 +89,7 @@ func (f *runFixture) expectRunFailingAt(failing stage, err error) {
 	}
 	f.game.On("Play", mock.Anything).Return(game.PlayResult{}, nil)
 
-	f.scores.On("RecordScore", mock.Anything, mock.Anything).Return(score.RecordResult{}, err)
+	f.scores.On("RecordScore", mock.Anything).Return(score.RecordResult{}, err)
 }
 
 func newFatalError(message string) *apperror.Error {
