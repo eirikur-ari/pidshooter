@@ -2,7 +2,6 @@ package console
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 	"time"
 
@@ -11,76 +10,59 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
-func TestReportPrintsGameOverSummary(t *testing.T) {
-	var buf bytes.Buffer
-	r := &ScoreReporter{writer: &buf}
+func TestScoreReporter_Report_PrintsSummaryAndHighScores(t *testing.T) {
+	for name, test := range newScoreReporterTestCases() {
+		t.Run(name, func(t *testing.T) {
+			// Given
+			var output bytes.Buffer
+			reporter := &ScoreReporter{writer: &output}
 
-	r.Report(outbound.ScoreSummary{Kills: 3, Duds: 2, FreedMem: 4096, Duration: 7.5})
+			// When
+			reporter.Report(test.summary)
 
-	assert.Contains(t, buf.String(), "Game Over!")
-	assert.Contains(t, buf.String(), "Kills: 3")
-	assert.Contains(t, buf.String(), "Duds: 2")
+			// Then
+			assert.Equal(t, test.expected, output.String())
+		})
+	}
 }
 
-func TestReportPrintsTrophyWhenNewHighScore(t *testing.T) {
-	var buf bytes.Buffer
-	r := &ScoreReporter{writer: &buf}
-
-	r.Report(outbound.ScoreSummary{IsTopScore: true})
-
-	assert.Contains(t, buf.String(), "New high score")
+type scoreReporterTestCase struct {
+	summary  outbound.ScoreSummary
+	expected string
 }
 
-func TestReportOmitsTrophyWhenNotNewHighScore(t *testing.T) {
-	var buf bytes.Buffer
-	r := &ScoreReporter{writer: &buf}
+func newScoreReporterTestCases() map[string]scoreReporterTestCase {
+	const gameOver = "\n  Game Over! Kills: 5 | Duds: 1 | Freed: 2.0 KB | Time: 12.5s\n"
+	const noScores = "\n  No high scores yet!\n"
+	const tableTop = "\n  ╔════╦═══════╦═══════╦═══════╦════════╦════════════╦════════════╗\n" +
+		"  ║  # ║ Kills ║ Duds  ║ Speed ║  Time  ║   Freed    ║    Date    ║\n" +
+		"  ╠════╬═══════╬═══════╬═══════╬════════╬════════════╬════════════╣\n"
+	const tableBottom = "  ╚════╩═══════╩═══════╩═══════╩════════╩════════════╩════════════╝\n"
 
-	r.Report(outbound.ScoreSummary{IsTopScore: false})
+	withEntries := newScoreSummaryFixture()
+	withEntries.Entries = []outbound.ScoreEntry{
+		newScoreEntryFixture(),
+		{Kills: 12, Duds: 0, FreedMem: 0, Speed: 1.0, Duration: 3.0, Date: dateFixture().Add(24 * time.Hour)},
+	}
 
-	assert.NotContains(t, buf.String(), "New high score")
-}
+	topScore := newScoreSummaryFixture()
+	topScore.IsTopScore = true
 
-func TestReportPrintsNoScoresMessageWhenEmpty(t *testing.T) {
-	var buf bytes.Buffer
-	r := &ScoreReporter{writer: &buf}
-
-	r.Report(outbound.ScoreSummary{})
-
-	assert.Contains(t, buf.String(), "No high scores yet!")
-}
-
-func TestReportPrintsTable(t *testing.T) {
-	var buf bytes.Buffer
-	r := &ScoreReporter{writer: &buf}
-
-	r.Report(outbound.ScoreSummary{Entries: []outbound.ScoreEntry{
-		{Kills: 5, FreedMem: 100, Speed: 1.5, Date: time.Now()},
-	}})
-
-	assert.Contains(t, buf.String(), "Kills")
-	assert.Contains(t, buf.String(), "Freed")
-}
-
-func TestReportPrintsDudsColumn(t *testing.T) {
-	var buf bytes.Buffer
-	r := &ScoreReporter{writer: &buf}
-
-	r.Report(outbound.ScoreSummary{Entries: []outbound.ScoreEntry{
-		{Kills: 5, Duds: 4, FreedMem: 100, Speed: 1.5, Date: time.Now()},
-	}})
-
-	assert.Contains(t, buf.String(), "Duds")
-	assert.Contains(t, buf.String(), fmt.Sprintf("  %3d  ║  %3d  ", 5, 4), "the Kills and Duds columns should show the entry's values, in that order")
-}
-
-func TestReportPrintsDuration(t *testing.T) {
-	var buf bytes.Buffer
-	r := &ScoreReporter{writer: &buf}
-
-	r.Report(outbound.ScoreSummary{Entries: []outbound.ScoreEntry{
-		{Kills: 5, FreedMem: 100, Speed: 1.5, Duration: 12.3, Date: time.Now()},
-	}})
-
-	assert.Contains(t, buf.String(), "Time")
-	assert.Contains(t, buf.String(), "12.3s")
+	return map[string]scoreReporterTestCase{
+		"no entries": {
+			summary:  newScoreSummaryFixture(),
+			expected: gameOver + noScores,
+		},
+		"top score with no entries": {
+			summary:  topScore,
+			expected: gameOver + "  🏆 New high score!\n" + noScores,
+		},
+		"entries are ranked in the given order": {
+			summary: withEntries,
+			expected: gameOver + tableTop +
+				"  ║  1 ║    5  ║    1  ║  2.5x ║  12.5s ║   2.0 KB   ║ 2026-01-02 ║\n" +
+				"  ║  2 ║   12  ║    0  ║  1.0x ║   3.0s ║      0 B   ║ 2026-01-03 ║\n" +
+				tableBottom,
+		},
+	}
 }
