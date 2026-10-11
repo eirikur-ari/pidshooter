@@ -39,15 +39,6 @@ Config file:
   e.g. --include-root=false overrides a persisted "include_root: true".
 `
 
-// Program runs pidshooter from command-line arguments.
-type Program struct {
-	creator    RunnerCreator
-	errHandler *apperror.Handler
-	parser     *flagParser
-	out        io.Writer
-	errOut     io.Writer
-}
-
 // RunnerCreator builds a Runner for the given patterns and options, and
 // provides the Handler used to log errors.
 type RunnerCreator interface {
@@ -56,6 +47,15 @@ type RunnerCreator interface {
 	Create(patterns []string, options config.Options) (inbound.Runner, error)
 	// ErrHandler returns the Handler used to log errors.
 	ErrHandler() *apperror.Handler
+}
+
+// Program runs pidshooter from command-line arguments.
+type Program struct {
+	creator    RunnerCreator
+	errHandler *apperror.Handler
+	parser     *flagParser
+	out        io.Writer
+	errOut     io.Writer
 }
 
 // NewProgram returns a Program that creates its Runner with creator.

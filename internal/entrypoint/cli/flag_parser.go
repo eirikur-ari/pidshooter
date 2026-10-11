@@ -8,20 +8,20 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
 )
 
-// flagParser parses command-line arguments into search patterns and config
-// options.
-type flagParser struct {
-	flagSet  *flag.FlagSet
-	mapper   *flagMapper
-	splitter argumentSplitter
-}
-
 // argumentSplitter partitions command-line arguments into search patterns and
 // flag arguments.
 type argumentSplitter interface {
 	// split returns the search patterns and the flag arguments found in args.
 	// It returns an error if the arguments are malformed.
 	split(args []string) (patterns, flagArgs []string, err error)
+}
+
+// flagParser parses command-line arguments into search patterns and config
+// options.
+type flagParser struct {
+	flagSet  *flag.FlagSet
+	mapper   *flagMapper
+	splitter argumentSplitter
 }
 
 // newFlagParser returns a flagParser that recognizes pidshooter's flags.
