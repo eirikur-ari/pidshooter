@@ -6,10 +6,10 @@ type FakeLogger struct {
 	Errored []string // messages passed to Error, in call order
 }
 
-func (l *FakeLogger) Warn(msg string) {
-	l.Warned = append(l.Warned, msg)
+func (l *FakeLogger) Warn(message string) {
+	l.Warned = append(l.Warned, message)
 }
 
-func (l *FakeLogger) Error(msg string) {
-	l.Errored = append(l.Errored, msg)
+func (l *FakeLogger) Error(message string) {
+	l.Errored = append(l.Errored, message)
 }

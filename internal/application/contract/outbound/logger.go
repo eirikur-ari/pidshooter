@@ -1,9 +1,9 @@
 package outbound
 
-// Logger reports leveled diagnostic messages.
+// Logger logs warning and error messages.
 type Logger interface {
-	// Warn reports msg as a warning.
-	Warn(msg string)
-	// Error reports msg as an error.
-	Error(msg string)
+	// Warn logs message as a warning.
+	Warn(message string)
+	// Error logs message as an error.
+	Error(message string)
 }
