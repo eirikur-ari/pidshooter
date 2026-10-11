@@ -2,107 +2,96 @@ package filestore
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
-// --- toScoreBoard ---
+func TestToScoreBoard_MapsEveryField(t *testing.T) {
+	// Given
+	expected := newScoreBoardFixture()
 
-func TestToScoreBoardMapsFields(t *testing.T) {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	c := scoreContent{Version: currentScoreSchemaVersion, Scores: []scoreEntry{
-		{Kills: 7, Duds: 2, FreedMem: 4096, Speed: 2.5, Time: 60, Duration: 45.0, Date: date},
-	}}
+	// When
+	board := toScoreBoard(newScoreContentFixture())
 
-	sb := toScoreBoard(c)
-
-	require.Len(t, sb.Scores, 1)
-	assert.Equal(t, outbound.ScoreEntry{Kills: 7, Duds: 2, FreedMem: 4096, Speed: 2.5, Time: 60, Duration: 45.0, Date: date}, sb.Scores[0])
+	// Then
+	assert.Equal(t, expected, board)
 }
 
-func TestToScoreBoardEmptyInput(t *testing.T) {
-	sb := toScoreBoard(scoreContent{})
+func TestToScoreContent_MapsEveryFieldAndSetsCurrentSchemaVersion(t *testing.T) {
+	// Given
+	expected := newScoreContentFixture()
 
-	assert.Empty(t, sb.Scores)
+	// When
+	content := toScoreContent(newScoreBoardFixture())
+
+	// Then
+	assert.Equal(t, expected, content)
 }
 
-// --- toScoreContent ---
+func TestToConfig_MapsEveryField(t *testing.T) {
+	// Given
+	expected := newConfigFixture()
 
-func TestToScoreContentMapsFields(t *testing.T) {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	sb := outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
-		{Kills: 7, Duds: 2, FreedMem: 4096, Speed: 2.5, Time: 60, Duration: 45.0, Date: date},
-	}}
+	// When
+	config := toConfig(newConfigContentFixture())
 
-	c := toScoreContent(sb)
-
-	assert.Equal(t, currentScoreSchemaVersion, c.Version)
-	require.Len(t, c.Scores, 1)
-	assert.Equal(t, scoreEntry{Kills: 7, Duds: 2, FreedMem: 4096, Speed: 2.5, Time: 60, Duration: 45.0, Date: date}, c.Scores[0])
+	// Then
+	assert.Equal(t, expected, config)
 }
 
-func TestToScoreContentEmptyInput(t *testing.T) {
-	c := toScoreContent(outbound.ScoreBoard{})
+func TestToConfig_ClonesPointerFields(t *testing.T) {
+	// Given
+	content := newConfigContentFixture()
+	expected := newConfigContentFixture()
 
-	assert.Equal(t, currentScoreSchemaVersion, c.Version)
-	assert.Empty(t, c.Scores)
+	// When
+	config := toConfig(content)
+	*config.Game.Speed = 9.9
+	*config.Game.ConfirmMode = false
+	*config.Game.TimeLimit = 1
+	*config.Process.IncludeRoot = false
+
+	// Then
+	assert.Equal(t, expected, content)
 }
 
-// --- toConfig ---
+func TestToConfigContent_MapsEveryFieldAndSetsCurrentSchemaVersion(t *testing.T) {
+	// Given
+	expected := newConfigContentFixture()
 
-func TestToConfigMapsFields(t *testing.T) {
-	cd := configContent{
-		Version: currentConfigSchemaVersion,
-		Mode:    "lucky",
-		Process: processEntry{
-			IncludeRoot: testutil.Pointer(true),
-		},
-		Game: configEntry{
-			ConfirmMode: testutil.Pointer(true),
-			Speed:       testutil.Pointer(2.5),
-			TimeLimit:   testutil.Pointer(60),
-		},
-	}
+	// When
+	content := toConfigContent(newConfigFixture())
 
-	defaults := toConfig(cd)
-
-	assert.Equal(t, outbound.ModeLucky, defaults.Mode)
-	assert.Equal(t, outbound.ProcessConfig{IncludeRoot: testutil.Pointer(true)}, defaults.Process)
-	assert.Equal(t, outbound.GameConfig{ConfirmMode: testutil.Pointer(true), Speed: testutil.Pointer(2.5), TimeLimit: testutil.Pointer(60)}, defaults.Game)
+	// Then
+	assert.Equal(t, expected, content)
 }
 
-func TestToConfigEmptyInput(t *testing.T) {
-	defaults := toConfig(configContent{})
+func TestToConfigContent_ClonesPointerFields(t *testing.T) {
+	// Given
+	config := newConfigFixture()
+	expected := newConfigFixture()
 
-	assert.Empty(t, defaults)
+	// When
+	content := toConfigContent(config)
+	*content.Game.Speed = 9.9
+	*content.Game.ConfirmMode = false
+	*content.Game.TimeLimit = 1
+	*content.Process.IncludeRoot = false
+
+	// Then
+	assert.Equal(t, expected, config)
 }
 
-// --- toConfigContent ---
+func TestToConfigContent_LeavesUnsetFieldsNil(t *testing.T) {
+	// When
+	content := toConfigContent(outbound.Config{})
 
-func TestToConfigContentMapsFields(t *testing.T) {
-	defaults := outbound.Config{
-		Mode:    outbound.ModeLucky,
-		Process: outbound.ProcessConfig{IncludeRoot: testutil.Pointer(true)},
-		Game:    outbound.GameConfig{ConfirmMode: testutil.Pointer(true), Speed: testutil.Pointer(2.5), TimeLimit: testutil.Pointer(60)},
-	}
-
-	cd := toConfigContent(defaults)
-
-	assert.Equal(t, currentConfigSchemaVersion, cd.Version)
-	assert.Equal(t, "lucky", cd.Mode)
-	assert.Equal(t, processEntry{IncludeRoot: testutil.Pointer(true)}, cd.Process)
-	assert.Equal(t, configEntry{ConfirmMode: testutil.Pointer(true), Speed: testutil.Pointer(2.5), TimeLimit: testutil.Pointer(60)}, cd.Game)
-}
-
-func TestToConfigContentEmptyInput(t *testing.T) {
-	cd := toConfigContent(outbound.Config{})
-
-	assert.Equal(t, currentConfigSchemaVersion, cd.Version)
-	assert.Equal(t, "", cd.Mode)
-	assert.Empty(t, cd.Game)
+	// Then
+	assert.Equal(t, currentConfigSchemaVersion, content.Version)
+	assert.Nil(t, content.Process.IncludeRoot)
+	assert.Nil(t, content.Game.ConfirmMode)
+	assert.Nil(t, content.Game.Speed)
+	assert.Nil(t, content.Game.TimeLimit)
 }

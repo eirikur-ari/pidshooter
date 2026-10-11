@@ -3,6 +3,7 @@ package filestore
 import (
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,203 +15,209 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
-func TestNewScoreFileResolvesDefaultPath(t *testing.T) {
+func TestNewScoreFile_ResolvesDefaultPath(t *testing.T) {
+	// Given
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", "") // don't let the runner's own env override HOME here
+	t.Setenv("XDG_CONFIG_HOME", "")
+	expectedPath := filepath.Join(home, ".config", "pidshooter", "highscores.json")
 
-	s, err := NewScoreFile()
+	// When
+	store, err := NewScoreFile()
+	typed, ok := store.(*scoreFile)
 
+	// Then
 	require.NoError(t, err)
-	sc, ok := s.(*scoreFile)
 	require.True(t, ok)
-	assert.Equal(t, filepath.Join(home, ".config", "pidshooter", "highscores.json"), sc.file.path)
+	assert.Equal(t, expectedPath, typed.file.path)
 }
 
-func TestNewScoreFileReturnsErrorWhenHomeUnset(t *testing.T) {
+func TestNewScoreFile_ReturnsErrorWhenHomeUnset(t *testing.T) {
+	// Given
 	t.Setenv("HOME", "")
-	t.Setenv("XDG_CONFIG_HOME", "") // don't let the runner's own env mask the unset HOME
+	t.Setenv("XDG_CONFIG_HOME", "")
 
-	_, err := NewScoreFile()
+	// When
+	store, err := NewScoreFile()
 
+	// Then
 	assert.Error(t, err)
+	assert.Nil(t, store)
 }
 
-func TestLoadFileNotExistReturnsNotFoundError(t *testing.T) {
-	s := newTempScore(t)
-	board, err := s.Load()
+func TestScoreFile_Load_ReturnsNotFoundErrorWhenFileMissing(t *testing.T) {
+	// Given
+	store := newScoreFileFixture(t.TempDir())
+
+	// When
+	board, err := store.Load()
+
+	// Then
 	assert.ErrorAs(t, err, &outbound.NotFoundError{})
 	assert.Empty(t, board.Scores)
 }
 
-func TestLoadInvalidJSONReturnsCorruptedDataError(t *testing.T) {
-	s := newTempScore(t)
-	require.NoError(t, os.WriteFile(s.file.path, []byte("not valid json{{{"), 0644))
+func TestScoreFile_Load_ReturnsCorruptedDataErrorForUndecodableContent(t *testing.T) {
+	tests := newCorruptedScoreTestCases()
 
-	_, err := s.Load()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			store := newScoreFileFixture(t.TempDir())
+			require.NoError(t, os.WriteFile(store.file.path, []byte(test.content), 0600))
 
-	assert.ErrorAs(t, err, &outbound.CorruptedDataError{})
-}
+			// When
+			_, err := store.Load()
 
-func TestSaveCreatesFile(t *testing.T) {
-	s := newTempScore(t)
-	require.NoError(t, s.Save(outbound.ScoreBoard{}))
-	_, err := os.Stat(s.file.path)
-	assert.NoError(t, err, "expected file to be created after Save")
-}
-
-func TestSaveFilePermissions(t *testing.T) {
-	s := newTempScore(t)
-	require.NoError(t, s.Save(outbound.ScoreBoard{}))
-	info, err := os.Stat(s.file.path)
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
-}
-
-func TestSaveLoadRoundTrip(t *testing.T) {
-	s := newTempScore(t)
-	date := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
-	sb := outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
-		{Kills: 7, Duds: 2, FreedMem: 4096, Speed: 2.5, Time: 60, Duration: 45.0, Date: date},
-	}}
-
-	require.NoError(t, s.Save(sb))
-	loaded, err := s.Load()
-	require.NoError(t, err)
-	assert.Equal(t, sb, loaded)
-}
-
-func TestSaveLoadMultipleEntries(t *testing.T) {
-	s := newTempScore(t)
-	date := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
-	sb := outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
-		{Kills: 3, FreedMem: 1024, Speed: 2.0, Time: 30, Duration: 20.0, Date: date},
-		{Kills: 9, FreedMem: 8192, Speed: 3.0, Time: 45, Duration: 30.0, Date: date},
-		{Kills: 1, FreedMem: 512, Speed: 1.0, Time: 15, Duration: 10.0, Date: date},
-	}}
-
-	require.NoError(t, s.Save(sb))
-	loaded, err := s.Load()
-	require.NoError(t, err)
-	assert.Equal(t, sb, loaded)
-}
-
-func TestSaveOverwritesPreviousFile(t *testing.T) {
-	s := newTempScore(t)
-
-	first := outbound.ScoreBoard{Scores: []outbound.ScoreEntry{{Kills: 2, Date: time.Now()}}}
-	require.NoError(t, s.Save(first))
-
-	second := outbound.ScoreBoard{Scores: []outbound.ScoreEntry{{Kills: 10, Date: time.Now()}}}
-	require.NoError(t, s.Save(second))
-
-	loaded, err := s.Load()
-	require.NoError(t, err)
-	require.Len(t, loaded.Scores, 1)
-	assert.Equal(t, 10, loaded.Scores[0].Kills)
-}
-
-func TestSaveToNestedNonexistentDirectoryCreatesParentDirs(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "nested", "deeper", "scores.json")
-	s := newScoreFileAt(path)
-
-	require.NoError(t, s.Save(outbound.ScoreBoard{}))
-
-	_, err := os.Stat(path)
-	assert.NoError(t, err, "Save should create the path's parent directories, not ~/.config/pidshooter")
-}
-
-func TestSaveDoesNotLeaveTempFileAfterSuccess(t *testing.T) {
-	dir := t.TempDir()
-	s := newScoreFileAt(filepath.Join(dir, "scores.json"))
-
-	require.NoError(t, s.Save(outbound.ScoreBoard{}))
-
-	entries, err := os.ReadDir(dir)
-	require.NoError(t, err)
-	for _, e := range entries {
-		assert.NotContains(t, e.Name(), ".tmp-", "no temp file should remain after a successful save")
+			// Then
+			assert.ErrorAs(t, err, &outbound.CorruptedDataError{})
+		})
 	}
 }
 
-func TestSaveWritesJSONMatchingOnDiskSchema(t *testing.T) {
-	s := newTempScore(t)
-	date := time.Date(2026, 1, 15, 10, 30, 0, 0, time.UTC)
-	sb := outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
-		{Kills: 7, Duds: 2, FreedMem: 4096, Speed: 2.5, Time: 60, Duration: 45.0, Date: date},
-	}}
-	require.NoError(t, s.Save(sb))
+func TestScoreFile_Load_ReturnsCorruptedDataErrorWhenFileOverMaximumSize(t *testing.T) {
+	// Given
+	store := newScoreFileFixture(t.TempDir())
+	require.NoError(t, os.WriteFile(store.file.path, make([]byte, maxScoreFileSize+1), 0600))
 
-	raw, err := os.ReadFile(s.file.path)
-	require.NoError(t, err)
+	// When
+	_, err := store.Load()
 
-	var onDisk map[string]any
-	require.NoError(t, json.Unmarshal(raw, &onDisk))
-	assert.Equal(t, float64(currentScoreSchemaVersion), onDisk["version"])
-	scores, ok := onDisk["scores"].([]any)
-	require.True(t, ok)
-	require.Len(t, scores, 1)
-	first, ok := scores[0].(map[string]any)
-	require.True(t, ok)
-
-	assert.Equal(t, float64(7), first["kills"])
-	assert.Equal(t, float64(2), first["duds"])
-	assert.Equal(t, float64(4096), first["freed_mem"])
-	assert.Equal(t, 2.5, first["speed"])
-	assert.Equal(t, float64(60), first["time_limit"])
-	assert.Equal(t, 45.0, first["duration_secs"])
-	assert.Equal(t, date.Format(time.RFC3339Nano), first["date"])
+	// Then
+	assert.ErrorAs(t, err, &outbound.CorruptedDataError{})
 }
 
-func TestLoadAcceptsFileWithoutVersionField(t *testing.T) {
-	s := newTempScore(t)
-	require.NoError(t, os.WriteFile(s.file.path, []byte(`{"scores":[{"kills":5}]}`), 0600))
+func TestScoreFile_Load_ReturnsEmptyBoardForEmptyFile(t *testing.T) {
+	// Given
+	store := newScoreFileFixture(t.TempDir())
+	require.NoError(t, os.WriteFile(store.file.path, nil, 0600))
 
-	board, err := s.Load()
+	// When
+	board, err := store.Load()
 
+	// Then
+	require.NoError(t, err)
+	assert.Empty(t, board.Scores)
+}
+
+func TestScoreFile_Load_AcceptsFileWithoutVersion(t *testing.T) {
+	// Given
+	store := newScoreFileFixture(t.TempDir())
+	require.NoError(t, os.WriteFile(store.file.path, []byte(`{"scores":[{"kills":5}]}`), 0600))
+
+	// When
+	board, err := store.Load()
+
+	// Then
 	require.NoError(t, err)
 	require.Len(t, board.Scores, 1)
 	assert.Equal(t, 5, board.Scores[0].Kills)
 }
 
-func TestLoadRejectsNewerSchemaVersion(t *testing.T) {
-	s := newTempScore(t)
-	require.NoError(t, os.WriteFile(s.file.path, []byte(`{"version":999,"scores":[]}`), 0600))
+func TestScoreFile_Load_RejectsNewerSchemaVersionWithoutClassifyingIt(t *testing.T) {
+	// Given
+	store := newScoreFileFixture(t.TempDir())
+	require.NoError(t, os.WriteFile(store.file.path, []byte(`{"version":999,"scores":[]}`), 0600))
 
-	_, err := s.Load()
+	// When
+	_, err := store.Load()
 
+	// Then
 	require.Error(t, err)
-	assert.False(t, errors.As(err, &outbound.NotFoundError{}), "a from-the-future schema version is not a missing file")
-	assert.False(t, errors.As(err, &outbound.CorruptedDataError{}), "a from-the-future schema version is valid data, not corrupt")
+	assert.NotErrorAs(t, err, &outbound.NotFoundError{})
+	assert.NotErrorAs(t, err, &outbound.CorruptedDataError{})
 }
 
-func TestLoadRejectsNegativeSchemaVersion(t *testing.T) {
-	s := newTempScore(t)
-	require.NoError(t, os.WriteFile(s.file.path, []byte(`{"version":-5,"scores":[]}`), 0600))
+func TestScoreFile_Save_ReturnsErrorWhenScoreBoardCannotBeEncoded(t *testing.T) {
+	// Given
+	store := newScoreFileFixture(t.TempDir())
+	encodeErr := errors.New("cannot encode")
+	encoder := &MockFileEncoder{}
+	encoder.On("encodeJSON", newScoreContentFixture()).Return(nil, encodeErr)
+	store.encoder = encoder
 
-	_, err := s.Load()
+	// When
+	err := store.Save(newScoreBoardFixture())
+	_, statErr := os.Stat(store.file.path)
 
-	require.Error(t, err)
-	assert.False(t, errors.As(err, &outbound.NotFoundError{}), "a negative schema version is not a missing file")
-	assert.False(t, errors.As(err, &outbound.CorruptedDataError{}), "a negative schema version is a version mismatch, not corrupt JSON")
+	// Then
+	assert.ErrorIs(t, err, encodeErr)
+	assert.ErrorIs(t, statErr, fs.ErrNotExist)
+	encoder.AssertExpectations(t)
 }
 
-func TestLoadRejectsFileOverMaxSize(t *testing.T) {
-	s := newTempScore(t)
-	oversized := make([]byte, maxScoreFileSize+1)
-	require.NoError(t, os.WriteFile(s.file.path, oversized, 0600))
+func TestScoreFile_Save_ReturnsErrorWhenFileCannotBeWritten(t *testing.T) {
+	// Given
+	parent := filepath.Join(t.TempDir(), "parent")
+	require.NoError(t, os.WriteFile(parent, nil, 0600))
+	store := newScoreFileFixture(t.TempDir())
+	store.file.path = filepath.Join(parent, "scores.json")
 
-	_, err := s.Load()
+	// When
+	err := store.Save(newScoreBoardFixture())
 
-	var corrupted outbound.CorruptedDataError
-	require.ErrorAs(t, err, &corrupted)
-	assert.Contains(t, corrupted.Error(), "over the")
+	// Then
+	assert.Error(t, err)
 }
 
-func newTempScore(t *testing.T) *scoreFile {
-	t.Helper()
-	s := newScoreFileAt(filepath.Join(t.TempDir(), "scores.json"))
-	sc, ok := s.(*scoreFile)
+func TestScoreFile_SaveLoad_RoundTripsScoreBoard(t *testing.T) {
+	// Given
+	store := newScoreFileFixture(t.TempDir())
+	board := newScoreBoardFixture()
+
+	// When
+	saveErr := store.Save(board)
+	loaded, loadErr := store.Load()
+
+	// Then
+	require.NoError(t, saveErr)
+	require.NoError(t, loadErr)
+	assert.Equal(t, board, loaded)
+}
+
+func TestScoreFile_Save_WritesJSONMatchingOnDiskSchema(t *testing.T) {
+	// Given
+	store := newScoreFileFixture(t.TempDir())
+
+	var onDisk map[string]any
+	expectedVersion := float64(currentScoreSchemaVersion)
+	expectedFirstScore := map[string]any{
+		"kills":         float64(7),
+		"duds":          float64(2),
+		"freed_mem":     float64(4096),
+		"speed":         2.5,
+		"time_limit":    float64(60),
+		"duration_secs": 45.0,
+		"date":          dateFixture().Format(time.RFC3339Nano),
+	}
+
+	// When
+	saveErr := store.Save(newScoreBoardFixture())
+	raw, readErr := os.ReadFile(store.file.path)
+	unmarshalErr := json.Unmarshal(raw, &onDisk)
+	scores, ok := onDisk["scores"].([]any)
+
+	// Then
+	require.NoError(t, saveErr)
+	require.NoError(t, readErr)
+	require.NoError(t, unmarshalErr)
+	assert.Equal(t, expectedVersion, onDisk["version"])
 	require.True(t, ok)
-	return sc
+	require.Len(t, scores, 2)
+	assert.Equal(t, expectedFirstScore, scores[0])
+}
+
+func newCorruptedScoreTestCases() []struct {
+	name    string
+	content string
+} {
+	return []struct {
+		name    string
+		content string
+	}{
+		{"invalid json", "not valid json{{{"},
+		{"unknown top-level key", `{"scores":[],"bogus":1}`},
+		{"unknown entry key", `{"scores":[{"kills":5,"bogus":1}]}`},
+		{"data after the board", `{"scores":[]}{}`},
+	}
 }

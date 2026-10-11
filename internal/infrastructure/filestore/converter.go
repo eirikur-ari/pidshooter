@@ -58,7 +58,7 @@ func toConfigContent(config outbound.Config) configContent {
 		Process: processEntry{
 			IncludeRoot: util.ClonePointer(config.Process.IncludeRoot),
 		},
-		Game: configEntry{
+		Game: gameEntry{
 			ConfirmMode: util.ClonePointer(config.Game.ConfirmMode),
 			Speed:       util.ClonePointer(config.Game.Speed),
 			TimeLimit:   util.ClonePointer(config.Game.TimeLimit),

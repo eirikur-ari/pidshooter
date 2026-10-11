@@ -9,15 +9,29 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
-// configFile persists run config to a YAML file.
-type configFile struct {
-	file file
+// currentConfigSchemaVersion is the schema version config files are written
+// with and the newest one accepted when loading.
+const currentConfigSchemaVersion = 1
+
+// maxConfigFileSize is the largest config file, in bytes, that Load accepts.
+const maxConfigFileSize = 1 << 20 // 1 MiB
+
+// configEncoder encodes the content of a config file.
+type configEncoder interface {
+	// encodeYAML returns the YAML encoding of value.
+	encodeYAML(value any) ([]byte, error)
 }
 
-// configEntry is the on-disk YAML representation of the persisted game
-// mode config. A nil field is omitted from the written file and, on
+// configFile persists run config to a YAML file.
+type configFile struct {
+	file    file
+	encoder configEncoder
+}
+
+// gameEntry is the on-disk YAML representation of the persisted game
+// settings. A nil field is omitted from the written file and, on
 // read, means the key was absent.
-type configEntry struct {
+type gameEntry struct {
 	ConfirmMode *bool    `yaml:"confirm_mode,omitempty"`
 	Speed       *float64 `yaml:"speed,omitempty"`
 	TimeLimit   *int     `yaml:"time_limit,omitempty"`
@@ -38,15 +52,8 @@ type configContent struct {
 	Version int          `yaml:"version"`
 	Mode    string       `yaml:"mode"`
 	Process processEntry `yaml:"process"`
-	Game    configEntry  `yaml:"game"`
+	Game    gameEntry    `yaml:"game"`
 }
-
-// currentConfigSchemaVersion is the schema version this build of
-// pidshooter reads and writes. See configContent.Version.
-const currentConfigSchemaVersion = 1
-
-// maxConfigFileSize bounds the config file size accepted before parsing.
-const maxConfigFileSize = 1 << 20 // 1 MiB
 
 // NewConfigFile constructs an outbound.ConfigStore that persists to the
 // default per-user config path. It fails if the user's home directory
@@ -57,13 +64,12 @@ func NewConfigFile() (outbound.ConfigStore, error) {
 		return nil, err
 	}
 
-	return &configFile{file: f}, nil
+	return &configFile{file: f, encoder: fileEncoder{}}, nil
 }
 
-// newConfigFileAt constructs an outbound.ConfigStore that persists to the
-// given path, without touching the user's default config location.
+// newConfigFileAt constructs an outbound.ConfigStore that persists to path.
 func newConfigFileAt(path string) outbound.ConfigStore {
-	return &configFile{file: file{path: path, maxSize: maxConfigFileSize}}
+	return &configFile{file: file{path: path, maxSize: maxConfigFileSize}, encoder: fileEncoder{}}
 }
 
 // Load returns the persisted config. A missing file is reported as
@@ -92,13 +98,11 @@ func (c *configFile) Load() (outbound.Config, error) {
 	return toConfig(cd), nil
 }
 
-// Save encodes and persists the run config, replacing any previously
-// persisted config atomically, so a crash or kill mid-write can never
-// leave a truncated or partial file behind.
+// Save atomically replaces the persisted config with config.
 func (c *configFile) Save(config outbound.Config) error {
-	data, err := yaml.Marshal(toConfigContent(config))
+	data, err := c.encoder.encodeYAML(toConfigContent(config))
 	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
+		return fmt.Errorf("failed to encode config: %w", err)
 	}
 
 	return c.file.write(data)

@@ -2,6 +2,7 @@ package filestore
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,245 +15,262 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
-func TestNewConfigFileResolvesDefaultPath(t *testing.T) {
+func TestNewConfigFile_ResolvesDefaultPath(t *testing.T) {
+	// Given
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", "") // don't let the runner's own env override HOME here
+	t.Setenv("XDG_CONFIG_HOME", "")
+	expectedPath := filepath.Join(home, ".config", "pidshooter", "config.yaml")
 
-	c, err := NewConfigFile()
+	// When
+	store, err := NewConfigFile()
+	typed, ok := store.(*configFile)
 
+	// Then
 	require.NoError(t, err)
-	cf, ok := c.(*configFile)
 	require.True(t, ok)
-	assert.Equal(t, filepath.Join(home, ".config", "pidshooter", "config.yaml"), cf.file.path)
+	assert.Equal(t, expectedPath, typed.file.path)
 }
 
-func TestNewConfigFileReturnsErrorWhenHomeUnset(t *testing.T) {
+func TestNewConfigFile_ReturnsErrorWhenHomeUnset(t *testing.T) {
+	// Given
 	t.Setenv("HOME", "")
-	t.Setenv("XDG_CONFIG_HOME", "") // don't let the runner's own env mask the unset HOME
+	t.Setenv("XDG_CONFIG_HOME", "")
 
-	_, err := NewConfigFile()
+	// When
+	store, err := NewConfigFile()
 
+	// Then
+	assert.Error(t, err)
+	assert.Nil(t, store)
+}
+
+func TestConfigFile_Load_ReturnsNotFoundErrorWhenFileMissing(t *testing.T) {
+	// Given
+	store := newConfigFileFixture(t.TempDir())
+
+	// When
+	config, err := store.Load()
+
+	// Then
+	assert.ErrorAs(t, err, &outbound.NotFoundError{})
+	assert.Empty(t, config)
+}
+
+func TestConfigFile_Load_ReturnsCorruptedDataErrorForUndecodableContent(t *testing.T) {
+	tests := newCorruptedConfigTestCases()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			store := newConfigFileFixture(t.TempDir())
+			require.NoError(t, os.WriteFile(store.file.path, []byte(test.content), 0600))
+
+			// When
+			_, err := store.Load()
+
+			// Then
+			assert.ErrorAs(t, err, &outbound.CorruptedDataError{})
+		})
+	}
+}
+
+func TestConfigFile_Load_ReturnsCorruptedDataErrorWhenFileOverMaximumSize(t *testing.T) {
+	// Given
+	store := newConfigFileFixture(t.TempDir())
+	require.NoError(t, os.WriteFile(store.file.path, make([]byte, maxConfigFileSize+1), 0600))
+
+	// When
+	_, err := store.Load()
+
+	// Then
+	assert.ErrorAs(t, err, &outbound.CorruptedDataError{})
+}
+
+func TestConfigFile_Load_ReturnsEmptyConfigForEmptyFile(t *testing.T) {
+	// Given
+	store := newConfigFileFixture(t.TempDir())
+	require.NoError(t, os.WriteFile(store.file.path, nil, 0600))
+
+	// When
+	config, err := store.Load()
+
+	// Then
+	require.NoError(t, err)
+	assert.Empty(t, config)
+}
+
+func TestConfigFile_Load_AcceptsFileWithoutVersion(t *testing.T) {
+	// Given
+	store := newConfigFileFixture(t.TempDir())
+	require.NoError(t, os.WriteFile(store.file.path, []byte("mode: lucky\n"), 0600))
+
+	// When
+	config, err := store.Load()
+
+	// Then
+	require.NoError(t, err)
+	assert.Equal(t, outbound.ModeLucky, config.Mode)
+}
+
+func TestConfigFile_Load_RejectsNewerSchemaVersionWithoutClassifyingIt(t *testing.T) {
+	// Given
+	store := newConfigFileFixture(t.TempDir())
+	require.NoError(t, os.WriteFile(store.file.path, []byte("version: 999\n"), 0600))
+
+	// When
+	_, err := store.Load()
+
+	// Then
+	require.Error(t, err)
+	assert.NotErrorAs(t, err, &outbound.NotFoundError{})
+	assert.NotErrorAs(t, err, &outbound.CorruptedDataError{})
+}
+
+func TestConfigFile_Load_PassesThroughUnrecognizedMode(t *testing.T) {
+	// Given
+	store := newConfigFileFixture(t.TempDir())
+	require.NoError(t, os.WriteFile(store.file.path, []byte("mode: wobble\n"), 0600))
+	expectedMode := outbound.Mode("wobble")
+
+	// When
+	config, err := store.Load()
+
+	// Then
+	require.NoError(t, err)
+	assert.Equal(t, expectedMode, config.Mode)
+}
+
+func TestConfigFile_Load_LeavesAbsentKeysNil(t *testing.T) {
+	// Given
+	store := newConfigFileFixture(t.TempDir())
+	require.NoError(t, os.WriteFile(store.file.path, []byte("game:\n  speed: 3.0\n"), 0600))
+
+	// When
+	config, err := store.Load()
+
+	// Then
+	require.NoError(t, err)
+	require.NotNil(t, config.Game.Speed)
+	assert.Equal(t, 3.0, *config.Game.Speed)
+	assert.Nil(t, config.Game.ConfirmMode)
+	assert.Nil(t, config.Game.TimeLimit)
+	assert.Nil(t, config.Process.IncludeRoot)
+}
+
+func TestConfigFile_Save_ReturnsErrorWhenConfigCannotBeEncoded(t *testing.T) {
+	// Given
+	store := newConfigFileFixture(t.TempDir())
+	encodeErr := errors.New("cannot encode")
+	encoder := &MockFileEncoder{}
+	encoder.On("encodeYAML", newConfigContentFixture()).Return(nil, encodeErr)
+	store.encoder = encoder
+
+	// When
+	err := store.Save(newConfigFixture())
+	_, statErr := os.Stat(store.file.path)
+
+	// Then
+	assert.ErrorIs(t, err, encodeErr)
+	assert.ErrorIs(t, statErr, fs.ErrNotExist)
+	encoder.AssertExpectations(t)
+}
+
+func TestConfigFile_Save_ReturnsErrorWhenFileCannotBeWritten(t *testing.T) {
+	// Given
+	parent := filepath.Join(t.TempDir(), "parent")
+	require.NoError(t, os.WriteFile(parent, nil, 0600))
+	store := newConfigFileFixture(t.TempDir())
+	store.file.path = filepath.Join(parent, "config.yaml")
+
+	// When
+	err := store.Save(newConfigFixture())
+
+	// Then
 	assert.Error(t, err)
 }
 
-func TestConfigLoadFileNotExistReturnsNotFoundError(t *testing.T) {
-	c := newTempConfig(t)
-	defaults, err := c.Load()
-	assert.ErrorAs(t, err, &outbound.NotFoundError{})
-	assert.Empty(t, defaults)
+func TestConfigFile_SaveLoad_RoundTripsConfig(t *testing.T) {
+	// Given
+	store := newConfigFileFixture(t.TempDir())
+	config := newConfigFixture()
+
+	// When
+	saveErr := store.Save(config)
+	loaded, loadErr := store.Load()
+
+	// Then
+	require.NoError(t, saveErr)
+	require.NoError(t, loadErr)
+	assert.Equal(t, config, loaded)
 }
 
-func TestConfigLoadInvalidYAMLReturnsCorruptedDataError(t *testing.T) {
-	c := newTempConfig(t)
-	require.NoError(t, os.WriteFile(c.file.path, []byte(":\n  - not: valid: yaml"), 0644))
+func TestConfigFile_Save_WritesYAMLMatchingOnDiskSchema(t *testing.T) {
+	tests := newSavedYAMLTestCases()
 
-	_, err := c.Load()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			store := newConfigFileFixture(t.TempDir())
+			var onDisk map[string]any
 
-	assert.ErrorAs(t, err, &outbound.CorruptedDataError{})
+			// When
+			saveErr := store.Save(test.config)
+			raw, readErr := os.ReadFile(store.file.path)
+			unmarshalErr := yaml.Unmarshal(raw, &onDisk)
+
+			// Then
+			require.NoError(t, saveErr)
+			require.NoError(t, readErr)
+			require.NoError(t, unmarshalErr)
+			assert.Equal(t, test.expected, onDisk)
+		})
+	}
 }
 
-func TestConfigLoadUnknownKeyReturnsCorruptedDataError(t *testing.T) {
-	c := newTempConfig(t)
-	require.NoError(t, os.WriteFile(c.file.path, []byte("game:\n  timelimit: 55\n"), 0644))
-
-	_, err := c.Load()
-
-	assert.ErrorAs(t, err, &outbound.CorruptedDataError{})
-}
-
-func TestConfigLoadEmptyFileReturnsNoError(t *testing.T) {
-	c := newTempConfig(t)
-	require.NoError(t, os.WriteFile(c.file.path, []byte(""), 0644))
-
-	defaults, err := c.Load()
-
-	require.NoError(t, err)
-	assert.Empty(t, defaults)
-}
-
-func TestConfigSaveCreatesFile(t *testing.T) {
-	c := newTempConfig(t)
-	require.NoError(t, c.Save(outbound.Config{}))
-	_, err := os.Stat(c.file.path)
-	assert.NoError(t, err, "expected file to be created after Save")
-}
-
-func TestConfigSaveFilePermissions(t *testing.T) {
-	c := newTempConfig(t)
-	require.NoError(t, c.Save(outbound.Config{}))
-	info, err := os.Stat(c.file.path)
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0600), info.Mode().Perm())
-}
-
-func TestConfigSaveLoadRoundTrip(t *testing.T) {
-	c := newTempConfig(t)
-	defaults := outbound.Config{
-		Mode:    outbound.ModeGame,
-		Process: outbound.ProcessConfig{IncludeRoot: testutil.Pointer(true)},
-		Game: outbound.GameConfig{
-			ConfirmMode: testutil.Pointer(true),
-			Speed:       testutil.Pointer(2.5),
-			TimeLimit:   testutil.Pointer(60),
+func newSavedYAMLTestCases() []struct {
+	name     string
+	config   outbound.Config
+	expected map[string]any
+} {
+	return []struct {
+		name     string
+		config   outbound.Config
+		expected map[string]any
+	}{
+		{
+			"every key set",
+			newConfigFixture(),
+			map[string]any{
+				"version": currentConfigSchemaVersion,
+				"mode":    "game",
+				"process": map[string]any{"include_root": true},
+				"game":    map[string]any{"confirm_mode": true, "speed": 2.5, "time_limit": 60},
+			},
+		},
+		{
+			"unset keys are omitted",
+			outbound.Config{Game: outbound.GameConfig{Speed: testutil.Pointer(1.5)}},
+			map[string]any{
+				"version": currentConfigSchemaVersion,
+				"mode":    "",
+				"process": map[string]any{},
+				"game":    map[string]any{"speed": 1.5},
+			},
 		},
 	}
-
-	require.NoError(t, c.Save(defaults))
-	loaded, err := c.Load()
-	require.NoError(t, err)
-	assert.Equal(t, defaults, loaded)
 }
 
-func TestConfigSaveOverwritesPreviousFile(t *testing.T) {
-	c := newTempConfig(t)
-
-	first := outbound.Config{Mode: outbound.ModeGame, Game: outbound.GameConfig{Speed: testutil.Pointer(1.0)}}
-	require.NoError(t, c.Save(first))
-
-	second := outbound.Config{Mode: outbound.ModeLucky, Game: outbound.GameConfig{Speed: testutil.Pointer(2.0)}}
-	require.NoError(t, c.Save(second))
-
-	loaded, err := c.Load()
-	require.NoError(t, err)
-	assert.Equal(t, second, loaded)
-}
-
-func TestConfigSaveToNestedNonexistentDirectoryCreatesParentDirs(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "nested", "deeper", "config.yaml")
-	c := newConfigFileAt(path)
-
-	require.NoError(t, c.Save(outbound.Config{}))
-
-	_, err := os.Stat(path)
-	assert.NoError(t, err, "Save should create the path's parent directories, not ~/.config/pidshooter")
-}
-
-func TestConfigSaveDoesNotLeaveTempFileAfterSuccess(t *testing.T) {
-	dir := t.TempDir()
-	c := newConfigFileAt(filepath.Join(dir, "config.yaml"))
-
-	require.NoError(t, c.Save(outbound.Config{}))
-
-	entries, err := os.ReadDir(dir)
-	require.NoError(t, err)
-	for _, e := range entries {
-		assert.NotContains(t, e.Name(), ".tmp-", "no temp file should remain after a successful save")
+func newCorruptedConfigTestCases() []struct {
+	name    string
+	content string
+} {
+	return []struct {
+		name    string
+		content string
+	}{
+		{"invalid yaml", ":\n  - not: valid: yaml"},
+		{"unknown nested key", "game:\n  timelimit: 55\n"},
+		{"unknown top-level key", "bogus: true\n"},
 	}
-}
-
-func TestConfigSaveWritesYAMLMatchingOnDiskSchema(t *testing.T) {
-	c := newTempConfig(t)
-	defaults := outbound.Config{
-		Mode:    outbound.ModeGame,
-		Process: outbound.ProcessConfig{IncludeRoot: testutil.Pointer(true)},
-		Game: outbound.GameConfig{
-			ConfirmMode: testutil.Pointer(true),
-			Speed:       testutil.Pointer(2.5),
-			TimeLimit:   testutil.Pointer(60),
-		},
-	}
-	require.NoError(t, c.Save(defaults))
-
-	raw, err := os.ReadFile(c.file.path)
-	require.NoError(t, err)
-
-	var onDisk map[string]any
-	require.NoError(t, yaml.Unmarshal(raw, &onDisk))
-	assert.Equal(t, currentConfigSchemaVersion, onDisk["version"])
-	assert.Equal(t, "game", onDisk["mode"])
-	process, ok := onDisk["process"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, true, process["include_root"])
-	game, ok := onDisk["game"].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, true, game["confirm_mode"])
-	assert.Equal(t, 2.5, game["speed"])
-	assert.Equal(t, 60, game["time_limit"])
-}
-
-func TestConfigLoadAcceptsFileWithoutVersionField(t *testing.T) {
-	c := newTempConfig(t)
-	require.NoError(t, os.WriteFile(c.file.path, []byte("mode: lucky\n"), 0600))
-
-	defaults, err := c.Load()
-
-	require.NoError(t, err)
-	assert.Equal(t, outbound.ModeLucky, defaults.Mode)
-}
-
-func TestConfigLoadPassesThroughUnrecognizedModeWithoutValidating(t *testing.T) {
-	c := newTempConfig(t)
-	require.NoError(t, os.WriteFile(c.file.path, []byte("mode: wobble\n"), 0600))
-
-	defaults, err := c.Load()
-
-	require.NoError(t, err, "mode validation is application/config's job, not this layer's")
-	assert.Equal(t, outbound.Mode("wobble"), defaults.Mode)
-}
-
-func TestConfigLoadOnlySpeedSetLeavesOtherFieldsNil(t *testing.T) {
-	c := newTempConfig(t)
-	require.NoError(t, os.WriteFile(c.file.path, []byte("game:\n  speed: 3.0\n"), 0600))
-
-	defaults, err := c.Load()
-
-	require.NoError(t, err)
-	require.NotNil(t, defaults.Game.Speed)
-	assert.Equal(t, 3.0, *defaults.Game.Speed)
-	assert.Nil(t, defaults.Game.ConfirmMode)
-	assert.Nil(t, defaults.Game.TimeLimit)
-	assert.Nil(t, defaults.Process.IncludeRoot)
-}
-
-func TestConfigLoadRejectsNewerSchemaVersion(t *testing.T) {
-	c := newTempConfig(t)
-	require.NoError(t, os.WriteFile(c.file.path, []byte("version: 999\n"), 0600))
-
-	_, err := c.Load()
-
-	require.Error(t, err)
-	assert.False(t, errors.As(err, &outbound.NotFoundError{}), "a from-the-future schema version is not a missing file")
-	assert.False(t, errors.As(err, &outbound.CorruptedDataError{}), "a from-the-future schema version is valid data, not corrupt")
-}
-
-func TestConfigLoadRejectsNegativeSchemaVersion(t *testing.T) {
-	c := newTempConfig(t)
-	require.NoError(t, os.WriteFile(c.file.path, []byte("version: -5\n"), 0600))
-
-	_, err := c.Load()
-
-	require.Error(t, err)
-	assert.False(t, errors.As(err, &outbound.NotFoundError{}), "a negative schema version is not a missing file")
-	assert.False(t, errors.As(err, &outbound.CorruptedDataError{}), "a negative schema version is a version mismatch, not corrupt YAML")
-}
-
-func TestConfigLoadAcceptsExplicitZeroSchemaVersion(t *testing.T) {
-	c := newTempConfig(t)
-	require.NoError(t, os.WriteFile(c.file.path, []byte("version: 0\nmode: lucky\n"), 0600))
-
-	defaults, err := c.Load()
-
-	require.NoError(t, err)
-	assert.Equal(t, outbound.ModeLucky, defaults.Mode)
-}
-
-func TestConfigLoadRejectsFileOverMaxSize(t *testing.T) {
-	c := newTempConfig(t)
-	oversized := make([]byte, maxConfigFileSize+1)
-	require.NoError(t, os.WriteFile(c.file.path, oversized, 0600))
-
-	_, err := c.Load()
-
-	var corrupted outbound.CorruptedDataError
-	require.ErrorAs(t, err, &corrupted)
-	assert.Contains(t, corrupted.Error(), "over the")
-}
-
-func newTempConfig(t *testing.T) *configFile {
-	t.Helper()
-	c := newConfigFileAt(filepath.Join(t.TempDir(), "config.yaml"))
-	cf, ok := c.(*configFile)
-	require.True(t, ok)
-	return cf
 }

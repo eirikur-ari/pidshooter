@@ -1,16 +1,33 @@
 package filestore
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
+// currentScoreSchemaVersion is the schema version score files are written
+// with and the newest one accepted when loading.
+const currentScoreSchemaVersion = 1
+
+// maxScoreFileSize is the largest score file, in bytes, that Load accepts.
+const maxScoreFileSize = 1 << 20 // 1 MiB
+
+// scoreEncoder encodes the content of a score file.
+type scoreEncoder interface {
+	// encodeJSON returns the JSON encoding of value.
+	encodeJSON(value any) ([]byte, error)
+}
+
 // scoreFile persists the score board to a JSON file.
 type scoreFile struct {
-	file file
+	file    file
+	encoder scoreEncoder
 }
 
 // scoreEntry is the on-disk JSON representation of a single high score record.
@@ -26,22 +43,11 @@ type scoreEntry struct {
 
 // scoreContent is the on-disk JSON representation of the high score table.
 type scoreContent struct {
-	// Version identifies scoreEntry's shape. Bump currentScoreSchemaVersion and
-	// add a migration step in Load whenever a field is renamed or removed
-	// — otherwise encoding/json silently drops or zero-fills old data on
-	// the next Save.
+	// Version identifies scoreContent's shape. Bump currentScoreSchemaVersion
+	// whenever the shape changes.
 	Version int          `json:"version"`
 	Scores  []scoreEntry `json:"scores"`
 }
-
-// currentScoreSchemaVersion is the schema version this build of pidshooter
-// reads and writes. See scoreContent.Version.
-const currentScoreSchemaVersion = 1
-
-// maxScoreFileSize bounds how large a score file Load will accept before
-// parsing; a legitimate file holds at most 10 entries (core/score.Board's
-// cap) and is a couple of KB.
-const maxScoreFileSize = 1 << 20 // 1 MiB
 
 // NewScoreFile constructs an outbound.ScoreStore that persists to the
 // default per-user config path. It fails if the user's home directory
@@ -52,13 +58,12 @@ func NewScoreFile() (outbound.ScoreStore, error) {
 		return nil, err
 	}
 
-	return &scoreFile{file: f}, nil
+	return &scoreFile{file: f, encoder: fileEncoder{}}, nil
 }
 
-// newScoreFileAt constructs an outbound.ScoreStore that persists to the
-// given path, without touching the user's default config location.
+// newScoreFileAt constructs an outbound.ScoreStore that persists to path.
 func newScoreFileAt(path string) outbound.ScoreStore {
-	return &scoreFile{file: file{path: path, maxSize: maxScoreFileSize}}
+	return &scoreFile{file: file{path: path, maxSize: maxScoreFileSize}, encoder: fileEncoder{}}
 }
 
 // Load returns the persisted score board. A missing file is reported as
@@ -72,8 +77,15 @@ func (s *scoreFile) Load() (outbound.ScoreBoard, error) {
 	}
 
 	var c scoreContent
-	if err := json.Unmarshal(data, &c); err != nil {
-		return outbound.ScoreBoard{}, outbound.CorruptedDataError{Message: err.Error()}
+	if len(data) > 0 {
+		dec := json.NewDecoder(bytes.NewReader(data))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&c); err != nil {
+			return outbound.ScoreBoard{}, outbound.CorruptedDataError{Message: err.Error()}
+		}
+		if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+			return outbound.ScoreBoard{}, outbound.CorruptedDataError{Message: "unexpected data after the score board"}
+		}
 	}
 
 	if err := schemaVersion(currentScoreSchemaVersion).validate("score file", c.Version); err != nil {
@@ -83,13 +95,11 @@ func (s *scoreFile) Load() (outbound.ScoreBoard, error) {
 	return toScoreBoard(c), nil
 }
 
-// Save encodes and persists the score board, replacing any previously
-// persisted board atomically, so a crash or kill mid-write can never
-// leave a truncated or partial file behind.
+// Save atomically replaces the persisted score board with the given one.
 func (s *scoreFile) Save(sb outbound.ScoreBoard) error {
-	data, err := json.MarshalIndent(toScoreContent(sb), "", "  ")
+	data, err := s.encoder.encodeJSON(toScoreContent(sb))
 	if err != nil {
-		return fmt.Errorf("failed to marshal scores: %w", err)
+		return fmt.Errorf("failed to encode scores: %w", err)
 	}
 
 	return s.file.write(data)
