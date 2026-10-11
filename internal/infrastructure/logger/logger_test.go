@@ -17,7 +17,7 @@ func TestNewLogger_WritesToStandardError(t *testing.T) {
 }
 
 func TestLogger_Warn_WritesWarningLine(t *testing.T) {
-	tests := newWarnTestCases()
+	tests := newWarnTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -36,7 +36,7 @@ func TestLogger_Warn_WritesWarningLine(t *testing.T) {
 }
 
 func TestLogger_Error_WritesErrorLine(t *testing.T) {
-	tests := newErrorTestCases()
+	tests := newErrorTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -54,7 +54,7 @@ func TestLogger_Error_WritesErrorLine(t *testing.T) {
 	}
 }
 
-func newWarnTestCases() []struct {
+func newWarnTestCase() []struct {
 	name     string
 	message  string
 	expected string
@@ -69,7 +69,7 @@ func newWarnTestCases() []struct {
 	}
 }
 
-func newErrorTestCases() []struct {
+func newErrorTestCase() []struct {
 	name     string
 	message  string
 	expected string

@@ -15,7 +15,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/console"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/filestore"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/logger"
-	"github.com/eirikur-ari/pidshooter/internal/infrastructure/osprocess"
+	"github.com/eirikur-ari/pidshooter/internal/infrastructure/pscommand"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
@@ -38,7 +38,7 @@ func (c RunnerCreator) ErrHandler() *apperror.Handler {
 // by options, along with everything it depends on. It returns an error if any
 // of those dependencies cannot be set up.
 func (c RunnerCreator) Create(patterns []string, options config.Options) (inbound.Runner, error) {
-	manager, err := osprocess.NewProcess()
+	manager, err := pscommand.NewManager()
 	if err != nil {
 		return nil, err
 	}

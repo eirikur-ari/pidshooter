@@ -7,7 +7,7 @@ import (
 )
 
 func TestSchemaVersion_validate_ReturnsErrorForNegativeOrNewerVersion(t *testing.T) {
-	tests := newInvalidSchemaVersionTestCases()
+	tests := newInvalidSchemaVersionTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -24,7 +24,7 @@ func TestSchemaVersion_validate_ReturnsErrorForNegativeOrNewerVersion(t *testing
 }
 
 func TestSchemaVersion_validate_ReturnsNoErrorFromZeroThroughCurrentVersion(t *testing.T) {
-	tests := newValidSchemaVersionTestCases()
+	tests := newValidSchemaVersionTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -40,7 +40,7 @@ func TestSchemaVersion_validate_ReturnsNoErrorFromZeroThroughCurrentVersion(t *t
 	}
 }
 
-func newInvalidSchemaVersionTestCases() []struct {
+func newInvalidSchemaVersionTestCase() []struct {
 	name     string
 	fileType string
 	version  int
@@ -57,7 +57,7 @@ func newInvalidSchemaVersionTestCases() []struct {
 	}
 }
 
-func newValidSchemaVersionTestCases() []struct {
+func newValidSchemaVersionTestCase() []struct {
 	name    string
 	version int
 } {

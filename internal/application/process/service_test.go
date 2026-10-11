@@ -13,7 +13,7 @@ import (
 )
 
 func TestService_FindProcesses_ReturnsFatalErrorAndReportsNothing(t *testing.T) {
-	tests := newFindProcessesErrorTestCases()
+	tests := newFindProcessesErrorTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -37,7 +37,7 @@ func TestService_FindProcesses_ReturnsFatalErrorAndReportsNothing(t *testing.T) 
 }
 
 func TestService_FindProcesses_ReturnsProcessesMatchingRequest(t *testing.T) {
-	tests := newFindProcessesMatchTestCases()
+	tests := newFindProcessesMatchTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -81,7 +81,7 @@ func TestService_FindProcesses_ReportsMatchesAndPatterns(t *testing.T) {
 }
 
 func TestService_Kill_ReturnsWarning(t *testing.T) {
-	tests := newKillErrorTestCases()
+	tests := newKillErrorTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -120,7 +120,7 @@ func TestService_Kill_RefusesProtectedProcessWithoutPinningIt(t *testing.T) {
 }
 
 func TestService_Kill_KeepsNotFoundErrorAsCauseWhenProcessIsGone(t *testing.T) {
-	tests := newKillNotFoundTestCases()
+	tests := newKillNotFoundTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -137,7 +137,7 @@ func TestService_Kill_KeepsNotFoundErrorAsCauseWhenProcessIsGone(t *testing.T) {
 }
 
 func TestService_Kill_KillsOnlyVerifiedProcessAndReleasesWhatItPinned(t *testing.T) {
-	tests := newKillSideEffectTestCases()
+	tests := newKillSideEffectTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -166,7 +166,7 @@ func TestService_Kill_ReturnsNoErrorWhenProcessIsKilled(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func newFindProcessesErrorTestCases() []struct {
+func newFindProcessesErrorTestCase() []struct {
 	name         string
 	manager      *testutil.FakeProcessManager
 	patterns     []string
@@ -212,7 +212,7 @@ func newFindProcessesErrorTestCases() []struct {
 	return tests
 }
 
-func newFindProcessesMatchTestCases() []struct {
+func newFindProcessesMatchTestCase() []struct {
 	name              string
 	manager           *testutil.FakeProcessManager
 	request           FindRequest
@@ -295,7 +295,7 @@ func newFindProcessesMatchTestCases() []struct {
 	}
 }
 
-func newKillErrorTestCases() []struct {
+func newKillErrorTestCase() []struct {
 	name         string
 	manager      *testutil.FakeProcessManager
 	expectedCode apperror.Code
@@ -353,7 +353,7 @@ func newKillErrorTestCases() []struct {
 	return tests
 }
 
-func newKillNotFoundTestCases() []struct {
+func newKillNotFoundTestCase() []struct {
 	name    string
 	manager *testutil.FakeProcessManager
 } {
@@ -377,7 +377,7 @@ func newKillNotFoundTestCases() []struct {
 	return tests
 }
 
-func newKillSideEffectTestCases() []struct {
+func newKillSideEffectTestCase() []struct {
 	name             string
 	manager          *testutil.FakeProcessManager
 	expectedKilled   []int

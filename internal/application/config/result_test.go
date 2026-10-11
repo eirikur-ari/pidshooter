@@ -64,7 +64,7 @@ func TestResult_apply_KeepsExistingValuesForFieldsNotStored(t *testing.T) {
 }
 
 func TestResult_apply_SkipsInvalidStoredFields(t *testing.T) {
-	tests := newApplySkippedTestCases()
+	tests := newApplySkippedTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -78,7 +78,7 @@ func TestResult_apply_SkipsInvalidStoredFields(t *testing.T) {
 }
 
 func TestResult_apply_ReportsInvalidStoredFields(t *testing.T) {
-	tests := newApplyReportedTestCases()
+	tests := newApplyReportedTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -124,7 +124,7 @@ func TestResult_apply_SetsAllowRootFromOptionsOnly(t *testing.T) {
 	assert.True(t, actual.Process.AllowRoot)
 }
 
-func newApplySkippedTestCases() []struct {
+func newApplySkippedTestCase() []struct {
 	name     string
 	stored   outbound.Config
 	expected Result
@@ -165,7 +165,7 @@ func newApplySkippedTestCases() []struct {
 	return tests
 }
 
-func newApplyReportedTestCases() []struct {
+func newApplyReportedTestCase() []struct {
 	name     string
 	stored   outbound.Config
 	expected []string

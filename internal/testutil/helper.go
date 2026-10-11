@@ -3,6 +3,7 @@ package testutil
 import (
 	"context"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"testing"
@@ -29,6 +30,17 @@ func UnsetEnv(t *testing.T, key string) {
 			_ = os.Setenv(key, prev)
 		}
 	})
+}
+
+// ExitedProcessPID starts a short-lived process, waits for it to exit and
+// returns its PID.
+func ExitedProcessPID(t *testing.T) int {
+	t.Helper()
+	command := exec.Command("true")
+	require.NoError(t, command.Start())
+	require.NoError(t, command.Wait())
+
+	return command.Process.Pid
 }
 
 // WarmUpSignalPackage starts the signal package's process-wide goroutine, so

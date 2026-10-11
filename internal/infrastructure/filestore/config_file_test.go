@@ -58,7 +58,7 @@ func TestConfigFile_Load_ReturnsNotFoundErrorWhenFileMissing(t *testing.T) {
 }
 
 func TestConfigFile_Load_ReturnsCorruptedDataErrorForUndecodableContent(t *testing.T) {
-	tests := newCorruptedConfigTestCases()
+	tests := newCorruptedConfigTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -206,7 +206,7 @@ func TestConfigFile_SaveLoad_RoundTripsConfig(t *testing.T) {
 }
 
 func TestConfigFile_Save_WritesYAMLMatchingOnDiskSchema(t *testing.T) {
-	tests := newSavedYAMLTestCases()
+	tests := newSavedYAMLTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -228,7 +228,7 @@ func TestConfigFile_Save_WritesYAMLMatchingOnDiskSchema(t *testing.T) {
 	}
 }
 
-func newSavedYAMLTestCases() []struct {
+func newSavedYAMLTestCase() []struct {
 	name     string
 	config   outbound.Config
 	expected map[string]any
@@ -261,7 +261,7 @@ func newSavedYAMLTestCases() []struct {
 	}
 }
 
-func newCorruptedConfigTestCases() []struct {
+func newCorruptedConfigTestCase() []struct {
 	name    string
 	content string
 } {

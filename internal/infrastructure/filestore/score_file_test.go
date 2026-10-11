@@ -58,7 +58,7 @@ func TestScoreFile_Load_ReturnsNotFoundErrorWhenFileMissing(t *testing.T) {
 }
 
 func TestScoreFile_Load_ReturnsCorruptedDataErrorForUndecodableContent(t *testing.T) {
-	tests := newCorruptedScoreTestCases()
+	tests := newCorruptedScoreTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -207,7 +207,7 @@ func TestScoreFile_Save_WritesJSONMatchingOnDiskSchema(t *testing.T) {
 	assert.Equal(t, expectedFirstScore, scores[0])
 }
 
-func newCorruptedScoreTestCases() []struct {
+func newCorruptedScoreTestCase() []struct {
 	name    string
 	content string
 } {

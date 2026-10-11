@@ -10,7 +10,7 @@ import (
 )
 
 func TestProcessReporter_Report_PrintsMatchCountAndPatterns(t *testing.T) {
-	tests := newProcessReporterTestCases()
+	tests := newProcessReporterTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -28,7 +28,7 @@ func TestProcessReporter_Report_PrintsMatchCountAndPatterns(t *testing.T) {
 	}
 }
 
-func newProcessReporterTestCases() []struct {
+func newProcessReporterTestCase() []struct {
 	name     string
 	matches  []outbound.ProcessInfo
 	patterns []string

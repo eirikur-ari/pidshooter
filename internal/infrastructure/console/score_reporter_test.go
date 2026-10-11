@@ -11,7 +11,7 @@ import (
 )
 
 func TestScoreReporter_Report_PrintsSummaryAndHighScores(t *testing.T) {
-	tests := newScoreReporterTestCases()
+	tests := newScoreReporterTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -29,7 +29,7 @@ func TestScoreReporter_Report_PrintsSummaryAndHighScores(t *testing.T) {
 	}
 }
 
-func newScoreReporterTestCases() []struct {
+func newScoreReporterTestCase() []struct {
 	name     string
 	summary  outbound.ScoreSummary
 	expected string

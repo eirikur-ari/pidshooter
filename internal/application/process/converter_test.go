@@ -10,7 +10,7 @@ import (
 )
 
 func TestToInfos_MapsEveryElementInOrder(t *testing.T) {
-	tests := newToInfosTestCases()
+	tests := newToInfosTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -24,7 +24,7 @@ func TestToInfos_MapsEveryElementInOrder(t *testing.T) {
 }
 
 func TestToProcessInfos_MapsEveryElementInOrder(t *testing.T) {
-	tests := newToProcessInfosTestCases()
+	tests := newToProcessInfosTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -38,7 +38,7 @@ func TestToProcessInfos_MapsEveryElementInOrder(t *testing.T) {
 }
 
 func TestToFindResults_MapsEveryElementInOrder(t *testing.T) {
-	tests := newToFindResultsTestCases()
+	tests := newToFindResultsTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -51,7 +51,7 @@ func TestToFindResults_MapsEveryElementInOrder(t *testing.T) {
 	}
 }
 
-func newToInfosTestCases() []struct {
+func newToInfosTestCase() []struct {
 	name     string
 	infos    []outbound.ProcessInfo
 	expected []process.Info
@@ -76,7 +76,7 @@ func newToInfosTestCases() []struct {
 	}
 }
 
-func newToProcessInfosTestCases() []struct {
+func newToProcessInfosTestCase() []struct {
 	name     string
 	infos    []process.Info
 	expected []outbound.ProcessInfo
@@ -101,7 +101,7 @@ func newToProcessInfosTestCases() []struct {
 	}
 }
 
-func newToFindResultsTestCases() []struct {
+func newToFindResultsTestCase() []struct {
 	name     string
 	infos    []process.Info
 	expected []FindResult

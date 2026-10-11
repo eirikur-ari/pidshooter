@@ -14,7 +14,7 @@ import (
 )
 
 func TestService_Run_ReturnsFatalErrorAndStopsAtFailingStage(t *testing.T) {
-	tests := newFailingStageTestCases()
+	tests := newFailingStageTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -142,7 +142,7 @@ func TestService_Run_HandlesEachPlayErrorWithoutFailing(t *testing.T) {
 	assert.Empty(t, fixture.logger.Errored)
 }
 
-func newFailingStageTestCases() []struct {
+func newFailingStageTestCase() []struct {
 	name         string
 	failingStage stage
 } {

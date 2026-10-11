@@ -11,7 +11,7 @@ func TestNotFoundError_Error_ReturnsFixedText(t *testing.T) {
 }
 
 func TestCorruptedDataError_Error_Texts(t *testing.T) {
-	tests := newCorruptedDataErrorTextTestCases()
+	tests := newCorruptedDataErrorTextTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -24,7 +24,7 @@ func TestCorruptedDataError_Error_Texts(t *testing.T) {
 	}
 }
 
-func newCorruptedDataErrorTextTestCases() []struct {
+func newCorruptedDataErrorTextTestCase() []struct {
 	name     string
 	err      CorruptedDataError
 	expected string
