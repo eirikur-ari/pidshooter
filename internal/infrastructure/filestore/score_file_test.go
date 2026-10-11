@@ -32,7 +32,7 @@ func TestNewScoreFile_ResolvesDefaultPath(t *testing.T) {
 	assert.Equal(t, expectedPath, typed.file.path)
 }
 
-func TestNewScoreFile_ReturnsErrorWhenHomeUnset(t *testing.T) {
+func TestNewScoreFile_ReturnsErrorWhenHomeEmpty(t *testing.T) {
 	// Given
 	t.Setenv("HOME", "")
 	t.Setenv("XDG_CONFIG_HOME", "")

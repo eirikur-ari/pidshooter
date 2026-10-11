@@ -27,7 +27,7 @@ func TestNewFile_ResolvesPathUnderConfigDirectory(t *testing.T) {
 	assert.Equal(t, 16, f.maxSize)
 }
 
-func TestNewFile_ReturnsErrorWhenHomeUnset(t *testing.T) {
+func TestNewFile_ReturnsErrorWhenHomeEmpty(t *testing.T) {
 	// Given
 	t.Setenv("HOME", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
