@@ -2,12 +2,21 @@ package console
 
 import (
 	"bytes"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
+
+func TestNewProcessReporter_WritesToStandardOutput(t *testing.T) {
+	// When
+	reporter := NewProcessReporter()
+
+	// Then
+	assert.Same(t, os.Stdout, reporter.writer)
+}
 
 func TestProcessReporter_Report_PrintsMatchCountAndPatterns(t *testing.T) {
 	tests := newProcessReporterTestCase()

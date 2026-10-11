@@ -2,6 +2,7 @@ package console
 
 import (
 	"bytes"
+	"os"
 	"testing"
 	"time"
 
@@ -9,6 +10,14 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
+
+func TestNewScoreReporter_WritesToStandardOutput(t *testing.T) {
+	// When
+	reporter := NewScoreReporter()
+
+	// Then
+	assert.Same(t, os.Stdout, reporter.writer)
+}
 
 func TestScoreReporter_Report_PrintsSummaryAndHighScores(t *testing.T) {
 	tests := newScoreReporterTestCase()
