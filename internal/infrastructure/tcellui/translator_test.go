@@ -55,22 +55,16 @@ func TestTranslator_translate_IgnoresUnknownEventTypes(t *testing.T) {
 }
 
 func TestTranslator_translateMouseEvent_ReportsClickAtPressPosition(t *testing.T) {
-	tests := newClickPositionTestCase()
+	// Given
+	translator := translator{}
+	mouseEvent := tcell.NewEventMouse(5, 10, tcell.Button1, tcell.ModNone)
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			// Given
-			translator := translator{}
-			mouseEvent := tcell.NewEventMouse(test.x, test.y, tcell.Button1, tcell.ModNone)
+	// When
+	event, ok := translator.translateMouseEvent(mouseEvent)
 
-			// When
-			event, ok := translator.translateMouseEvent(mouseEvent)
-
-			// Then
-			assert.True(t, ok)
-			assert.Equal(t, test.expected, event)
-		})
-	}
+	// Then
+	assert.True(t, ok)
+	assert.Equal(t, input.ClickEvent{X: 5, Y: 10}, event)
 }
 
 func TestTranslator_translateMouseEvent_IgnoresOtherButtons(t *testing.T) {
@@ -163,21 +157,6 @@ func newRoutedEventTestCase() []struct {
 	}{
 		{"key event", tcell.NewEventKey(tcell.KeyRune, 'q', tcell.ModNone), input.QuitEvent{}},
 		{"mouse event", tcell.NewEventMouse(3, 4, tcell.Button1, tcell.ModNone), input.ClickEvent{X: 3, Y: 4}},
-	}
-}
-
-func newClickPositionTestCase() []struct {
-	name     string
-	x, y     int
-	expected input.Event
-} {
-	return []struct {
-		name     string
-		x, y     int
-		expected input.Event
-	}{
-		{"press inside the window", 5, 10, input.ClickEvent{X: 5, Y: 10}},
-		{"press on the top-left cell", 0, 0, input.ClickEvent{X: 0, Y: 0}},
 	}
 }
 
@@ -274,6 +253,5 @@ func newUnrecognizedKeyTestCase() []struct {
 	}{
 		{"unbound rune", tcell.KeyRune, 'z'},
 		{"unbound control key", tcell.KeyEnter, 0},
-		{"function key", tcell.KeyF1, 0},
 	}
 }

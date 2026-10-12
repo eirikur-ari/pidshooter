@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestStatusBar_draw_ShowsPlayStatus(t *testing.T) {
@@ -72,7 +73,6 @@ func newPlayStatusTestCase() []struct {
 	state    outbound.StatusViewState
 	expected string
 } {
-	timeLeft := 15
 	return []struct {
 		name     string
 		state    outbound.StatusViewState
@@ -85,7 +85,7 @@ func newPlayStatusTestCase() []struct {
 		},
 		{
 			"time left is shown when the session has a time limit",
-			outbound.StatusViewState{Alive: 1, Speed: 1.0, TimeLeft: &timeLeft},
+			outbound.StatusViewState{Alive: 1, Speed: 1.0, TimeLeft: testutil.Pointer(15)},
 			" Targets: 1 | Speed: 1.0x | Time: 15s | Click to kill | +/- speed | 'q' quit",
 		},
 	}

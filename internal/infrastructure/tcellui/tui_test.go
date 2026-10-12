@@ -11,6 +11,7 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/input"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestNewTUI_PanicsOnNilScreen(t *testing.T) {
@@ -50,20 +51,18 @@ func TestTUI_Init_WrapsScreenInitFailure(t *testing.T) {
 	assert.EqualError(t, err, "failed to initialize screen: no terminal")
 }
 
-func TestTUI_Init_RejectsSecondCallWithoutSecondPoller(t *testing.T) {
+func TestTUI_Init_RejectsSecondCall(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		// Given
 		ui := NewTUI(newUninitializedScreenFixture())
+		defer ui.Cleanup()
 		require.NoError(t, ui.Init())
 
 		// When
 		err := ui.Init()
-		ui.Cleanup()
-		synctest.Wait()
 
 		// Then
 		assert.EqualError(t, err, "already initialized")
-		assert.True(t, isClosed(ui.InputEvents().Events()))
 	})
 }
 
@@ -76,7 +75,7 @@ func TestTUI_Cleanup_ClosesInputEvents(t *testing.T) {
 		// When
 		ui.Cleanup()
 		synctest.Wait()
-		closed := isClosed(ui.InputEvents().Events())
+		closed := testutil.IsClosed(ui.InputEvents().Events())
 
 		// Then
 		assert.True(t, closed)

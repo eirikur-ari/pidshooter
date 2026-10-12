@@ -16,7 +16,7 @@ func TestHUD_draw_ArrangesLabelsByWindowWidth(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			screen := newScreenFixture(test.width, 25)
-			hud := hud{state: outbound.HUDViewState{Kills: 7}, width: test.width}
+			hud := hud{state: test.state, width: test.width}
 
 			// When
 			hud.draw(screen)
@@ -25,24 +25,6 @@ func TestHUD_draw_ArrangesLabelsByWindowWidth(t *testing.T) {
 			assert.Equal(t, test.expected, screenRow(screen, 0))
 		})
 	}
-}
-
-func TestHUD_draw_ShowsEveryValue(t *testing.T) {
-	// Given
-	screen := newScreenFixture(80, 25)
-	hud := hud{
-		state: outbound.HUDViewState{FreedMem: 2048, Kills: 7, HighScore: 12},
-		width: 80,
-	}
-
-	// When
-	hud.draw(screen)
-
-	// Then
-	row := screenRow(screen, 0)
-	assert.Contains(t, row, " FREED: 2.0 KB ")
-	assert.Contains(t, row, " HighScore: 12 ")
-	assert.Contains(t, row, " KILLS: 7")
 }
 
 func TestHUD_left_DrawsLongestPrefixWithinRightBound(t *testing.T) {
@@ -65,19 +47,22 @@ func TestHUD_left_DrawsLongestPrefixWithinRightBound(t *testing.T) {
 
 func newHUDLayoutTestCase() []struct {
 	name     string
+	state    outbound.HUDViewState
 	width    int
 	expected string
 } {
 	return []struct {
 		name     string
+		state    outbound.HUDViewState
 		width    int
 		expected string
 	}{
-		{"freed label is cut to the kills label's budget", 14, " FRE KILLS: 7"},
-		{"freed label is cut to nothing when the kills label fills the row", 10, " KILLS: 7"},
-		{"freed label fits whole up to the kills label's budget", 18, " FREED:  KILLS: 7"},
-		{"high score is dropped when one column short of clearing the freed label", 36, " FREED: 0 B                KILLS: 7"},
-		{"high score is drawn when it exactly touches the freed label", 38, " FREED: 0 B  HighScore: 0    KILLS: 7"},
+		{"freed label is cut to nothing when the kills label fills the row", outbound.HUDViewState{Kills: 7}, 10, " KILLS: 7"},
+		{"freed label is cut to the kills label's budget", outbound.HUDViewState{Kills: 7}, 14, " FRE KILLS: 7"},
+		{"freed label is shown whole when the kills label leaves room", outbound.HUDViewState{Kills: 7}, 24, " FREED: 0 B    KILLS: 7"},
+		{"high score is dropped when one column short of clearing the freed label", outbound.HUDViewState{Kills: 7}, 36, " FREED: 0 B                KILLS: 7"},
+		{"high score is drawn when it exactly touches the freed label", outbound.HUDViewState{Kills: 7}, 38, " FREED: 0 B  HighScore: 0    KILLS: 7"},
+		{"every value is shown", outbound.HUDViewState{FreedMem: 2048, Kills: 7, HighScore: 12}, 80, " FREED: 2.0 KB                   HighScore: 12                         KILLS: 7"},
 	}
 }
 

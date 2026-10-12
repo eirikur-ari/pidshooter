@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/input"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestPoller_poll_ForwardsOnlyRecognizedEvents(t *testing.T) {
@@ -38,7 +39,7 @@ func TestPoller_poll_ClosesQueueWhenScreenIsFinalized(t *testing.T) {
 		// When
 		screen.Fini()
 		synctest.Wait()
-		closed := isClosed(poller.Events())
+		closed := testutil.IsClosed(poller.Events())
 
 		// Then
 		assert.True(t, closed)
@@ -60,7 +61,7 @@ func TestPoller_stop_ClosesQueueWhileBlockedOnFullQueue(t *testing.T) {
 		// When
 		poller.stop()
 		synctest.Wait()
-		closed := isClosed(poller.Events())
+		closed := testutil.IsClosed(poller.Events())
 
 		// Then
 		assert.True(t, closed)

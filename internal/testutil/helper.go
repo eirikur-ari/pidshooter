@@ -17,6 +17,21 @@ func Pointer[T any](v T) *T {
 	return new(v)
 }
 
+// IsClosed drains channel without blocking and reports whether it found the
+// channel closed.
+func IsClosed[T any](channel <-chan T) bool {
+	for {
+		select {
+		case _, open := <-channel:
+			if !open {
+				return true
+			}
+		default:
+			return false
+		}
+	}
+}
+
 // UnsetEnv removes key from the environment for the duration of the test,
 // restoring its prior value (or leaving it unset) afterward.
 func UnsetEnv(t *testing.T, key string) {
