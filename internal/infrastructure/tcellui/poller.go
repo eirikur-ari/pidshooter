@@ -3,6 +3,7 @@ package tcellui
 import (
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/input"
 )
 
@@ -10,13 +11,16 @@ import (
 // channel.
 const eventQueueCapacity = 10
 
+// Compile-time assertion that *poller satisfies outbound.InputEventProvider.
+var _ outbound.InputEventProvider = (*poller)(nil)
+
 // poller reads tcell events from a screen and translates them into input
 // events.
 type poller struct {
 	screen     tcell.Screen
 	eventQueue chan input.Event
 	translator translator
-	// Reads as poller is done, writes as poller is stopping.
+	// done is closed by stop to tell poll to exit.
 	done chan struct{}
 }
 
@@ -31,6 +35,8 @@ func newPoller(screen tcell.Screen) poller {
 	}
 }
 
+// poll queues the input events translated from screen's events until the
+// screen is finalized or stop is called, then closes the event queue.
 func (p *poller) poll() {
 	defer close(p.eventQueue)
 	for {
@@ -54,7 +60,7 @@ func (p *poller) stop() {
 	close(p.done)
 }
 
-// events returns the channel of translated input events.
-func (p *poller) events() <-chan input.Event {
+// Events returns the channel of translated input events.
+func (p *poller) Events() <-chan input.Event {
 	return p.eventQueue
 }

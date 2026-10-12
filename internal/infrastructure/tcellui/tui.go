@@ -82,7 +82,7 @@ func (t *TUI) Render(state outbound.FrameViewState) {
 
 // InputEvents returns the outbound.InputEventProvider for this TUI.
 func (t *TUI) InputEvents() outbound.InputEventProvider {
-	return &inputEvents{poller: &t.poller}
+	return &t.poller
 }
 
 func (t *TUI) cleanup() {

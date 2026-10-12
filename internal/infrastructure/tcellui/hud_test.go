@@ -44,6 +44,48 @@ func TestHUD_draw_ShowsEveryValue(t *testing.T) {
 	assert.Contains(t, row, " KILLS: 7")
 }
 
+func TestHUD_truncate_SelectsLongestPrefixWithinRightBound(t *testing.T) {
+	tests := newHUDTruncateTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			hud := hud{bounds: bounds{right: test.right}}
+
+			// When
+			truncated := hud.truncate(test.text)
+
+			// Then
+			assert.Equal(t, test.expected, truncated)
+		})
+	}
+}
+
+func newHUDTruncateTestCase() []struct {
+	name     string
+	text     string
+	right    int
+	expected string
+} {
+	return []struct {
+		name     string
+		text     string
+		right    int
+		expected string
+	}{
+		{"text narrower than the bound is unchanged", "abc", 5, "abc"},
+		{"text exactly the bound is unchanged", "abc", 3, "abc"},
+		{"text wider than the bound is cut", "abcdef", 4, "abcd"},
+		{"empty text stays empty", "", 4, ""},
+		{"zero bound yields nothing", "abc", 0, ""},
+		{"negative bound yields nothing", "abc", -2, ""},
+		{"wide characters count two columns each", "日本語", 4, "日本"},
+		{"a wide character that does not fit is dropped whole", "日本語", 3, "日"},
+		{"a wide first character wider than the bound yields nothing", "日本語", 1, ""},
+		{"a combining mark stays with its base character", "éx", 1, "é"},
+	}
+}
+
 func newHUDLayoutTestCase() []struct {
 	name     string
 	width    int
