@@ -9,30 +9,8 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
-func TestTarget_draw_DrawsTagOrAnimationFrame(t *testing.T) {
+func TestTarget_draw_DrawsWithinWindowAndOutsideChrome(t *testing.T) {
 	tests := newTargetDrawTestCase()
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			// Given
-			screen := newScreenFixture(80, 25)
-			target := target{
-				state:  test.state,
-				window: outbound.WindowSize{Width: 80, Height: 25},
-				chrome: outbound.ChromeSize{Top: 1, Bottom: 1},
-			}
-
-			// When
-			target.draw(screen)
-
-			// Then
-			assert.Equal(t, test.expected, screenRow(screen, test.state.Y))
-		})
-	}
-}
-
-func TestTarget_draw_StaysInsideWindowAndOutsideChrome(t *testing.T) {
-	tests := newTargetBoundsTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -72,19 +50,6 @@ func newTargetDrawTestCase() []struct {
 		{"fleeing target shows the first flee frame instead of its tag", outbound.TargetViewState{X: 0, Y: 5, Tag: "[1234 victim]", Fleeing: true, AnimationProgress: 0}, "🏃💨"},
 		{"fleeing target shows a later flee frame as progress advances", outbound.TargetViewState{X: 0, Y: 5, Fleeing: true, AnimationProgress: 0.3}, "↝ RAN AWAY ↝"},
 		{"killing takes precedence over fleeing", outbound.TargetViewState{X: 0, Y: 5, Killing: true, Fleeing: true, AnimationProgress: 0}, "💥"},
-	}
-}
-
-func newTargetBoundsTestCase() []struct {
-	name     string
-	state    outbound.TargetViewState
-	expected string
-} {
-	return []struct {
-		name     string
-		state    outbound.TargetViewState
-		expected string
-	}{
 		{"first row below the top chrome is drawn", outbound.TargetViewState{X: 0, Y: 1, Tag: "T"}, "T"},
 		{"last row above the bottom chrome is drawn", outbound.TargetViewState{X: 0, Y: 23, Tag: "T"}, "T"},
 		{"top chrome row is left alone", outbound.TargetViewState{X: 0, Y: 0, Tag: "T"}, ""},
