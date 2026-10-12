@@ -32,7 +32,6 @@ var controlKeyBindings = map[tcell.Key]input.Event{
 // represents.
 type translator struct {
 	screen      tcell.Screen
-	event       input.Event
 	prevButtons tcell.ButtonMask
 }
 
@@ -41,11 +40,11 @@ func newTranslator(screen tcell.Screen) translator {
 	return translator{screen: screen}
 }
 
-// translateEvent sets event to the input event rawEvent represents and reports
-// whether one was produced. event is left unchanged when it reports false:
-// an unrecognized key, a dropped mouse action, or a resize (handled here by
-// re-syncing the screen, not by producing an event).
-func (t *translator) translateEvent(rawEvent tcell.Event) bool {
+// translate returns the input event rawEvent represents and reports whether
+// it represents one. It reports false for an unrecognized key, a dropped
+// mouse action, or a resize (handled here by re-syncing the screen, not by
+// producing an event).
+func (t *translator) translate(rawEvent tcell.Event) (input.Event, bool) {
 	switch rawEvent := rawEvent.(type) {
 	case *tcell.EventMouse:
 		return t.translateMouseEvent(rawEvent)
@@ -54,37 +53,31 @@ func (t *translator) translateEvent(rawEvent tcell.Event) bool {
 	case *tcell.EventResize:
 		t.screen.Sync()
 	}
-	return false
+	return nil, false
 }
 
 // translateMouseEvent translates the press that starts a left click to a
 // ClickEvent. Any other mouse activity — a different button, more than one
-// button held at once, or a motion sample while the button is already held
-// — is dropped.
-func (t *translator) translateMouseEvent(mouseEvent *tcell.EventMouse) bool {
+// button held at once, or a motion sample or chord change while the left
+// button is already held — is dropped.
+func (t *translator) translateMouseEvent(mouseEvent *tcell.EventMouse) (input.Event, bool) {
 	buttons := mouseEvent.Buttons()
-	pressed := buttons == tcell.Button1 && t.prevButtons != tcell.Button1
+	pressed := buttons == tcell.Button1 && t.prevButtons&tcell.Button1 == 0
 	t.prevButtons = buttons
 	if !pressed {
-		return false
+		return nil, false
 	}
 	x, y := mouseEvent.Position()
-	t.event = input.ClickEvent{X: x, Y: y}
-	return true
+	return input.ClickEvent{X: x, Y: y}, true
 }
 
 // translateKeyEvent translates a recognized key press to an input event. A
 // key matches by its rune or Key value alone; modifiers (e.g. Alt, Shift)
 // are not considered.
-func (t *translator) translateKeyEvent(keyEvent *tcell.EventKey) bool {
+func (t *translator) translateKeyEvent(keyEvent *tcell.EventKey) (input.Event, bool) {
 	if event, ok := controlKeyBindings[keyEvent.Key()]; ok {
-		t.event = event
-		return true
+		return event, true
 	}
 	event, ok := runeBindings[keyEvent.Rune()]
-	if !ok {
-		return false
-	}
-	t.event = event
-	return true
+	return event, ok
 }

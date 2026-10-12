@@ -63,6 +63,24 @@ func TestHUD_left_DrawsLongestPrefixWithinRightBound(t *testing.T) {
 	}
 }
 
+func newHUDLayoutTestCase() []struct {
+	name     string
+	width    int
+	expected string
+} {
+	return []struct {
+		name     string
+		width    int
+		expected string
+	}{
+		{"freed label is cut to the kills label's budget", 14, " FRE KILLS: 7"},
+		{"freed label is cut to nothing when the kills label fills the row", 10, " KILLS: 7"},
+		{"freed label fits whole up to the kills label's budget", 18, " FREED:  KILLS: 7"},
+		{"high score is dropped when one column short of clearing the freed label", 36, " FREED: 0 B                KILLS: 7"},
+		{"high score is drawn when it exactly touches the freed label", 38, " FREED: 0 B  HighScore: 0    KILLS: 7"},
+	}
+}
+
 func newHUDLeftTestCase() []struct {
 	name     string
 	text     string
@@ -85,23 +103,5 @@ func newHUDLeftTestCase() []struct {
 		{"a wide character that does not fit is dropped whole", "日本語", 3, "日"},
 		{"a wide first character wider than the bound yields nothing", "日本語", 1, ""},
 		{"a combining mark stays with its base character", "éx", 1, "é"},
-	}
-}
-
-func newHUDLayoutTestCase() []struct {
-	name     string
-	width    int
-	expected string
-} {
-	return []struct {
-		name     string
-		width    int
-		expected string
-	}{
-		{"freed label is cut to the kills label's budget", 14, " FRE KILLS: 7"},
-		{"freed label is cut to nothing when the kills label fills the row", 10, " KILLS: 7"},
-		{"freed label fits whole up to the kills label's budget", 18, " FREED:  KILLS: 7"},
-		{"high score is dropped when one column short of clearing the freed label", 36, " FREED: 0 B                KILLS: 7"},
-		{"high score is drawn when it exactly touches the freed label", 38, " FREED: 0 B  HighScore: 0    KILLS: 7"},
 	}
 }

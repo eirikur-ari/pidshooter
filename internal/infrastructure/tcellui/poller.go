@@ -44,11 +44,12 @@ func (p *poller) poll() {
 		if pollEvent == nil {
 			return
 		}
-		if !p.translator.translateEvent(pollEvent) {
+		event, ok := p.translator.translate(pollEvent)
+		if !ok {
 			continue
 		}
 		select {
-		case p.eventQueue <- p.translator.event:
+		case p.eventQueue <- event:
 		case <-p.done:
 			return
 		}
