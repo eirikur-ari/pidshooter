@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
@@ -18,8 +19,9 @@ func TestService_FindProcesses_ReturnsFatalErrorAndReportsNothing(t *testing.T) 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
+			manager := discoveryMockSetup(nil, 0, test.ownUID, test.discoverErr)
 			reporter := &testutil.FakeProcessReporter{}
-			service := NewService(test.manager, reporter, test.patterns)
+			service := NewService(manager, reporter, test.patterns)
 			var appError *apperror.Error
 
 			// When
@@ -32,6 +34,7 @@ func TestService_FindProcesses_ReturnsFatalErrorAndReportsNothing(t *testing.T) 
 			assert.ErrorContains(t, err, test.expectedText)
 			assert.Nil(t, processes)
 			assert.Nil(t, reporter.Reported)
+			manager.AssertNumberOfCalls(t, "Discover", test.expectedDiscoverCalls)
 		})
 	}
 }
@@ -42,7 +45,8 @@ func TestService_FindProcesses_ReturnsProcessesMatchingRequest(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
-			service := NewService(test.manager, &testutil.FakeProcessReporter{}, []string{"target"})
+			manager := discoveryMockSetup(test.infos, test.ownPID, test.ownUID, nil)
+			service := NewService(manager, &testutil.FakeProcessReporter{}, []string{"target"})
 
 			// When
 			processes, err := service.FindProcesses(test.request)
@@ -57,13 +61,10 @@ func TestService_FindProcesses_ReturnsProcessesMatchingRequest(t *testing.T) {
 func TestService_FindProcesses_ReportsMatchesAndPatterns(t *testing.T) {
 	// Given
 	const ownUID = 1000
-	manager := &testutil.FakeProcessManager{
-		Infos: []outbound.ProcessInfo{
-			{PID: 100, Name: "target", Rss: 4096, UID: ownUID},
-			{PID: 101, Name: "another-target", Rss: 2048, UID: ownUID},
-		},
-		OwnUIDValue: ownUID,
-	}
+	manager := discoveryMockSetup([]outbound.ProcessInfo{
+		{PID: 100, Name: "target", Rss: 4096, UID: ownUID},
+		{PID: 101, Name: "another-target", Rss: 2048, UID: ownUID},
+	}, 0, ownUID, nil)
 	reporter := &testutil.FakeProcessReporter{}
 	service := NewService(manager, reporter, []string{"target"})
 
@@ -86,7 +87,8 @@ func TestService_Kill_ReturnsWarning(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
-			service := NewService(test.manager, &testutil.FakeProcessReporter{}, nil)
+			manager, _ := pinnedProcessMockSetup(100, test.pinErr, test.lookupName, test.lookupErr, test.killErr)
+			service := NewService(manager, &testutil.FakeProcessReporter{}, nil)
 			var appError *apperror.Error
 
 			// When
@@ -103,7 +105,7 @@ func TestService_Kill_ReturnsWarning(t *testing.T) {
 
 func TestService_Kill_RefusesProtectedProcessWithoutPinningIt(t *testing.T) {
 	// Given
-	manager := &testutil.FakeProcessManager{LookupNameValue: "init"}
+	manager := &MockProcessManager{}
 	service := NewService(manager, &testutil.FakeProcessReporter{}, nil)
 	var appError *apperror.Error
 
@@ -115,8 +117,7 @@ func TestService_Kill_RefusesProtectedProcessWithoutPinningIt(t *testing.T) {
 	assert.Equal(t, apperror.CodeKillFailed, appError.Code)
 	assert.Equal(t, apperror.SeverityWarning, appError.Severity)
 	assert.ErrorContains(t, err, "refusing to kill PID 1")
-	assert.Empty(t, manager.KilledPIDs)
-	assert.Empty(t, manager.ReleasedPIDs)
+	manager.AssertNotCalled(t, "Pin", mock.Anything)
 }
 
 func TestService_Kill_KeepsNotFoundErrorAsCauseWhenProcessIsGone(t *testing.T) {
@@ -125,7 +126,8 @@ func TestService_Kill_KeepsNotFoundErrorAsCauseWhenProcessIsGone(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
-			service := NewService(test.manager, &testutil.FakeProcessReporter{}, nil)
+			manager, _ := pinnedProcessMockSetup(100, test.pinErr, test.lookupName, test.lookupErr, test.killErr)
+			service := NewService(manager, &testutil.FakeProcessReporter{}, nil)
 
 			// When
 			err := service.Kill(100, "target", false)
@@ -142,21 +144,22 @@ func TestService_Kill_KillsOnlyVerifiedProcessAndReleasesWhatItPinned(t *testing
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
-			service := NewService(test.manager, &testutil.FakeProcessReporter{}, nil)
+			manager, handle := pinnedProcessMockSetup(100, test.pinErr, test.lookupName, test.lookupErr, test.killErr)
+			service := NewService(manager, &testutil.FakeProcessReporter{}, nil)
 
 			// When
 			_ = service.Kill(100, "target", false)
 
 			// Then
-			assert.Equal(t, test.expectedKilled, test.manager.KilledPIDs)
-			assert.Equal(t, test.expectedReleased, test.manager.ReleasedPIDs)
+			handle.AssertNumberOfCalls(t, "Kill", test.expectedKillCalls)
+			handle.AssertNumberOfCalls(t, "Release", test.expectedReleaseCalls)
 		})
 	}
 }
 
 func TestService_Kill_ReturnsNoErrorWhenProcessIsKilled(t *testing.T) {
 	// Given
-	manager := &testutil.FakeProcessManager{LookupNameValue: "target"}
+	manager, _ := pinnedProcessMockSetup(100, nil, "target", nil, nil)
 	service := NewService(manager, &testutil.FakeProcessReporter{}, nil)
 
 	// When
@@ -167,54 +170,64 @@ func TestService_Kill_ReturnsNoErrorWhenProcessIsKilled(t *testing.T) {
 }
 
 func newFindProcessesErrorTestCase() []struct {
-	name         string
-	manager      *testutil.FakeProcessManager
-	patterns     []string
-	expectedCode apperror.Code
-	expectedText string
+	name                  string
+	ownUID                int
+	discoverErr           error
+	patterns              []string
+	expectedCode          apperror.Code
+	expectedText          string
+	expectedDiscoverCalls int
 } {
-	tests := []struct {
-		name         string
-		manager      *testutil.FakeProcessManager
-		patterns     []string
-		expectedCode apperror.Code
-		expectedText string
+	return []struct {
+		name                  string
+		ownUID                int
+		discoverErr           error
+		patterns              []string
+		expectedCode          apperror.Code
+		expectedText          string
+		expectedDiscoverCalls int
 	}{
 		{
-			name:         "running as root without allow root is refused before the patterns are validated",
-			manager:      &testutil.FakeProcessManager{OwnUIDValue: 0},
-			patterns:     nil,
-			expectedCode: apperror.CodeInvalidConfig,
-			expectedText: "refusing to run as root",
+			name:                  "running as root without allow root is refused before the patterns are validated",
+			ownUID:                0,
+			patterns:              nil,
+			expectedCode:          apperror.CodeInvalidConfig,
+			expectedText:          "refusing to run as root",
+			expectedDiscoverCalls: 0,
 		},
 		{
-			name:         "invalid patterns",
-			manager:      &testutil.FakeProcessManager{OwnUIDValue: 1000},
-			patterns:     nil,
-			expectedCode: apperror.CodeInvalidConfig,
-			expectedText: "at least one search pattern is required",
+			name:                  "invalid patterns",
+			ownUID:                1000,
+			patterns:              nil,
+			expectedCode:          apperror.CodeInvalidConfig,
+			expectedText:          "at least one search pattern is required",
+			expectedDiscoverCalls: 0,
 		},
 		{
-			name:         "process discovery fails",
-			manager:      &testutil.FakeProcessManager{DiscoverErr: errors.New("ps failed"), OwnUIDValue: 1000},
-			patterns:     []string{"foo"},
-			expectedCode: apperror.CodeProcessNotFound,
-			expectedText: "ps failed",
+			name:                  "process discovery fails",
+			ownUID:                1000,
+			discoverErr:           errors.New("ps failed"),
+			patterns:              []string{"foo"},
+			expectedCode:          apperror.CodeProcessNotFound,
+			expectedText:          "ps failed",
+			expectedDiscoverCalls: 1,
 		},
 		{
-			name:         "no process matches",
-			manager:      &testutil.FakeProcessManager{OwnUIDValue: 1000},
-			patterns:     []string{"nonexistent"},
-			expectedCode: apperror.CodeProcessNotFound,
-			expectedText: "no processes found",
+			name:                  "no process matches",
+			ownUID:                1000,
+			patterns:              []string{"nonexistent"},
+			expectedCode:          apperror.CodeProcessNotFound,
+			expectedText:          "no processes found",
+			expectedDiscoverCalls: 1,
 		},
 	}
-	return tests
 }
 
 func newFindProcessesMatchTestCase() []struct {
 	name              string
-	manager           *testutil.FakeProcessManager
+	infos             []outbound.ProcessInfo
+	ownPID            int
+	ownUID            int
 	request           FindRequest
 	expectedProcesses []FindResult
 } {
@@ -222,21 +235,21 @@ func newFindProcessesMatchTestCase() []struct {
 
 	return []struct {
 		name              string
-		manager           *testutil.FakeProcessManager
+		infos             []outbound.ProcessInfo
+		ownPID            int
+		ownUID            int
 		request           FindRequest
 		expectedProcesses []FindResult
 	}{
 		{
 			name: "only processes whose name contains a pattern",
-			manager: &testutil.FakeProcessManager{
-				Infos: []outbound.ProcessInfo{
-					{PID: 200, Name: "target", Rss: 4096, UID: ownUID},
-					{PID: 201, Name: "another-target", Rss: 2048, UID: ownUID},
-					{PID: 202, Name: "unrelated", Rss: 1024, UID: ownUID},
-				},
-				OwnPIDValue: ownPID,
-				OwnUIDValue: ownUID,
+			infos: []outbound.ProcessInfo{
+				{PID: 200, Name: "target", Rss: 4096, UID: ownUID},
+				{PID: 201, Name: "another-target", Rss: 2048, UID: ownUID},
+				{PID: 202, Name: "unrelated", Rss: 1024, UID: ownUID},
 			},
+			ownPID: ownPID,
+			ownUID: ownUID,
 			expectedProcesses: []FindResult{
 				{PID: 200, Name: "target", Rss: 4096, UID: ownUID},
 				{PID: 201, Name: "another-target", Rss: 2048, UID: ownUID},
@@ -244,38 +257,32 @@ func newFindProcessesMatchTestCase() []struct {
 		},
 		{
 			name: "not the program's own process",
-			manager: &testutil.FakeProcessManager{
-				Infos: []outbound.ProcessInfo{
-					{PID: ownPID, Name: "target", Rss: 4096, UID: ownUID},
-					{PID: 101, Name: "another-target", Rss: 2048, UID: ownUID},
-				},
-				OwnPIDValue: ownPID,
-				OwnUIDValue: ownUID,
+			infos: []outbound.ProcessInfo{
+				{PID: ownPID, Name: "target", Rss: 4096, UID: ownUID},
+				{PID: 101, Name: "another-target", Rss: 2048, UID: ownUID},
 			},
+			ownPID:            ownPID,
+			ownUID:            ownUID,
 			expectedProcesses: []FindResult{{PID: 101, Name: "another-target", Rss: 2048, UID: ownUID}},
 		},
 		{
 			name: "not processes owned by another user",
-			manager: &testutil.FakeProcessManager{
-				Infos: []outbound.ProcessInfo{
-					{PID: 101, Name: "target", Rss: 4096, UID: ownUID},
-					{PID: 102, Name: "target-other-owner", Rss: 2048, UID: 2000},
-				},
-				OwnPIDValue: ownPID,
-				OwnUIDValue: ownUID,
+			infos: []outbound.ProcessInfo{
+				{PID: 101, Name: "target", Rss: 4096, UID: ownUID},
+				{PID: 102, Name: "target-other-owner", Rss: 2048, UID: 2000},
 			},
+			ownPID:            ownPID,
+			ownUID:            ownUID,
 			expectedProcesses: []FindResult{{PID: 101, Name: "target", Rss: 4096, UID: ownUID}},
 		},
 		{
 			name: "root-owned processes when requested",
-			manager: &testutil.FakeProcessManager{
-				Infos: []outbound.ProcessInfo{
-					{PID: 101, Name: "target", Rss: 4096, UID: ownUID},
-					{PID: 102, Name: "target-root", Rss: 2048, UID: 0},
-				},
-				OwnPIDValue: ownPID,
-				OwnUIDValue: ownUID,
+			infos: []outbound.ProcessInfo{
+				{PID: 101, Name: "target", Rss: 4096, UID: ownUID},
+				{PID: 102, Name: "target-root", Rss: 2048, UID: 0},
 			},
+			ownPID:  ownPID,
+			ownUID:  ownUID,
 			request: FindRequest{IncludeRoot: true},
 			expectedProcesses: []FindResult{
 				{PID: 101, Name: "target", Rss: 4096, UID: ownUID},
@@ -283,12 +290,10 @@ func newFindProcessesMatchTestCase() []struct {
 			},
 		},
 		{
-			name: "everything for a root user who allows running as root",
-			manager: &testutil.FakeProcessManager{
-				Infos:       []outbound.ProcessInfo{{PID: 101, Name: "target", Rss: 4096, UID: 0}},
-				OwnPIDValue: ownPID,
-				OwnUIDValue: 0,
-			},
+			name:              "everything for a root user who allows running as root",
+			infos:             []outbound.ProcessInfo{{PID: 101, Name: "target", Rss: 4096, UID: 0}},
+			ownPID:            ownPID,
+			ownUID:            0,
 			request:           FindRequest{AllowRoot: true},
 			expectedProcesses: []FindResult{{PID: 101, Name: "target", Rss: 4096}},
 		},
@@ -297,132 +302,114 @@ func newFindProcessesMatchTestCase() []struct {
 
 func newKillErrorTestCase() []struct {
 	name         string
-	manager      *testutil.FakeProcessManager
+	pinErr       error
+	lookupName   string
+	lookupErr    error
+	killErr      error
 	expectedCode apperror.Code
 	expectedText string
 } {
-	tests := []struct {
+	return []struct {
 		name         string
-		manager      *testutil.FakeProcessManager
+		pinErr       error
+		lookupName   string
+		lookupErr    error
+		killErr      error
 		expectedCode apperror.Code
 		expectedText string
 	}{
 		{
 			name:         "pin reports the process gone",
-			manager:      &testutil.FakeProcessManager{PinErr: outbound.NotFoundError{}},
+			pinErr:       outbound.NotFoundError{},
 			expectedCode: apperror.CodeProcessNotFound,
 			expectedText: "PID 100 already exited",
 		},
 		{
 			name:         "pin fails",
-			manager:      &testutil.FakeProcessManager{PinErr: errors.New("operation not permitted")},
+			pinErr:       errors.New("operation not permitted"),
 			expectedCode: apperror.CodeKillFailed,
 			expectedText: "could not pin PID 100: operation not permitted",
 		},
 		{
 			name:         "name lookup fails transiently",
-			manager:      &testutil.FakeProcessManager{LookupNameErr: errors.New("ps lookup failed")},
+			lookupErr:    errors.New("ps lookup failed"),
 			expectedCode: apperror.CodeKillFailed,
 			expectedText: "could not verify PID 100: ps lookup failed",
 		},
 		{
 			name:         "name lookup reports the process gone",
-			manager:      &testutil.FakeProcessManager{LookupNameErr: outbound.NotFoundError{}},
+			lookupErr:    outbound.NotFoundError{},
 			expectedCode: apperror.CodeProcessNotFound,
 			expectedText: "PID 100 already exited",
 		},
 		{
 			name:         "name no longer matches",
-			manager:      &testutil.FakeProcessManager{LookupNameValue: "somethingElse"},
+			lookupName:   "somethingElse",
 			expectedCode: apperror.CodeProcessNotFound,
 			expectedText: `PID 100 now belongs to another process: pid name mismatch: expected "target", got "somethingElse"`,
 		},
 		{
 			name:         "kill reports the process gone",
-			manager:      &testutil.FakeProcessManager{LookupNameValue: "target", KillErr: outbound.NotFoundError{}},
+			lookupName:   "target",
+			killErr:      outbound.NotFoundError{},
 			expectedCode: apperror.CodeProcessNotFound,
 			expectedText: "PID 100 already exited",
 		},
 		{
 			name:         "kill fails",
-			manager:      &testutil.FakeProcessManager{LookupNameValue: "target", KillErr: errors.New("permission denied")},
+			lookupName:   "target",
+			killErr:      errors.New("permission denied"),
 			expectedCode: apperror.CodeKillFailed,
 			expectedText: "failed to kill PID 100: permission denied",
 		},
 	}
-	return tests
 }
 
 func newKillNotFoundTestCase() []struct {
-	name    string
-	manager *testutil.FakeProcessManager
+	name       string
+	pinErr     error
+	lookupName string
+	lookupErr  error
+	killErr    error
 } {
-	tests := []struct {
-		name    string
-		manager *testutil.FakeProcessManager
+	return []struct {
+		name       string
+		pinErr     error
+		lookupName string
+		lookupErr  error
+		killErr    error
 	}{
-		{
-			name:    "pin reports the process gone",
-			manager: &testutil.FakeProcessManager{PinErr: outbound.NotFoundError{}},
-		},
-		{
-			name:    "name lookup reports the process gone",
-			manager: &testutil.FakeProcessManager{LookupNameErr: outbound.NotFoundError{}},
-		},
-		{
-			name:    "kill reports the process gone",
-			manager: &testutil.FakeProcessManager{LookupNameValue: "target", KillErr: outbound.NotFoundError{}},
-		},
+		{name: "pin reports the process gone", pinErr: outbound.NotFoundError{}},
+		{name: "name lookup reports the process gone", lookupErr: outbound.NotFoundError{}},
+		{name: "kill reports the process gone", lookupName: "target", killErr: outbound.NotFoundError{}},
 	}
-	return tests
 }
 
 func newKillSideEffectTestCase() []struct {
-	name             string
-	manager          *testutil.FakeProcessManager
-	expectedKilled   []int
-	expectedReleased []int
+	name                 string
+	pinErr               error
+	lookupName           string
+	lookupErr            error
+	killErr              error
+	expectedKillCalls    int
+	expectedReleaseCalls int
 } {
 	return []struct {
-		name             string
-		manager          *testutil.FakeProcessManager
-		expectedKilled   []int
-		expectedReleased []int
+		name                 string
+		pinErr               error
+		lookupName           string
+		lookupErr            error
+		killErr              error
+		expectedKillCalls    int
+		expectedReleaseCalls int
 	}{
-		{name: "pin reports the process gone", manager: &testutil.FakeProcessManager{PinErr: outbound.NotFoundError{}}},
-		{name: "pin fails", manager: &testutil.FakeProcessManager{PinErr: errors.New("operation not permitted")}},
-		{
-			name:             "name lookup fails",
-			manager:          &testutil.FakeProcessManager{LookupNameErr: errors.New("ps lookup failed")},
-			expectedReleased: []int{100},
-		},
-		{
-			name:             "name lookup reports the process gone",
-			manager:          &testutil.FakeProcessManager{LookupNameErr: outbound.NotFoundError{}},
-			expectedReleased: []int{100},
-		},
-		{
-			name:             "name no longer matches",
-			manager:          &testutil.FakeProcessManager{LookupNameValue: "somethingElse"},
-			expectedReleased: []int{100},
-		},
-		{
-			name:             "kill reports the process gone",
-			manager:          &testutil.FakeProcessManager{LookupNameValue: "target", KillErr: outbound.NotFoundError{}},
-			expectedKilled:   []int{100},
-			expectedReleased: []int{100},
-		},
-		{
-			name:             "kill fails",
-			manager:          &testutil.FakeProcessManager{LookupNameValue: "target", KillErr: errors.New("permission denied")},
-			expectedKilled:   []int{100},
-			expectedReleased: []int{100},
-		},
-		{
-			name:             "kill succeeds",
-			manager:          &testutil.FakeProcessManager{LookupNameValue: "target"},
-			expectedKilled:   []int{100},
-			expectedReleased: []int{100},
-		},
+		{name: "pin reports the process gone", pinErr: outbound.NotFoundError{}},
+		{name: "pin fails", pinErr: errors.New("operation not permitted")},
+		{name: "name lookup fails", lookupErr: errors.New("ps lookup failed"), expectedReleaseCalls: 1},
+		{name: "name lookup reports the process gone", lookupErr: outbound.NotFoundError{}, expectedReleaseCalls: 1},
+		{name: "name no longer matches", lookupName: "somethingElse", expectedReleaseCalls: 1},
+		{name: "kill reports the process gone", lookupName: "target", killErr: outbound.NotFoundError{}, expectedKillCalls: 1, expectedReleaseCalls: 1},
+		{name: "kill fails", lookupName: "target", killErr: errors.New("permission denied"), expectedKillCalls: 1, expectedReleaseCalls: 1},
+		{name: "kill succeeds", lookupName: "target", expectedKillCalls: 1, expectedReleaseCalls: 1},
 	}
 }
