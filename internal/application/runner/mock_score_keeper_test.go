@@ -6,7 +6,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
 )
 
-// MockScoreKeeper is a test double for scoreKeeper.
 type MockScoreKeeper struct{ mock.Mock }
 
 func (m *MockScoreKeeper) LoadScoreBoard() (score.LoadResult, error) {

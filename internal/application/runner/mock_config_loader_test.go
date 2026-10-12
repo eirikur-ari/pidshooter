@@ -6,7 +6,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
 )
 
-// MockConfigLoader is a test double for configLoader.
 type MockConfigLoader struct{ mock.Mock }
 
 func (m *MockConfigLoader) Load() (config.Result, error) {

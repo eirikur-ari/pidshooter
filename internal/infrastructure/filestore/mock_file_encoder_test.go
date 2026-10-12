@@ -2,7 +2,6 @@ package filestore
 
 import "github.com/stretchr/testify/mock"
 
-// MockFileEncoder is a test double for fileEncoder.
 type MockFileEncoder struct{ mock.Mock }
 
 func (m *MockFileEncoder) encodeYAML(value any) ([]byte, error) {

@@ -2,17 +2,11 @@ package testutil
 
 import "github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 
-// FakeRenderer is a test double for outbound.Renderer.
 type FakeRenderer struct {
-	InitErr error
-	// SizeW, SizeH are returned by WindowSize, overriding the default 80x24
-	// when either is nonzero.
+	InitErr      error
 	SizeW, SizeH int
-	// CleanupCalls counts how many times Cleanup was called.
 	CleanupCalls int
-	// LastFrame captures the state passed to the most recent Render call,
-	// nil if Render was never called.
-	LastFrame *outbound.FrameViewState
+	LastFrame    *outbound.FrameViewState
 }
 
 func (r *FakeRenderer) Init() error { return r.InitErr }

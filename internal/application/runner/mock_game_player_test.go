@@ -6,7 +6,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
 )
 
-// MockGamePlayer is a test double for gamePlayer.
 type MockGamePlayer struct{ mock.Mock }
 
 func (m *MockGamePlayer) Play(request game.PlayRequest) (game.PlayResult, error) {
