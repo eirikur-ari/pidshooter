@@ -66,22 +66,9 @@ func (h *hud) right(screen tcell.Screen, text string, style tcell.Style) {
 // records its untruncated width as bounds.left.
 func (h *hud) left(screen tcell.Screen, text string, style tcell.Style) {
 	h.bounds.left = uniseg.StringWidth(text)
-	screen.PutStrStyled(0, 0, h.truncate(text), style)
-}
 
-// center draws text centered, unless it would collide with bounds.left or
-// bounds.right.
-func (h *hud) center(screen tcell.Screen, text string, style tcell.Style) {
-	width := uniseg.StringWidth(text)
-	x := (h.width - width) / 2
-	if x >= h.bounds.left && x+width <= h.bounds.right {
-		screen.PutStrStyled(x, 0, text, style)
-	}
-}
-
-// truncate returns the longest prefix of text that fits within bounds.right
-// columns, never splitting a character.
-func (h *hud) truncate(text string) string {
+	// Keep the longest prefix that fits within bounds.right columns, never
+	// splitting a character.
 	width := 0
 	end := 0
 	graphemes := uniseg.NewGraphemes(text)
@@ -92,5 +79,15 @@ func (h *hud) truncate(text string) string {
 		}
 		end += len(graphemes.Str())
 	}
-	return text[:end]
+	screen.PutStrStyled(0, 0, text[:end], style)
+}
+
+// center draws text centered, unless it would collide with bounds.left or
+// bounds.right.
+func (h *hud) center(screen tcell.Screen, text string, style tcell.Style) {
+	width := uniseg.StringWidth(text)
+	x := (h.width - width) / 2
+	if x >= h.bounds.left && x+width <= h.bounds.right {
+		screen.PutStrStyled(x, 0, text, style)
+	}
 }

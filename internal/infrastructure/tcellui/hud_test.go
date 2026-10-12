@@ -3,6 +3,7 @@ package tcellui
 import (
 	"testing"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
@@ -44,24 +45,25 @@ func TestHUD_draw_ShowsEveryValue(t *testing.T) {
 	assert.Contains(t, row, " KILLS: 7")
 }
 
-func TestHUD_truncate_SelectsLongestPrefixWithinRightBound(t *testing.T) {
-	tests := newHUDTruncateTestCase()
+func TestHUD_left_DrawsLongestPrefixWithinRightBound(t *testing.T) {
+	tests := newHUDLeftTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
+			screen := newScreenFixture(20, 25)
 			hud := hud{bounds: bounds{right: test.right}}
 
 			// When
-			truncated := hud.truncate(test.text)
+			hud.left(screen, test.text, tcell.StyleDefault)
 
 			// Then
-			assert.Equal(t, test.expected, truncated)
+			assert.Equal(t, test.expected, screenRow(screen, 0))
 		})
 	}
 }
 
-func newHUDTruncateTestCase() []struct {
+func newHUDLeftTestCase() []struct {
 	name     string
 	text     string
 	right    int

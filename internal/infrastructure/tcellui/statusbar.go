@@ -76,21 +76,18 @@ func (s *statusBar) truncate(text, prefix, suffix string) string {
 	if uniseg.StringWidth(text) <= maxWidth {
 		return text
 	}
-	return s.cut(text, maxWidth-1) + "…"
-}
 
-// cut returns the longest prefix of text that fits within maxWidth columns,
-// never splitting a character.
-func (s *statusBar) cut(text string, maxWidth int) string {
+	// Keep the longest prefix that leaves one column for the ellipsis,
+	// never splitting a character.
 	width := 0
 	end := 0
 	graphemes := uniseg.NewGraphemes(text)
 	for graphemes.Next() {
 		width += graphemes.Width()
-		if width > maxWidth {
+		if width > maxWidth-1 {
 			break
 		}
 		end += len(graphemes.Str())
 	}
-	return text[:end]
+	return text[:end] + "…"
 }
