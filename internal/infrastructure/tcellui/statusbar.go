@@ -2,9 +2,9 @@ package tcellui
 
 import (
 	"fmt"
-	"unicode/utf8"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/uniseg"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
@@ -37,7 +37,8 @@ func (s *statusBar) left(screen tcell.Screen, text string, style tcell.Style) {
 	screen.PutStrStyled(0, s.window.Height-1, text, style)
 }
 
-// text returns s's text, budgeted to fit within its window's width.
+// text returns the confirmation prompt while a kill is pending
+// confirmation, and the play status otherwise.
 func (s *statusBar) text() string {
 	if s.state.Confirming != nil {
 		return s.confirmPromptText()
@@ -65,19 +66,31 @@ func (s *statusBar) playStatusText() string {
 }
 
 // truncate returns text truncated to whatever room is left in s's window
-// after prefix and suffix, with a trailing "…" in place of the last rune
+// after prefix and suffix, with a trailing "…" in place of the last column
 // if text was cut.
 func (s *statusBar) truncate(text, prefix, suffix string) string {
-	maxRunes := s.window.Width - utf8.RuneCountInString(prefix) - utf8.RuneCountInString(suffix)
-	if maxRunes <= 0 {
+	maxWidth := s.window.Width - uniseg.StringWidth(prefix) - uniseg.StringWidth(suffix)
+	if maxWidth <= 0 {
 		return ""
 	}
-	runes := []rune(text)
-	if len(runes) <= maxRunes {
+	if uniseg.StringWidth(text) <= maxWidth {
 		return text
 	}
-	if maxRunes == 1 {
-		return "…"
+	return s.cut(text, maxWidth-1) + "…"
+}
+
+// cut returns the longest prefix of text that fits within maxWidth columns,
+// never splitting a character.
+func (s *statusBar) cut(text string, maxWidth int) string {
+	width := 0
+	end := 0
+	graphemes := uniseg.NewGraphemes(text)
+	for graphemes.Next() {
+		width += graphemes.Width()
+		if width > maxWidth {
+			break
+		}
+		end += len(graphemes.Str())
 	}
-	return string(runes[:maxRunes-1]) + "…"
+	return text[:end]
 }
