@@ -1,97 +1,97 @@
-package tcellui_test
+package tcellui
 
 import (
+	"strings"
 	"testing"
 
-	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
-func TestRenderMultiByteLabelColumnLayout(t *testing.T) {
-	screen := tcell.NewSimulationScreen("")
-	ui := tcellui.NewTUI(screen)
-	require.NoError(t, ui.Init())
-	defer ui.Cleanup()
+func TestTarget_draw_DrawsTagOrAnimationFrame(t *testing.T) {
+	tests := newTargetDrawTestCase()
 
-	ui.Render(outbound.FrameViewState{
-		Targets: []outbound.TargetViewState{
-			{X: 0, Y: 2, Tag: "✦ KILLED ✦"},
-		},
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			screen := newScreenFixture(80, 25)
+			target := target{
+				state:  test.state,
+				window: outbound.WindowSize{Width: 80, Height: 25},
+				chrome: outbound.ChromeSize{Top: 1, Bottom: 1},
+			}
 
-	cells, w, _ := screen.GetContents()
-	assert.Equal(t, ' ', cells[2*w+1].Runes[0], "col 1 should be space (rune after ✦) — byte-offset bug in render loop?")
-	assert.Equal(t, 'K', cells[2*w+2].Runes[0], "col 2 should be 'K' — byte-offset bug in render loop?")
-}
+			// When
+			target.draw(screen)
 
-func TestRenderKillingIgnoresTagAndShowsAnimationFrame(t *testing.T) {
-	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameViewState{
-		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Tag: "[1234 victim]", Killing: true, AnimationProgress: 0}},
-	})
-
-	got := rowContent(screen, 5)
-	assert.NotContains(t, got, "victim", "Killing should ignore Tag and draw its own animation frame")
-	assert.Contains(t, got, "💥", "the first kill-animation frame should render at progress 0")
-}
-
-func TestRenderKillingShowsTextFrameAtMidProgress(t *testing.T) {
-	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameViewState{
-		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Killing: true, AnimationProgress: 0.3}},
-	})
-
-	got := rowContent(screen, 5)
-	assert.Contains(t, got, "KILLED")
-}
-
-func TestRenderFleeingIgnoresTagAndShowsAnimationFrame(t *testing.T) {
-	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameViewState{
-		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Tag: "[1234 victim]", Fleeing: true, AnimationProgress: 0}},
-	})
-
-	got := rowContent(screen, 5)
-	assert.NotContains(t, got, "victim", "Fleeing should ignore Tag and draw its own animation frame")
-	assert.Contains(t, got, "🏃", "the first flee-animation frame should render at progress 0")
-}
-
-func TestRenderWideRuneTagDoesNotDropCharacters(t *testing.T) {
-	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameViewState{
-		Targets: []outbound.TargetViewState{{X: 0, Y: 5, Tag: "[9 日本語]"}},
-	})
-
-	got := rowContent(screen, 5)
-	for _, want := range []string{"[", "9", "日", "本", "語", "]"} {
-		assert.Contains(t, got, want, "wide-rune tag should render %q without dropping characters", want)
+			// Then
+			assert.Equal(t, test.expected, screenRow(screen, test.state.Y))
+		})
 	}
 }
 
-func TestRenderDrawsMultipleTargets(t *testing.T) {
-	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameViewState{
-		Targets: []outbound.TargetViewState{
-			{X: 0, Y: 5, Tag: "[1111 first]"},
-			{X: 0, Y: 8, Tag: "[2222 second]"},
-		},
-	})
+func TestTarget_draw_StaysInsideWindowAndOutsideChrome(t *testing.T) {
+	tests := newTargetBoundsTestCase()
 
-	assert.Contains(t, rowContent(screen, 5), "first", "the first target should be drawn")
-	assert.Contains(t, rowContent(screen, 8), "second", "the second target should be drawn, not just the first")
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			screen := newScreenFixture(80, 25)
+			target := target{
+				state:  test.state,
+				window: outbound.WindowSize{Width: 80, Height: 25},
+				chrome: outbound.ChromeSize{Top: 1, Bottom: 1},
+			}
+
+			// When
+			target.draw(screen)
+
+			// Then
+			assert.Equal(t, test.expected, screenRow(screen, test.state.Y))
+		})
+	}
 }
 
-func TestRenderClipsTargetAtHUDRow(t *testing.T) {
-	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameViewState{
-		Targets: []outbound.TargetViewState{{X: 2, Y: 0, Tag: "[1234 victim]"}},
-		HUD:     outbound.HUDViewState{Kills: 3},
-	})
+func newTargetDrawTestCase() []struct {
+	name     string
+	state    outbound.TargetViewState
+	expected string
+} {
+	return []struct {
+		name     string
+		state    outbound.TargetViewState
+		expected string
+	}{
+		{"alive target shows its tag", outbound.TargetViewState{X: 0, Y: 5, Tag: "[1234 victim]"}, "[1234 victim]"},
+		{"tag starts at the target's column", outbound.TargetViewState{X: 3, Y: 5, Tag: "[1234 victim]"}, "   [1234 victim]"},
+		{"tag with multi-byte characters keeps its column layout", outbound.TargetViewState{X: 0, Y: 5, Tag: "✦ KILLED ✦"}, "✦ KILLED ✦"},
+		{"tag with wide characters is drawn whole", outbound.TargetViewState{X: 0, Y: 5, Tag: "[9 日本語]"}, "[9 日本語]"},
+		{"killing target shows the first kill frame instead of its tag", outbound.TargetViewState{X: 0, Y: 5, Tag: "[1234 victim]", Killing: true, AnimationProgress: 0}, "💥"},
+		{"killing target shows a later kill frame as progress advances", outbound.TargetViewState{X: 0, Y: 5, Killing: true, AnimationProgress: 0.3}, "✦ KILLED ✦"},
+		{"fleeing target shows the first flee frame instead of its tag", outbound.TargetViewState{X: 0, Y: 5, Tag: "[1234 victim]", Fleeing: true, AnimationProgress: 0}, "🏃💨"},
+		{"fleeing target shows a later flee frame as progress advances", outbound.TargetViewState{X: 0, Y: 5, Fleeing: true, AnimationProgress: 0.3}, "↝ RAN AWAY ↝"},
+		{"killing takes precedence over fleeing", outbound.TargetViewState{X: 0, Y: 5, Killing: true, Fleeing: true, AnimationProgress: 0}, "💥"},
+	}
+}
 
-	got := rowContent(screen, 0)
-	assert.NotContains(t, got, "victim", "target tag must not be drawn on the HUD row")
+func newTargetBoundsTestCase() []struct {
+	name     string
+	state    outbound.TargetViewState
+	expected string
+} {
+	return []struct {
+		name     string
+		state    outbound.TargetViewState
+		expected string
+	}{
+		{"first row below the top chrome is drawn", outbound.TargetViewState{X: 0, Y: 1, Tag: "T"}, "T"},
+		{"last row above the bottom chrome is drawn", outbound.TargetViewState{X: 0, Y: 23, Tag: "T"}, "T"},
+		{"top chrome row is left alone", outbound.TargetViewState{X: 0, Y: 0, Tag: "T"}, ""},
+		{"bottom chrome row is left alone", outbound.TargetViewState{X: 0, Y: 24, Tag: "T"}, ""},
+		{"last column is drawn", outbound.TargetViewState{X: 79, Y: 5, Tag: "T"}, strings.Repeat(" ", 79) + "T"},
+		{"column left of the window is not drawn", outbound.TargetViewState{X: -1, Y: 5, Tag: "T"}, ""},
+		{"column right of the window is not drawn", outbound.TargetViewState{X: 80, Y: 5, Tag: "T"}, ""},
+		{"tag running past the right edge is clipped", outbound.TargetViewState{X: 78, Y: 5, Tag: "[abc]"}, strings.Repeat(" ", 78) + "[a"},
+	}
 }
