@@ -1,84 +1,63 @@
-package tcellui_test
+package tcellui
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 
-	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
-func TestDrawHUDNarrowTerminalSuppressesCenter(t *testing.T) {
-	screen := tcell.NewSimulationScreen("")
-	ui := tcellui.NewTUI(screen)
-	require.NoError(t, ui.Init())
-	defer ui.Cleanup()
+func TestHUD_draw_ArrangesLabelsByWindowWidth(t *testing.T) {
+	tests := newHUDLayoutTestCase()
 
-	screen.SetSize(30, 25)
-	ui.Render(outbound.FrameViewState{HUD: outbound.HUDViewState{}})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			screen := newScreenFixture(test.width, 25)
+			hud := hud{state: outbound.HUDViewState{Kills: 7}, width: test.width}
 
-	cells, w, _ := screen.GetContents()
-	var row0 strings.Builder
-	for x := range w {
-		if r := cells[x].Runes; len(r) > 0 {
-			row0.WriteRune(r[0])
-		}
-	}
-	got := row0.String()
+			// When
+			hud.draw(screen)
 
-	assert.Contains(t, got, "FREED")
-	assert.Contains(t, got, "KILLS")
-	assert.NotContains(t, got, "HighScore", "row 0 should NOT contain HighScore on narrow terminal")
-}
-
-func TestDrawHUDWideTerminalDrawsAllThree(t *testing.T) {
-	screen := tcell.NewSimulationScreen("")
-	ui := tcellui.NewTUI(screen)
-	require.NoError(t, ui.Init())
-	defer ui.Cleanup()
-
-	ui.Render(outbound.FrameViewState{HUD: outbound.HUDViewState{}})
-
-	cells, w, _ := screen.GetContents()
-	var row0 strings.Builder
-	for x := range w {
-		if r := cells[x].Runes; len(r) > 0 {
-			row0.WriteRune(r[0])
-		}
-	}
-	got := row0.String()
-
-	for _, want := range []string{"FREED", "HighScore", "KILLS"} {
-		assert.Contains(t, got, want, "row 0 should contain %q on wide terminal", want)
-	}
-}
-
-// TestDrawHUDFreedLabelBudgetedAgainstKillsColumn is a regression test for
-// docs/tcellui-findings.md Minor Finding 7: FREED must be truncated to the
-// KILLS column's budget rather than relying on KILLS's later draw call to
-// overwrite whatever runs past it.
-func TestDrawHUDFreedLabelBudgetedAgainstKillsColumn(t *testing.T) {
-	cases := []struct {
-		width int
-		want  string
-	}{
-		{10, " KILLS: 7"},
-		{14, " FRE KILLS: 7"},
-		{18, " FREED:  KILLS: 7"},
-		{24, " FREED: 0 B    KILLS: 7"},
-	}
-	for _, tc := range cases {
-		t.Run(fmt.Sprintf("w=%d", tc.width), func(t *testing.T) {
-			ui, screen := newTUI(t)
-			screen.SetSize(tc.width, 25)
-			ui.Render(outbound.FrameViewState{HUD: outbound.HUDViewState{Kills: 7}})
-
-			assert.Equal(t, tc.want, rowContent(screen, 0))
+			// Then
+			assert.Equal(t, test.expected, screenRow(screen, 0))
 		})
+	}
+}
+
+func TestHUD_draw_ShowsEveryValue(t *testing.T) {
+	// Given
+	screen := newScreenFixture(80, 25)
+	hud := hud{
+		state: outbound.HUDViewState{FreedMem: 2048, Kills: 7, HighScore: 12},
+		width: 80,
+	}
+
+	// When
+	hud.draw(screen)
+
+	// Then
+	row := screenRow(screen, 0)
+	assert.Contains(t, row, " FREED: 2.0 KB ")
+	assert.Contains(t, row, " HighScore: 12 ")
+	assert.Contains(t, row, " KILLS: 7")
+}
+
+func newHUDLayoutTestCase() []struct {
+	name     string
+	width    int
+	expected string
+} {
+	return []struct {
+		name     string
+		width    int
+		expected string
+	}{
+		{"freed label is cut to the kills label's budget", 14, " FRE KILLS: 7"},
+		{"freed label is cut to nothing when the kills label fills the row", 10, " KILLS: 7"},
+		{"freed label fits whole up to the kills label's budget", 18, " FREED:  KILLS: 7"},
+		{"high score is dropped when one column short of clearing the freed label", 36, " FREED: 0 B                KILLS: 7"},
+		{"high score is drawn when it exactly touches the freed label", 38, " FREED: 0 B  HighScore: 0    KILLS: 7"},
 	}
 }

@@ -2,9 +2,9 @@ package tcellui
 
 import (
 	"fmt"
-	"unicode/utf8"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/uniseg"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/util"
@@ -57,37 +57,24 @@ func (h *hud) highScoreText() string {
 // right draws text right-anchored, and records the column it starts at as
 // bounds.right.
 func (h *hud) right(screen tcell.Screen, text string, style tcell.Style) {
-	width := utf8.RuneCountInString(text)
+	width := uniseg.StringWidth(text)
 	h.bounds.right = max(h.width-width, 0)
 	screen.PutStrStyled(h.bounds.right, 0, text, style)
 }
 
-// left draws text left-anchored, truncated to bounds.right, and records
-// its untruncated width as bounds.left.
+// left draws text left-anchored, truncated to bounds.right columns, and
+// records its untruncated width as bounds.left.
 func (h *hud) left(screen tcell.Screen, text string, style tcell.Style) {
-	h.bounds.left = utf8.RuneCountInString(text)
-	screen.PutStrStyled(0, 0, h.truncate(text), style)
+	h.bounds.left = uniseg.StringWidth(text)
+	screen.PutStrStyled(0, 0, truncateToWidth(text, h.bounds.right), style)
 }
 
 // center draws text centered, unless it would collide with bounds.left or
 // bounds.right.
 func (h *hud) center(screen tcell.Screen, text string, style tcell.Style) {
-	width := utf8.RuneCountInString(text)
+	width := uniseg.StringWidth(text)
 	x := (h.width - width) / 2
 	if x >= h.bounds.left && x+width <= h.bounds.right {
 		screen.PutStrStyled(x, 0, text, style)
 	}
-}
-
-// truncate returns text truncated to at most maxRunes runes.
-func (h *hud) truncate(text string) string {
-	maxRunes := h.bounds.right
-	if maxRunes <= 0 {
-		return ""
-	}
-	runes := []rune(text)
-	if len(runes) <= maxRunes {
-		return text
-	}
-	return string(runes[:maxRunes])
 }
