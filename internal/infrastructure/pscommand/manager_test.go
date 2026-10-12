@@ -26,7 +26,7 @@ func TestNewManager_ReturnsErrorWhenPsIsUnavailable(t *testing.T) {
 
 func TestManager_Discover_ReturnsProcessesFromPsOutput(t *testing.T) {
 	// Given
-	host := newHostFixture("linux")
+	host := hostMockSetup("linux")
 	host.On("run", newDiscoverArgumentsFixture()).Return(newPsOutputFixture(), nil)
 	processManager := &manager{host: host}
 	expected := []outbound.ProcessInfo{newProcessInfoFixture()}
@@ -46,7 +46,7 @@ func TestManager_Discover_QueriesColumnsForOperatingSystem(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
-			host := newHostFixture(test.goos)
+			host := hostMockSetup(test.goos)
 			host.On("run", []string{"-eo", test.expected}).Return(newPsOutputFixture(), nil)
 			processManager := &manager{host: host}
 
@@ -63,7 +63,7 @@ func TestManager_Discover_QueriesColumnsForOperatingSystem(t *testing.T) {
 func TestManager_Discover_ReturnsErrorWhenPsFails(t *testing.T) {
 	// Given
 	psErr := errors.New("boom")
-	host := newHostFixture("linux")
+	host := hostMockSetup("linux")
 	host.On("run", newDiscoverArgumentsFixture()).Return(nil, psErr)
 	processManager := &manager{host: host}
 
@@ -77,7 +77,7 @@ func TestManager_Discover_ReturnsErrorWhenPsFails(t *testing.T) {
 
 func TestManager_Discover_ReturnsErrorWhenOutputCannotBeParsed(t *testing.T) {
 	// Given
-	host := newHostFixture("linux")
+	host := hostMockSetup("linux")
 	host.On("run", newDiscoverArgumentsFixture()).Return([]byte("garbage"), nil)
 	processManager := &manager{host: host}
 
@@ -116,7 +116,7 @@ func TestManager_OwnUID_ReturnsUIDOfHost(t *testing.T) {
 
 func TestManager_LookupName_ReturnsNameOfProcess(t *testing.T) {
 	// Given
-	host := newHostFixture("linux")
+	host := hostMockSetup("linux")
 	host.On("run", newLookupArgumentsFixture(123)).Return(newPsOutputFixture(), nil)
 	processManager := &manager{host: host}
 
@@ -135,7 +135,7 @@ func TestManager_LookupName_ReturnsNotFoundErrorWhenProcessIsGone(t *testing.T) 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
-			host := newHostFixture("linux")
+			host := hostMockSetup("linux")
 			host.On("run", newLookupArgumentsFixture(123)).Return(test.output, test.psErr)
 			processManager := &manager{host: host}
 
@@ -152,7 +152,7 @@ func TestManager_LookupName_ReturnsNotFoundErrorWhenProcessIsGone(t *testing.T) 
 func TestManager_LookupName_ReturnsErrorWhenPsFails(t *testing.T) {
 	// Given
 	psErr := errors.New("boom")
-	host := newHostFixture("linux")
+	host := hostMockSetup("linux")
 	host.On("run", newLookupArgumentsFixture(123)).Return(nil, psErr)
 	processManager := &manager{host: host}
 
@@ -166,7 +166,7 @@ func TestManager_LookupName_ReturnsErrorWhenPsFails(t *testing.T) {
 
 func TestManager_LookupName_ReturnsErrorWhenOutputCannotBeParsed(t *testing.T) {
 	// Given
-	host := newHostFixture("linux")
+	host := hostMockSetup("linux")
 	host.On("run", newLookupArgumentsFixture(123)).Return([]byte("garbage"), nil)
 	processManager := &manager{host: host}
 

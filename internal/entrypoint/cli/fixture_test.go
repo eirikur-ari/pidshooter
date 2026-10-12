@@ -20,7 +20,7 @@ func newFlagSetFixture() *flag.FlagSet {
 	return flagSet
 }
 
-func newProgramFixture(creator *FakeRunnerCreator) (program *Program, out, errOut *bytes.Buffer) {
+func newProgramFixture(creator *MockRunnerCreator) (program *Program, out, errOut *bytes.Buffer) {
 	out, errOut = &bytes.Buffer{}, &bytes.Buffer{}
 	program = NewProgram(creator)
 	program.out, program.errOut = out, errOut

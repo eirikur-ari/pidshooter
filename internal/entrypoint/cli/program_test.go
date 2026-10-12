@@ -6,9 +6,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
+	"github.com/eirikur-ari/pidshooter/internal/application/config"
 	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
@@ -26,7 +28,7 @@ func TestProgram_Run_PrintsUsageToStdoutWithoutCreatingRunner(t *testing.T) {
 	for _, args := range tests {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			// Given
-			creator := &FakeRunnerCreator{}
+			creator := &MockRunnerCreator{}
 			program, out, errOut := newProgramFixture(creator)
 
 			// When
@@ -36,7 +38,7 @@ func TestProgram_Run_PrintsUsageToStdoutWithoutCreatingRunner(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, usageText, out.String())
 			assert.Empty(t, errOut.String())
-			assert.Zero(t, creator.Calls)
+			creator.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 		})
 	}
 }
@@ -51,7 +53,7 @@ func TestProgram_Run_ReturnsArgumentErrorAndPrintsUsageToStderrWhenArgumentsAreM
 	for _, args := range tests {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			// Given
-			creator := &FakeRunnerCreator{}
+			creator := &MockRunnerCreator{}
 			program, out, errOut := newProgramFixture(creator)
 
 			// When
@@ -62,15 +64,23 @@ func TestProgram_Run_ReturnsArgumentErrorAndPrintsUsageToStderrWhenArgumentsAreM
 			assert.True(t, errors.As(err, &ArgumentError{}))
 			assert.Empty(t, out.String())
 			assert.Contains(t, errOut.String(), usageText)
-			assert.Zero(t, creator.Calls)
+			creator.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
 		})
 	}
 }
 
 func TestProgram_Run_PassesPatternsAndOptionsToRunnerCreator(t *testing.T) {
 	// Given
-	runner := &FakeRunner{}
-	creator := &FakeRunnerCreator{Runner: runner}
+	expectedOptions := config.Options{
+		Game: config.GameOptions{
+			ConfirmMode: testutil.Pointer(true),
+			Speed:       testutil.Pointer(3.5),
+		},
+	}
+	runner := &MockRunner{}
+	runner.On("Run").Return(nil)
+	creator := &MockRunnerCreator{}
+	creator.On("Create", []string{"chrome", "firefox"}, expectedOptions).Return(runner, nil)
 	program, _, _ := newProgramFixture(creator)
 
 	// When
@@ -78,18 +88,15 @@ func TestProgram_Run_PassesPatternsAndOptionsToRunnerCreator(t *testing.T) {
 
 	// Then
 	require.NoError(t, err)
-	assert.Equal(t, 1, creator.Calls)
-	assert.Equal(t, []string{"chrome", "firefox"}, creator.Patterns)
-	assert.Equal(t, testutil.Pointer(true), creator.Options.Game.ConfirmMode)
-	assert.Equal(t, testutil.Pointer(3.5), creator.Options.Game.Speed)
-	assert.Nil(t, creator.Options.Game.TimeLimit)
-	assert.Equal(t, 1, runner.Calls)
+	creator.AssertExpectations(t)
+	runner.AssertNumberOfCalls(t, "Run", 1)
 }
 
 func TestProgram_Run_ReturnsErrorWhenRunnerCreatorFails(t *testing.T) {
 	// Given
 	creationError := errors.New("boom")
-	creator := &FakeRunnerCreator{Err: creationError}
+	creator := &MockRunnerCreator{}
+	creator.On("Create", mock.Anything, mock.Anything).Return(nil, creationError)
 	program, out, errOut := newProgramFixture(creator)
 
 	// When
@@ -97,7 +104,7 @@ func TestProgram_Run_ReturnsErrorWhenRunnerCreatorFails(t *testing.T) {
 
 	// Then
 	require.ErrorIs(t, err, creationError)
-	assert.Equal(t, 1, creator.Calls)
+	creator.AssertNumberOfCalls(t, "Create", 1)
 	assert.Empty(t, out.String())
 	assert.Empty(t, errOut.String())
 }
@@ -105,8 +112,7 @@ func TestProgram_Run_ReturnsErrorWhenRunnerCreatorFails(t *testing.T) {
 func TestProgram_Run_ReclassifiesInvalidConfigAsArgumentError(t *testing.T) {
 	// Given
 	invalid := apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", errors.New("boom"))
-	runner := &FakeRunner{Err: invalid}
-	creator := &FakeRunnerCreator{Runner: runner}
+	creator, runner := runnerCreatorMockSetup(invalid)
 	program, out, errOut := newProgramFixture(creator)
 
 	// When
@@ -117,14 +123,13 @@ func TestProgram_Run_ReclassifiesInvalidConfigAsArgumentError(t *testing.T) {
 	assert.True(t, errors.As(err, &ArgumentError{}))
 	assert.Empty(t, out.String())
 	assert.Contains(t, errOut.String(), usageText)
-	assert.Equal(t, 1, runner.Calls)
+	runner.AssertNumberOfCalls(t, "Run", 1)
 }
 
 func TestProgram_Run_ReturnsOtherFatalErrorsUnchanged(t *testing.T) {
 	// Given
 	fatal := apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "game session failed", errors.New("boom"))
-	runner := &FakeRunner{Err: fatal}
-	creator := &FakeRunnerCreator{Runner: runner}
+	creator, runner := runnerCreatorMockSetup(fatal)
 	program, out, errOut := newProgramFixture(creator)
 
 	// When
@@ -135,14 +140,13 @@ func TestProgram_Run_ReturnsOtherFatalErrorsUnchanged(t *testing.T) {
 	assert.False(t, errors.As(err, &ArgumentError{}))
 	assert.Empty(t, out.String())
 	assert.Empty(t, errOut.String())
-	assert.Equal(t, 1, runner.Calls)
+	runner.AssertNumberOfCalls(t, "Run", 1)
 }
 
 func TestProgram_Run_AbsorbsWarningFromRunner(t *testing.T) {
 	// Given
 	warning := apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, "could not kill target", errors.New("boom"))
-	runner := &FakeRunner{Err: warning}
-	creator := &FakeRunnerCreator{Runner: runner}
+	creator, runner := runnerCreatorMockSetup(warning)
 	program, out, errOut := newProgramFixture(creator)
 
 	// When
@@ -152,5 +156,5 @@ func TestProgram_Run_AbsorbsWarningFromRunner(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, out.String())
 	assert.Empty(t, errOut.String())
-	assert.Equal(t, 1, runner.Calls)
+	runner.AssertNumberOfCalls(t, "Run", 1)
 }

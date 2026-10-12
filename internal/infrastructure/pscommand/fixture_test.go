@@ -8,13 +8,6 @@ import (
 
 const psHeader = "  UID   PID    RSS STAT COMM\n"
 
-func newHostFixture(goos string) *MockHost {
-	host := &MockHost{}
-	host.On("goos").Return(goos)
-
-	return host
-}
-
 func newDiscoverArgumentsFixture() []string {
 	return []string{"-eo", "uid,pid,rss,stat,comm"}
 }

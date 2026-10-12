@@ -35,6 +35,11 @@ func newPoller(screen tcell.Screen) poller {
 	}
 }
 
+// Events returns the channel of translated input events.
+func (p *poller) Events() <-chan input.Event {
+	return p.eventQueue
+}
+
 // poll queues the input events translated from screen's events until the
 // screen is finalized or stop is called, then closes the event queue.
 func (p *poller) poll() {
@@ -59,9 +64,4 @@ func (p *poller) poll() {
 // stop signals poll to exit.
 func (p *poller) stop() {
 	close(p.done)
-}
-
-// Events returns the channel of translated input events.
-func (p *poller) Events() <-chan input.Event {
-	return p.eventQueue
 }
