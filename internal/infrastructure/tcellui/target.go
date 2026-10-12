@@ -12,16 +12,16 @@ var (
 	fleeStyle  = tcell.StyleDefault.Foreground(tcell.ColorOrange).Bold(true)
 )
 
-// target is a single target: its view state, and the window and chrome
-// context needed to decide whether and how to draw it.
+// target is a single target to draw, together with the window and chrome
+// it is drawn within.
 type target struct {
 	state  outbound.TargetViewState
 	window outbound.WindowSize
 	chrome outbound.ChromeSize
 }
 
-// draw draws t's tag or animation frame, unless its position falls outside
-// its window or on one of chrome's reserved rows.
+// draw draws the target's tag or animation frame, unless the target lies
+// outside the window or on a row reserved by chrome.
 func (t *target) draw(screen tcell.Screen) {
 	if t.state.X < 0 || t.state.X >= t.window.Width || t.isChromeRow() {
 		return
@@ -30,14 +30,13 @@ func (t *target) draw(screen tcell.Screen) {
 	screen.PutStrStyled(t.state.X, t.state.Y, tag, style)
 }
 
-// isChromeRow reports whether t's row is one of the rows chrome reserves
-// for the caller's own fixed UI.
+// isChromeRow reports whether the target's row is reserved by chrome.
 func (t *target) isChromeRow() bool {
 	return t.state.Y < t.chrome.Top || t.state.Y >= t.window.Height-t.chrome.Bottom
 }
 
-// styleAndTag returns the style and label to draw for t, substituting the
-// current animation frame while Killing or Fleeing.
+// styleAndTag returns the style and label to draw for the target,
+// substituting the current animation frame while Killing or Fleeing.
 func (t *target) styleAndTag() (tcell.Style, string) {
 	switch {
 	case t.state.Killing:

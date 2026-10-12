@@ -35,7 +35,7 @@ type translator struct {
 	prevButtons tcell.ButtonMask
 }
 
-// newTranslator returns a translator reading window state from screen.
+// newTranslator returns a translator for the events of screen.
 func newTranslator(screen tcell.Screen) translator {
 	return translator{screen: screen}
 }

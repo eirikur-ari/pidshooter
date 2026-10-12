@@ -18,13 +18,13 @@ type statusBar struct {
 	window outbound.WindowSize
 }
 
-// draw draws s at its window's bottom row.
+// draw draws the status bar on the window's bottom row.
 func (s *statusBar) draw(screen tcell.Screen) {
 	s.clear(screen)
 	s.left(screen, s.text(), statusBarStyle)
 }
 
-// clear blanks s's row, ready for new text.
+// clear blanks the status bar's row, ready for new text.
 func (s *statusBar) clear(screen tcell.Screen) {
 	row := s.window.Height - 1
 	for x := range s.window.Width {
@@ -32,7 +32,7 @@ func (s *statusBar) clear(screen tcell.Screen) {
 	}
 }
 
-// left draws text left-anchored on s's row.
+// left draws text left-anchored on the status bar's row.
 func (s *statusBar) left(screen tcell.Screen, text string, style tcell.Style) {
 	screen.PutStrStyled(0, s.window.Height-1, text, style)
 }
@@ -65,7 +65,7 @@ func (s *statusBar) playStatusText() string {
 		s.state.Alive, s.state.Speed, timerStr)
 }
 
-// truncate returns text truncated to whatever room is left in s's window
+// truncate returns text truncated to whatever room is left in the window
 // after prefix and suffix, with a trailing "…" in place of the last column
 // if text was cut.
 func (s *statusBar) truncate(text, prefix, suffix string) string {

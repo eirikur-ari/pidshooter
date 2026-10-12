@@ -31,8 +31,8 @@ type hud struct {
 	bounds bounds
 }
 
-// draw draws h at row 0: the kill count right-anchored, the freed-memory
-// total left-anchored, and the high score centered.
+// draw draws the HUD on the top row: the kill count right-anchored, the
+// freed-memory total left-anchored, and the high score centered.
 func (h *hud) draw(screen tcell.Screen) {
 	h.right(screen, h.killsText(), killsStyle)
 	h.left(screen, h.freedText(), freedStyle)
