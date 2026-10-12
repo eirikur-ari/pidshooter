@@ -15,10 +15,11 @@ import (
 
 func TestService_LoadScoreBoard_ReturnsEntriesAndHighScore(t *testing.T) {
 	// Given
-	service := NewService(&testutil.FakeStore{Board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
+	store := scoreStoreMockSetup(outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
 		{Kills: 8, Date: time.Now()},
 		{Kills: 3, Date: time.Now()},
-	}}}, &testutil.FakeScoreReporter{})
+	}}, nil, nil)
+	service := NewService(store, &testutil.FakeScoreReporter{})
 
 	// When
 	result, err := service.LoadScoreBoard()
@@ -35,7 +36,8 @@ func TestService_LoadScoreBoard_ReturnsWarningAndEmptyBoardWhenBoardCannotBeLoad
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
-			service := NewService(&testutil.FakeStore{LoadErr: test.loadErr}, &testutil.FakeScoreReporter{})
+			store := scoreStoreMockSetup(outbound.ScoreBoard{}, test.loadErr, nil)
+			service := NewService(store, &testutil.FakeScoreReporter{})
 			var appErr *apperror.Error
 
 			// When
@@ -59,7 +61,10 @@ func TestService_RecordScore_SavesBoardAndReturnsSessionBoard(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
-			service := NewService(test.store, &testutil.FakeScoreReporter{})
+			store := &MockScoreStore{}
+			store.On("Load").Return(test.persisted, nil)
+			store.On("Save", boardWithScores(test.expectedSavedScores)).Return(nil)
+			service := NewService(store, &testutil.FakeScoreReporter{})
 
 			// When
 			result, err := service.RecordScore(test.request)
@@ -67,8 +72,7 @@ func TestService_RecordScore_SavesBoardAndReturnsSessionBoard(t *testing.T) {
 			// Then
 			require.NoError(t, err)
 			assert.Len(t, result.Entries, test.expectedResultEntries)
-			require.NotNil(t, test.store.Saved)
-			assert.Len(t, test.store.Saved.Scores, test.expectedSavedScores)
+			store.AssertExpectations(t)
 		})
 	}
 }
@@ -79,14 +83,14 @@ func TestService_RecordScore_SavesBoardOnlyWhenPersistedBoardIsMissingOrCorrupte
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
-			store := &testutil.FakeStore{LoadErr: test.cause}
+			store := scoreStoreMockSetup(outbound.ScoreBoard{}, test.cause, nil)
 			service := NewService(store, &testutil.FakeScoreReporter{})
 
 			// When
 			result, err := service.RecordScore(RecordRequest{Kills: 1, Duration: 1.0})
 
 			// Then
-			assert.Equal(t, test.expectedSaved, store.Saved != nil)
+			store.AssertNumberOfCalls(t, "Save", test.expectedSaveCalls)
 			assert.Equal(t, test.expectedErrorText, errorText(err))
 			assert.Len(t, result.Entries, 1, "the result is returned even when the save is skipped")
 		})
@@ -96,7 +100,8 @@ func TestService_RecordScore_SavesBoardOnlyWhenPersistedBoardIsMissingOrCorrupte
 func TestService_RecordScore_ReturnsWarningWhenSaveFails(t *testing.T) {
 	// Given
 	cause := errors.New("disk full")
-	service := NewService(&testutil.FakeStore{SaveErr: cause}, &testutil.FakeScoreReporter{})
+	store := scoreStoreMockSetup(outbound.ScoreBoard{}, nil, cause)
+	service := NewService(store, &testutil.FakeScoreReporter{})
 	var appErr *apperror.Error
 
 	// When
@@ -117,7 +122,8 @@ func TestService_RecordScore_ReportsNewHighScoreOnlyWhenKillsBeatEveryEntry(t *t
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
-			service := NewService(&testutil.FakeStore{}, &testutil.FakeScoreReporter{})
+			store := scoreStoreMockSetup(outbound.ScoreBoard{}, nil, nil)
+			service := NewService(store, &testutil.FakeScoreReporter{})
 			request := RecordRequest{Entries: []BoardEntry{{Kills: 3}}, Kills: test.kills}
 
 			// When
@@ -133,7 +139,7 @@ func TestService_RecordScore_ReportsNewHighScoreOnlyWhenKillsBeatEveryEntry(t *t
 func TestService_ReportResults_ReportsSummaryViaReporter(t *testing.T) {
 	// Given
 	reporter := &testutil.FakeScoreReporter{}
-	service := NewService(&testutil.FakeStore{}, reporter)
+	service := NewService(&MockScoreStore{}, reporter)
 	request := ReportRequest{Duration: 7.5, Kills: 3, Duds: 1, FreedMem: 4096, Entries: []BoardEntry{{Kills: 2}}, NewHighScore: true}
 
 	// When
@@ -160,37 +166,37 @@ func newLoadFailureTestCase() []struct {
 
 func newRecordOutcomeTestCase() []struct {
 	name                  string
-	store                 *testutil.FakeStore
+	persisted             outbound.ScoreBoard
 	request               RecordRequest
 	expectedResultEntries int
 	expectedSavedScores   int
 } {
 	return []struct {
 		name                  string
-		store                 *testutil.FakeStore
+		persisted             outbound.ScoreBoard
 		request               RecordRequest
 		expectedResultEntries int
 		expectedSavedScores   int
 	}{
 		{
 			name:                  "records the session",
-			store:                 &testutil.FakeStore{},
+			persisted:             outbound.ScoreBoard{},
 			request:               RecordRequest{Kills: 4, Duds: 1, FreedMem: 2048, LowestSpeed: 2.5, TimeLimit: 30, Duration: 12.5},
 			expectedResultEntries: 1,
 			expectedSavedScores:   1,
 		},
 		{
 			name:                  "does not record a session without kills",
-			store:                 &testutil.FakeStore{},
+			persisted:             outbound.ScoreBoard{},
 			request:               RecordRequest{Kills: 0, Duration: 1.0},
 			expectedResultEntries: 0,
 			expectedSavedScores:   0,
 		},
 		{
 			name: "keeps an entry persisted after the board was loaded",
-			store: &testutil.FakeStore{Board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
+			persisted: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
 				{Kills: 20, Date: time.Now()},
-			}}},
+			}},
 			request:               RecordRequest{Kills: 5, Duration: 1.0},
 			expectedResultEntries: 1,
 			expectedSavedScores:   2,
@@ -201,18 +207,18 @@ func newRecordOutcomeTestCase() []struct {
 func newSaveAfterLoadFailureTestCase() []struct {
 	name              string
 	cause             error
-	expectedSaved     bool
+	expectedSaveCalls int
 	expectedErrorText string
 } {
 	return []struct {
 		name              string
 		cause             error
-		expectedSaved     bool
+		expectedSaveCalls int
 		expectedErrorText string
 	}{
-		{"board is not persisted yet", outbound.NotFoundError{}, true, ""},
-		{"persisted data is corrupted", outbound.CorruptedDataError{}, true, ""},
-		{"store fails", errors.New("disk error"), false, "score board not saved: disk error"},
+		{"board is not persisted yet", outbound.NotFoundError{}, 1, ""},
+		{"persisted data is corrupted", outbound.CorruptedDataError{}, 1, ""},
+		{"store fails", errors.New("disk error"), 0, "score board not saved: disk error"},
 	}
 }
 
@@ -231,11 +237,4 @@ func newNewHighScoreTestCase() []struct {
 		{"fewer kills than the best entry", 2, false},
 		{"no kills", 0, false},
 	}
-}
-
-func errorText(err error) string {
-	if err == nil {
-		return ""
-	}
-	return err.Error()
 }
