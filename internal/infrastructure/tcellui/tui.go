@@ -85,6 +85,7 @@ func (t *TUI) InputEvents() outbound.InputEventProvider {
 	return &t.poller
 }
 
+// cleanup stops the poller and finalizes the screen if Init succeeded.
 func (t *TUI) cleanup() {
 	t.poller.stop()
 	if t.initialized {

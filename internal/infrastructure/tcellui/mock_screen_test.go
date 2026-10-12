@@ -13,3 +13,11 @@ type MockScreen struct {
 func (m *MockScreen) Sync() {
 	m.Called()
 }
+
+func (m *MockScreen) Init() error {
+	return m.Called().Error(0)
+}
+
+func (m *MockScreen) Fini() {
+	m.Called()
+}

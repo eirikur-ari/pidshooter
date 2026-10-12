@@ -12,3 +12,7 @@ func newScreenFixture(width, height int) tcell.SimulationScreen {
 	screen.SetSize(width, height)
 	return screen
 }
+
+func newUninitializedScreenFixture() tcell.SimulationScreen {
+	return tcell.NewSimulationScreen("")
+}
