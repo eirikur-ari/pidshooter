@@ -14,7 +14,7 @@ import (
 
 func TestService_Load_AppliesOptionsOverStoredConfig(t *testing.T) {
 	// Given
-	store := &testutil.FakeConfigStore{Config: newStoredConfigFixture()}
+	store := configStoreMockSetup(newStoredConfigFixture(), nil)
 	options := Options{Game: GameOptions{Speed: testutil.Pointer(1.5)}}
 	service := NewService(store, options)
 
@@ -32,7 +32,7 @@ func TestService_Load_AppliesOptionsOverStoredConfig(t *testing.T) {
 
 func TestService_Load_ReturnsDefaultsWhenStoreHasNoConfig(t *testing.T) {
 	// Given
-	store := &testutil.FakeConfigStore{LoadErr: outbound.NotFoundError{}}
+	store := configStoreMockSetup(outbound.Config{}, outbound.NotFoundError{})
 	service := NewService(store, Options{})
 	expected := newResult()
 
@@ -46,7 +46,7 @@ func TestService_Load_ReturnsDefaultsWhenStoreHasNoConfig(t *testing.T) {
 
 func TestService_Load_AppliesOptionsWhenStoreHasNoConfig(t *testing.T) {
 	// Given
-	store := &testutil.FakeConfigStore{LoadErr: outbound.NotFoundError{}}
+	store := configStoreMockSetup(outbound.Config{}, outbound.NotFoundError{})
 	options := Options{Game: GameOptions{Speed: testutil.Pointer(4.5)}}
 	service := NewService(store, options)
 
@@ -65,7 +65,7 @@ func TestService_Load_ReturnsWarningAndAppliesOptionsWhenStoreLoadFails(t *testi
 	// Given
 	var appErr *apperror.Error
 	cause := errors.New("disk error")
-	store := &testutil.FakeConfigStore{LoadErr: cause}
+	store := configStoreMockSetup(outbound.Config{}, cause)
 	options := Options{Game: GameOptions{Speed: testutil.Pointer(4.5)}}
 	service := NewService(store, options)
 
@@ -96,7 +96,7 @@ func TestService_Load_ReturnsFatalErrorWithoutReadingStoreWhenOptionsAreInvalid(
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			var appErr *apperror.Error
-			store := &testutil.FakeConfigStore{Config: newStoredConfigFixture()}
+			store := configStoreMockSetup(newStoredConfigFixture(), nil)
 			service := NewService(store, test.options)
 
 			// When
@@ -107,7 +107,7 @@ func TestService_Load_ReturnsFatalErrorWithoutReadingStoreWhenOptionsAreInvalid(
 			require.ErrorAs(t, err, &appErr)
 			assert.Equal(t, apperror.CodeInvalidConfig, appErr.Code)
 			assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
-			assert.Zero(t, store.Loads)
+			store.AssertNotCalled(t, "Load")
 		})
 	}
 }
@@ -115,7 +115,7 @@ func TestService_Load_ReturnsFatalErrorWithoutReadingStoreWhenOptionsAreInvalid(
 func TestService_Load_ReturnsWarningAndKeepsDefaultWhenStoredValueIsInvalid(t *testing.T) {
 	// Given
 	var appErr *apperror.Error
-	store := &testutil.FakeConfigStore{Config: outbound.Config{Game: outbound.GameConfig{Speed: testutil.Pointer(99.0)}}}
+	store := configStoreMockSetup(outbound.Config{Game: outbound.GameConfig{Speed: testutil.Pointer(99.0)}}, nil)
 	service := NewService(store, Options{})
 
 	// When
