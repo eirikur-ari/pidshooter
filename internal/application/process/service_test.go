@@ -10,7 +10,6 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestService_FindProcesses_ReturnsFatalErrorAndReportsNothing(t *testing.T) {
@@ -20,7 +19,7 @@ func TestService_FindProcesses_ReturnsFatalErrorAndReportsNothing(t *testing.T) 
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			manager := discoveryMockSetup(nil, 0, test.ownUID, test.discoverErr)
-			reporter := &testutil.FakeProcessReporter{}
+			reporter := &MockProcessReporter{}
 			service := NewService(manager, reporter, test.patterns)
 			var appError *apperror.Error
 
@@ -33,7 +32,7 @@ func TestService_FindProcesses_ReturnsFatalErrorAndReportsNothing(t *testing.T) 
 			assert.Equal(t, apperror.SeverityFatal, appError.Severity)
 			assert.ErrorContains(t, err, test.expectedText)
 			assert.Nil(t, processes)
-			assert.Nil(t, reporter.Reported)
+			reporter.AssertNotCalled(t, "Report", mock.Anything, mock.Anything)
 			manager.AssertNumberOfCalls(t, "Discover", test.expectedDiscoverCalls)
 		})
 	}
@@ -46,7 +45,7 @@ func TestService_FindProcesses_ReturnsProcessesMatchingRequest(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			manager := discoveryMockSetup(test.infos, test.ownPID, test.ownUID, nil)
-			service := NewService(manager, &testutil.FakeProcessReporter{}, []string{"target"})
+			service := NewService(manager, reporterMockSetup(), []string{"target"})
 
 			// When
 			processes, err := service.FindProcesses(test.request)
@@ -65,7 +64,7 @@ func TestService_FindProcesses_ReportsMatchesAndPatterns(t *testing.T) {
 		{PID: 100, Name: "target", Rss: 4096, UID: ownUID},
 		{PID: 101, Name: "another-target", Rss: 2048, UID: ownUID},
 	}, 0, ownUID, nil)
-	reporter := &testutil.FakeProcessReporter{}
+	reporter := reporterMockSetup()
 	service := NewService(manager, reporter, []string{"target"})
 
 	// When
@@ -73,12 +72,10 @@ func TestService_FindProcesses_ReportsMatchesAndPatterns(t *testing.T) {
 
 	// Then
 	require.NoError(t, err)
-	require.NotNil(t, reporter.Reported)
-	assert.Equal(t, []outbound.ProcessInfo{
+	reporter.AssertCalled(t, "Report", []outbound.ProcessInfo{
 		{PID: 100, Name: "target", Rss: 4096, UID: ownUID},
 		{PID: 101, Name: "another-target", Rss: 2048, UID: ownUID},
-	}, reporter.Reported.Matches)
-	assert.Equal(t, []string{"target"}, reporter.Reported.Patterns)
+	}, []string{"target"})
 }
 
 func TestService_Kill_ReturnsWarning(t *testing.T) {
@@ -88,7 +85,7 @@ func TestService_Kill_ReturnsWarning(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			manager, _ := pinnedProcessMockSetup(100, test.pinErr, test.lookupName, test.lookupErr, test.killErr)
-			service := NewService(manager, &testutil.FakeProcessReporter{}, nil)
+			service := NewService(manager, reporterMockSetup(), nil)
 			var appError *apperror.Error
 
 			// When
@@ -106,7 +103,7 @@ func TestService_Kill_ReturnsWarning(t *testing.T) {
 func TestService_Kill_RefusesProtectedProcessWithoutPinningIt(t *testing.T) {
 	// Given
 	manager := &MockProcessManager{}
-	service := NewService(manager, &testutil.FakeProcessReporter{}, nil)
+	service := NewService(manager, reporterMockSetup(), nil)
 	var appError *apperror.Error
 
 	// When
@@ -127,7 +124,7 @@ func TestService_Kill_KeepsNotFoundErrorAsCauseWhenProcessIsGone(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			manager, _ := pinnedProcessMockSetup(100, test.pinErr, test.lookupName, test.lookupErr, test.killErr)
-			service := NewService(manager, &testutil.FakeProcessReporter{}, nil)
+			service := NewService(manager, reporterMockSetup(), nil)
 
 			// When
 			err := service.Kill(100, "target", false)
@@ -145,7 +142,7 @@ func TestService_Kill_KillsOnlyVerifiedProcessAndReleasesWhatItPinned(t *testing
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			manager, handle := pinnedProcessMockSetup(100, test.pinErr, test.lookupName, test.lookupErr, test.killErr)
-			service := NewService(manager, &testutil.FakeProcessReporter{}, nil)
+			service := NewService(manager, reporterMockSetup(), nil)
 
 			// When
 			_ = service.Kill(100, "target", false)
@@ -160,7 +157,7 @@ func TestService_Kill_KillsOnlyVerifiedProcessAndReleasesWhatItPinned(t *testing
 func TestService_Kill_ReturnsNoErrorWhenProcessIsKilled(t *testing.T) {
 	// Given
 	manager, _ := pinnedProcessMockSetup(100, nil, "target", nil, nil)
-	service := NewService(manager, &testutil.FakeProcessReporter{}, nil)
+	service := NewService(manager, reporterMockSetup(), nil)
 
 	// When
 	err := service.Kill(100, "target", false)

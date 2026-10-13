@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestNewResult_ReturnsBaselineDefaults(t *testing.T) {
@@ -51,7 +50,7 @@ func TestResult_apply_LeavesResultUnchangedWhenNothingIsProvided(t *testing.T) {
 
 func TestResult_apply_KeepsExistingValuesForFieldsNotStored(t *testing.T) {
 	// Given
-	stored := outbound.Config{Game: outbound.GameConfig{Speed: testutil.Pointer(3.0)}}
+	stored := outbound.Config{Game: outbound.GameConfig{Speed: new(3.0)}}
 	expected := newResult()
 	expected.Game.Speed = 3.0
 
@@ -97,8 +96,8 @@ func TestResult_apply_ReportsInvalidStoredFields(t *testing.T) {
 func TestResult_apply_OptionsOverrideStoredConfig(t *testing.T) {
 	// Given
 	stored := newStoredConfigFixture()
-	stored.Process.IncludeRoot = testutil.Pointer(false)
-	stored.Game.ConfirmMode = testutil.Pointer(false)
+	stored.Process.IncludeRoot = new(false)
+	stored.Game.ConfirmMode = new(false)
 
 	expected := newResult()
 	expected.Process.IncludeRoot = true
@@ -114,7 +113,7 @@ func TestResult_apply_OptionsOverrideStoredConfig(t *testing.T) {
 
 func TestResult_apply_SetsAllowRootFromOptionsOnly(t *testing.T) {
 	// Given
-	options := Options{Process: ProcessOptions{AllowRoot: testutil.Pointer(true)}}
+	options := Options{Process: ProcessOptions{AllowRoot: new(true)}}
 
 	// When
 	actual, err := newResult().apply(outbound.Config{}, options)
@@ -140,12 +139,12 @@ func newApplySkippedTestCase() []struct {
 	}{
 		{
 			"out-of-range speed leaves a valid sibling applied",
-			outbound.Config{Game: outbound.GameConfig{Speed: testutil.Pointer(99.0), TimeLimit: testutil.Pointer(60)}},
+			outbound.Config{Game: outbound.GameConfig{Speed: new(99.0), TimeLimit: new(60)}},
 			withValidTimeLimit,
 		},
 		{
 			"out-of-range time limit",
-			outbound.Config{Game: outbound.GameConfig{TimeLimit: testutil.Pointer(-1)}},
+			outbound.Config{Game: outbound.GameConfig{TimeLimit: new(-1)}},
 			unchanged,
 		},
 		{
@@ -157,7 +156,7 @@ func newApplySkippedTestCase() []struct {
 			"every validated field invalid",
 			outbound.Config{
 				Mode: outbound.Mode("wobble"),
-				Game: outbound.GameConfig{Speed: testutil.Pointer(99.0), TimeLimit: testutil.Pointer(-1)},
+				Game: outbound.GameConfig{Speed: new(99.0), TimeLimit: new(-1)},
 			},
 			unchanged,
 		},
@@ -177,12 +176,12 @@ func newApplyReportedTestCase() []struct {
 	}{
 		{
 			"out-of-range speed",
-			outbound.Config{Game: outbound.GameConfig{Speed: testutil.Pointer(99.0)}},
+			outbound.Config{Game: outbound.GameConfig{Speed: new(99.0)}},
 			[]string{speedFieldName},
 		},
 		{
 			"out-of-range time limit",
-			outbound.Config{Game: outbound.GameConfig{TimeLimit: testutil.Pointer(-1)}},
+			outbound.Config{Game: outbound.GameConfig{TimeLimit: new(-1)}},
 			[]string{timeLimitFieldName},
 		},
 		{
@@ -194,7 +193,7 @@ func newApplyReportedTestCase() []struct {
 			"every validated field invalid",
 			outbound.Config{
 				Mode: outbound.Mode("wobble"),
-				Game: outbound.GameConfig{Speed: testutil.Pointer(99.0), TimeLimit: testutil.Pointer(-1)},
+				Game: outbound.GameConfig{Speed: new(99.0), TimeLimit: new(-1)},
 			},
 			[]string{modeFieldName, speedFieldName, timeLimitFieldName},
 		},

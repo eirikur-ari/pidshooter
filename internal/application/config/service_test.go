@@ -9,13 +9,12 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestService_Load_AppliesOptionsOverStoredConfig(t *testing.T) {
 	// Given
 	store := configStoreMockSetup(newStoredConfigFixture(), nil)
-	options := Options{Game: GameOptions{Speed: testutil.Pointer(1.5)}}
+	options := Options{Game: GameOptions{Speed: new(1.5)}}
 	service := NewService(store, options)
 
 	expected := newResult()
@@ -47,7 +46,7 @@ func TestService_Load_ReturnsDefaultsWhenStoreHasNoConfig(t *testing.T) {
 func TestService_Load_AppliesOptionsWhenStoreHasNoConfig(t *testing.T) {
 	// Given
 	store := configStoreMockSetup(outbound.Config{}, outbound.NotFoundError{})
-	options := Options{Game: GameOptions{Speed: testutil.Pointer(4.5)}}
+	options := Options{Game: GameOptions{Speed: new(4.5)}}
 	service := NewService(store, options)
 
 	expected := newResult()
@@ -66,7 +65,7 @@ func TestService_Load_ReturnsWarningAndAppliesOptionsWhenStoreLoadFails(t *testi
 	var appErr *apperror.Error
 	cause := errors.New("disk error")
 	store := configStoreMockSetup(outbound.Config{}, cause)
-	options := Options{Game: GameOptions{Speed: testutil.Pointer(4.5)}}
+	options := Options{Game: GameOptions{Speed: new(4.5)}}
 	service := NewService(store, options)
 
 	expected := newResult()
@@ -88,8 +87,8 @@ func TestService_Load_ReturnsFatalErrorWithoutReadingStoreWhenOptionsAreInvalid(
 		name    string
 		options Options
 	}{
-		{"out-of-range speed", Options{Game: GameOptions{Speed: testutil.Pointer(99.0)}}},
-		{"out-of-range time limit", Options{Game: GameOptions{TimeLimit: testutil.Pointer(-1)}}},
+		{"out-of-range speed", Options{Game: GameOptions{Speed: new(99.0)}}},
+		{"out-of-range time limit", Options{Game: GameOptions{TimeLimit: new(-1)}}},
 	}
 
 	for _, test := range tests {
@@ -115,7 +114,7 @@ func TestService_Load_ReturnsFatalErrorWithoutReadingStoreWhenOptionsAreInvalid(
 func TestService_Load_ReturnsWarningAndKeepsDefaultWhenStoredValueIsInvalid(t *testing.T) {
 	// Given
 	var appErr *apperror.Error
-	store := configStoreMockSetup(outbound.Config{Game: outbound.GameConfig{Speed: testutil.Pointer(99.0)}}, nil)
+	store := configStoreMockSetup(outbound.Config{Game: outbound.GameConfig{Speed: new(99.0)}}, nil)
 	service := NewService(store, Options{})
 
 	// When

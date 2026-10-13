@@ -1,6 +1,10 @@
 package process
 
-import "github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
+import (
+	"github.com/stretchr/testify/mock"
+
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
+)
 
 func discoveryMockSetup(infos []outbound.ProcessInfo, ownPID, ownUID int, discoverErr error) *MockProcessManager {
 	manager := &MockProcessManager{}
@@ -23,4 +27,10 @@ func pinnedProcessMockSetup(pid int, pinErr error, name string, lookupErr, killE
 	}
 	manager.On("LookupName", pid).Return(name, lookupErr)
 	return manager, handle
+}
+
+func reporterMockSetup() *MockProcessReporter {
+	reporter := &MockProcessReporter{}
+	reporter.On("Report", mock.Anything, mock.Anything).Return()
+	return reporter
 }

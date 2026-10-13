@@ -10,7 +10,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestToInfos_MapsEveryProcessInOrder(t *testing.T) {
@@ -307,7 +306,7 @@ func newStatusViewStateTestCase() []struct {
 			name:     "timed session",
 			session:  newSessionFixture(game.Config{Speed: 2.0, TimeLimit: 30}),
 			alive:    3,
-			expected: outbound.StatusViewState{Alive: 3, Speed: 2.0, TimeLeft: testutil.Pointer(30)},
+			expected: outbound.StatusViewState{Alive: 3, Speed: 2.0, TimeLeft: new(30)},
 		},
 		{
 			name:     "untimed session",

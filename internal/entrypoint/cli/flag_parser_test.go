@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestFlagParser_parse_ReturnsPatternsAndOptions(t *testing.T) {
@@ -23,7 +22,7 @@ func TestFlagParser_parse_ReturnsPatternsAndOptions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"chrome", "firefox"}, patterns)
 	assert.Equal(t, config.Options{
-		Game: config.GameOptions{ConfirmMode: testutil.Pointer(true), Speed: testutil.Pointer(3.5)},
+		Game: config.GameOptions{ConfirmMode: new(true), Speed: new(3.5)},
 	}, options)
 }
 

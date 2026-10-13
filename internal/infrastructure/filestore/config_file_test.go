@@ -12,7 +12,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestNewConfigFile_ResolvesDefaultPath(t *testing.T) {
@@ -250,7 +249,7 @@ func newSavedYAMLTestCase() []struct {
 		},
 		{
 			"unset keys are omitted",
-			outbound.Config{Game: outbound.GameConfig{Speed: testutil.Pointer(1.5)}},
+			outbound.Config{Game: outbound.GameConfig{Speed: new(1.5)}},
 			map[string]any{
 				"version": currentConfigSchemaVersion,
 				"mode":    "",

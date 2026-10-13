@@ -10,7 +10,6 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestService_LoadScoreBoard_ReturnsEntriesAndHighScore(t *testing.T) {
@@ -19,7 +18,7 @@ func TestService_LoadScoreBoard_ReturnsEntriesAndHighScore(t *testing.T) {
 		{Kills: 8, Date: time.Now()},
 		{Kills: 3, Date: time.Now()},
 	}}, nil, nil)
-	service := NewService(store, &testutil.FakeScoreReporter{})
+	service := NewService(store, reporterMockSetup())
 
 	// When
 	result, err := service.LoadScoreBoard()
@@ -37,7 +36,7 @@ func TestService_LoadScoreBoard_ReturnsWarningAndEmptyBoardWhenBoardCannotBeLoad
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			store := scoreStoreMockSetup(outbound.ScoreBoard{}, test.loadErr, nil)
-			service := NewService(store, &testutil.FakeScoreReporter{})
+			service := NewService(store, reporterMockSetup())
 			var appErr *apperror.Error
 
 			// When
@@ -64,7 +63,7 @@ func TestService_RecordScore_SavesBoardAndReturnsSessionBoard(t *testing.T) {
 			store := &MockScoreStore{}
 			store.On("Load").Return(test.persisted, nil)
 			store.On("Save", boardWithScores(test.expectedSavedScores)).Return(nil)
-			service := NewService(store, &testutil.FakeScoreReporter{})
+			service := NewService(store, reporterMockSetup())
 
 			// When
 			result, err := service.RecordScore(test.request)
@@ -84,7 +83,7 @@ func TestService_RecordScore_SavesBoardOnlyWhenPersistedBoardIsMissingOrCorrupte
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			store := scoreStoreMockSetup(outbound.ScoreBoard{}, test.cause, nil)
-			service := NewService(store, &testutil.FakeScoreReporter{})
+			service := NewService(store, reporterMockSetup())
 
 			// When
 			result, err := service.RecordScore(RecordRequest{Kills: 1, Duration: 1.0})
@@ -101,7 +100,7 @@ func TestService_RecordScore_ReturnsWarningWhenSaveFails(t *testing.T) {
 	// Given
 	cause := errors.New("disk full")
 	store := scoreStoreMockSetup(outbound.ScoreBoard{}, nil, cause)
-	service := NewService(store, &testutil.FakeScoreReporter{})
+	service := NewService(store, reporterMockSetup())
 	var appErr *apperror.Error
 
 	// When
@@ -123,7 +122,7 @@ func TestService_RecordScore_ReportsNewHighScoreOnlyWhenKillsBeatEveryEntry(t *t
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			store := scoreStoreMockSetup(outbound.ScoreBoard{}, nil, nil)
-			service := NewService(store, &testutil.FakeScoreReporter{})
+			service := NewService(store, reporterMockSetup())
 			request := RecordRequest{Entries: []BoardEntry{{Kills: 3}}, Kills: test.kills}
 
 			// When
@@ -138,7 +137,7 @@ func TestService_RecordScore_ReportsNewHighScoreOnlyWhenKillsBeatEveryEntry(t *t
 
 func TestService_ReportResults_ReportsSummaryViaReporter(t *testing.T) {
 	// Given
-	reporter := &testutil.FakeScoreReporter{}
+	reporter := reporterMockSetup()
 	service := NewService(&MockScoreStore{}, reporter)
 	request := ReportRequest{Duration: 7.5, Kills: 3, Duds: 1, FreedMem: 4096, Entries: []BoardEntry{{Kills: 2}}, NewHighScore: true}
 
@@ -146,8 +145,7 @@ func TestService_ReportResults_ReportsSummaryViaReporter(t *testing.T) {
 	service.ReportResults(request)
 
 	// Then
-	require.NotNil(t, reporter.Reported)
-	assert.Equal(t, toScoreSummary(request), *reporter.Reported)
+	reporter.AssertCalled(t, "Report", toScoreSummary(request))
 }
 
 func newLoadFailureTestCase() []struct {

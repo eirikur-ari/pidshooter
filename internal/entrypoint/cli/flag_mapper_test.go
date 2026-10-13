@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestFlagMapper_toConfigOptions_MapsOnlyThePassedFlags(t *testing.T) {
@@ -17,19 +16,19 @@ func TestFlagMapper_toConfigOptions_MapsOnlyThePassedFlags(t *testing.T) {
 		expectedOptions config.Options
 	}{
 		{"no flags", nil, config.Options{}},
-		{"confirm", []string{"--confirm"}, config.Options{Game: config.GameOptions{ConfirmMode: testutil.Pointer(true)}}},
-		{"confirm explicitly false", []string{"--confirm=false"}, config.Options{Game: config.GameOptions{ConfirmMode: testutil.Pointer(false)}}},
-		{"speed", []string{"--speed=3.5"}, config.Options{Game: config.GameOptions{Speed: testutil.Pointer(3.5)}}},
-		{"time", []string{"--time=60"}, config.Options{Game: config.GameOptions{TimeLimit: testutil.Pointer(60)}}},
-		{"include-root", []string{"--include-root"}, config.Options{Process: config.ProcessOptions{IncludeRoot: testutil.Pointer(true)}}},
-		{"include-root explicitly false", []string{"--include-root=false"}, config.Options{Process: config.ProcessOptions{IncludeRoot: testutil.Pointer(false)}}},
-		{"i-am-root", []string{"--i-am-root"}, config.Options{Process: config.ProcessOptions{AllowRoot: testutil.Pointer(true)}}},
+		{"confirm", []string{"--confirm"}, config.Options{Game: config.GameOptions{ConfirmMode: new(true)}}},
+		{"confirm explicitly false", []string{"--confirm=false"}, config.Options{Game: config.GameOptions{ConfirmMode: new(false)}}},
+		{"speed", []string{"--speed=3.5"}, config.Options{Game: config.GameOptions{Speed: new(3.5)}}},
+		{"time", []string{"--time=60"}, config.Options{Game: config.GameOptions{TimeLimit: new(60)}}},
+		{"include-root", []string{"--include-root"}, config.Options{Process: config.ProcessOptions{IncludeRoot: new(true)}}},
+		{"include-root explicitly false", []string{"--include-root=false"}, config.Options{Process: config.ProcessOptions{IncludeRoot: new(false)}}},
+		{"i-am-root", []string{"--i-am-root"}, config.Options{Process: config.ProcessOptions{AllowRoot: new(true)}}},
 		{
 			"all flags",
 			[]string{"--confirm", "--speed=4.0", "--time=90", "--include-root", "--i-am-root"},
 			config.Options{
-				Game:    config.GameOptions{ConfirmMode: testutil.Pointer(true), Speed: testutil.Pointer(4.0), TimeLimit: testutil.Pointer(90)},
-				Process: config.ProcessOptions{IncludeRoot: testutil.Pointer(true), AllowRoot: testutil.Pointer(true)},
+				Game:    config.GameOptions{ConfirmMode: new(true), Speed: new(4.0), TimeLimit: new(90)},
+				Process: config.ProcessOptions{IncludeRoot: new(true), AllowRoot: new(true)},
 			},
 		},
 	}

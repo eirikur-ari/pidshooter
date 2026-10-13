@@ -11,7 +11,6 @@ import (
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func TestProgram_Run_PrintsUsageToStdoutWithoutCreatingRunner(t *testing.T) {
@@ -73,8 +72,8 @@ func TestProgram_Run_PassesPatternsAndOptionsToRunnerCreator(t *testing.T) {
 	// Given
 	expectedOptions := config.Options{
 		Game: config.GameOptions{
-			ConfirmMode: testutil.Pointer(true),
-			Speed:       testutil.Pointer(3.5),
+			ConfirmMode: new(true),
+			Speed:       new(3.5),
 		},
 	}
 	runner := &MockRunner{}

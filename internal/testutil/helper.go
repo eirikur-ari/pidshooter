@@ -11,12 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Pointer returns a pointer to a copy of the given value, for constructing
-// struct literals with optional (pointer-typed) fields inline.
-func Pointer[T any](v T) *T {
-	return new(v)
-}
-
 // IsClosed drains channel without blocking and reports whether it found the
 // channel closed.
 func IsClosed[T any](channel <-chan T) bool {

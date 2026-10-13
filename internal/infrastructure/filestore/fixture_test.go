@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
 func dateFixture() time.Time {
@@ -15,11 +14,11 @@ func dateFixture() time.Time {
 func newConfigFixture() outbound.Config {
 	return outbound.Config{
 		Mode:    outbound.ModeGame,
-		Process: outbound.ProcessConfig{IncludeRoot: testutil.Pointer(true)},
+		Process: outbound.ProcessConfig{IncludeRoot: new(true)},
 		Game: outbound.GameConfig{
-			ConfirmMode: testutil.Pointer(true),
-			Speed:       testutil.Pointer(2.5),
-			TimeLimit:   testutil.Pointer(60),
+			ConfirmMode: new(true),
+			Speed:       new(2.5),
+			TimeLimit:   new(60),
 		},
 	}
 }
@@ -28,11 +27,11 @@ func newConfigContentFixture() configContent {
 	return configContent{
 		Version: currentConfigSchemaVersion,
 		Mode:    "game",
-		Process: processEntry{IncludeRoot: testutil.Pointer(true)},
+		Process: processEntry{IncludeRoot: new(true)},
 		Game: gameEntry{
-			ConfirmMode: testutil.Pointer(true),
-			Speed:       testutil.Pointer(2.5),
-			TimeLimit:   testutil.Pointer(60),
+			ConfirmMode: new(true),
+			Speed:       new(2.5),
+			TimeLimit:   new(60),
 		},
 	}
 }

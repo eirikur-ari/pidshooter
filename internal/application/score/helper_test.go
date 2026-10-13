@@ -25,3 +25,9 @@ func errorText(err error) string {
 	}
 	return err.Error()
 }
+
+func reporterMockSetup() *MockScoreReporter {
+	reporter := &MockScoreReporter{}
+	reporter.On("Report", mock.Anything).Return()
+	return reporter
+}

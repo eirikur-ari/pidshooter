@@ -73,9 +73,9 @@ func TestService_Play_ReturnsResultWhenPlayerQuits(t *testing.T) {
 	testutil.WarmUpSignalPackage()
 
 	synctest.Test(t, func(t *testing.T) {
-		events := testutil.NewFakeInputEventProvider()
+		events := NewFakeInputEventProvider()
 		events.Ch <- input.QuitEvent{}
-		service := NewService(nil, &testutil.FakeRenderer{}, events)
+		service := NewService(nil, &FakeRenderer{}, events)
 
 		// When
 		result, err := service.Play(PlayRequest{Speed: 2.0, Processes: []ProcessRequest{newProcessRequestFixture()}})
@@ -113,30 +113,30 @@ func newInvalidPlayRequestTestCase() []struct {
 
 func newSessionErrorTestCase() []struct {
 	name                 string
-	renderer             *testutil.FakeRenderer
-	events               *testutil.FakeInputEventProvider
+	renderer             *FakeRenderer
+	events               *FakeInputEventProvider
 	expectedText         string
 	expectedCleanupCalls int
 } {
-	closedEvents := testutil.NewFakeInputEventProvider()
+	closedEvents := NewFakeInputEventProvider()
 	close(closedEvents.Ch)
 
 	return []struct {
 		name                 string
-		renderer             *testutil.FakeRenderer
-		events               *testutil.FakeInputEventProvider
+		renderer             *FakeRenderer
+		events               *FakeInputEventProvider
 		expectedText         string
 		expectedCleanupCalls int
 	}{
 		{
 			name:         "renderer init fails",
-			renderer:     &testutil.FakeRenderer{InitErr: errors.New("display not available")},
-			events:       testutil.NewFakeInputEventProvider(),
+			renderer:     &FakeRenderer{InitErr: errors.New("display not available")},
+			events:       NewFakeInputEventProvider(),
 			expectedText: "renderer initialization failed: display not available",
 		},
 		{
 			name:                 "event channel closes",
-			renderer:             &testutil.FakeRenderer{},
+			renderer:             &FakeRenderer{},
 			events:               closedEvents,
 			expectedText:         "input event channel closed",
 			expectedCleanupCalls: 1,

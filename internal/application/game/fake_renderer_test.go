@@ -1,4 +1,4 @@
-package testutil
+package game
 
 import "github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 
