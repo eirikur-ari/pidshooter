@@ -45,7 +45,7 @@ func UnsetEnv(t *testing.T, key string) {
 // returns its PID.
 func ExitedProcessPID(t *testing.T) int {
 	t.Helper()
-	command := exec.Command("true")
+	command := exec.Command("/usr/bin/true")
 	require.NoError(t, command.Start())
 	require.NoError(t, command.Wait())
 

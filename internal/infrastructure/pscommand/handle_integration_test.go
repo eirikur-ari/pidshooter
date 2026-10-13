@@ -35,7 +35,7 @@ func TestIntegrationHandle_Kill_TerminatesProcess(t *testing.T) {
 
 func TestIntegrationHandle_Kill_ReturnsNotFoundErrorAfterProcessExits(t *testing.T) {
 	// Given
-	command := exec.Command("true")
+	command := exec.Command("/usr/bin/true")
 	require.NoError(t, command.Start())
 	processHandle, err := newRealManager(t).Pin(command.Process.Pid)
 	require.NoError(t, err)

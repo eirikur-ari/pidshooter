@@ -3,7 +3,7 @@ package input
 import "github.com/eirikur-ari/pidshooter/internal/core/game"
 
 // Event is implemented by all user input events.
-type Event interface {
+type Event interface { // NOSONAR: will suppress warning godre:S8196
 	// dispatch applies the event to input and returns the target it affected, or nil if none.
 	dispatch(input *game.Input) *game.Target
 }
