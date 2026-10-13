@@ -17,9 +17,9 @@ help:
 	@echo ""
 	@sed -n 's/^## //p' $(MAKEFILE_LIST) | column -t -s ':' | sed 's/^/  /'
 
-## all: Clean, vet, lint, build, test and generate the HTML coverage report
+## all: Clean, vet, lint, build, run tests with coverage and generate the HTML coverage report
 .PHONY: all
-all: clean vet lint build test coverage-html
+all: clean vet lint build coverage coverage-html
 
 ## build: Compile the binary into bin/
 .PHONY: build
@@ -66,9 +66,9 @@ fmt:
 tidy:
 	go mod tidy
 
-## test: Run unit and integration tests with the race detector and coverage
+## test: Run unit and integration tests with the race detector
 .PHONY: test
-test: coverage
+test: test-race
 
 ## test-unit: Run only unit tests, verbosely
 .PHONY: test-unit
