@@ -1,11 +1,11 @@
 //go:build acceptance
 
-package main_test
+package main
 
 import (
 	"bytes"
+	"os"
 	"os/exec"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,7 +16,7 @@ import (
 
 func TestAcceptance_Help_SucceedsWithoutTerm(t *testing.T) {
 	// Given
-	binary := buildPidshooter(t)
+	binary := pidshooterBinary(t)
 	testutil.UnsetEnv(t, "TERM")
 	cmd := exec.Command(binary, "--help")
 
@@ -30,7 +30,7 @@ func TestAcceptance_Help_SucceedsWithoutTerm(t *testing.T) {
 
 func TestAcceptance_UnknownFlag_ExitsWithCodeTwoAndPrintsUsageToStderr(t *testing.T) {
 	// Given
-	binary := buildPidshooter(t)
+	binary := pidshooterBinary(t)
 	cmd := exec.Command(binary, "--unknown")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -48,11 +48,9 @@ func TestAcceptance_UnknownFlag_ExitsWithCodeTwoAndPrintsUsageToStderr(t *testin
 	assert.Contains(t, stderr.String(), "Process ID Shooter")
 }
 
-func buildPidshooter(t *testing.T) string {
+func pidshooterBinary(t *testing.T) string {
 	t.Helper()
-	binary := filepath.Join(t.TempDir(), "pidshooter")
-	build := exec.Command("go", "build", "-o", binary, ".")
-	out, err := build.CombinedOutput()
-	require.NoError(t, err, "go build failed: %s", out)
+	binary := os.Getenv("PIDSHOOTER_BINARY")
+	require.NotEmpty(t, binary, "PIDSHOOTER_BINARY must point to the built binary; run via make test-acceptance")
 	return binary
 }

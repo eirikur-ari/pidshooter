@@ -37,7 +37,8 @@ jobs:
       - name: Lint
         run: make lint
 
-  build:
+  snapshot:
+    name: Snapshot
     needs: verify
     if: github.event_name != 'pull_request' && github.ref != 'refs/heads/master'
     strategy:
@@ -62,10 +63,15 @@ jobs:
       - name: Build
         run: make build
 
-  coverage:
+  release-candidate:
+    name: Release Candidate
     needs: verify
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -79,21 +85,29 @@ jobs:
           go-version-file: go.mod
 
       - name: Test
+        if: matrix.os == 'ubuntu-latest'
         run: make coverage
 
       - name: Report
+        if: matrix.os == 'ubuntu-latest'
         run: make coverage-html
 
+      - name: Build
+        run: make build
+
+      - name: Acceptance Test
+        run: make test-acceptance
+
       - name: Cache SonarQube packages
-        if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
+        if: matrix.os == 'ubuntu-latest' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'))
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.sonar/cache
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
-      - name: SonarCloud Scan
-        if: github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
+      - name: SonarQube Scan
+        if: matrix.os == 'ubuntu-latest' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'))
         uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995 # v8.1.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
