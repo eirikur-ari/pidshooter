@@ -203,17 +203,11 @@ func TestValidatePatterns_AcceptsPatternsWithinLengthRange(t *testing.T) {
 }
 
 func TestValidateRoot_RejectsRootWithoutOverride(t *testing.T) {
-	tests := newRejectedRootTestCase()
+	// When
+	err := ValidateRoot(0, false)
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			// When
-			err := ValidateRoot(test.ownUID, test.allowRoot)
-
-			// Then
-			assert.ErrorContains(t, err, "refusing to run as root")
-		})
-	}
+	// Then
+	assert.ErrorContains(t, err, "refusing to run as root")
 }
 
 func TestValidateRoot_AcceptsEveryOtherCombination(t *testing.T) {
@@ -399,20 +393,6 @@ func newInRangePatternTestCase() []struct {
 		{"max length", []string{strings.Repeat("a", maxPatternLength)}},
 		{"mid range", []string{"firefox"}},
 		{"several valid patterns", []string{"firefox", "chrome"}},
-	}
-}
-
-func newRejectedRootTestCase() []struct {
-	name      string
-	ownUID    int
-	allowRoot bool
-} {
-	return []struct {
-		name      string
-		ownUID    int
-		allowRoot bool
-	}{
-		{"root without override", 0, false},
 	}
 }
 
