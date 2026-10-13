@@ -17,8 +17,9 @@ help:
 	@echo ""
 	@sed -n 's/^## //p' $(MAKEFILE_LIST) | column -t -s ':' | sed 's/^/  /'
 
+## all: Clean, vet, lint, build, run tests with coverage and generate the HTML coverage report
 .PHONY: all
-all: clean vet lint build test coverage-html
+all: clean vet lint build coverage coverage-html
 
 ## build: Compile the binary into bin/
 .PHONY: build
@@ -26,7 +27,7 @@ build:
 	@mkdir -p $(BIN_DIR)
 	go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) ./cmd/pidshooter
 
-## vet: Run static analyzer
+## vet: Run go vet on all packages, including the integration and acceptance tests
 .PHONY: vet
 vet:
 	go vet -tags "integration acceptance" ./...
@@ -45,6 +46,11 @@ fmt-lint:
 		exit 1; \
 	fi
 
+## vuln-lint: Check dependencies and the Go toolchain for known vulnerabilities
+.PHONY: vuln-lint
+vuln-lint:
+	go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
 ## tidy-lint: Check go.mod and go.sum are tidy, without changing anything
 .PHONY: tidy-lint
 tidy-lint:
@@ -60,11 +66,11 @@ fmt:
 tidy:
 	go mod tidy
 
-## test: Run all tests with coverage
+## test: Run unit and integration tests with the race detector
 .PHONY: test
-test: coverage
+test: test-race
 
-## test-unit: Run only unit test
+## test-unit: Run only unit tests, verbosely
 .PHONY: test-unit
 test-unit:
 	go test -v -count=1 ./...
@@ -79,17 +85,12 @@ test-integration:
 test-acceptance:
 	go test -v -tags acceptance -run TestAcceptance -count=1 ./...
 
-## test-short: Run tests without verbose output
-.PHONY: test-short
-test-short:
-	go test -tags integration -count=1 ./...
-
-## test-race: Run tests with the race detector
+## test-race: Run unit and integration tests with the race detector
 .PHONY: test-race
 test-race:
 	go test -tags integration -race -count=1 ./...
 
-## coverage: Run tests, then print a function coverage report
+## coverage: Run unit and integration tests with the race detector, then print a function coverage report
 .PHONY: coverage
 coverage:
 	@mkdir -p $(BUILD_DIR)
@@ -117,7 +118,7 @@ run: build
 dev-start:
 	devcontainer up --workspace-folder $(WORKSPACE_FOLDER)
 
-## dev-rebuild: Build the devcontainer
+## dev-rebuild: Rebuild the devcontainer from scratch
 .PHONY: dev-rebuild
 dev-rebuild:
 	devcontainer up --workspace-folder $(WORKSPACE_FOLDER) --remove-existing-container --build-no-cache

@@ -10,7 +10,7 @@ import (
 const maxTimeLimitSeconds = 5 * 60 // 300 seconds = 5 minutes
 
 // timer tracks how much time remains in a timed game session.
-// A zero limit means no time limit; Expired always returns false.
+// A zero limit means no time limit.
 type timer struct {
 	limit time.Duration
 	start time.Time
@@ -40,16 +40,16 @@ func (t *timer) Remaining() time.Duration {
 	if t.limit <= 0 {
 		return 0
 	}
-	r := t.limit - t.now().Sub(t.start)
-	if r < 0 {
+	duration := t.limit - t.now().Sub(t.start)
+	if duration < 0 {
 		return 0
 	}
-	return r
+	return duration
 }
 
-// SecondsLeft returns the whole seconds remaining, for display, rounded up
-// so a session isn't shown as having 0 seconds left before it has actually
-// expired. Returns 0 when there is no limit.
+// SecondsLeft returns the whole seconds remaining, rounded up so a session
+// isn't reported as having 0 seconds left before it has actually expired.
+// Returns 0 when there is no limit.
 func (t *timer) SecondsLeft() int {
 	return int(math.Ceil(t.Remaining().Seconds()))
 }

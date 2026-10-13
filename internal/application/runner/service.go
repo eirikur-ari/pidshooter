@@ -1,8 +1,6 @@
 package runner
 
 import (
-	"fmt"
-
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
@@ -10,21 +8,51 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
 )
 
+// configLoader resolves the run configuration.
+type configLoader interface {
+	// Load returns the configuration for this run.
+	Load() (config.Result, error)
+}
+
+// processFinder finds the processes that can be targeted.
+type processFinder interface {
+	// FindProcesses returns the processes to target for the given request.
+	FindProcesses(request process.FindRequest) ([]process.FindResult, error)
+}
+
+// scoreKeeper loads, records and reports scores.
+type scoreKeeper interface {
+	// LoadScoreBoard returns the persisted score board, or an empty board
+	// with an error if it cannot be loaded.
+	LoadScoreBoard() (score.LoadResult, error)
+	// RecordScore records a session on the request's score board. The result
+	// is returned even when the error is not nil.
+	RecordScore(request score.RecordRequest) (score.RecordResult, error)
+	// ReportResults reports the outcome of a session against its score board.
+	ReportResults(request score.ReportRequest)
+}
+
+// gamePlayer plays a game session.
+type gamePlayer interface {
+	// Play runs a game session over the request's processes.
+	Play(request game.PlayRequest) (game.PlayResult, error)
+}
+
 // Service wires together the services required to run a game session. It implements inbound.Runner.
 type Service struct {
-	configSvc  *config.Service
-	processSvc *process.Service
-	gameSvc    *game.Service
-	scoreSvc   *score.Service
+	configSvc  configLoader
+	processSvc processFinder
+	gameSvc    gamePlayer
+	scoreSvc   scoreKeeper
 	errHandler *apperror.Handler
 }
 
 // NewService constructs a Service from its already-assembled collaborators.
 func NewService(
-	configSvc *config.Service,
-	processSvc *process.Service,
-	scoreSvc *score.Service,
-	gameSvc *game.Service,
+	configSvc configLoader,
+	processSvc processFinder,
+	scoreSvc scoreKeeper,
+	gameSvc gamePlayer,
 	errHandler *apperror.Handler,
 ) *Service {
 	return &Service{
@@ -42,53 +70,36 @@ func NewService(
 // Run returns nil unless the failure was Fatal, in which case it's
 // returned too so the caller can terminate the program.
 func (s *Service) Run() error {
-	cfg, loadErr := s.configSvc.Load()
+	cfg, cfgErr := s.configSvc.Load()
+	if err := s.errHandler.Handle(cfgErr); err != nil {
+		return err
+	}
+
+	found, findErr := s.processSvc.FindProcesses(toFindRequest(cfg.Process))
+	if findErr != nil {
+		return s.errHandler.Handle(findErr)
+	}
+
+	loaded, loadErr := s.scoreSvc.LoadScoreBoard()
 	if err := s.errHandler.Handle(loadErr); err != nil {
 		return err
 	}
 
-	processes, err := s.processSvc.FindProcesses(toFindRequest(cfg.Process))
-	if err != nil {
-		return s.errHandler.Handle(err)
+	result, playErr := s.gameSvc.Play(toPlayRequest(cfg.Game, found, loaded.HighScore))
+	if playErr != nil {
+		return s.errHandler.Handle(playErr)
 	}
 
-	board, highScore, scoreLoadErr := s.scoreSvc.LoadScoreBoard()
-	if err := s.errHandler.Handle(scoreLoadErr); err != nil {
+	if err := s.errHandler.HandleAll(result.Errors); err != nil {
 		return err
 	}
 
-	result, err := s.gameSvc.Play(toPlayRequest(cfg.Game), processes, highScore)
-	if err != nil {
-		return s.errHandler.Handle(err)
-	}
-
-	s.logKillFailures(result.KillFailures)
-	s.logDuds(result.Duds)
-
-	entry := score.ToEntry(result, cfg.Game.TimeLimit)
-	recErr := s.scoreSvc.RecordScore(board, entry, scoreLoadErr)
-	if err := s.errHandler.Handle(recErr); err != nil {
+	recorded, recordErr := s.scoreSvc.RecordScore(toRecordRequest(loaded, result, cfg.Game.TimeLimit))
+	if err := s.errHandler.Handle(recordErr); err != nil {
 		return err
 	}
 
-	s.scoreSvc.ReportResults(result.Duration, result.Kills, len(result.Duds), result.FreedMem, board)
+	s.scoreSvc.ReportResults(toReportRequest(result, recorded))
 
 	return nil
-}
-
-// logKillFailures reports each target the run could not kill.
-func (s *Service) logKillFailures(failures []game.KillFailure) {
-	for _, f := range failures {
-		msg := fmt.Sprintf("could not kill %s (PID %d)", f.Target, f.PID)
-		_ = s.errHandler.Handle(apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, msg, f.Err))
-	}
-}
-
-// logDuds reports each target whose backing process was already gone
-// before a kill could land on it.
-func (s *Service) logDuds(duds []game.KillDud) {
-	for _, d := range duds {
-		msg := fmt.Sprintf("%s (PID %d) ran away before it could be killed", d.Target, d.PID)
-		_ = s.errHandler.Handle(apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityWarning, msg, nil))
-	}
 }

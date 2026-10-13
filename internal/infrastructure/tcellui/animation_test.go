@@ -6,22 +6,37 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAnimationFrameAtZeroProgress(t *testing.T) {
-	a := animation{"a", "b", "c"}
-	assert.Equal(t, "a", a.frame(0))
+func TestAnimation_frame_SelectsFrameByProgress(t *testing.T) {
+	tests := newFrameTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			anim := animation{"a", "b", "c"}
+
+			// When
+			frame := anim.frame(test.progress)
+
+			// Then
+			assert.Equal(t, test.expected, frame)
+		})
+	}
 }
 
-func TestAnimationFrameAtMidProgress(t *testing.T) {
-	a := animation{"a", "b", "c"}
-	assert.Equal(t, "b", a.frame(0.5))
-}
-
-func TestAnimationFrameClampsAtUpperBound(t *testing.T) {
-	a := animation{"a", "b", "c"}
-	assert.Equal(t, "c", a.frame(1.0))
-}
-
-func TestAnimationFrameClampsAtNegativeProgress(t *testing.T) {
-	a := animation{"a", "b", "c"}
-	assert.Equal(t, "a", a.frame(-0.5))
+func newFrameTestCase() []struct {
+	name     string
+	progress float64
+	expected string
+} {
+	return []struct {
+		name     string
+		progress float64
+		expected string
+	}{
+		{"zero progress is the first frame", 0, "a"},
+		{"mid progress is the middle frame", 0.5, "b"},
+		{"just before the end is the last frame", 0.99, "c"},
+		{"full progress clamps to the last frame", 1.0, "c"},
+		{"negative progress clamps to the first frame", -0.5, "a"},
+	}
 }

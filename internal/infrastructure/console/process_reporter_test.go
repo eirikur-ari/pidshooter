@@ -2,6 +2,7 @@ package console
 
 import (
 	"bytes"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,12 +10,52 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
-func TestProcessReporterReportPrintsCountAndPatterns(t *testing.T) {
-	var buf bytes.Buffer
-	r := &ProcessReporter{writer: &buf}
+func TestNewProcessReporter_WritesToStandardOutput(t *testing.T) {
+	// When
+	reporter := NewProcessReporter()
 
-	r.Report([]outbound.ProcessInfo{{PID: 1}, {PID: 2}, {PID: 3}}, []string{"chrome", "sleep"})
+	// Then
+	assert.Same(t, os.Stdout, reporter.writer)
+}
 
-	assert.Contains(t, buf.String(), "Found 3 process(es)")
-	assert.Contains(t, buf.String(), "[chrome sleep]")
+func TestProcessReporter_Report_PrintsMatchCountAndPatterns(t *testing.T) {
+	tests := newProcessReporterTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			var output bytes.Buffer
+			reporter := &ProcessReporter{writer: &output}
+
+			// When
+			reporter.Report(test.matches, test.patterns)
+			actual := output.String()
+
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
+}
+
+func newProcessReporterTestCase() []struct {
+	name     string
+	matches  []outbound.ProcessInfo
+	patterns []string
+	expected string
+} {
+	return []struct {
+		name     string
+		matches  []outbound.ProcessInfo
+		patterns []string
+		expected string
+	}{
+		{
+			"several matches and patterns",
+			[]outbound.ProcessInfo{{PID: 1}, {PID: 2}, {PID: 3}},
+			[]string{"chrome", "sleep"},
+			"Found 3 process(es) matching [chrome sleep].\n",
+		},
+		{"no matches", nil, []string{"chrome"}, "Found 0 process(es) matching [chrome].\n"},
+		{"no patterns", nil, nil, "Found 0 process(es) matching [].\n"},
+	}
 }

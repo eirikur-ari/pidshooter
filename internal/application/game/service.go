@@ -1,73 +1,65 @@
 package game
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"os/signal"
-	"sync"
-	"syscall"
 	"time"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/application/input"
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-const frameDuration = time.Second / 20
-
-// defaultKillGracePeriod is the Service.killGracePeriod set by NewService.
+// defaultKillGracePeriod is how long a new Service waits for kills still in
+// progress once the session has ended.
 const defaultKillGracePeriod = 5 * time.Second
 
-// Service orchestrates core domain objects and outbound ports to play a single game session.
+// Service plays game sessions.
 type Service struct {
 	killer   processKiller
 	renderer outbound.Renderer
 	events   outbound.InputEventProvider
-	// killGracePeriod bounds how long awaitOutstandingKills waits for
-	// in-flight kills to resolve before giving up on them, so a wedged
-	// processKiller can't hang session shutdown indefinitely.
+	// killGracePeriod is how long to wait, once the session has ended, for
+	// kills still in progress to finish before giving up on them.
 	killGracePeriod time.Duration
 }
 
-// PlayRequest carries the gameplay parameters Play needs. Every value is
-// already resolved and validated by the time Play sees it.
+// PlayRequest holds the parameters of a play session.
 type PlayRequest struct {
 	ConfirmMode bool
 	Speed       float64
 	TimeLimit   int
+	// Processes are the processes the session targets.
+	Processes []ProcessRequest
+	// HighScore is the best score so far, which the session raises as kills exceed it.
+	HighScore int
 }
 
-// PlayResult carries the outcome of a completed play session, needed by the
-// caller to record a score.
+// ProcessRequest describes a process a session can target.
+type ProcessRequest struct {
+	PID  int
+	Name string
+	// Rss is the process's resident memory, in bytes.
+	Rss int64
+	// UID is the ID of the user that owns the process.
+	UID int
+}
+
+// PlayResult is the outcome of a completed play session.
 type PlayResult struct {
-	Duration     float64
-	LowestSpeed  float64
-	Kills        int
-	FreedMem     int64
-	KillFailures []KillFailure
-	Duds         []KillDud
+	Duration    float64
+	LowestSpeed float64
+	Kills       int
+	FreedMem    int64
+	// Duds is the number of targets whose process was already gone.
+	Duds int
+	// Errors holds an error for each target that could not be killed,
+	// followed by one for each whose process was already gone.
+	Errors []error
 }
 
-// processKiller verifies and terminates a target's backing OS process, reporting
-// whether the caller should reap the target because its process was already gone.
-type processKiller interface {
-	Kill(pid int, name string, protected bool) (shouldReap bool, err error)
-}
-
-// killSignal reports the outcome of a verified kill attempt: a real kill, a
-// reap when the target's process had already exited, or a failure that
-// leaves the target alive.
-type killSignal struct {
-	target     *game.Target
-	shouldReap bool
-	err        error // non-nil when the kill failed and the target must stay alive
-}
-
-// NewService constructs a Service with all required outbound ports injected.
+// NewService returns a Service that kills through killer, draws with
+// renderer, and reads input from events.
 func NewService(
 	killer processKiller,
 	renderer outbound.Renderer,
@@ -81,37 +73,44 @@ func NewService(
 	}
 }
 
-// Play runs the game loop for the given already-discovered processes.
-// highScore is the caller's persisted best, used to track a running high
-// score for display during the session.
-func (s *Service) Play(req PlayRequest, processes []process.Info, highScore int) (PlayResult, error) {
-	if err := validateGameConfig(req); err != nil {
+// Play runs a game session over the request's processes.
+func (s *Service) Play(request PlayRequest) (PlayResult, error) {
+	if err := validateGameConfig(request); err != nil {
 		return PlayResult{}, apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", err)
 	}
+	processes := toInfos(request.Processes)
 	if err := process.ValidateProcesses(processes); err != nil {
 		return PlayResult{}, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "", err)
 	}
 
-	session := game.NewSession(processes, toGameConfig(req))
+	session := game.NewSession(processes, toGameConfig(request))
+	tracker := newKillTracker(request.HighScore)
 
-	tracker := newKillTracker(highScore)
-	endTime, err := s.runLoop(session, tracker)
+	result, err := s.runPlaySession(session, tracker)
 	if err != nil {
 		return PlayResult{}, apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "game session failed", err)
 	}
 
-	return PlayResult{
-		Duration:     endTime.Sub(session.StartTime()).Seconds(),
-		LowestSpeed:  session.Throttle().LowestSpeed(),
-		Kills:        tracker.score.kills,
-		FreedMem:     tracker.score.freedMem,
-		KillFailures: tracker.failure.failures,
-		Duds:         tracker.duds,
-	}, nil
+	return result, nil
 }
 
-// validateGameConfig returns an error if req's Speed or TimeLimit fails
-// domain validation.
+// runPlaySession runs session, recording its progress in tracker, without
+// classifying its errors.
+func (s *Service) runPlaySession(session *game.Session, tracker *killTracker) (PlayResult, error) {
+	play, err := newPlaySession(s.renderer, s.events, s.killer, s.killGracePeriod, session, tracker)
+	if err != nil {
+		return PlayResult{}, err
+	}
+
+	endTime, err := play.run()
+	if err != nil {
+		return PlayResult{}, err
+	}
+
+	return play.result(endTime), nil
+}
+
+// validateGameConfig returns an error if the request's speed or time limit is invalid.
 func validateGameConfig(req PlayRequest) error {
 	if err := movement.ValidateSpeed(req.Speed); err != nil {
 		return err
@@ -120,185 +119,4 @@ func validateGameConfig(req PlayRequest) error {
 		return err
 	}
 	return nil
-}
-
-func (s *Service) runLoop(session *game.Session, tracker *killTracker) (time.Time, error) {
-	if err := s.renderer.Init(); err != nil {
-		return time.Time{}, fmt.Errorf("renderer initialization failed: %w", err)
-	}
-	defer s.renderer.Cleanup()
-
-	session.Start(toBounds(s.renderer.WindowSize(), s.renderer.ChromeSize()))
-
-	termSignal, stopWatching := s.registerTermSignalWatcher()
-	defer stopWatching()
-
-	// Closing done unblocks any killOrReap goroutine waiting to send on
-	// killSignals after frameLoop exits, preventing a goroutine leak.
-	done := make(chan struct{})
-	defer close(done)
-
-	dispatcher := input.NewDispatcher(game.NewInput(session))
-
-	if err := s.frameLoop(session, tracker, dispatcher, termSignal, done); err != nil {
-		return time.Time{}, err
-	}
-
-	// Capture end time before deferred cleanup runs.
-	return time.Now(), nil
-}
-
-// registerTermSignalWatcher watches for an interrupt, termination, or suspend
-// signal. termSignal is closed when that happens, letting callers react
-// immediately instead of waiting out a polling interval. The returned stop watching
-// func deregisters the watcher and must be called once the caller is done
-// with game session.
-func (s *Service) registerTermSignalWatcher() (termSignal <-chan struct{}, stopWatching func()) {
-	ctx, stopWatching := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGTSTP)
-	return ctx.Done(), stopWatching
-}
-
-// frameLoop drives the game at frameDuration cadence until session stops running.
-// It wakes immediately when session stops mid-frame or termSignal fires, instead of
-// waiting out the remainder of the current tick.
-func (s *Service) frameLoop(session *game.Session, tracker *killTracker, dispatcher *input.Dispatcher, termSignal <-chan struct{}, done <-chan struct{}) error {
-	ticker := time.NewTicker(frameDuration)
-	defer ticker.Stop()
-
-	killSignals := make(chan killSignal, 10)
-	var waitGroup sync.WaitGroup
-
-	for session.IsRunning() {
-		s.applyKillSignals(tracker, killSignals)
-		if err := s.drainEventQueue(dispatcher, killSignals, done, &waitGroup); err != nil {
-			session.Stop()
-			return err
-		}
-		window := s.renderer.WindowSize()
-		session.Update(movement.WindowSize{Width: window.Width, Height: window.Height})
-		s.renderer.Render(toFrameViewState(session, tracker))
-
-		if !session.IsRunning() {
-			break
-		}
-
-		select {
-		case <-ticker.C:
-		case <-termSignal:
-			session.Stop()
-		}
-	}
-
-	s.awaitOutstandingKills(&waitGroup, tracker, killSignals)
-	return nil
-}
-
-// awaitOutstandingKills waits for every killOrReap goroutine spawned during
-// the frame loop to finish, applying each signal as it arrives, then drains
-// any signal already buffered by the time the last one completes. Without
-// this, a kill that lands at or after the loop's final drain — including one
-// still in flight when the session stops — would go missing from the score
-// even though the process was genuinely killed.
-//
-// Waiting is bounded by killGracePeriod: if a killOrReap goroutine is still
-// outstanding once the grace period elapses, awaitOutstandingKills gives up
-// on it and returns rather than hanging session shutdown indefinitely. Any
-// outcome that arrives after that is dropped, exactly as it would have been
-// before this method existed.
-func (s *Service) awaitOutstandingKills(waitGroup *sync.WaitGroup, tracker *killTracker, killSignals chan killSignal) {
-	awaited := make(chan struct{})
-	go func() {
-		waitGroup.Wait()
-		close(awaited)
-	}()
-
-	timer := time.NewTimer(s.killGracePeriod)
-	defer timer.Stop()
-
-	for {
-		select {
-		case sig := <-killSignals:
-			s.applyKillSignal(tracker, sig)
-		case <-awaited:
-			s.applyKillSignals(tracker, killSignals)
-			return
-		case <-timer.C:
-			s.applyKillSignals(tracker, killSignals)
-			return
-		}
-	}
-}
-
-func (s *Service) applyKillSignals(tracker *killTracker, killSignals <-chan killSignal) {
-	for {
-		select {
-		case sig := <-killSignals:
-			s.applyKillSignal(tracker, sig)
-		default:
-			return
-		}
-	}
-}
-
-func (s *Service) applyKillSignal(tracker *killTracker, sig killSignal) {
-	sig.target.CeaseFire()
-	switch {
-	case sig.err != nil:
-		tracker.recordFailure(sig.target, sig.err)
-	case sig.shouldReap && sig.target.Reap():
-		tracker.recordDud(sig.target)
-	case sig.target.Kill():
-		tracker.recordKill(sig.target.Info.Rss)
-	}
-}
-
-// drainEventQueue dispatches every input event currently buffered, without
-// blocking if none are ready. It returns an error if the event channel has
-// closed, e.g. because the input adapter died unexpectedly — otherwise a
-// closed channel is always ready to receive, and the loop below would spin
-// forever redispatching its zero value instead of returning.
-func (s *Service) drainEventQueue(dispatcher *input.Dispatcher, killSignals chan<- killSignal, done <-chan struct{}, waitGroup *sync.WaitGroup) error {
-	events := s.events.Events()
-	for {
-		select {
-		case inputEvent, ok := <-events:
-			if !ok {
-				return errors.New("input event channel closed")
-			}
-			if target := dispatcher.Dispatch(inputEvent); target != nil {
-				target.FireShot()
-				waitGroup.Add(1)
-				go s.killOrReap(target, killSignals, done, waitGroup)
-			}
-		default:
-			return nil
-		}
-	}
-}
-
-// killOrReap verifies and kills target, then reports the outcome on
-// killSignals: a real kill, a reap when the target's process had already
-// exited, or a failure that leaves the target alive. The failure is not
-// printed here — the renderer owns the terminal for the duration of the
-// session, so the caller reports it only once the session has ended.
-// killOrReap must be invoked via a goroutine: Kill may shell out to verify
-// the target's backing process, and running it inline would stall the frame loop.
-// The caller must waitGroup.Add(1) before spawning killOrReap; it calls waitGroup.Done() on return.
-func (s *Service) killOrReap(target *game.Target, killSignals chan<- killSignal, done <-chan struct{}, waitGroup *sync.WaitGroup) {
-	defer waitGroup.Done()
-
-	shouldReap, err := s.killer.Kill(target.Info.PID, target.Info.Name, target.Info.IsProtected())
-
-	sig := killSignal{target: target}
-	switch {
-	case shouldReap:
-		sig.shouldReap = true
-	case err != nil:
-		sig.err = err
-	}
-
-	select {
-	case killSignals <- sig:
-	case <-done:
-	}
 }

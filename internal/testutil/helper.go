@@ -1,0 +1,61 @@
+package testutil
+
+import (
+	"context"
+	"os"
+	"os/exec"
+	"os/signal"
+	"syscall"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+// IsClosed drains channel without blocking and reports whether it found the
+// channel closed.
+func IsClosed[T any](channel <-chan T) bool {
+	for {
+		select {
+		case _, open := <-channel:
+			if !open {
+				return true
+			}
+		default:
+			return false
+		}
+	}
+}
+
+// UnsetEnv removes key from the environment for the duration of the test,
+// restoring its prior value (or leaving it unset) afterward.
+func UnsetEnv(t *testing.T, key string) {
+	t.Helper()
+	prev, wasSet := os.LookupEnv(key)
+	// Unsetenv, not Setenv(key, ""), to exercise the genuinely-absent case
+	// rather than relying on os.Getenv treating "" and unset identically.
+	require.NoError(t, os.Unsetenv(key))
+	t.Cleanup(func() {
+		if wasSet {
+			_ = os.Setenv(key, prev)
+		}
+	})
+}
+
+// ExitedProcessPID starts a short-lived process, waits for it to exit and
+// returns its PID.
+func ExitedProcessPID(t *testing.T) int {
+	t.Helper()
+	command := exec.Command("/usr/bin/true")
+	require.NoError(t, command.Start())
+	require.NoError(t, command.Wait())
+
+	return command.Process.Pid
+}
+
+// WarmUpSignalPackage starts the signal package's process-wide goroutine, so
+// that a testing/synctest bubble created afterward does not own it. Call it
+// before synctest.Test when the code under test watches for signals.
+func WarmUpSignalPackage() {
+	_, stop := signal.NotifyContext(context.Background(), syscall.SIGINT)
+	stop()
+}

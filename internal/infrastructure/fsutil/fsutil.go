@@ -8,11 +8,10 @@ import (
 	"syscall"
 )
 
-// ConfigDir returns the per-user configuration directory for appName,
-// resolved as $XDG_CONFIG_HOME/<appName> when $XDG_CONFIG_HOME is set to
-// an absolute path, falling back to $HOME/.config/<appName> otherwise.
-// It returns an error rather than falling back to another location if
-// the user's home directory cannot be resolved.
+// ConfigDir returns the per-user configuration directory for appName:
+// $XDG_CONFIG_HOME/<appName> when $XDG_CONFIG_HOME is an absolute path,
+// otherwise $HOME/.config/<appName>. It returns an error if the home
+// directory is needed but cannot be resolved.
 func ConfigDir(appName string) (string, error) {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); filepath.IsAbs(xdg) {
 		return filepath.Join(xdg, appName), nil
@@ -27,11 +26,9 @@ func ConfigDir(appName string) (string, error) {
 }
 
 // WriteFileAtomic writes data to path with permissions perm, atomically
-// replacing any existing file so a crash or kill during the write can
-// never leave path holding truncated or partial content. It creates
-// path's parent directory (and any missing ancestors) if it does not
-// already exist, and sets it to mode 0700 either way — including
-// tightening it down if it already existed with looser permissions.
+// replacing any existing file. It creates path's parent directory, and any
+// missing ancestors, if it does not already exist, and sets it to mode 0700
+// either way, tightening it if it already existed with looser permissions.
 func WriteFileAtomic(path string, data []byte, perm os.FileMode) (err error) {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0700); err != nil {
@@ -78,11 +75,8 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) (err error) {
 		return fmt.Errorf("could not rename %s to %s: %w", tmp.Name(), path, err)
 	}
 
-	// Best-effort: fsync the directory entry too, so the rename itself is
-	// durable across a crash, not just the file content. Not all platforms
-	// support syncing a directory handle (notably Windows), so a failure
-	// here is not reported — the rename already happened, and Rename's
-	// atomicity still guarantees a reader never sees a torn file.
+	// Best effort: sync the directory so the rename itself survives a crash.
+	// A failure here is not reported, since the rename already happened.
 	if dirFile, dirErr := os.Open(dir); dirErr == nil {
 		_ = dirFile.Sync()
 		_ = dirFile.Close()
@@ -91,10 +85,9 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) (err error) {
 	return nil
 }
 
-// preserveOwner best-effort chowns the replacement file to the invoking
-// user — preferring sudo's own record of who that is over the file being
-// replaced — so an elevated write doesn't leave it owned by the writing
-// process instead.
+// preserveOwner makes a best effort to give the file at tmpPath the owner
+// sudo recorded as having invoked the program, or else the owner of the file
+// at path.
 func preserveOwner(tmpPath, path string) {
 	uid, gid, ok := sudoOwner()
 	if !ok {

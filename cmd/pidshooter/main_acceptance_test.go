@@ -3,26 +3,49 @@
 package main_test
 
 import (
-	"os"
+	"bytes"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
-func TestAcceptanceHelpSucceedsWithoutTerm(t *testing.T) {
+func TestAcceptance_Help_SucceedsWithoutTerm(t *testing.T) {
+	// Given
 	binary := buildPidshooter(t)
-
+	testutil.UnsetEnv(t, "TERM")
 	cmd := exec.Command(binary, "--help")
-	cmd.Env = envWithout(os.Environ(), "TERM")
 
+	// When
 	out, err := cmd.CombinedOutput()
 
+	// Then
 	require.NoError(t, err, "expected --help to succeed without $TERM set, got: %s", out)
 	assert.Contains(t, string(out), "Process ID Shooter")
+}
+
+func TestAcceptance_UnknownFlag_ExitsWithCodeTwoAndPrintsUsageToStderr(t *testing.T) {
+	// Given
+	binary := buildPidshooter(t)
+	cmd := exec.Command(binary, "--unknown")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	// When
+	err := cmd.Run()
+
+	// Then
+	var exitErr *exec.ExitError
+	require.ErrorAs(t, err, &exitErr)
+	assert.Equal(t, 2, exitErr.ExitCode())
+	assert.Empty(t, stdout.String())
+	assert.Contains(t, stderr.String(), "flag provided but not defined: -unknown")
+	assert.Contains(t, stderr.String(), "Process ID Shooter")
 }
 
 func buildPidshooter(t *testing.T) string {
@@ -32,15 +55,4 @@ func buildPidshooter(t *testing.T) string {
 	out, err := build.CombinedOutput()
 	require.NoError(t, err, "go build failed: %s", out)
 	return binary
-}
-
-func envWithout(env []string, key string) []string {
-	prefix := key + "="
-	filtered := make([]string, 0, len(env))
-	for _, kv := range env {
-		if !strings.HasPrefix(kv, prefix) {
-			filtered = append(filtered, kv)
-		}
-	}
-	return filtered
 }

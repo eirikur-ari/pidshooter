@@ -2,112 +2,292 @@ package score
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/core/score"
 )
 
-// --- ToEntry ---
+func TestToEntry_MapsRequestToEntry(t *testing.T) {
+	// Given
+	request := RecordRequest{Kills: 5, Duds: 2, FreedMem: 2048, LowestSpeed: 2.5, TimeLimit: 30, Duration: 12.5}
 
-func TestToEntryMapsFields(t *testing.T) {
-	result := game.PlayResult{
-		Duration:    12.5,
-		LowestSpeed: 2.5,
-		Kills:       5,
-		FreedMem:    2048,
-		Duds:        []game.KillDud{{}, {}},
-	}
+	// When
+	entry := toEntry(request)
 
-	entry := ToEntry(result, 30)
-
+	// Then
 	assert.Equal(t, 5, entry.Kills)
 	assert.Equal(t, 2, entry.Duds)
 	assert.Equal(t, int64(2048), entry.FreedMem)
 	assert.Equal(t, 2.5, entry.Speed)
 	assert.Equal(t, 30, entry.Time)
 	assert.Equal(t, 12.5, entry.Duration)
+	assert.False(t, entry.Date.IsZero())
 }
 
-// --- toBoard ---
+func TestToEntries_MapsEveryEntryInOrder(t *testing.T) {
+	tests := newToEntriesTestCase()
 
-func TestToBoardMapsFields(t *testing.T) {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	sb := outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
-		{Kills: 5, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-	}}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toEntries(test.entries)
 
-	b := toBoard(sb)
-
-	require.Len(t, b.Scores, 1)
-	assert.Equal(t, score.Entry{Kills: 5, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}, b.Scores[0])
-	assert.Equal(t, 5, b.HighScore())
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
 }
 
-func TestToBoardEmptyInput(t *testing.T) {
-	b := toBoard(outbound.ScoreBoard{})
+func TestToBoardEntries_MapsEveryEntryInOrder(t *testing.T) {
+	tests := newToBoardEntriesTestCase()
 
-	assert.Empty(t, b.Scores)
-	assert.Equal(t, 0, b.HighScore())
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toBoardEntries(test.entries)
+
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
 }
 
-// --- toScoreBoard ---
+func TestToBoard_MapsStoredScoresToBoard(t *testing.T) {
+	tests := newToBoardTestCase()
 
-func TestToScoreBoardMapsFields(t *testing.T) {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	b := &score.Board{Scores: []score.Entry{
-		{Kills: 5, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-	}}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toBoard(test.board)
 
-	sb := toScoreBoard(b)
-
-	require.Len(t, sb.Scores, 1)
-	assert.Equal(t, outbound.ScoreEntry{Kills: 5, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}, sb.Scores[0])
+			// Then
+			assert.Equal(t, test.expectedScores, actual.Scores)
+			assert.Equal(t, test.expectedHighScore, actual.HighScore())
+		})
+	}
 }
 
-func TestToScoreBoardEmptyInput(t *testing.T) {
-	sb := toScoreBoard(&score.Board{})
+func TestToLoadResult_MapsStoredScoresToRankedEntriesAndHighScore(t *testing.T) {
+	tests := newToLoadResultTestCase()
 
-	assert.Empty(t, sb.Scores)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toLoadResult(test.board)
+
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
 }
 
-// --- toScoreSummary ---
+func TestToRecordResult_MapsBoardAndFlagsNewHighScore(t *testing.T) {
+	tests := newToRecordResultTestCase()
 
-func TestToScoreSummaryMapsFields(t *testing.T) {
-	date := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
-	board := score.NewBoard([]score.Entry{
-		{Kills: 5, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date},
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toRecordResult(test.board, test.kills)
 
-	summary := toScoreSummary(7.5, 3, 2, 4096, board)
-
-	assert.Equal(t, 3, summary.Kills)
-	assert.Equal(t, 2, summary.Duds)
-	assert.Equal(t, int64(4096), summary.FreedMem)
-	assert.Equal(t, 7.5, summary.Duration)
-	require.Len(t, summary.Entries, 1)
-	assert.Equal(t, outbound.ScoreEntry{Kills: 5, FreedMem: 2048, Speed: 2.5, Time: 30, Duration: 12.5, Date: date}, summary.Entries[0])
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
 }
 
-func TestToScoreSummaryNewHighScoreTrueWhenBeatsRecord(t *testing.T) {
-	board := score.NewBoard(nil)
-	board.Add(score.Entry{Kills: 3, Date: time.Now()})
+func TestToScoreBoard_MapsEntriesToStoredScores(t *testing.T) {
+	tests := newToScoreBoardTestCase()
 
-	summary := toScoreSummary(1.0, 5, 0, 0, board)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toScoreBoard(test.entries)
 
-	assert.True(t, summary.NewHighScore)
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
 }
 
-func TestToScoreSummaryNewHighScoreFalseWhenDoesNotBeatRecord(t *testing.T) {
-	board := score.NewBoard(nil)
-	board.Add(score.Entry{Kills: 10, Date: time.Now()})
-	board.Add(score.Entry{Kills: 3, Date: time.Now()}) // board.highScore = 10
+func TestToScoreSummary_MapsReportRequest(t *testing.T) {
+	tests := newToScoreSummaryTestCase()
 
-	summary := toScoreSummary(1.0, 5, 0, 0, board)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toScoreSummary(test.request)
 
-	assert.False(t, summary.NewHighScore)
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
+}
+
+func newToEntriesTestCase() []struct {
+	name     string
+	entries  []BoardEntry
+	expected []score.Entry
+} {
+	return []struct {
+		name     string
+		entries  []BoardEntry
+		expected []score.Entry
+	}{
+		{
+			name:     "several entries",
+			entries:  []BoardEntry{newBoardEntryFixture(), {Kills: 3, Duds: 2}},
+			expected: []score.Entry{newEntryFixture(), {Kills: 3, Duds: 2}},
+		},
+		{name: "no entries", entries: nil, expected: []score.Entry{}},
+	}
+}
+
+func newToBoardEntriesTestCase() []struct {
+	name     string
+	entries  []score.Entry
+	expected []BoardEntry
+} {
+	return []struct {
+		name     string
+		entries  []score.Entry
+		expected []BoardEntry
+	}{
+		{
+			name:     "several entries",
+			entries:  []score.Entry{newEntryFixture(), {Kills: 3, Duds: 2}},
+			expected: []BoardEntry{newBoardEntryFixture(), {Kills: 3, Duds: 2}},
+		},
+		{name: "no entries", entries: nil, expected: []BoardEntry{}},
+	}
+}
+
+func newToBoardTestCase() []struct {
+	name              string
+	board             outbound.ScoreBoard
+	expectedScores    []score.Entry
+	expectedHighScore int
+} {
+	return []struct {
+		name              string
+		board             outbound.ScoreBoard
+		expectedScores    []score.Entry
+		expectedHighScore int
+	}{
+		{
+			name:              "stored scores",
+			board:             outbound.ScoreBoard{Scores: []outbound.ScoreEntry{newScoreEntryFixture()}},
+			expectedScores:    []score.Entry{newEntryFixture()},
+			expectedHighScore: 5,
+		},
+		{name: "no stored scores", board: outbound.ScoreBoard{}},
+	}
+}
+
+func newToLoadResultTestCase() []struct {
+	name     string
+	board    outbound.ScoreBoard
+	expected LoadResult
+} {
+	return []struct {
+		name     string
+		board    outbound.ScoreBoard
+		expected LoadResult
+	}{
+		{
+			name: "stored scores",
+			board: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{
+				{Kills: 3, Duds: 2, Date: dateFixture()},
+				newScoreEntryFixture(),
+			}},
+			expected: LoadResult{
+				Entries:   []BoardEntry{newBoardEntryFixture(), {Kills: 3, Duds: 2, Date: dateFixture()}},
+				HighScore: 5,
+			},
+		},
+		{name: "no stored scores", board: outbound.ScoreBoard{}, expected: LoadResult{Entries: []BoardEntry{}}},
+	}
+}
+
+func newToRecordResultTestCase() []struct {
+	name     string
+	board    *score.Board
+	kills    int
+	expected RecordResult
+} {
+	return []struct {
+		name     string
+		board    *score.Board
+		kills    int
+		expected RecordResult
+	}{
+		{
+			name:     "kills beat the best entry",
+			board:    score.NewBoard([]score.Entry{newEntryFixture()}),
+			kills:    6,
+			expected: RecordResult{Entries: []BoardEntry{newBoardEntryFixture()}, NewHighScore: true},
+		},
+		{
+			name:     "kills do not beat the best entry",
+			board:    score.NewBoard([]score.Entry{newEntryFixture()}),
+			kills:    5,
+			expected: RecordResult{Entries: []BoardEntry{newBoardEntryFixture()}},
+		},
+		{
+			name:     "empty board",
+			board:    score.NewBoard(nil),
+			kills:    0,
+			expected: RecordResult{Entries: []BoardEntry{}},
+		},
+	}
+}
+
+func newToScoreBoardTestCase() []struct {
+	name     string
+	entries  []BoardEntry
+	expected outbound.ScoreBoard
+} {
+	return []struct {
+		name     string
+		entries  []BoardEntry
+		expected outbound.ScoreBoard
+	}{
+		{
+			name:     "entries",
+			entries:  []BoardEntry{newBoardEntryFixture()},
+			expected: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{newScoreEntryFixture()}},
+		},
+		{name: "no entries", entries: nil, expected: outbound.ScoreBoard{Scores: []outbound.ScoreEntry{}}},
+	}
+}
+
+func newToScoreSummaryTestCase() []struct {
+	name     string
+	request  ReportRequest
+	expected outbound.ScoreSummary
+} {
+	entries := []BoardEntry{newBoardEntryFixture()}
+	expectedEntries := []outbound.ScoreEntry{newScoreEntryFixture()}
+
+	return []struct {
+		name     string
+		request  ReportRequest
+		expected outbound.ScoreSummary
+	}{
+		{
+			name:    "new high score",
+			request: ReportRequest{Duration: 7.5, Kills: 3, Duds: 2, FreedMem: 4096, Entries: entries, NewHighScore: true},
+			expected: outbound.ScoreSummary{
+				Kills: 3, Duds: 2, FreedMem: 4096, Duration: 7.5, IsTopScore: true, Entries: expectedEntries,
+			},
+		},
+		{
+			name:    "not a new high score",
+			request: ReportRequest{Duration: 7.5, Kills: 3, Duds: 2, FreedMem: 4096, Entries: entries},
+			expected: outbound.ScoreSummary{
+				Kills: 3, Duds: 2, FreedMem: 4096, Duration: 7.5, Entries: expectedEntries,
+			},
+		},
+	}
 }

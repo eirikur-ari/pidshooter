@@ -5,48 +5,48 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
-func toScoreBoard(c scoreContent) outbound.ScoreBoard {
-	entries := make([]outbound.ScoreEntry, len(c.Scores))
-	for i, e := range c.Scores {
+func toScoreBoard(content scoreContent) outbound.ScoreBoard {
+	entries := make([]outbound.ScoreEntry, len(content.Scores))
+	for i, entry := range content.Scores {
 		entries[i] = outbound.ScoreEntry{
-			Kills:    e.Kills,
-			Duds:     e.Duds,
-			FreedMem: e.FreedMem,
-			Speed:    e.Speed,
-			Time:     e.Time,
-			Duration: e.Duration,
-			Date:     e.Date,
+			Kills:    entry.Kills,
+			Duds:     entry.Duds,
+			FreedMem: entry.FreedMem,
+			Speed:    entry.Speed,
+			Time:     entry.Time,
+			Duration: entry.Duration,
+			Date:     entry.Date,
 		}
 	}
 	return outbound.ScoreBoard{Scores: entries}
 }
 
-func toScoreContent(sb outbound.ScoreBoard) scoreContent {
-	entries := make([]scoreEntry, len(sb.Scores))
-	for i, e := range sb.Scores {
+func toScoreContent(board outbound.ScoreBoard) scoreContent {
+	entries := make([]scoreEntry, len(board.Scores))
+	for i, entry := range board.Scores {
 		entries[i] = scoreEntry{
-			Kills:    e.Kills,
-			Duds:     e.Duds,
-			FreedMem: e.FreedMem,
-			Speed:    e.Speed,
-			Time:     e.Time,
-			Duration: e.Duration,
-			Date:     e.Date,
+			Kills:    entry.Kills,
+			Duds:     entry.Duds,
+			FreedMem: entry.FreedMem,
+			Speed:    entry.Speed,
+			Time:     entry.Time,
+			Duration: entry.Duration,
+			Date:     entry.Date,
 		}
 	}
 	return scoreContent{Version: currentScoreSchemaVersion, Scores: entries}
 }
 
-func toConfig(config configContent) outbound.Config {
+func toConfig(content configContent) outbound.Config {
 	return outbound.Config{
-		Mode: outbound.Mode(config.Mode),
+		Mode: outbound.Mode(content.Mode),
 		Process: outbound.ProcessConfig{
-			IncludeRoot: util.ClonePointer(config.Process.IncludeRoot),
+			IncludeRoot: util.ClonePointer(content.Process.IncludeRoot),
 		},
 		Game: outbound.GameConfig{
-			ConfirmMode: util.ClonePointer(config.Game.ConfirmMode),
-			Speed:       util.ClonePointer(config.Game.Speed),
-			TimeLimit:   util.ClonePointer(config.Game.TimeLimit),
+			ConfirmMode: util.ClonePointer(content.Game.ConfirmMode),
+			Speed:       util.ClonePointer(content.Game.Speed),
+			TimeLimit:   util.ClonePointer(content.Game.TimeLimit),
 		},
 	}
 }
@@ -58,7 +58,7 @@ func toConfigContent(config outbound.Config) configContent {
 		Process: processEntry{
 			IncludeRoot: util.ClonePointer(config.Process.IncludeRoot),
 		},
-		Game: configEntry{
+		Game: gameEntry{
 			ConfirmMode: util.ClonePointer(config.Game.ConfirmMode),
 			Speed:       util.ClonePointer(config.Game.Speed),
 			TimeLimit:   util.ClonePointer(config.Game.TimeLimit),

@@ -9,24 +9,23 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
-// ScoreReporter writes score reports to an io.Writer.
+// ScoreReporter reports the outcome of a finished session and the recorded high scores.
 type ScoreReporter struct {
 	writer io.Writer
 }
 
-// NewScoreReporter returns a ScoreReporter that writes to os.Stdout.
+// NewScoreReporter returns a ScoreReporter that writes to standard output.
 func NewScoreReporter() *ScoreReporter {
 	return &ScoreReporter{writer: os.Stdout}
 }
 
-// Report writes the game-over summary, a trophy line if summary.NewHighScore,
-// and the high-score table (or a "no high scores yet" message) to the
-// underlying writer.
+// Report writes the summary of the finished session, whether it set a top
+// score, and the recorded high scores.
 func (r *ScoreReporter) Report(summary outbound.ScoreSummary) {
 	_, _ = fmt.Fprintf(r.writer, "\n  Game Over! Kills: %d | Duds: %d | Freed: %s | Time: %.1fs\n",
 		summary.Kills, summary.Duds, util.FormatBytes(summary.FreedMem), summary.Duration)
 
-	if summary.NewHighScore {
+	if summary.IsTopScore {
 		_, _ = fmt.Fprintln(r.writer, "  🏆 New high score!")
 	}
 

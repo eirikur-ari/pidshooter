@@ -1,80 +1,69 @@
-package tcellui_test
+package tcellui
 
 import (
-	"runtime"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/input"
-	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
-func TestPollGoroutineExitsAfterCleanup(t *testing.T) {
-	screen := tcell.NewSimulationScreen("")
-	ui := tcellui.NewTUI(screen)
-	before := runtime.NumGoroutine()
+func TestPoller_poll_ForwardsOnlyRecognizedEvents(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// Given
+		screen := newScreenFixture(80, 25)
+		defer screen.Fini()
+		poller := newPoller(screen)
+		go poller.poll()
 
-	require.NoError(t, ui.Init())
+		// When
+		screen.InjectKey(tcell.KeyRune, 'z', tcell.ModNone)
+		screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
+		event := <-poller.Events()
 
-	for range 15 {
-		screen.InjectKey(tcell.KeyRune, 'a', tcell.ModNone)
-	}
-	time.Sleep(50 * time.Millisecond)
+		// Then
+		assert.Equal(t, input.QuitEvent{}, event)
+	})
+}
 
-	ui.Cleanup()
+func TestPoller_poll_ClosesQueueWhenScreenIsFinalized(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// Given
+		screen := newScreenFixture(80, 25)
+		poller := newPoller(screen)
+		go poller.poll()
 
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		if runtime.NumGoroutine() <= before {
-			return
+		// When
+		screen.Fini()
+		synctest.Wait()
+		closed := testutil.IsClosed(poller.Events())
+
+		// Then
+		assert.True(t, closed)
+	})
+}
+
+func TestPoller_stop_ClosesQueueWhileBlockedOnFullQueue(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		// Given
+		screen := newScreenFixture(80, 25)
+		defer screen.Fini()
+		poller := newPoller(screen)
+		go poller.poll()
+		for range eventQueueCapacity + 1 {
+			screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
 		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Errorf("poll goroutine did not exit after Cleanup: want ≤%d goroutines, got %d",
-		before, runtime.NumGoroutine())
-}
+		synctest.Wait()
 
-func TestEventsChannelClosesAfterCleanup(t *testing.T) {
-	screen := tcell.NewSimulationScreen("")
-	ui := tcellui.NewTUI(screen)
-	require.NoError(t, ui.Init())
+		// When
+		poller.stop()
+		synctest.Wait()
+		closed := testutil.IsClosed(poller.Events())
 
-	ui.Cleanup()
-
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		select {
-		case _, ok := <-ui.InputEvents().Events():
-			if !ok {
-				return
-			}
-		default:
-			time.Sleep(5 * time.Millisecond)
-		}
-	}
-	t.Fatal("Events channel was not closed after Cleanup")
-}
-
-func TestPollForwardsTranslatedEventToChannel(t *testing.T) {
-	ui, screen := newTUI(t)
-	screen.InjectKey(tcell.KeyRune, 'q', tcell.ModNone)
-	assert.Equal(t, input.QuitEvent{}, nextEvent(t, ui.InputEvents()))
-}
-
-// nextEvent reads one event from events with a timeout so tests fail fast
-// instead of blocking forever if the expected event is never produced.
-func nextEvent(t *testing.T, events outbound.InputEventProvider) input.EventDispatcher {
-	t.Helper()
-	select {
-	case ev := <-events.Events():
-		return ev
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("timed out waiting for event from poll goroutine")
-		return nil
-	}
+		// Then
+		assert.True(t, closed)
+	})
 }

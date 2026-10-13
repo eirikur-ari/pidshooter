@@ -5,303 +5,408 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
-	"github.com/eirikur-ari/pidshooter/internal/core/process"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
 )
 
-// --- FindProcesses ---
+func TestService_FindProcesses_ReturnsFatalErrorAndReportsNothing(t *testing.T) {
+	tests := newFindProcessesErrorTestCase()
 
-func TestFindProcessesReturnsErrorWhenRunningAsRootWithoutAllowRoot(t *testing.T) {
-	svc := NewService(&fake.ProcessManager{OwnUIDValue: 0}, &fake.ProcessReporter{}, []string{"foo"})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			manager := discoveryMockSetup(nil, 0, test.ownUID, test.discoverErr)
+			reporter := &MockProcessReporter{}
+			service := NewService(manager, reporter, test.patterns)
+			var appError *apperror.Error
 
-	_, err := svc.FindProcesses(FindRequest{IncludeRoot: false, AllowRoot: false})
+			// When
+			processes, err := service.FindProcesses(FindRequest{})
 
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeInvalidConfig, appErr.Code)
-	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
-	assert.ErrorContains(t, err, "refusing to run as root")
-}
-
-func TestFindProcessesRefusesRootBeforeValidatingPatterns(t *testing.T) {
-	svc := NewService(&fake.ProcessManager{OwnUIDValue: 0}, &fake.ProcessReporter{}, nil)
-
-	_, err := svc.FindProcesses(FindRequest{IncludeRoot: false, AllowRoot: false})
-
-	assert.ErrorContains(t, err, "refusing to run as root", "the root guard must run before pattern validation, not after")
-}
-
-func TestFindProcessesAllowsRootWithAllowRoot(t *testing.T) {
-	fp := &fake.ProcessManager{
-		Infos:       []outbound.ProcessInfo{{PID: 100, Name: "target", Rss: 4096}},
-		OwnUIDValue: 0,
+			// Then
+			require.ErrorAs(t, err, &appError)
+			assert.Equal(t, test.expectedCode, appError.Code)
+			assert.Equal(t, apperror.SeverityFatal, appError.Severity)
+			assert.ErrorContains(t, err, test.expectedText)
+			assert.Nil(t, processes)
+			reporter.AssertNotCalled(t, "Report", mock.Anything, mock.Anything)
+			manager.AssertNumberOfCalls(t, "Discover", test.expectedDiscoverCalls)
+		})
 	}
-	svc := NewService(fp, &fake.ProcessReporter{}, []string{"target"})
+}
 
-	_, err := svc.FindProcesses(FindRequest{IncludeRoot: false, AllowRoot: true})
+func TestService_FindProcesses_ReturnsProcessesMatchingRequest(t *testing.T) {
+	tests := newFindProcessesMatchTestCase()
 
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			manager := discoveryMockSetup(test.infos, test.ownPID, test.ownUID, nil)
+			service := NewService(manager, reporterMockSetup(), []string{"target"})
+
+			// When
+			processes, err := service.FindProcesses(test.request)
+
+			// Then
+			require.NoError(t, err)
+			assert.Equal(t, test.expectedProcesses, processes)
+		})
+	}
+}
+
+func TestService_FindProcesses_ReportsMatchesAndPatterns(t *testing.T) {
+	// Given
+	const ownUID = 1000
+	manager := discoveryMockSetup([]outbound.ProcessInfo{
+		{PID: 100, Name: "target", Rss: 4096, UID: ownUID},
+		{PID: 101, Name: "another-target", Rss: 2048, UID: ownUID},
+	}, 0, ownUID, nil)
+	reporter := reporterMockSetup()
+	service := NewService(manager, reporter, []string{"target"})
+
+	// When
+	_, err := service.FindProcesses(FindRequest{})
+
+	// Then
+	require.NoError(t, err)
+	reporter.AssertCalled(t, "Report", []outbound.ProcessInfo{
+		{PID: 100, Name: "target", Rss: 4096, UID: ownUID},
+		{PID: 101, Name: "another-target", Rss: 2048, UID: ownUID},
+	}, []string{"target"})
+}
+
+func TestService_Kill_ReturnsWarning(t *testing.T) {
+	tests := newKillErrorTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			manager, _ := pinnedProcessMockSetup(100, test.pinErr, test.lookupName, test.lookupErr, test.killErr)
+			service := NewService(manager, reporterMockSetup(), nil)
+			var appError *apperror.Error
+
+			// When
+			err := service.Kill(100, "target", false)
+
+			// Then
+			require.ErrorAs(t, err, &appError)
+			assert.Equal(t, test.expectedCode, appError.Code)
+			assert.Equal(t, apperror.SeverityWarning, appError.Severity)
+			assert.ErrorContains(t, err, test.expectedText)
+		})
+	}
+}
+
+func TestService_Kill_RefusesProtectedProcessWithoutPinningIt(t *testing.T) {
+	// Given
+	manager := &MockProcessManager{}
+	service := NewService(manager, reporterMockSetup(), nil)
+	var appError *apperror.Error
+
+	// When
+	err := service.Kill(1, "init", true)
+
+	// Then
+	require.ErrorAs(t, err, &appError)
+	assert.Equal(t, apperror.CodeKillFailed, appError.Code)
+	assert.Equal(t, apperror.SeverityWarning, appError.Severity)
+	assert.ErrorContains(t, err, "refusing to kill PID 1")
+	manager.AssertNotCalled(t, "Pin", mock.Anything)
+}
+
+func TestService_Kill_KeepsNotFoundErrorAsCauseWhenProcessIsGone(t *testing.T) {
+	tests := newKillNotFoundTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			manager, _ := pinnedProcessMockSetup(100, test.pinErr, test.lookupName, test.lookupErr, test.killErr)
+			service := NewService(manager, reporterMockSetup(), nil)
+
+			// When
+			err := service.Kill(100, "target", false)
+
+			// Then
+			assert.ErrorAs(t, err, &outbound.NotFoundError{})
+		})
+	}
+}
+
+func TestService_Kill_KillsOnlyVerifiedProcessAndReleasesWhatItPinned(t *testing.T) {
+	tests := newKillSideEffectTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			manager, handle := pinnedProcessMockSetup(100, test.pinErr, test.lookupName, test.lookupErr, test.killErr)
+			service := NewService(manager, reporterMockSetup(), nil)
+
+			// When
+			_ = service.Kill(100, "target", false)
+
+			// Then
+			handle.AssertNumberOfCalls(t, "Kill", test.expectedKillCalls)
+			handle.AssertNumberOfCalls(t, "Release", test.expectedReleaseCalls)
+		})
+	}
+}
+
+func TestService_Kill_ReturnsNoErrorWhenProcessIsKilled(t *testing.T) {
+	// Given
+	manager, _ := pinnedProcessMockSetup(100, nil, "target", nil, nil)
+	service := NewService(manager, reporterMockSetup(), nil)
+
+	// When
+	err := service.Kill(100, "target", false)
+
+	// Then
 	assert.NoError(t, err)
 }
 
-func TestFindProcessesReturnsErrorWhenPatternsAreInvalid(t *testing.T) {
-	svc := NewService(&fake.ProcessManager{OwnUIDValue: 1000}, &fake.ProcessReporter{}, nil)
-
-	_, err := svc.FindProcesses(FindRequest{IncludeRoot: false, AllowRoot: false})
-
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeInvalidConfig, appErr.Code)
-	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
-	assert.ErrorContains(t, err, "at least one search pattern is required")
-}
-
-func TestFindProcessesReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
-	svc := NewService(&fake.ProcessManager{DiscoverErr: errors.New("ps failed"), OwnUIDValue: 1000}, &fake.ProcessReporter{}, []string{"foo"})
-
-	_, err := svc.FindProcesses(FindRequest{IncludeRoot: false, AllowRoot: false})
-
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeProcessDiscoveryFailed, appErr.Code)
-	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
-	assert.ErrorContains(t, err, "ps failed")
-}
-
-func TestFindProcessesReturnsErrorWhenNoProcessIsFound(t *testing.T) {
-	svc := NewService(&fake.ProcessManager{OwnUIDValue: 1000}, &fake.ProcessReporter{}, []string{"nonexistent"})
-
-	processes, err := svc.FindProcesses(FindRequest{IncludeRoot: false, AllowRoot: false})
-
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeProcessNotFound, appErr.Code)
-	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
-	assert.Empty(t, processes)
-	assert.Equal(t, "no processes found", err.Error(), "an empty wrapper Message should not change the displayed text")
-	require.Error(t, appErr.Unwrap(), "the underlying cause should still be reachable, not discarded")
-}
-
-func TestFindProcessesDoesNotReportWhenDiscoveryFails(t *testing.T) {
-	reporter := &fake.ProcessReporter{}
-	svc := NewService(&fake.ProcessManager{DiscoverErr: errors.New("ps failed"), OwnUIDValue: 1000}, reporter, []string{"foo"})
-
-	_, _ = svc.FindProcesses(FindRequest{IncludeRoot: false, AllowRoot: false})
-
-	assert.Nil(t, reporter.Reported, "a failed discovery must not be reported")
-}
-
-func TestFindProcessesDoesNotReportWhenNoProcessIsFound(t *testing.T) {
-	reporter := &fake.ProcessReporter{}
-	svc := NewService(&fake.ProcessManager{OwnUIDValue: 1000}, reporter, []string{"nonexistent"})
-
-	_, _ = svc.FindProcesses(FindRequest{IncludeRoot: false, AllowRoot: false})
-
-	assert.Nil(t, reporter.Reported, "an empty match set fails validation before ever reaching the report call")
-}
-
-func TestFindProcessesReportsMatchesAndPatterns(t *testing.T) {
-	fp := &fake.ProcessManager{
-		Infos: []outbound.ProcessInfo{
-			{PID: 100, Name: "target", Rss: 4096, UID: 1000},
-			{PID: 101, Name: "another-target", Rss: 2048, UID: 1000},
+func newFindProcessesErrorTestCase() []struct {
+	name                  string
+	ownUID                int
+	discoverErr           error
+	patterns              []string
+	expectedCode          apperror.Code
+	expectedText          string
+	expectedDiscoverCalls int
+} {
+	return []struct {
+		name                  string
+		ownUID                int
+		discoverErr           error
+		patterns              []string
+		expectedCode          apperror.Code
+		expectedText          string
+		expectedDiscoverCalls int
+	}{
+		{
+			name:                  "running as root without allow root is refused before the patterns are validated",
+			ownUID:                0,
+			patterns:              nil,
+			expectedCode:          apperror.CodeInvalidConfig,
+			expectedText:          "refusing to run as root",
+			expectedDiscoverCalls: 0,
 		},
-		OwnUIDValue: 1000,
-	}
-	reporter := &fake.ProcessReporter{}
-	svc := NewService(fp, reporter, []string{"target"})
-
-	_, err := svc.FindProcesses(FindRequest{IncludeRoot: false, AllowRoot: false})
-
-	require.NoError(t, err)
-	require.NotNil(t, reporter.Reported)
-	assert.Equal(t, []outbound.ProcessInfo{
-		{PID: 100, Name: "target", Rss: 4096, UID: 1000},
-		{PID: 101, Name: "another-target", Rss: 2048, UID: 1000},
-	}, reporter.Reported.Matches)
-	assert.Equal(t, []string{"target"}, reporter.Reported.Patterns)
-}
-
-func TestFindProcessesReturnsMatchingProcesses(t *testing.T) {
-	fp := &fake.ProcessManager{
-		Infos: []outbound.ProcessInfo{
-			{PID: 100, Name: "target", Rss: 4096},
-			{PID: 101, Name: "another-target", Rss: 2048},
-			{PID: 200, Name: "unrelated", Rss: 1024},
+		{
+			name:                  "invalid patterns",
+			ownUID:                1000,
+			patterns:              nil,
+			expectedCode:          apperror.CodeInvalidConfig,
+			expectedText:          "at least one search pattern is required",
+			expectedDiscoverCalls: 0,
 		},
-		OwnPIDValue: 999,
-	}
-	svc := NewService(fp, &fake.ProcessReporter{}, []string{"target"})
-
-	processes, err := svc.FindProcesses(FindRequest{IncludeRoot: false, AllowRoot: true})
-
-	require.NoError(t, err)
-	assert.Equal(t, []process.Info{
-		process.NewInfo(100, "target", 4096, 0),
-		process.NewInfo(101, "another-target", 2048, 0),
-	}, processes)
-}
-
-func TestFindProcessesExcludesProcessesNotOwnedByCaller(t *testing.T) {
-	fp := &fake.ProcessManager{
-		Infos: []outbound.ProcessInfo{
-			{PID: 100, Name: "target", Rss: 4096, UID: 1000},
-			{PID: 101, Name: "target-other-owner", Rss: 2048, UID: 2000},
+		{
+			name:                  "process discovery fails",
+			ownUID:                1000,
+			discoverErr:           errors.New("ps failed"),
+			patterns:              []string{"foo"},
+			expectedCode:          apperror.CodeProcessNotFound,
+			expectedText:          "ps failed",
+			expectedDiscoverCalls: 1,
 		},
-		OwnUIDValue: 1000,
-	}
-	svc := NewService(fp, &fake.ProcessReporter{}, []string{"target"})
-
-	processes, err := svc.FindProcesses(FindRequest{IncludeRoot: false, AllowRoot: false})
-
-	require.NoError(t, err)
-	assert.Equal(t, []process.Info{
-		process.NewInfo(100, "target", 4096, 1000),
-	}, processes)
-}
-
-func TestFindProcessesIncludeRootIncludesRootOwnedProcesses(t *testing.T) {
-	fp := &fake.ProcessManager{
-		Infos: []outbound.ProcessInfo{
-			{PID: 100, Name: "target", Rss: 4096, UID: 1000},
-			{PID: 101, Name: "target-root", Rss: 2048, UID: 0},
+		{
+			name:                  "no process matches",
+			ownUID:                1000,
+			patterns:              []string{"nonexistent"},
+			expectedCode:          apperror.CodeProcessNotFound,
+			expectedText:          "no processes found",
+			expectedDiscoverCalls: 1,
 		},
-		OwnUIDValue: 1000,
 	}
-	svc := NewService(fp, &fake.ProcessReporter{}, []string{"target"})
-
-	processes, err := svc.FindProcesses(FindRequest{IncludeRoot: true, AllowRoot: false})
-
-	require.NoError(t, err)
-	assert.Equal(t, []process.Info{
-		process.NewInfo(100, "target", 4096, 1000),
-		process.NewInfo(101, "target-root", 2048, 0),
-	}, processes)
 }
 
-// --- Kill ---
+func newFindProcessesMatchTestCase() []struct {
+	name              string
+	infos             []outbound.ProcessInfo
+	ownPID            int
+	ownUID            int
+	request           FindRequest
+	expectedProcesses []FindResult
+} {
+	const ownPID, ownUID = 100, 1000
 
-func TestKillReturnsErrorIfPIDIsProtected(t *testing.T) {
-	fp := &fake.ProcessManager{}
-	svc := NewService(fp, &fake.ProcessReporter{}, nil)
-
-	shouldReap, err := svc.Kill(1, "init", true)
-
-	assert.False(t, shouldReap)
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeProcessDiscoveryFailed, appErr.Code)
-	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
-	assert.ErrorContains(t, err, "refusing to kill PID 1", "expected the service to refuse to kill protected PIDs")
-	assert.Empty(t, fp.KilledPIDs)
-	assert.Empty(t, fp.ReleasedPIDs, "a protected PID is refused before Pin is ever called")
+	return []struct {
+		name              string
+		infos             []outbound.ProcessInfo
+		ownPID            int
+		ownUID            int
+		request           FindRequest
+		expectedProcesses []FindResult
+	}{
+		{
+			name: "only processes whose name contains a pattern",
+			infos: []outbound.ProcessInfo{
+				{PID: 200, Name: "target", Rss: 4096, UID: ownUID},
+				{PID: 201, Name: "another-target", Rss: 2048, UID: ownUID},
+				{PID: 202, Name: "unrelated", Rss: 1024, UID: ownUID},
+			},
+			ownPID: ownPID,
+			ownUID: ownUID,
+			expectedProcesses: []FindResult{
+				{PID: 200, Name: "target", Rss: 4096, UID: ownUID},
+				{PID: 201, Name: "another-target", Rss: 2048, UID: ownUID},
+			},
+		},
+		{
+			name: "not the program's own process",
+			infos: []outbound.ProcessInfo{
+				{PID: ownPID, Name: "target", Rss: 4096, UID: ownUID},
+				{PID: 101, Name: "another-target", Rss: 2048, UID: ownUID},
+			},
+			ownPID:            ownPID,
+			ownUID:            ownUID,
+			expectedProcesses: []FindResult{{PID: 101, Name: "another-target", Rss: 2048, UID: ownUID}},
+		},
+		{
+			name: "not processes owned by another user",
+			infos: []outbound.ProcessInfo{
+				{PID: 101, Name: "target", Rss: 4096, UID: ownUID},
+				{PID: 102, Name: "target-other-owner", Rss: 2048, UID: 2000},
+			},
+			ownPID:            ownPID,
+			ownUID:            ownUID,
+			expectedProcesses: []FindResult{{PID: 101, Name: "target", Rss: 4096, UID: ownUID}},
+		},
+		{
+			name: "root-owned processes when requested",
+			infos: []outbound.ProcessInfo{
+				{PID: 101, Name: "target", Rss: 4096, UID: ownUID},
+				{PID: 102, Name: "target-root", Rss: 2048, UID: 0},
+			},
+			ownPID:  ownPID,
+			ownUID:  ownUID,
+			request: FindRequest{IncludeRoot: true},
+			expectedProcesses: []FindResult{
+				{PID: 101, Name: "target", Rss: 4096, UID: ownUID},
+				{PID: 102, Name: "target-root", Rss: 2048},
+			},
+		},
+		{
+			name:              "everything for a root user who allows running as root",
+			infos:             []outbound.ProcessInfo{{PID: 101, Name: "target", Rss: 4096, UID: 0}},
+			ownPID:            ownPID,
+			ownUID:            0,
+			request:           FindRequest{AllowRoot: true},
+			expectedProcesses: []FindResult{{PID: 101, Name: "target", Rss: 4096}},
+		},
+	}
 }
 
-func TestKillReturnsErrorAndShouldReapIfPinFails(t *testing.T) {
-	fp := &fake.ProcessManager{PinErr: errors.New("could not find process")}
-	svc := NewService(fp, &fake.ProcessReporter{}, nil)
-
-	shouldReap, err := svc.Kill(100, "target", false)
-
-	assert.True(t, shouldReap)
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeProcessDiscoveryFailed, appErr.Code)
-	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
-	assert.ErrorContains(t, err, "could not pin PID 100: could not find process")
-	assert.Empty(t, fp.KilledPIDs)
-	assert.Empty(t, fp.ReleasedPIDs, "there is no handle to release when Pin itself fails")
+func newKillErrorTestCase() []struct {
+	name         string
+	pinErr       error
+	lookupName   string
+	lookupErr    error
+	killErr      error
+	expectedCode apperror.Code
+	expectedText string
+} {
+	return []struct {
+		name         string
+		pinErr       error
+		lookupName   string
+		lookupErr    error
+		killErr      error
+		expectedCode apperror.Code
+		expectedText string
+	}{
+		{
+			name:         "pin reports the process gone",
+			pinErr:       outbound.NotFoundError{},
+			expectedCode: apperror.CodeProcessNotFound,
+			expectedText: "PID 100 already exited",
+		},
+		{
+			name:         "pin fails",
+			pinErr:       errors.New("operation not permitted"),
+			expectedCode: apperror.CodeKillFailed,
+			expectedText: "could not pin PID 100: operation not permitted",
+		},
+		{
+			name:         "name lookup fails transiently",
+			lookupErr:    errors.New("ps lookup failed"),
+			expectedCode: apperror.CodeKillFailed,
+			expectedText: "could not verify PID 100: ps lookup failed",
+		},
+		{
+			name:         "name lookup reports the process gone",
+			lookupErr:    outbound.NotFoundError{},
+			expectedCode: apperror.CodeProcessNotFound,
+			expectedText: "PID 100 already exited",
+		},
+		{
+			name:         "name no longer matches",
+			lookupName:   "somethingElse",
+			expectedCode: apperror.CodeProcessNotFound,
+			expectedText: `PID 100 now belongs to another process: pid name mismatch: expected "target", got "somethingElse"`,
+		},
+		{
+			name:         "kill reports the process gone",
+			lookupName:   "target",
+			killErr:      outbound.NotFoundError{},
+			expectedCode: apperror.CodeProcessNotFound,
+			expectedText: "PID 100 already exited",
+		},
+		{
+			name:         "kill fails",
+			lookupName:   "target",
+			killErr:      errors.New("permission denied"),
+			expectedCode: apperror.CodeKillFailed,
+			expectedText: "failed to kill PID 100: permission denied",
+		},
+	}
 }
 
-func TestKillReturnsErrorWithoutReapingIfProcessLookupByNameFailsTransiently(t *testing.T) {
-	fp := &fake.ProcessManager{LookupNameErr: errors.New("ps lookup failed")}
-	svc := NewService(fp, &fake.ProcessReporter{}, nil)
-
-	shouldReap, err := svc.Kill(100, "target", false)
-
-	assert.False(t, shouldReap, "a transient lookup failure must not be treated as the process already having exited")
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeProcessDiscoveryFailed, appErr.Code)
-	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
-	assert.ErrorContains(t, err, "could not verify PID 100: ps lookup failed", "expected the underlying ps error to still be visible")
-	assert.Empty(t, fp.KilledPIDs)
-	assert.Equal(t, []int{100}, fp.ReleasedPIDs, "the pinned handle must be released even when LookupName fails afterward")
+func newKillNotFoundTestCase() []struct {
+	name       string
+	pinErr     error
+	lookupName string
+	lookupErr  error
+	killErr    error
+} {
+	return []struct {
+		name       string
+		pinErr     error
+		lookupName string
+		lookupErr  error
+		killErr    error
+	}{
+		{name: "pin reports the process gone", pinErr: outbound.NotFoundError{}},
+		{name: "name lookup reports the process gone", lookupErr: outbound.NotFoundError{}},
+		{name: "kill reports the process gone", lookupName: "target", killErr: outbound.NotFoundError{}},
+	}
 }
 
-func TestKillReturnsShouldReapIfProcessLookupByNameReportsProcessNotFound(t *testing.T) {
-	fp := &fake.ProcessManager{LookupNameErr: outbound.NotFoundError{}}
-	svc := NewService(fp, &fake.ProcessReporter{}, nil)
-
-	shouldReap, err := svc.Kill(100, "target", false)
-
-	assert.True(t, shouldReap)
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeProcessNotFound, appErr.Code)
-	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
-	assert.ErrorAs(t, err, &outbound.NotFoundError{})
-	assert.Empty(t, fp.KilledPIDs)
-	assert.Equal(t, []int{100}, fp.ReleasedPIDs, "the pinned handle must be released even when LookupName reports the process gone")
-}
-
-func TestKillReturnsErrorAndShouldReapIfNameValidationFails(t *testing.T) {
-	fp := &fake.ProcessManager{LookupNameValue: "somethingElse"}
-	svc := NewService(fp, &fake.ProcessReporter{}, nil)
-
-	shouldReap, err := svc.Kill(100, "target", false)
-
-	assert.True(t, shouldReap)
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeProcessDiscoveryFailed, appErr.Code)
-	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
-	assert.ErrorContains(t, err, "pid name mismatch: expected \"target\", got \"somethingElse\"", "expected the service to report a name mismatch")
-	assert.Empty(t, fp.KilledPIDs)
-	assert.Equal(t, []int{100}, fp.ReleasedPIDs, "the pinned handle must be released even when name validation fails afterward")
-}
-
-func TestKillReturnsShouldReapWhenProcessAlreadyExited(t *testing.T) {
-	fp := &fake.ProcessManager{LookupNameValue: "target", KillErr: outbound.NotFoundError{}}
-	svc := NewService(fp, &fake.ProcessReporter{}, nil)
-
-	shouldReap, err := svc.Kill(100, "target", false)
-
-	assert.True(t, shouldReap)
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeProcessNotFound, appErr.Code)
-	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
-	assert.ErrorAs(t, err, &outbound.NotFoundError{})
-	assert.Equal(t, []int{100}, fp.ReleasedPIDs)
-}
-
-func TestKillReturnsErrorWhenKillFails(t *testing.T) {
-	fp := &fake.ProcessManager{LookupNameValue: "target", KillErr: errors.New("permission denied")}
-	svc := NewService(fp, &fake.ProcessReporter{}, nil)
-
-	shouldReap, err := svc.Kill(100, "target", false)
-
-	assert.False(t, shouldReap)
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeKillFailed, appErr.Code)
-	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
-	assert.ErrorContains(t, err, "failed to kill PID 100: permission denied")
-	assert.Equal(t, []int{100}, fp.ReleasedPIDs)
-}
-
-func TestKillReturnsKillingProcessWasASuccess(t *testing.T) {
-	fp := &fake.ProcessManager{LookupNameValue: "target"}
-	svc := NewService(fp, &fake.ProcessReporter{}, nil)
-
-	shouldReap, err := svc.Kill(100, "target", false)
-
-	assert.False(t, shouldReap)
-	assert.NoError(t, err)
-	assert.Equal(t, []int{100}, fp.KilledPIDs)
-	assert.Equal(t, []int{100}, fp.ReleasedPIDs, "the pinned handle must be released after a successful kill too")
+func newKillSideEffectTestCase() []struct {
+	name                 string
+	pinErr               error
+	lookupName           string
+	lookupErr            error
+	killErr              error
+	expectedKillCalls    int
+	expectedReleaseCalls int
+} {
+	return []struct {
+		name                 string
+		pinErr               error
+		lookupName           string
+		lookupErr            error
+		killErr              error
+		expectedKillCalls    int
+		expectedReleaseCalls int
+	}{
+		{name: "pin reports the process gone", pinErr: outbound.NotFoundError{}},
+		{name: "pin fails", pinErr: errors.New("operation not permitted")},
+		{name: "name lookup fails", lookupErr: errors.New("ps lookup failed"), expectedReleaseCalls: 1},
+		{name: "name lookup reports the process gone", lookupErr: outbound.NotFoundError{}, expectedReleaseCalls: 1},
+		{name: "name no longer matches", lookupName: "somethingElse", expectedReleaseCalls: 1},
+		{name: "kill reports the process gone", lookupName: "target", killErr: outbound.NotFoundError{}, expectedKillCalls: 1, expectedReleaseCalls: 1},
+		{name: "kill fails", lookupName: "target", killErr: errors.New("permission denied"), expectedKillCalls: 1, expectedReleaseCalls: 1},
+		{name: "kill succeeds", lookupName: "target", expectedKillCalls: 1, expectedReleaseCalls: 1},
+	}
 }

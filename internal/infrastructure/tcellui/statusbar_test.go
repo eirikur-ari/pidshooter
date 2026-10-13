@@ -1,131 +1,114 @@
-package tcellui_test
+package tcellui
 
 import (
-	"fmt"
+	"strings"
 	"testing"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
 
-func TestDrawStatusBarNormal(t *testing.T) {
-	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameViewState{
-		StatusBar: outbound.StatusViewState{Alive: 3, Speed: 2.0},
-	})
-	_, _, h := screen.GetContents()
-	got := rowContent(screen, h-1)
-	for _, want := range []string{"Targets:", "Speed:", "Click to kill"} {
-		assert.Contains(t, got, want, "status bar should contain %q", want)
-	}
-}
+func TestStatusBar_draw_ShowsPlayStatus(t *testing.T) {
+	tests := newPlayStatusTestCase()
 
-func TestDrawStatusBarConfirming(t *testing.T) {
-	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameViewState{
-		StatusBar: outbound.StatusViewState{
-			Confirming: &outbound.ConfirmViewState{PID: 42, Name: "myapp"},
-		},
-	})
-	_, _, h := screen.GetContents()
-	got := rowContent(screen, h-1)
-	for _, want := range []string{"42", "myapp", "(Y)es", "(N)o"} {
-		assert.Contains(t, got, want, "confirm bar should contain %q", want)
-	}
-}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			screen := newScreenFixture(80, 25)
+			statusBar := statusBar{state: test.state, window: outbound.WindowSize{Width: 80, Height: 25}}
 
-func TestDrawStatusBarConfirmingMultiByteName(t *testing.T) {
-	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameViewState{
-		StatusBar: outbound.StatusViewState{
-			Confirming: &outbound.ConfirmViewState{PID: 42, Name: "café-server"},
-		},
-	})
-	_, _, h := screen.GetContents()
-	got := rowContent(screen, h-1)
-	assert.Contains(t, got, "café-server", "status bar should render the multi-byte name intact, with no byte-offset gap")
-	assert.Contains(t, got, "(Y)es", "status bar should still contain the confirm options after a multi-byte name")
-}
+			// When
+			statusBar.draw(screen)
 
-func TestDrawStatusBarConfirmingLongNameStillShowsAllOptions(t *testing.T) {
-	for _, w := range []int{40, 44, 50} {
-		t.Run(fmt.Sprintf("w=%d", w), func(t *testing.T) {
-			ui, screen := newTUI(t)
-			screen.SetSize(w, 25)
-			ui.Render(outbound.FrameViewState{
-				StatusBar: outbound.StatusViewState{
-					Confirming: &outbound.ConfirmViewState{PID: 54321, Name: "com.apple.WebKit"},
-				},
-			})
-			_, _, h := screen.GetContents()
-			got := rowContent(screen, h-1)
-			for _, want := range []string{"(Y)es", "(N)o", "(Q)uit"} {
-				assert.Contains(t, got, want, "the confirm options must survive even with a long process name")
-			}
+			// Then
+			assert.Equal(t, test.expected, screenRow(screen, 24))
 		})
 	}
 }
 
-func TestDrawStatusBarConfirmingLongNameIsTruncatedWithEllipsis(t *testing.T) {
-	ui, screen := newTUI(t)
-	screen.SetSize(44, 25)
-	ui.Render(outbound.FrameViewState{
-		StatusBar: outbound.StatusViewState{
-			Confirming: &outbound.ConfirmViewState{PID: 54321, Name: "com.apple.WebKit"},
+func TestStatusBar_draw_ShowsConfirmPromptWithinWindowWidth(t *testing.T) {
+	tests := newConfirmPromptTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			screen := newScreenFixture(test.width, 25)
+			statusBar := statusBar{
+				state: outbound.StatusViewState{
+					Confirming: &outbound.ConfirmViewState{PID: 54321, Name: test.processName},
+				},
+				window: outbound.WindowSize{Width: test.width, Height: 25},
+			}
+
+			// When
+			statusBar.draw(screen)
+
+			// Then
+			assert.Equal(t, test.expected, screenRow(screen, 24))
+		})
+	}
+}
+
+func TestStatusBar_draw_ReplacesPreviousRowContent(t *testing.T) {
+	// Given
+	screen := newScreenFixture(80, 25)
+	screen.PutStrStyled(0, 24, strings.Repeat("X", 80), tcell.StyleDefault)
+	statusBar := statusBar{
+		state:  outbound.StatusViewState{Alive: 3, Speed: 2.0},
+		window: outbound.WindowSize{Width: 80, Height: 25},
+	}
+
+	// When
+	statusBar.draw(screen)
+
+	// Then
+	assert.Equal(t, " Targets: 3 | Speed: 2.0x | Click to kill | +/- speed | 'q' quit", screenRow(screen, 24))
+}
+
+func newPlayStatusTestCase() []struct {
+	name     string
+	state    outbound.StatusViewState
+	expected string
+} {
+	return []struct {
+		name     string
+		state    outbound.StatusViewState
+		expected string
+	}{
+		{
+			"alive count and speed",
+			outbound.StatusViewState{Alive: 3, Speed: 2.0},
+			" Targets: 3 | Speed: 2.0x | Click to kill | +/- speed | 'q' quit",
 		},
-	})
-	_, _, h := screen.GetContents()
-	got := rowContent(screen, h-1)
-	assert.Contains(t, got, "…", "a truncated name should be signalled with an ellipsis")
-	assert.NotContains(t, got, "com.apple.WebKit", "the full name should not fit at this width")
-}
-
-func TestDrawStatusBarConfirmingNameBudgetOfOneIsJustEllipsis(t *testing.T) {
-	ui, screen := newTUI(t)
-	screen.SetSize(38, 25)
-	ui.Render(outbound.FrameViewState{
-		StatusBar: outbound.StatusViewState{
-			Confirming: &outbound.ConfirmViewState{PID: 54321, Name: "com.apple.WebKit"},
+		{
+			"time left is shown when the session has a time limit",
+			outbound.StatusViewState{Alive: 1, Speed: 1.0, TimeLeft: new(15)},
+			" Targets: 1 | Speed: 1.0x | Time: 15s | Click to kill | +/- speed | 'q' quit",
 		},
-	})
-	_, _, h := screen.GetContents()
-	got := rowContent(screen, h-1)
-	assert.Contains(t, got, "[54321 …]", "with only one column of budget, the name should render as just the ellipsis")
+	}
 }
 
-func TestDrawStatusBarConfirmingNameOmittedWhenNoBudgetLeft(t *testing.T) {
-	ui, screen := newTUI(t)
-	screen.SetSize(30, 25)
-	ui.Render(outbound.FrameViewState{
-		StatusBar: outbound.StatusViewState{
-			Confirming: &outbound.ConfirmViewState{PID: 54321, Name: "com.apple.WebKit"},
-		},
-	})
-	_, _, h := screen.GetContents()
-	got := rowContent(screen, h-1)
-	assert.Contains(t, got, "[54321 ]", "with no budget left, the name should be dropped rather than partially shown")
-	assert.NotContains(t, got, "com.apple.WebKit")
-}
-
-func TestDrawStatusBarWithTimeLimit(t *testing.T) {
-	ui, screen := newTUI(t)
-	timeLeft := 15
-	ui.Render(outbound.FrameViewState{
-		StatusBar: outbound.StatusViewState{Alive: 1, Speed: 1.0, TimeLeft: &timeLeft},
-	})
-	_, _, h := screen.GetContents()
-	got := rowContent(screen, h-1)
-	assert.Contains(t, got, "Time:")
-	assert.Contains(t, got, "15s")
-}
-
-func TestDrawStatusBarNoTimeLimit(t *testing.T) {
-	ui, screen := newTUI(t)
-	ui.Render(outbound.FrameViewState{
-		StatusBar: outbound.StatusViewState{Alive: 1, Speed: 1.0},
-	})
-	_, _, h := screen.GetContents()
-	got := rowContent(screen, h-1)
-	assert.NotContains(t, got, "Time:")
+func newConfirmPromptTestCase() []struct {
+	name        string
+	processName string
+	width       int
+	expected    string
+} {
+	return []struct {
+		name        string
+		processName string
+		width       int
+		expected    string
+	}{
+		{"name that fits is shown whole", "com.apple.WebKit", 80, " Kill [54321 com.apple.WebKit]? (Y)es / (N)o / (Q)uit"},
+		{"accented name stays intact", "café-server", 80, " Kill [54321 café-server]? (Y)es / (N)o / (Q)uit"},
+		{"name too long is cut with an ellipsis", "com.apple.WebKit", 44, " Kill [54321 com.ap…]? (Y)es / (N)o / (Q)uit"},
+		{"one column of budget is just the ellipsis", "com.apple.WebKit", 38, " Kill [54321 …]? (Y)es / (N)o / (Q)uit"},
+		{"no budget drops the name", "com.apple.WebKit", 37, " Kill [54321 ]? (Y)es / (N)o / (Q)uit"},
+		{"wide name is cut by columns", "日本語アプリ", 44, " Kill [54321 日本語…]? (Y)es / (N)o / (Q)uit"},
+		{"wide name never splits a character", "日本語アプリ", 43, " Kill [54321 日本…]? (Y)es / (N)o / (Q)uit"},
+		{"window narrower than the prompt clips the options", "com.apple.WebKit", 30, " Kill [54321 ]? (Y)es / (N)o /"},
+	}
 }

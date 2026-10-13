@@ -2,23 +2,26 @@ package logger
 
 import (
 	"fmt"
+	"io"
 	"os"
 )
 
-// Logger writes leveled diagnostic messages to the process's standard streams.
-type Logger struct{}
+// Logger logs warnings and errors to standard error.
+type Logger struct {
+	writer io.Writer
+}
 
-// NewLogger returns a Logger.
+// NewLogger returns a Logger that writes to standard error.
 func NewLogger() *Logger {
-	return &Logger{}
+	return &Logger{writer: os.Stderr}
 }
 
-// Warn reports msg as a warning.
-func (l *Logger) Warn(msg string) {
-	_, _ = fmt.Fprintf(os.Stderr, "warning: %s\n", msg)
+// Warn logs message as a warning.
+func (l *Logger) Warn(message string) {
+	_, _ = fmt.Fprintf(l.writer, "warning: %s\n", message)
 }
 
-// Error reports msg as an error.
-func (l *Logger) Error(msg string) {
-	_, _ = fmt.Fprintf(os.Stderr, "error: %s\n", msg)
+// Error logs message as an error.
+func (l *Logger) Error(message string) {
+	_, _ = fmt.Fprintf(l.writer, "error: %s\n", message)
 }

@@ -62,6 +62,12 @@ func (s *Session) Start(bounds movement.Bounds) {
 	}
 }
 
+// Stop transitions the session to stopped, signaling the loop to exit.
+func (s *Session) Stop() { s.state = stopped }
+
+// IsRunning reports whether the session loop should continue.
+func (s *Session) IsRunning() bool { return s.state == running }
+
 // Update advances the session state by one frame. window is the current
 // display dimensions. It moves every target and stops the session if the
 // time limit has expired or all targets are dead.
@@ -79,30 +85,9 @@ func (s *Session) Update(window movement.WindowSize) {
 	}
 }
 
-// IsRunning reports whether the session loop should continue.
-func (s *Session) IsRunning() bool { return s.state == running }
-
-// Stop transitions the session to stopped, signaling the loop to exit.
-func (s *Session) Stop() { s.state = stopped }
-
-// StartTime returns when the session was started.
-func (s *Session) StartTime() time.Time { return s.timer.StartTime() }
-
-// Throttle returns the session's throttle.
-func (s *Session) Throttle() *movement.Throttle { return s.throttle }
-
-// Targets returns the live target slice for frame assembly. Callers must not modify it.
-func (s *Session) Targets() []*Target { return s.roster.targets }
-
 // AvailableTargets returns the targets still in play — dead targets excluded —
 // along with how many are currently alive.
 func (s *Session) AvailableTargets() ([]*Target, int) { return s.roster.available() }
-
-// TimeLimit returns the configured time limit in seconds (0 = unlimited).
-func (s *Session) TimeLimit() int { return s.timer.LimitSeconds() }
-
-// TimeLeft returns the remaining time in seconds.
-func (s *Session) TimeLeft() int { return s.timer.SecondsLeft() }
 
 // PendingConfirm returns the pending kill target, or nil if none is pending.
 func (s *Session) PendingConfirm() *Target {
@@ -116,11 +101,26 @@ func (s *Session) PendingConfirm() *Target {
 // it immediately for killing (passthrough mode).
 func (s *Session) RequestConfirm(t *Target) *Target { return s.confirm.Request(t) }
 
+// StartTime returns when the session was started.
+func (s *Session) StartTime() time.Time { return s.timer.StartTime() }
+
+// Targets returns the live target slice for frame assembly. Callers must not modify it.
+func (s *Session) Targets() []*Target { return s.roster.targets }
+
+// Throttle returns the session's throttle.
+func (s *Session) Throttle() *movement.Throttle { return s.throttle }
+
+// TimeLeft returns the remaining time in seconds.
+func (s *Session) TimeLeft() int { return s.timer.SecondsLeft() }
+
+// TimeLimit returns the configured time limit in seconds (0 = unlimited).
+func (s *Session) TimeLimit() int { return s.timer.LimitSeconds() }
+
+// currentState returns the current lifecycle of the session.
+func (s *Session) currentState() lifecycle { return s.state }
+
 func (s *Session) initialize() {
 	s.timer.Start()
 	s.roster.spawn(s.bounds)
 	s.state = running
 }
-
-// currentState returns the current lifecycle of the session.
-func (s *Session) currentState() lifecycle { return s.state }

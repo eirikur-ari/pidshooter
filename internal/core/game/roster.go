@@ -33,7 +33,8 @@ func (r *roster) move(bounds movement.Bounds, speed float64) {
 // allDead reports whether every target has finished its kill animation.
 // No targets mean nothing was ever killed, not that everything was.
 func (r *roster) allDead() bool {
-	if len(r.targets) == 0 {
+	// An empty roster is not considered "all dead" because it means no targets were ever spawned.
+	if r.isEmpty() {
 		return false
 	}
 	for _, t := range r.targets {
@@ -43,6 +44,9 @@ func (r *roster) allDead() bool {
 	}
 	return true
 }
+
+// isEmpty reports whether this roster holds no targets at all.
+func (r *roster) isEmpty() bool { return len(r.targets) == 0 }
 
 // hitAt returns the target whose tag covers the given game-space coordinates,
 // or nil if none is hit.

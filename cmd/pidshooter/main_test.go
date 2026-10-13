@@ -2,39 +2,43 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/entrypoint/cli"
 )
 
-func TestExitCodeReturnsZeroForNil(t *testing.T) {
-	assert.Equal(t, 0, exitCode(nil))
+func TestExitCode_MapsErrorToExitStatus(t *testing.T) {
+	tests := newExitCodeTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			code := exitCode(test.err)
+
+			// Then
+			assert.Equal(t, test.expected, code)
+		})
+	}
 }
 
-func TestExitCodeReturnsTwoForArgumentError(t *testing.T) {
-	err := cli.ArgumentError{Cause: errors.New("flag provided but not defined: -unknown")}
-	assert.Equal(t, 2, exitCode(err))
-}
+func newExitCodeTestCase() []struct {
+	name     string
+	err      error
+	expected int
+} {
+	argumentError := cli.ArgumentError{Cause: errors.New("flag provided but not defined: -unknown")}
 
-func TestExitCodeReturnsTwoForWrappedInvalidConfig(t *testing.T) {
-	invalid := apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", errors.New("boom"))
-	err := cli.ArgumentError{Cause: invalid}
-	assert.Equal(t, 2, exitCode(err))
-}
-
-func TestExitCodeReturnsOneForUnwrappedInvalidConfig(t *testing.T) {
-	err := apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", errors.New("boom"))
-	assert.Equal(t, 1, exitCode(err))
-}
-
-func TestExitCodeReturnsOneForOtherErrors(t *testing.T) {
-	err := apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "game session failed", errors.New("boom"))
-	assert.Equal(t, 1, exitCode(err))
-}
-
-func TestExitCodeReturnsOneForPlainError(t *testing.T) {
-	assert.Equal(t, 1, exitCode(errors.New("boom")))
+	return []struct {
+		name     string
+		err      error
+		expected int
+	}{
+		{"no error is success", nil, 0},
+		{"malformed arguments", argumentError, 2},
+		{"malformed arguments wrapped by another error", fmt.Errorf("running: %w", argumentError), 2},
+		{"any other error is a failure", errors.New("boom"), 1},
+	}
 }

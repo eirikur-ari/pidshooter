@@ -1,8 +1,7 @@
 package inbound
 
-// Runner is an inbound port: the contract an inbound adapter calls.
+// Runner performs one unit of work on request.
 type Runner interface {
-	// Run performs the inbound adapter's requested work, returning an error
-	// if it could not complete.
+	// Run performs the work, returning an error if it could not complete.
 	Run() error
 }

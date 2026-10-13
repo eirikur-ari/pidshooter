@@ -4,23 +4,30 @@ import (
 	"time"
 )
 
-// ScoreEntry is the persistence representation of a single high score record.
+// ScoreEntry is the outcome of a single session.
 type ScoreEntry struct {
-	Kills    int
-	Duds     int
+	Kills int
+	// Duds is the number of targets whose backing process was already gone
+	// before a kill could land on it.
+	Duds int
+	// FreedMem is the cumulative memory freed by kills, in bytes.
 	FreedMem int64
-	Speed    float64
-	Time     int
+	// Speed is the target movement speed the session ran at.
+	Speed float64
+	// Time is the configured session time limit in seconds, distinct from
+	// Duration (how long the session actually ran).
+	Time int
+	// Duration is how long the session actually ran, in seconds.
 	Duration float64
 	Date     time.Time
 }
 
-// ScoreBoard is the persistence representation of the high score table.
+// ScoreBoard is a collection of score entries.
 type ScoreBoard struct {
 	Scores []ScoreEntry
 }
 
-// ScoreStore is the outbound port for persisting and retrieving the score board.
+// ScoreStore persists and retrieves the score board.
 type ScoreStore interface {
 	// Load returns the persisted score board. If no board has been
 	// persisted yet, it returns an empty ScoreBoard and a NotFoundError.
@@ -31,18 +38,19 @@ type ScoreStore interface {
 	Save(board ScoreBoard) error
 }
 
-// ScoreSummary is the view representation of a session's outcome and the
-// board's current high scores, for reporting via ScoreReporter.
+// ScoreSummary is a session's outcome together with the board's entries.
 type ScoreSummary struct {
-	Kills        int
-	Duds         int
-	FreedMem     int64
-	Duration     float64
-	NewHighScore bool
-	Entries      []ScoreEntry
+	Kills    int
+	Duds     int
+	FreedMem int64
+	Duration float64
+	// IsTopScore reports whether the session's outcome beat all previous
+	// entries.
+	IsTopScore bool
+	Entries    []ScoreEntry
 }
 
-// ScoreReporter is the outbound port for reporting session results and the high score table to the user.
+// ScoreReporter reports session results and the score entries to the user.
 type ScoreReporter interface {
 	// Report displays summary to the user.
 	Report(summary ScoreSummary)

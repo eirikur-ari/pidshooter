@@ -5,26 +5,26 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-func toInfo(info outbound.ProcessInfo) process.Info {
-	return process.NewInfo(info.PID, info.Name, info.Rss, info.UID)
-}
-
 func toInfos(infos []outbound.ProcessInfo) []process.Info {
 	out := make([]process.Info, len(infos))
 	for i, info := range infos {
-		out[i] = toInfo(info)
+		out[i] = process.NewInfo(info.PID, info.Name, info.Rss, info.UID)
 	}
 	return out
 }
 
-func toProcessInfo(info process.Info) outbound.ProcessInfo {
-	return outbound.ProcessInfo{PID: info.PID, Name: info.Name, Rss: info.Rss, UID: info.UID}
+func toFindResults(infos []process.Info) []FindResult {
+	out := make([]FindResult, len(infos))
+	for i, info := range infos {
+		out[i] = FindResult{PID: info.PID, Name: info.Name, Rss: info.Rss, UID: info.UID}
+	}
+	return out
 }
 
 func toProcessInfos(infos []process.Info) []outbound.ProcessInfo {
 	out := make([]outbound.ProcessInfo, len(infos))
 	for i, info := range infos {
-		out[i] = toProcessInfo(info)
+		out[i] = outbound.ProcessInfo{PID: info.PID, Name: info.Name, Rss: info.Rss, UID: info.UID}
 	}
 	return out
 }

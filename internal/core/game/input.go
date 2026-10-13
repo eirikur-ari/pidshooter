@@ -46,9 +46,12 @@ func (h *Input) OnClickAt(x, y int) *Target {
 	if h.s.confirm.Pending() {
 		return nil
 	}
-	t := h.s.roster.hitAt(x, y)
-	if t == nil {
+
+	target := h.s.roster.hitAt(x, y)
+
+	if target == nil {
 		return nil
 	}
-	return h.s.confirm.Request(t)
+
+	return h.s.confirm.Request(target)
 }

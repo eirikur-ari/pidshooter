@@ -13,14 +13,13 @@ type renderer struct {
 	state  outbound.FrameViewState
 }
 
-// newRenderer returns a renderer that will draw state onto screen,
-// treating chrome's rows as reserved for the caller's own fixed UI.
+// newRenderer returns a renderer that draws state onto screen, leaving the
+// rows reserved by chrome to the HUD and status bar.
 func newRenderer(screen tcell.Screen, chrome outbound.ChromeSize, state outbound.FrameViewState) renderer {
 	return renderer{screen: screen, chrome: chrome, state: state}
 }
 
-// render draws r's state: clears the screen, draws targets, HUD, and
-// status bar, then presents the result.
+// render draws the frame state onto the screen.
 func (r *renderer) render() {
 	window := r.beginFrame()
 	r.drawFrame(window)
@@ -35,21 +34,21 @@ func (r *renderer) beginFrame() outbound.WindowSize {
 	return outbound.WindowSize{Width: width, Height: height}
 }
 
-// drawFrame draws r's state within window.
+// drawFrame draws the frame state within window.
 func (r *renderer) drawFrame(window outbound.WindowSize) {
-	for _, ts := range r.state.Targets {
-		tg := target{state: ts, window: window, chrome: r.chrome}
-		tg.draw(r.screen)
+	for _, targetState := range r.state.Targets {
+		target := target{state: targetState, window: window, chrome: r.chrome}
+		target.draw(r.screen)
 	}
 
-	h := hud{state: r.state.HUD, width: window.Width}
-	h.draw(r.screen)
+	hud := hud{state: r.state.HUD, width: window.Width}
+	hud.draw(r.screen)
 
-	sb := statusBar{state: r.state.StatusBar, window: window}
-	sb.draw(r.screen)
+	statusBar := statusBar{state: r.state.StatusBar, window: window}
+	statusBar.draw(r.screen)
 }
 
-// endFrame presents the frame's draw calls to the terminal.
+// endFrame presents the drawn frame.
 func (r *renderer) endFrame() {
 	r.screen.Show()
 }

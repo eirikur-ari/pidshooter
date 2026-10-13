@@ -3,6 +3,7 @@ package tcellui
 import (
 	"github.com/gdamore/tcell/v2"
 
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/input"
 )
 
@@ -10,13 +11,16 @@ import (
 // channel.
 const eventQueueCapacity = 10
 
+// Compile-time assertion that *poller satisfies outbound.InputEventProvider.
+var _ outbound.InputEventProvider = (*poller)(nil)
+
 // poller reads tcell events from a screen and translates them into input
 // events.
 type poller struct {
 	screen     tcell.Screen
-	eventQueue chan input.EventDispatcher
+	eventQueue chan input.Event
 	translator translator
-	// Reads as poller is done, writes as poller is stopping.
+	// done is closed by stop to tell poll to exit.
 	done chan struct{}
 }
 
@@ -25,12 +29,19 @@ type poller struct {
 func newPoller(screen tcell.Screen) poller {
 	return poller{
 		screen:     screen,
-		eventQueue: make(chan input.EventDispatcher, eventQueueCapacity),
+		eventQueue: make(chan input.Event, eventQueueCapacity),
 		translator: newTranslator(screen),
 		done:       make(chan struct{}),
 	}
 }
 
+// Events returns the channel of translated input events.
+func (p *poller) Events() <-chan input.Event {
+	return p.eventQueue
+}
+
+// poll queues the input events translated from screen's events until the
+// screen is finalized or stop is called, then closes the event queue.
 func (p *poller) poll() {
 	defer close(p.eventQueue)
 	for {
@@ -38,11 +49,12 @@ func (p *poller) poll() {
 		if pollEvent == nil {
 			return
 		}
-		if !p.translator.translateEvent(pollEvent) {
+		event, ok := p.translator.translate(pollEvent)
+		if !ok {
 			continue
 		}
 		select {
-		case p.eventQueue <- p.translator.event:
+		case p.eventQueue <- event:
 		case <-p.done:
 			return
 		}
@@ -52,9 +64,4 @@ func (p *poller) poll() {
 // stop signals poll to exit.
 func (p *poller) stop() {
 	close(p.done)
-}
-
-// events returns the channel of translated input events.
-func (p *poller) events() <-chan input.EventDispatcher {
-	return p.eventQueue
 }

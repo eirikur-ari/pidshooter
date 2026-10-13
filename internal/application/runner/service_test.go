@@ -1,96 +1,138 @@
 package runner
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
-	"github.com/eirikur-ari/pidshooter/internal/core/movement"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/fake"
-	"github.com/eirikur-ari/pidshooter/internal/testutil/helper"
 )
 
-func TestServiceRunReturnsErrorWhenRunningAsRootWithoutOverride(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0)}}
-	r := newTestServiceWithProcess(&fake.ProcessManager{OwnUIDValue: 0}, []string{"proc"}, opts)
+func TestService_Run_ReturnsFatalErrorAndStopsAtFailingStage(t *testing.T) {
+	tests := newFailingStageTestCase()
 
-	err := r.Run()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			setup := newRunnerMockSetup()
+			fatal := newFatalError(test.name)
+			setup.expectRunFailingAt(test.failingStage, fatal)
 
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeInvalidConfig, appErr.Code)
-	assert.ErrorContains(t, err, "refusing to run as root")
-}
+			// When
+			err := setup.service.Run()
 
-func TestServiceRunReturnsErrorWhenSpeedTooLow(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(movement.MinSpeed - 0.1)}}
-	err := newTestService([]string{"proc"}, opts).Run()
-	assertFatal(t, err)
-}
-
-func TestServiceRunReturnsErrorWhenSpeedTooHigh(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(movement.MaxSpeed + 0.1)}}
-	err := newTestService([]string{"proc"}, opts).Run()
-	assertFatal(t, err)
-}
-
-func TestServiceRunReturnsErrorWhenTimeLimitIsNegative(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0), TimeLimit: helper.Pointer(-1)}}
-	err := newTestService([]string{"proc"}, opts).Run()
-	assertFatal(t, err)
-}
-
-func TestServiceRunReturnsErrorWhenNoPatternsAreProvided(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0)}}
-	err := newTestService(nil, opts).Run()
-	assertFatal(t, err)
-	assert.ErrorContains(t, err, "at least one search pattern is required")
-}
-
-func TestServiceRunReturnsErrorWhenPatternTooShort(t *testing.T) {
-	for _, p := range []string{"a", "ab"} {
-		opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0)}}
-		err := newTestService([]string{p}, opts).Run()
-		assertFatal(t, err)
+			// Then
+			assert.ErrorIs(t, err, fatal)
+			assert.Equal(t, []string{test.name}, setup.logger.Errored)
+		})
 	}
 }
 
-func TestServiceRunReturnsErrorWhenProcessDiscoveryFails(t *testing.T) {
-	opts := config.Options{Game: config.GameOptions{Speed: helper.Pointer(2.0)}}
-	r := newTestServiceWithProcess(&fake.ProcessManager{DiscoverErr: errors.New("ps failed"), OwnUIDValue: 1000}, []string{"proc"}, opts)
+func TestService_Run_ContinuesAfterNonFatalErrorAtStage(t *testing.T) {
+	tests := newWarningStageTestCase()
 
-	err := r.Run()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			setup := newRunnerMockSetup()
+			setup.expectRunWarningAt(test.warningStage, newWarning(test.name))
 
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.CodeProcessDiscoveryFailed, appErr.Code)
-	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
+			// When
+			err := setup.service.Run()
+
+			// Then
+			require.NoError(t, err)
+			assert.Equal(t, []string{test.name}, setup.logger.Warned)
+			setup.scores.AssertCalled(t, "ReportResults", mock.Anything)
+		})
+	}
 }
 
-func newTestService(patterns []string, opts config.Options) *Service {
-	return newTestServiceWithProcess(&fake.ProcessManager{OwnUIDValue: 1000}, patterns, opts)
+func TestService_Run_PassesEachStepsResultToTheNext(t *testing.T) {
+	// Given
+	setup := newRunnerMockSetup()
+	setup.configResult = config.Result{
+		Process: config.ProcessResult{IncludeRoot: true},
+		Game:    config.GameResult{ConfirmMode: true, Speed: 3.5, TimeLimit: 45},
+	}
+	loaded := score.LoadResult{Entries: []score.BoardEntry{{Kills: 4}}, HighScore: 4}
+	result := game.PlayResult{Duration: 12.5, LowestSpeed: 2.5, Kills: 3, Duds: 1, FreedMem: 8192}
+	recorded := score.RecordResult{Entries: []score.BoardEntry{{Kills: 4}, {Kills: 3}}, NewHighScore: true}
+	setup.config.On("Load").Return(setup.configResult, nil)
+	setup.processes.On("FindProcesses", process.FindRequest{IncludeRoot: true}).Return(setup.found, nil)
+	setup.scores.On("LoadScoreBoard").Return(loaded, nil)
+	setup.game.On("Play", game.PlayRequest{
+		ConfirmMode: true, Speed: 3.5, TimeLimit: 45,
+		Processes: []game.ProcessRequest{{PID: 200, Name: "target", Rss: 1024, UID: 1000}},
+		HighScore: 4,
+	}).Return(result, nil)
+	setup.scores.On("RecordScore", score.RecordRequest{
+		Entries: loaded.Entries, Kills: 3, Duds: 1, FreedMem: 8192, LowestSpeed: 2.5, TimeLimit: 45, Duration: 12.5,
+	}).Return(recorded, nil)
+	setup.scores.On("ReportResults", score.ReportRequest{
+		Duration: 12.5, Kills: 3, Duds: 1, FreedMem: 8192, Entries: recorded.Entries, NewHighScore: true,
+	}).Return()
+
+	// When
+	err := setup.service.Run()
+
+	// Then
+	require.NoError(t, err)
+	setup.config.AssertExpectations(t)
+	setup.processes.AssertExpectations(t)
+	setup.scores.AssertExpectations(t)
+	setup.game.AssertExpectations(t)
 }
 
-func newTestServiceWithProcess(proc *fake.ProcessManager, patterns []string, opts config.Options) *Service {
-	configSvc := config.NewService(&fake.ConfigStore{LoadErr: outbound.NotFoundError{}}, opts)
-	processSvc := process.NewService(proc, &fake.ProcessReporter{}, patterns)
-	scoreSvc := score.NewService(&fake.Store{}, &fake.ScoreReporter{})
-	gameSvc := game.NewService(processSvc, &fake.Renderer{}, fake.NewInputEventProvider())
-	errHandler := apperror.NewHandler(&fake.Logger{})
-	return NewService(configSvc, processSvc, scoreSvc, gameSvc, errHandler)
+func TestService_Run_HandlesEachPlayErrorWithoutFailing(t *testing.T) {
+	// Given
+	setup := newRunnerMockSetup()
+	setup.config.On("Load").Return(setup.configResult, nil)
+	setup.expectSessionAfterConfig(game.PlayResult{
+		Errors: []error{newWarning("could not kill stubborn (PID 200)"), newWarning("gone (PID 300) ran away")},
+	})
+
+	// When
+	err := setup.service.Run()
+
+	// Then
+	require.NoError(t, err)
+	assert.Equal(t, []string{"could not kill stubborn (PID 200)", "gone (PID 300) ran away"}, setup.logger.Warned)
+	assert.Empty(t, setup.logger.Errored)
 }
 
-func assertFatal(t *testing.T, err error) {
-	t.Helper()
-	var appErr *apperror.Error
-	require.ErrorAs(t, err, &appErr)
-	assert.Equal(t, apperror.SeverityFatal, appErr.Severity)
+func newFailingStageTestCase() []struct {
+	name         string
+	failingStage stage
+} {
+	return []struct {
+		name         string
+		failingStage stage
+	}{
+		{"config load", stageConfigLoad},
+		{"process search", stageProcessSearch},
+		{"score board load", stageScoreBoardLoad},
+		{"game play", stageGamePlay},
+		{"game play result", stageGamePlayResult},
+		{"score recording", stageScoreRecording},
+	}
+}
+
+func newWarningStageTestCase() []struct {
+	name         string
+	warningStage stage
+} {
+	return []struct {
+		name         string
+		warningStage stage
+	}{
+		{"config load", stageConfigLoad},
+		{"score board load", stageScoreBoardLoad},
+		{"score recording", stageScoreRecording},
+	}
 }

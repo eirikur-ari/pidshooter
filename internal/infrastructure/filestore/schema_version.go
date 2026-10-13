@@ -6,8 +6,8 @@ import "fmt"
 // can read.
 type schemaVersion int
 
-// validate reports an error if version is negative, or greater than the
-// schema version this build supports.
+// validate reports an error naming fileType if version is negative or newer
+// than v.
 func (v schemaVersion) validate(fileType string, version int) error {
 	switch {
 	case version < 0:

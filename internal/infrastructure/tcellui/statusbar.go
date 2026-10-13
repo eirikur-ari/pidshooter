@@ -2,9 +2,9 @@ package tcellui
 
 import (
 	"fmt"
-	"unicode/utf8"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/uniseg"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 )
@@ -18,13 +18,13 @@ type statusBar struct {
 	window outbound.WindowSize
 }
 
-// draw draws s at its window's bottom row.
+// draw draws the status bar on the window's bottom row.
 func (s *statusBar) draw(screen tcell.Screen) {
 	s.clear(screen)
 	s.left(screen, s.text(), statusBarStyle)
 }
 
-// clear blanks s's row, ready for new text.
+// clear blanks the status bar's row, ready for new text.
 func (s *statusBar) clear(screen tcell.Screen) {
 	row := s.window.Height - 1
 	for x := range s.window.Width {
@@ -32,12 +32,13 @@ func (s *statusBar) clear(screen tcell.Screen) {
 	}
 }
 
-// left draws text left-anchored on s's row.
+// left draws text left-anchored on the status bar's row.
 func (s *statusBar) left(screen tcell.Screen, text string, style tcell.Style) {
 	screen.PutStrStyled(0, s.window.Height-1, text, style)
 }
 
-// text returns s's text, budgeted to fit within its window's width.
+// text returns the confirmation prompt while a kill is pending
+// confirmation, and the play status otherwise.
 func (s *statusBar) text() string {
 	if s.state.Confirming != nil {
 		return s.confirmPromptText()
@@ -64,20 +65,29 @@ func (s *statusBar) playStatusText() string {
 		s.state.Alive, s.state.Speed, timerStr)
 }
 
-// truncate returns text truncated to whatever room is left in s's window
-// after prefix and suffix, with a trailing "…" in place of the last rune
+// truncate returns text truncated to whatever room is left in the window
+// after prefix and suffix, with a trailing "…" in place of the last column
 // if text was cut.
 func (s *statusBar) truncate(text, prefix, suffix string) string {
-	maxRunes := s.window.Width - utf8.RuneCountInString(prefix) - utf8.RuneCountInString(suffix)
-	if maxRunes <= 0 {
+	maxWidth := s.window.Width - uniseg.StringWidth(prefix) - uniseg.StringWidth(suffix)
+	if maxWidth <= 0 {
 		return ""
 	}
-	runes := []rune(text)
-	if len(runes) <= maxRunes {
+	if uniseg.StringWidth(text) <= maxWidth {
 		return text
 	}
-	if maxRunes == 1 {
-		return "…"
+
+	// Keep the longest prefix that leaves one column for the ellipsis,
+	// never splitting a character.
+	width := 0
+	end := 0
+	graphemes := uniseg.NewGraphemes(text)
+	for graphemes.Next() {
+		width += graphemes.Width()
+		if width > maxWidth-1 {
+			break
+		}
+		end += len(graphemes.Str())
 	}
-	return string(runes[:maxRunes-1]) + "…"
+	return text[:end] + "…"
 }

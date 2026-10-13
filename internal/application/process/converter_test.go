@@ -4,76 +4,124 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/outbound"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-// --- toInfo ---
+func TestToInfos_MapsEveryElementInOrder(t *testing.T) {
+	tests := newToInfosTestCase()
 
-func TestToInfoMapsFields(t *testing.T) {
-	info := toInfo(outbound.ProcessInfo{PID: 42, Name: "suspect", Rss: 1024, UID: 1000})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toInfos(test.infos)
 
-	assert.Equal(t, 42, info.PID)
-	assert.Equal(t, "suspect", info.Name)
-	assert.Equal(t, int64(1024), info.Rss)
-	assert.Equal(t, 1000, info.UID)
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
 }
 
-// --- toInfos ---
+func TestToProcessInfos_MapsEveryElementInOrder(t *testing.T) {
+	tests := newToProcessInfosTestCase()
 
-func TestToInfosMapsAll(t *testing.T) {
-	infos := toInfos([]outbound.ProcessInfo{
-		{PID: 1, Name: "a", Rss: 100},
-		{PID: 2, Name: "b", Rss: 200},
-	})
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toProcessInfos(test.infos)
 
-	require.Len(t, infos, 2)
-	assert.Equal(t, 1, infos[0].PID)
-	assert.Equal(t, "a", infos[0].Name)
-	assert.Equal(t, int64(100), infos[0].Rss)
-	assert.Equal(t, 2, infos[1].PID)
-	assert.Equal(t, "b", infos[1].Name)
-	assert.Equal(t, int64(200), infos[1].Rss)
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
 }
 
-func TestToInfosEmptyInput(t *testing.T) {
-	infos := toInfos(nil)
+func TestToFindResults_MapsEveryElementInOrder(t *testing.T) {
+	tests := newToFindResultsTestCase()
 
-	assert.Empty(t, infos)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			actual := toFindResults(test.infos)
+
+			// Then
+			assert.Equal(t, test.expected, actual)
+		})
+	}
 }
 
-// --- toProcessInfo ---
-
-func TestToProcessInfoMapsFields(t *testing.T) {
-	info := toProcessInfo(process.NewInfo(42, "suspect", 1024, 1000))
-
-	assert.Equal(t, 42, info.PID)
-	assert.Equal(t, "suspect", info.Name)
-	assert.Equal(t, int64(1024), info.Rss)
-	assert.Equal(t, 1000, info.UID)
+func newToInfosTestCase() []struct {
+	name     string
+	infos    []outbound.ProcessInfo
+	expected []process.Info
+} {
+	return []struct {
+		name     string
+		infos    []outbound.ProcessInfo
+		expected []process.Info
+	}{
+		{
+			name: "several infos",
+			infos: []outbound.ProcessInfo{
+				{PID: 1, Name: "a", Rss: 100, UID: 1000},
+				{PID: 2, Name: "b", Rss: 200, UID: 2000},
+			},
+			expected: []process.Info{
+				process.NewInfo(1, "a", 100, 1000),
+				process.NewInfo(2, "b", 200, 2000),
+			},
+		},
+		{name: "no infos", infos: nil, expected: []process.Info{}},
+	}
 }
 
-// --- toProcessInfos ---
-
-func TestToProcessInfosMapsAll(t *testing.T) {
-	infos := toProcessInfos([]process.Info{
-		process.NewInfo(1, "a", 100, 0),
-		process.NewInfo(2, "b", 200, 0),
-	})
-
-	require.Len(t, infos, 2)
-	assert.Equal(t, 1, infos[0].PID)
-	assert.Equal(t, "a", infos[0].Name)
-	assert.Equal(t, int64(100), infos[0].Rss)
-	assert.Equal(t, 2, infos[1].PID)
-	assert.Equal(t, "b", infos[1].Name)
-	assert.Equal(t, int64(200), infos[1].Rss)
+func newToProcessInfosTestCase() []struct {
+	name     string
+	infos    []process.Info
+	expected []outbound.ProcessInfo
+} {
+	return []struct {
+		name     string
+		infos    []process.Info
+		expected []outbound.ProcessInfo
+	}{
+		{
+			name: "several infos",
+			infos: []process.Info{
+				process.NewInfo(1, "a", 100, 1000),
+				process.NewInfo(2, "b", 200, 2000),
+			},
+			expected: []outbound.ProcessInfo{
+				{PID: 1, Name: "a", Rss: 100, UID: 1000},
+				{PID: 2, Name: "b", Rss: 200, UID: 2000},
+			},
+		},
+		{name: "no infos", infos: nil, expected: []outbound.ProcessInfo{}},
+	}
 }
 
-func TestToProcessInfosEmptyInput(t *testing.T) {
-	infos := toProcessInfos(nil)
-
-	assert.Empty(t, infos)
+func newToFindResultsTestCase() []struct {
+	name     string
+	infos    []process.Info
+	expected []FindResult
+} {
+	return []struct {
+		name     string
+		infos    []process.Info
+		expected []FindResult
+	}{
+		{
+			name: "several infos",
+			infos: []process.Info{
+				process.NewInfo(1, "a", 100, 1000),
+				process.NewInfo(2, "b", 200, 2000),
+			},
+			expected: []FindResult{
+				{PID: 1, Name: "a", Rss: 100, UID: 1000},
+				{PID: 2, Name: "b", Rss: 200, UID: 2000},
+			},
+		},
+		{name: "no infos", infos: nil, expected: []FindResult{}},
+	}
 }
