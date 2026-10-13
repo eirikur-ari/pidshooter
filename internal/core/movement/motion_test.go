@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMotion_NewMotion_SpawnsWithinBounds(t *testing.T) {
+func TestNewMotion_SpawnsWithinBounds(t *testing.T) {
 	// Given
 	bounds := newBoundsFixture()
 
@@ -23,7 +23,7 @@ func TestMotion_NewMotion_SpawnsWithinBounds(t *testing.T) {
 	}
 }
 
-func TestMotion_NewMotion_RespectsGivenChromeRows(t *testing.T) {
+func TestNewMotion_RespectsGivenChromeRows(t *testing.T) {
 	// Given
 	bounds := NewBounds(windowSizeFixture(), ChromeSize{Top: 5, Bottom: 6})
 
@@ -37,7 +37,7 @@ func TestMotion_NewMotion_RespectsGivenChromeRows(t *testing.T) {
 	}
 }
 
-func TestMotion_NewMotion_SpawnsWithVelocityMagnitudeInRange(t *testing.T) {
+func TestNewMotion_SpawnsWithVelocityMagnitudeInRange(t *testing.T) {
 	// Given
 	bounds := newBoundsFixture()
 

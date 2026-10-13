@@ -1,6 +1,8 @@
 package game
 
 import (
+	"time"
+
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
@@ -41,4 +43,19 @@ func windowSizeFixture() movement.WindowSize {
 
 func chromeSizeFixture() movement.ChromeSize {
 	return movement.ChromeSize{Top: 1, Bottom: 1}
+}
+
+func aliveTargetAt(pid int, name string, x, y float64) *Target {
+	return &Target{
+		Info:   process.NewInfo(pid, name, 0, 0),
+		Motion: movement.Motion{Position: movement.Vector{X: x, Y: y}},
+		State:  Alive,
+	}
+}
+
+func newStartedTimer(limitSeconds int) (*timer, *FakeClock) {
+	clock := &FakeClock{T: time.Date(2026, time.October, 4, 12, 0, 0, 0, time.UTC)}
+	tr := newTimer(limitSeconds, clock.Now)
+	tr.Start()
+	return &tr, clock
 }

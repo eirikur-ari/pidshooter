@@ -120,9 +120,10 @@ func TestSession_Update_StopsWhenAllTargetsAreDead(t *testing.T) {
 	// When
 	session.Start(bounds)
 	session.Update(windowSizeFixture())
+	isRunning := session.IsRunning()
 
 	// Then
-	assert.False(t, session.IsRunning())
+	assert.False(t, isRunning)
 }
 
 func TestSession_PendingConfirm_ReturnsNilWhenNoPendingTarget(t *testing.T) {
@@ -178,7 +179,8 @@ func TestSession_Throttle_ReflectsConfiguredSpeed(t *testing.T) {
 
 	// When
 	session.Throttle().Increase()
+	speed := session.Throttle().Speed()
 
 	// Then
-	assert.Equal(t, 2.5, session.Throttle().Speed())
+	assert.Equal(t, 2.5, speed)
 }

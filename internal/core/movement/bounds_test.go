@@ -12,12 +12,13 @@ func TestBounds_Update_ReplacesWindowAndKeepsChromeWithoutMutatingOriginal(t *te
 	newWindow := WindowSize{Width: 40, Height: 10}
 	original := NewBounds(windowSizeFixture(), chrome)
 	untouched := original
+	expected := NewBounds(newWindow, chrome)
 
 	// When
 	updated := original.Update(newWindow)
 
 	// Then
-	assert.Equal(t, NewBounds(newWindow, chrome), updated)
+	assert.Equal(t, expected, updated)
 	assert.Equal(t, untouched, original, "Update must return a copy, not mutate the receiver")
 }
 
@@ -26,13 +27,15 @@ func TestBounds_bounce_LeavesPositionAndVelocityUnchangedWhenWithinBounds(t *tes
 	bounds := newBoundsFixture()
 	position := Vector{X: 40, Y: 10}
 	velocity := Vector{X: 1.5, Y: -0.5}
+	expectedPosition := Vector{X: 40, Y: 10}
+	expectedVelocity := Vector{X: 1.5, Y: -0.5}
 
 	// When
 	bounds.bounce(&position, &velocity, 5)
 
 	// Then
-	assert.Equal(t, Vector{X: 40, Y: 10}, position)
-	assert.Equal(t, Vector{X: 1.5, Y: -0.5}, velocity)
+	assert.Equal(t, expectedPosition, position)
+	assert.Equal(t, expectedVelocity, velocity)
 }
 
 func TestBounds_bounce_ReflectsAtLeftWall(t *testing.T) {
@@ -92,29 +95,20 @@ func TestBounds_bounce_ReflectsAtBottomWall(t *testing.T) {
 }
 
 func TestBounds_bounce_ClampsPositionButKeepsVelocityWhenAlreadyHeadingAwayFromWall(t *testing.T) {
-	tests := []struct {
-		name     string
-		position Vector
-		velocity Vector
-		expected Vector
-	}{
-		{name: "left wall", position: Vector{X: -1, Y: 5}, velocity: Vector{X: 1, Y: 0}, expected: Vector{X: 0, Y: 5}},
-		{name: "right wall", position: Vector{X: 76, Y: 5}, velocity: Vector{X: -1, Y: 0}, expected: Vector{X: 75, Y: 5}},
-		{name: "top wall", position: Vector{X: 5, Y: -1}, velocity: Vector{X: 0, Y: 1}, expected: Vector{X: 5, Y: 1}},
-		{name: "bottom wall", position: Vector{X: 5, Y: 23}, velocity: Vector{X: 0, Y: -1}, expected: Vector{X: 5, Y: 22}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	tests := newClampedBounceTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
 			// Given
 			bounds := newBoundsFixture()
-			position, velocity := tt.position, tt.velocity
+			position, velocity := test.position, test.velocity
 
 			// When
 			bounds.bounce(&position, &velocity, 5)
 
 			// Then
-			assert.Equal(t, tt.expected, position)
-			assert.Equal(t, tt.velocity, velocity, "velocity already pointing away from the wall must not be flipped back")
+			assert.Equal(t, test.expectedPosition, position)
+			assert.Equal(t, test.velocity, velocity, "velocity already pointing away from the wall must not be flipped back")
 		})
 	}
 }
@@ -124,13 +118,15 @@ func TestBounds_bounce_ReflectsBothAxesWhenHittingACorner(t *testing.T) {
 	bounds := newBoundsFixture()
 	position := Vector{X: -1, Y: -1}
 	velocity := Vector{X: -1, Y: -1}
+	expectedPosition := Vector{X: 0, Y: 1}
+	expectedVelocity := Vector{X: 1, Y: 1}
 
 	// When
 	bounds.bounce(&position, &velocity, 5)
 
 	// Then
-	assert.Equal(t, Vector{X: 0, Y: 1}, position)
-	assert.Equal(t, Vector{X: 1, Y: 1}, velocity)
+	assert.Equal(t, expectedPosition, position)
+	assert.Equal(t, expectedVelocity, velocity)
 }
 
 func TestBounds_bounce_PinsPositionToLeftEdgeWhenWidthExceedsWindow(t *testing.T) {
@@ -186,4 +182,23 @@ func TestBounds_bounce_RespectsGivenBottomChromeRows(t *testing.T) {
 	// Then
 	assert.Equal(t, 19.0, position.Y, "height-1-bottom = 24-1-4")
 	assert.Equal(t, -1.0, velocity.Y)
+}
+
+func newClampedBounceTestCase() []struct {
+	name             string
+	position         Vector
+	velocity         Vector
+	expectedPosition Vector
+} {
+	return []struct {
+		name             string
+		position         Vector
+		velocity         Vector
+		expectedPosition Vector
+	}{
+		{"left wall", Vector{X: -1, Y: 5}, Vector{X: 1, Y: 0}, Vector{X: 0, Y: 5}},
+		{"right wall", Vector{X: 76, Y: 5}, Vector{X: -1, Y: 0}, Vector{X: 75, Y: 5}},
+		{"top wall", Vector{X: 5, Y: -1}, Vector{X: 0, Y: 1}, Vector{X: 5, Y: 1}},
+		{"bottom wall", Vector{X: 5, Y: 23}, Vector{X: 0, Y: -1}, Vector{X: 5, Y: 22}},
+	}
 }

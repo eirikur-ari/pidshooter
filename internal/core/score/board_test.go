@@ -32,29 +32,27 @@ func TestNewBoard_AppliesTheSameRulesAsAdd(t *testing.T) {
 }
 
 func TestNewBoard_SeedsHighScoreFromEntries(t *testing.T) {
-	tests := []struct {
-		name  string
-		kills []int
-	}{
-		{name: "no entries", kills: nil},
-		{name: "single entry", kills: []int{5}},
-		{name: "high score entry first", kills: []int{7, 3}},
-		{name: "high score entry last", kills: []int{3, 7}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	tests := newSeededHighScoreTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
 			// Given
 			var entries []Entry
-			for _, kills := range tt.kills {
+			for _, kills := range test.kills {
 				entries = append(entries, newEntryFixtureFor(kills))
 			}
+
+			// When
 			board := NewBoard(entries)
 			highScore := board.HighScore()
+			below := board.IsNewHighScore(highScore - 1)
+			tie := board.IsNewHighScore(highScore)
+			above := board.IsNewHighScore(highScore + 1)
 
 			// Then
-			assert.False(t, board.IsNewHighScore(highScore-1), "fewer kills than the current high score entry is not a new high score")
-			assert.False(t, board.IsNewHighScore(highScore), "tying the current high score entry is not a new high score")
-			assert.True(t, board.IsNewHighScore(highScore+1), "more kills than the current high score entry is a new high score")
+			assert.False(t, below, "fewer kills than the current high score entry is not a new high score")
+			assert.False(t, tie, "tying the current high score entry is not a new high score")
+			assert.True(t, above, "more kills than the current high score entry is a new high score")
 		})
 	}
 }
@@ -88,17 +86,20 @@ func TestBoard_Add_KeepsInsertionOrderWhenAllRankedFieldsTie(t *testing.T) {
 		entry.Date = time.Unix(int64(marker), 0)
 		return entry
 	}
+	expectedMarkers := []int{1, 2, 3, 4, 5}
 
 	// When
-	for i := 1; i <= 5; i++ {
-		board.Add(tied(i))
+	for _, marker := range expectedMarkers {
+		board.Add(tied(marker))
+	}
+	var markers []int
+	for _, entry := range board.Scores {
+		markers = append(markers, int(entry.Date.Unix()))
 	}
 
 	// Then
 	require.Len(t, board.Scores, 5)
-	for i, entry := range board.Scores {
-		assert.Equal(t, i+1, int(entry.Date.Unix()), "a full tie across every ranked field must deterministically preserve insertion order, not depend on sort.Slice's unspecified tie-breaking")
-	}
+	assert.Equal(t, expectedMarkers, markers, "a full tie across every ranked field must deterministically preserve insertion order, not depend on sort.Slice's unspecified tie-breaking")
 }
 
 func TestBoard_Add_KeepsOnlyMaxNumberOfHighScores(t *testing.T) {
@@ -142,39 +143,30 @@ func TestBoard_Add_LeavesHighScoreUnchangedWhenEntryIsIgnored(t *testing.T) {
 	board.Add(newEntryFixtureFor(3))
 	board.Add(newEntryFixtureFor(7))
 	board.Add(newEntryFixtureFor(0))
+	isHighScore := board.IsNewHighScore(5)
 
 	// Then
-	assert.True(t, board.IsNewHighScore(5), "an ignored entry must not move the previous high score from 3 to 7")
+	assert.True(t, isHighScore, "an ignored entry must not move the previous high score from 3 to 7")
 }
 
 func TestBoard_Add_RaisesOnlyNegativeSpeedAndDurationToZero(t *testing.T) {
-	tests := []struct {
-		name             string
-		speed            float64
-		duration         float64
-		expectedSpeed    float64
-		expectedDuration float64
-	}{
-		{name: "both negative", speed: -1.0, duration: -5.0, expectedSpeed: 0, expectedDuration: 0},
-		{name: "negative speed keeps positive duration", speed: -1.0, duration: 10.0, expectedSpeed: 0, expectedDuration: 10.0},
-		{name: "negative duration keeps positive speed", speed: 0.5, duration: -1.0, expectedSpeed: 0.5, expectedDuration: 0},
-		{name: "both positive are preserved", speed: 2.0, duration: 10.0, expectedSpeed: 2.0, expectedDuration: 10.0},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	tests := newSpeedAndDurationTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
 			// Given
 			board := &Board{}
 			entry := newEntryFixture()
-			entry.Speed = tt.speed
-			entry.Duration = tt.duration
+			entry.Speed = test.speed
+			entry.Duration = test.duration
 
 			// When
 			board.Add(entry)
 
 			// Then
 			require.Len(t, board.Scores, 1)
-			assert.Equal(t, tt.expectedSpeed, board.Scores[0].Speed)
-			assert.Equal(t, tt.expectedDuration, board.Scores[0].Duration)
+			assert.Equal(t, test.expectedSpeed, board.Scores[0].Speed)
+			assert.Equal(t, test.expectedDuration, board.Scores[0].Duration)
 		})
 	}
 }
@@ -183,8 +175,11 @@ func TestBoard_HighScore_IsZeroWhenEmpty(t *testing.T) {
 	// Given
 	board := &Board{}
 
+	// When
+	highScore := board.HighScore()
+
 	// Then
-	assert.Equal(t, 0, board.HighScore())
+	assert.Equal(t, 0, highScore)
 }
 
 func TestBoard_HighScore_IsTopEntryKills(t *testing.T) {
@@ -195,37 +190,84 @@ func TestBoard_HighScore_IsTopEntryKills(t *testing.T) {
 	board.Add(newEntryFixtureFor(3))
 	board.Add(newEntryFixtureFor(10))
 	board.Add(newEntryFixtureFor(7))
+	highScore := board.HighScore()
 
 	// Then
-	assert.Equal(t, 10, board.HighScore())
+	assert.Equal(t, 10, highScore)
 }
 
 func TestBoard_IsNewHighScore_ComparesAgainstPreviousHighScore(t *testing.T) {
-	tests := []struct {
+	tests := newNewHighScoreTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			board := &Board{}
+			for _, kills := range test.addedKills {
+				board.Add(newEntryFixtureFor(kills))
+			}
+
+			// When
+			isNew := board.IsNewHighScore(test.kills)
+
+			// Then
+			assert.Equal(t, test.expected, isNew)
+		})
+	}
+}
+
+func newSeededHighScoreTestCase() []struct {
+	name  string
+	kills []int
+} {
+	return []struct {
+		name  string
+		kills []int
+	}{
+		{"no entries", nil},
+		{"single entry", []int{5}},
+		{"high score entry first", []int{7, 3}},
+		{"high score entry last", []int{3, 7}},
+	}
+}
+
+func newSpeedAndDurationTestCase() []struct {
+	name             string
+	speed            float64
+	duration         float64
+	expectedSpeed    float64
+	expectedDuration float64
+} {
+	return []struct {
+		name             string
+		speed            float64
+		duration         float64
+		expectedSpeed    float64
+		expectedDuration float64
+	}{
+		{"both negative", -1.0, -5.0, 0, 0},
+		{"negative speed keeps positive duration", -1.0, 10.0, 0, 10.0},
+		{"negative duration keeps positive speed", 0.5, -1.0, 0.5, 0},
+		{"both positive are preserved", 2.0, 10.0, 2.0, 10.0},
+	}
+}
+
+func newNewHighScoreTestCase() []struct {
+	name       string
+	addedKills []int
+	kills      int
+	expected   bool
+} {
+	return []struct {
 		name       string
 		addedKills []int
 		kills      int
 		expected   bool
 	}{
-		{name: "first entry on an empty board", addedKills: []int{5}, kills: 5, expected: true},
-		{name: "beats the previous high score", addedKills: []int{3, 7}, kills: 7, expected: true},
-		{name: "below the previous high score", addedKills: []int{7, 3}, kills: 3, expected: false},
-		{name: "ties the previous high score", addedKills: []int{5, 3}, kills: 5, expected: false},
-		{name: "zero kills", addedKills: nil, kills: 0, expected: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Given
-			board := &Board{}
-			for _, kills := range tt.addedKills {
-				board.Add(newEntryFixtureFor(kills))
-			}
-
-			// When
-			isNew := board.IsNewHighScore(tt.kills)
-
-			// Then
-			assert.Equal(t, tt.expected, isNew)
-		})
+		{"first entry on an empty board", []int{5}, 5, true},
+		{"beats the previous high score", []int{3, 7}, 7, true},
+		{"below the previous high score", []int{7, 3}, 3, false},
+		{"ties the previous high score", []int{5, 3}, 5, false},
+		{"zero kills", nil, 0, false},
 	}
 }

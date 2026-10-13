@@ -15,9 +15,10 @@ func TestInput_OnQuit_StopsGameSessionWhenThereIsNoPendingKillConfirmation(t *te
 
 	// When
 	NewInput(gameSession).OnQuit()
+	isRunning := gameSession.IsRunning()
 
 	// Then
-	assert.False(t, gameSession.IsRunning())
+	assert.False(t, isRunning)
 }
 
 func TestInput_OnQuit_CancelsPendingKillConfirmation(t *testing.T) {
@@ -27,10 +28,12 @@ func TestInput_OnQuit_CancelsPendingKillConfirmation(t *testing.T) {
 
 	// When
 	input.OnQuit()
+	isRunning := gameSession.IsRunning()
+	pendingConfirm := gameSession.PendingConfirm()
 
 	// Then
-	assert.True(t, gameSession.IsRunning(), "OnQuit should cancel confirm, not stop, when confirm is pending")
-	assert.Nil(t, gameSession.PendingConfirm())
+	assert.True(t, isRunning, "OnQuit should cancel confirm, not stop, when confirm is pending")
+	assert.Nil(t, pendingConfirm)
 }
 
 func TestInput_OnYes_AcceptsPendingKillConfirmationAndReturnsTargetToKill(t *testing.T) {
@@ -40,10 +43,11 @@ func TestInput_OnYes_AcceptsPendingKillConfirmationAndReturnsTargetToKill(t *tes
 
 	// When
 	result := input.OnYes()
+	pendingConfirm := gameSession.PendingConfirm()
 
 	// Then
 	require.NotNil(t, result)
-	assert.Nil(t, gameSession.PendingConfirm())
+	assert.Nil(t, pendingConfirm)
 }
 
 func TestInput_OnNo_CancelsPendingKillConfirmation(t *testing.T) {
@@ -53,10 +57,12 @@ func TestInput_OnNo_CancelsPendingKillConfirmation(t *testing.T) {
 
 	// When
 	input.OnNo()
+	pendingConfirm := gameSession.PendingConfirm()
+	isRunning := gameSession.IsRunning()
 
 	// Then
-	assert.Nil(t, gameSession.PendingConfirm())
-	assert.True(t, gameSession.IsRunning())
+	assert.Nil(t, pendingConfirm)
+	assert.True(t, isRunning)
 }
 
 func TestInput_OnSpeedUp_IncreasesSpeed(t *testing.T) {
@@ -65,9 +71,10 @@ func TestInput_OnSpeedUp_IncreasesSpeed(t *testing.T) {
 
 	// When
 	NewInput(gameSession).OnSpeedUp()
+	speed := gameSession.Throttle().Speed()
 
 	// Then
-	assert.Equal(t, 2.5, gameSession.Throttle().Speed())
+	assert.Equal(t, 2.5, speed)
 }
 
 func TestInput_OnSpeedDown_DecreasesSpeed(t *testing.T) {
@@ -76,9 +83,10 @@ func TestInput_OnSpeedDown_DecreasesSpeed(t *testing.T) {
 
 	// When
 	NewInput(gameSession).OnSpeedDown()
+	speed := gameSession.Throttle().Speed()
 
 	// Then
-	assert.Equal(t, 1.5, gameSession.Throttle().Speed())
+	assert.Equal(t, 1.5, speed)
 }
 
 func TestInput_OnClickAt_ReturnsTargetOnHitWhenThereIsNoPendingKillConfirmation(t *testing.T) {
@@ -113,8 +121,9 @@ func TestInput_OnClickAt_NoOpWhenAlreadyConfirming(t *testing.T) {
 
 	// When
 	result := input.OnClickAt(0, 0)
+	pendingConfirm := gameSession.PendingConfirm()
 
 	// Then
 	assert.Nil(t, result, "expected no result when already confirming")
-	assert.Equal(t, target, gameSession.PendingConfirm(), "expected the original pending target to remain unchanged")
+	assert.Equal(t, target, pendingConfirm, "expected the original pending target to remain unchanged")
 }

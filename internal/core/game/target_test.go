@@ -7,12 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
-	"github.com/eirikur-ari/pidshooter/internal/core/process"
 )
 
-func TestTarget_NewTarget_StartsAliveWithGivenInfo(t *testing.T) {
+func TestNewTarget_StartsAliveWithGivenInfo(t *testing.T) {
 	// Given
 	info := newInfoFixture()
+
+	// When
 	target := NewTarget(info, newBoundsFixture())
 
 	// Then
@@ -220,9 +221,13 @@ func TestTarget_isHitAt_IsTrueWithinTagBounds(t *testing.T) {
 	target := aliveTargetAt(42, "bash", 10, 5)
 	width := utf8.RuneCountInString(target.Tag())
 
+	// When
+	hitAtStart := target.isHitAt(10, 5)
+	hitAtEnd := target.isHitAt(10+width-1, 5)
+
 	// Then
-	assert.True(t, target.isHitAt(10, 5))
-	assert.True(t, target.isHitAt(10+width-1, 5))
+	assert.True(t, hitAtStart)
+	assert.True(t, hitAtEnd)
 }
 
 func TestTarget_isHitAt_IsFalseOutsideTagBounds(t *testing.T) {
@@ -230,10 +235,15 @@ func TestTarget_isHitAt_IsFalseOutsideTagBounds(t *testing.T) {
 	target := aliveTargetAt(42, "bash", 10, 5)
 	width := utf8.RuneCountInString(target.Tag())
 
+	// When
+	hitBeforeStart := target.isHitAt(9, 5)
+	hitPastEnd := target.isHitAt(10+width, 5)
+	hitRowAbove := target.isHitAt(10, 4)
+
 	// Then
-	assert.False(t, target.isHitAt(9, 5), "one column before the tag's start should miss")
-	assert.False(t, target.isHitAt(10+width, 5), "one column past the tag's end should miss")
-	assert.False(t, target.isHitAt(10, 4), "the row above the tag should miss")
+	assert.False(t, hitBeforeStart, "one column before the tag's start should miss")
+	assert.False(t, hitPastEnd, "one column past the tag's end should miss")
+	assert.False(t, hitRowAbove, "the row above the tag should miss")
 }
 
 func TestTarget_isHitAt_MatchesRoundedRenderPositionNotTruncated(t *testing.T) {
@@ -241,11 +251,17 @@ func TestTarget_isHitAt_MatchesRoundedRenderPositionNotTruncated(t *testing.T) {
 	target := aliveTargetAt(42, "bash", 10.6, 5.6)
 	width := utf8.RuneCountInString(target.Tag())
 
+	// When
+	hitAtRoundedStart := target.isHitAt(11, 6)
+	hitAtRoundedEnd := target.isHitAt(11+width-1, 6)
+	hitAtTruncatedColumn := target.isHitAt(10, 6)
+	hitAtTruncatedRow := target.isHitAt(11, 5)
+
 	// Then
-	assert.True(t, target.isHitAt(11, 6), "clicking at the rounded position, where the tag is actually rendered, should hit")
-	assert.True(t, target.isHitAt(11+width-1, 6))
-	assert.False(t, target.isHitAt(10, 6), "clicking at the truncated column, one left of where the tag is rendered, should miss")
-	assert.False(t, target.isHitAt(11, 5), "clicking at the truncated row, one above where the tag is rendered, should miss")
+	assert.True(t, hitAtRoundedStart, "clicking at the rounded position, where the tag is actually rendered, should hit")
+	assert.True(t, hitAtRoundedEnd)
+	assert.False(t, hitAtTruncatedColumn, "clicking at the truncated column, one left of where the tag is rendered, should miss")
+	assert.False(t, hitAtTruncatedRow, "clicking at the truncated row, one above where the tag is rendered, should miss")
 }
 
 func TestTarget_isHitAt_CountsTagInRunesNotBytes(t *testing.T) {
@@ -254,9 +270,13 @@ func TestTarget_isHitAt_CountsTagInRunesNotBytes(t *testing.T) {
 	target := aliveTargetAt(42, "café", 10, 5)
 	runeCount := utf8.RuneCountInString(target.Tag())
 
+	// When
+	hitAtLastRune := target.isHitAt(10+runeCount-1, 5)
+	hitPastLastRune := target.isHitAt(10+runeCount, 5)
+
 	// Then
-	assert.True(t, target.isHitAt(10+runeCount-1, 5), "the tag's last rune should hit")
-	assert.False(t, target.isHitAt(10+runeCount, 5), "one column past the tag's last rune should miss")
+	assert.True(t, hitAtLastRune, "the tag's last rune should hit")
+	assert.False(t, hitPastLastRune, "one column past the tag's last rune should miss")
 }
 
 func TestTarget_isHitAt_IsFalseWhenNotAlive(t *testing.T) {
@@ -266,9 +286,10 @@ func TestTarget_isHitAt_IsFalseWhenNotAlive(t *testing.T) {
 
 		// When
 		target.State = state
+		hit := target.isHitAt(10, 5)
 
 		// Then
-		assert.False(t, target.isHitAt(10, 5), "a target in state %d should not be hit", state)
+		assert.False(t, hit, "a target in state %d should not be hit", state)
 	}
 }
 
@@ -291,17 +312,10 @@ func TestTarget_isHitAt_IsTrueAfterCeaseFire(t *testing.T) {
 	// When
 	target.FireShot()
 	target.CeaseFire()
+	hit := target.isHitAt(10, 5)
 
 	// Then
-	assert.True(t, target.isHitAt(10, 5), "a target should be hittable again once fire has ceased")
-}
-
-func aliveTargetAt(pid int, name string, x, y float64) *Target {
-	return &Target{
-		Info:   process.NewInfo(pid, name, 0, 0),
-		Motion: movement.Motion{Position: movement.Vector{X: x, Y: y}},
-		State:  Alive,
-	}
+	assert.True(t, hit, "a target should be hittable again once fire has ceased")
 }
 
 func TestTarget_move_IgnoresTargetWhenNotAlive(t *testing.T) {

@@ -7,26 +7,36 @@ import (
 )
 
 func TestVector_Rounded_RoundsEachComponentHalfAwayFromZero(t *testing.T) {
-	tests := []struct {
+	tests := newVectorRoundedTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			x, y := test.input.Rounded()
+
+			// Then
+			assert.Equal(t, test.expectedX, x)
+			assert.Equal(t, test.expectedY, y)
+		})
+	}
+}
+
+func newVectorRoundedTestCase() []struct {
+	name      string
+	input     Vector
+	expectedX int
+	expectedY int
+} {
+	return []struct {
 		name      string
 		input     Vector
 		expectedX int
 		expectedY int
 	}{
-		{name: "below half rounds down", input: Vector{X: 2.4, Y: 5.4}, expectedX: 2, expectedY: 5},
-		{name: "above half rounds up", input: Vector{X: 10.6, Y: 5.6}, expectedX: 11, expectedY: 6},
-		{name: "exactly half rounds up", input: Vector{X: 0.5, Y: 1.5}, expectedX: 1, expectedY: 2},
-		{name: "negative half rounds away from zero", input: Vector{X: -0.5, Y: -1.5}, expectedX: -1, expectedY: -2},
-		{name: "whole numbers are unchanged", input: Vector{X: 3, Y: 7}, expectedX: 3, expectedY: 7},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// When
-			x, y := tt.input.Rounded()
-
-			// Then
-			assert.Equal(t, tt.expectedX, x)
-			assert.Equal(t, tt.expectedY, y)
-		})
+		{"below half rounds down", Vector{X: 2.4, Y: 5.4}, 2, 5},
+		{"above half rounds up", Vector{X: 10.6, Y: 5.6}, 11, 6},
+		{"exactly half rounds up", Vector{X: 0.5, Y: 1.5}, 1, 2},
+		{"negative half rounds away from zero", Vector{X: -0.5, Y: -1.5}, -1, -2},
+		{"whole numbers are unchanged", Vector{X: 3, Y: 7}, 3, 7},
 	}
 }
