@@ -15,11 +15,6 @@ type Service struct {
 	reporter outbound.ScoreReporter
 }
 
-// NewService returns a Service that persists scores in store and reports them through reporter.
-func NewService(store outbound.ScoreStore, reporter outbound.ScoreReporter) *Service {
-	return &Service{store: store, reporter: reporter}
-}
-
 // BoardEntry is a recorded session.
 type BoardEntry struct {
 	Kills int
@@ -77,6 +72,11 @@ type ReportRequest struct {
 	Entries []BoardEntry
 	// NewHighScore is true if the session beat every earlier entry.
 	NewHighScore bool
+}
+
+// NewService returns a Service that persists scores in store and reports them through reporter.
+func NewService(store outbound.ScoreStore, reporter outbound.ScoreReporter) *Service {
+	return &Service{store: store, reporter: reporter}
 }
 
 // LoadScoreBoard loads the persisted score board, falling back to an

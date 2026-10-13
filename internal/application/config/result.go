@@ -11,6 +11,20 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/movement"
 )
 
+// defaultSpeed and defaultTimeLimit are the baseline gameplay parameters, used
+// when neither the stored config nor the options override them.
+const (
+	defaultSpeed     = 2.0
+	defaultTimeLimit = 30
+)
+
+// Names of the stored fields that are validated.
+const (
+	modeFieldName      = "mode"
+	speedFieldName     = "speed"
+	timeLimitFieldName = "time_limit"
+)
+
 // GameResult holds game mode run parameters.
 type GameResult struct {
 	ConfirmMode bool
@@ -34,20 +48,6 @@ type Result struct {
 	Process ProcessResult
 	Game    GameResult
 }
-
-// defaultSpeed and defaultTimeLimit are the baseline gameplay parameters, used
-// when neither the stored config nor the options override them.
-const (
-	defaultSpeed     = 2.0
-	defaultTimeLimit = 30
-)
-
-// Names of the stored fields that are validated.
-const (
-	modeFieldName      = "mode"
-	speedFieldName     = "speed"
-	timeLimitFieldName = "time_limit"
-)
 
 // newResult returns a Result populated with the default gameplay and
 // process-discovery parameters.

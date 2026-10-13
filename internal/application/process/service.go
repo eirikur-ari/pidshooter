@@ -16,11 +16,6 @@ type Service struct {
 	patterns []string
 }
 
-// NewService returns a Service that finds processes matching patterns.
-func NewService(manager outbound.ProcessManager, reporter outbound.ProcessReporter, patterns []string) *Service {
-	return &Service{manager: manager, reporter: reporter, patterns: patterns}
-}
-
 // FindRequest holds the root-handling options for finding processes.
 type FindRequest struct {
 	// IncludeRoot is true to also match processes owned by root.
@@ -37,6 +32,11 @@ type FindResult struct {
 	Rss int64
 	// UID is the ID of the user that owns the process.
 	UID int
+}
+
+// NewService returns a Service that finds processes matching patterns.
+func NewService(manager outbound.ProcessManager, reporter outbound.ProcessReporter, patterns []string) *Service {
+	return &Service{manager: manager, reporter: reporter, patterns: patterns}
 }
 
 // FindProcesses returns the processes matching the Service's patterns and reports them.
