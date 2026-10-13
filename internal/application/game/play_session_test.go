@@ -30,24 +30,25 @@ func TestNewPlaySession_RejectsMissingSessionOrTracker(t *testing.T) {
 
 func TestPlaySession_result_MapsSessionAndTrackerState(t *testing.T) {
 	// Given
-	play := newPlaySessionFixture(t, nil, nil, nil, game.Config{Speed: 2.0})
+	play := newPlaySessionFixture(nil, nil, nil, game.Config{Speed: 2.0})
 	play.tracker.recordKill(2048)
 	play.tracker.recordFailure(newTargetFixtureFor(200, "stubborn"), assert.AnError)
 	play.tracker.recordDud(newTargetFixtureFor(300, "gone"))
 	endTime := play.session.StartTime().Add(1500 * time.Millisecond)
-
-	// When
-	actual := play.result(endTime)
-
-	// Then
-	assert.Equal(t, PlayResult{
+	expected := PlayResult{
 		Duration:    1.5,
 		LowestSpeed: 2.0,
 		Kills:       1,
 		FreedMem:    2048,
 		Duds:        1,
 		Errors:      play.tracker.errors(),
-	}, actual)
+	}
+
+	// When
+	actual := play.result(endTime)
+
+	// Then
+	assert.Equal(t, expected, actual)
 	assert.Len(t, actual.Errors, 2)
 }
 
@@ -55,7 +56,7 @@ func TestPlaySession_drainEventQueue_ReturnsErrorWhenEventChannelCloses(t *testi
 	// Given
 	events := NewFakeInputEventProvider()
 	close(events.Ch)
-	play := newPlaySessionFixture(t, nil, nil, events, game.Config{Speed: 1.0})
+	play := newPlaySessionFixture(nil, nil, events, game.Config{Speed: 1.0})
 
 	// When
 	err := play.drainEventQueue()
@@ -69,7 +70,7 @@ func TestPlaySession_drainEventQueue_IgnoresSecondClickOnTargetWithKillInFlight(
 	events := NewFakeInputEventProvider()
 	killer := &MockProcessKiller{}
 	killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(nil)
-	play := newPlaySessionFixture(t, killer, nil, events, game.Config{Speed: 1.0})
+	play := newPlaySessionFixture(killer, nil, events, game.Config{Speed: 1.0})
 	x, y := play.session.Targets()[0].Motion.Position.Rounded()
 	events.Ch <- input.ClickEvent{X: x, Y: y}
 	events.Ch <- input.ClickEvent{X: x, Y: y}
@@ -90,7 +91,7 @@ func TestPlaySession_frameLoop_AppliesKillToTrackerOnceItsAnimationFinishes(t *t
 		events := NewFakeInputEventProvider()
 		killer := &MockProcessKiller{}
 		killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(nil)
-		play := newPlaySessionFixture(t, killer, &FakeRenderer{}, events, game.Config{Speed: 1.0})
+		play := newPlaySessionFixture(killer, &FakeRenderer{}, events, game.Config{Speed: 1.0})
 		x, y := play.session.Targets()[0].Motion.Position.Rounded()
 		events.Ch <- input.ClickEvent{X: x, Y: y}
 
@@ -112,7 +113,7 @@ func TestPlaySession_frameLoop_WaitsForKillInFlightWhenSessionStops(t *testing.T
 		events := NewFakeInputEventProvider()
 		killer := &MockProcessKiller{}
 		killer.On("Kill", mock.Anything, mock.Anything, mock.Anything).Return(nil).After(killDelay)
-		play := newPlaySessionFixture(t, killer, &FakeRenderer{}, events, game.Config{Speed: 1.0})
+		play := newPlaySessionFixture(killer, &FakeRenderer{}, events, game.Config{Speed: 1.0})
 		x, y := play.session.Targets()[0].Motion.Position.Rounded()
 		events.Ch <- input.ClickEvent{X: x, Y: y}
 		events.Ch <- input.QuitEvent{}
@@ -132,7 +133,7 @@ func TestPlaySession_frameLoop_WaitsForKillInFlightWhenSessionStops(t *testing.T
 func TestPlaySession_frameLoop_StopsSessionWhenTermSignalFires(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		// Given
-		play := newPlaySessionFixture(t, nil, &FakeRenderer{}, NewFakeInputEventProvider(), game.Config{Speed: 1.0, TimeLimit: 60})
+		play := newPlaySessionFixture(nil, &FakeRenderer{}, NewFakeInputEventProvider(), game.Config{Speed: 1.0, TimeLimit: 60})
 		termSignal := make(chan struct{}, 1)
 		termSignal <- struct{}{}
 		start := time.Now()
@@ -151,7 +152,7 @@ func TestPlaySession_frameLoop_StopsWhenTimeLimitExpires(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		// Given
 		const timeLimit = 1
-		play := newPlaySessionFixture(t, nil, &FakeRenderer{}, NewFakeInputEventProvider(), game.Config{Speed: 1.0, TimeLimit: timeLimit})
+		play := newPlaySessionFixture(nil, &FakeRenderer{}, NewFakeInputEventProvider(), game.Config{Speed: 1.0, TimeLimit: timeLimit})
 		start := time.Now()
 
 		// When
@@ -174,7 +175,7 @@ func TestRegisterTermSignalWatcher_ClosesTermSignalWhenStopped(t *testing.T) {
 	// Then
 	select {
 	case <-termSignal:
-	case <-time.After(time.Second):
+	default:
 		t.Fatal("termSignal was not closed after stop()")
 	}
 }

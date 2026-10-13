@@ -119,7 +119,7 @@ func TestFind_MatchesProcessNamesByPattern(t *testing.T) {
 			result := Find(tt.processes, tt.patterns, 999, 1000, false)
 
 			// Then
-			assert.Equal(t, tt.expected, newPidsFixtureOf(result))
+			assert.Equal(t, tt.expected, pidsOf(result))
 		})
 	}
 }
@@ -132,7 +132,7 @@ func TestFind_DoesNotListSameProcessTwiceWhenItMatchesSeveralPatterns(t *testing
 	result := Find(processes, []string{"app", "my"}, 999, 1000, false)
 
 	// Then
-	assert.Equal(t, []int{100}, newPidsFixtureOf(result))
+	assert.Equal(t, []int{100}, pidsOf(result))
 }
 
 func TestFind_ExcludesOwnPID(t *testing.T) {
@@ -144,7 +144,7 @@ func TestFind_ExcludesOwnPID(t *testing.T) {
 	result := Find(processes, []string{"testprocess"}, ownPID, 1000, false)
 
 	// Then
-	assert.Equal(t, []int{100}, newPidsFixtureOf(result))
+	assert.Equal(t, []int{100}, pidsOf(result))
 }
 
 func TestFind_ExcludesProtectedProcesses(t *testing.T) {
@@ -155,7 +155,7 @@ func TestFind_ExcludesProtectedProcesses(t *testing.T) {
 	result := Find(processes, []string{"swapper", "init", "myapp"}, 999, 1000, false)
 
 	// Then
-	assert.Equal(t, []int{100}, newPidsFixtureOf(result))
+	assert.Equal(t, []int{100}, pidsOf(result))
 }
 
 func TestFind_ListsRootOwnedProcessesOnlyWhenIncludeRootIsSet(t *testing.T) {
@@ -178,7 +178,7 @@ func TestFind_ListsRootOwnedProcessesOnlyWhenIncludeRootIsSet(t *testing.T) {
 			result := Find(processes, []string{"app", "sshd"}, 999, 1000, tt.includeRoot)
 
 			// Then
-			assert.Equal(t, tt.expected, newPidsFixtureOf(result))
+			assert.Equal(t, tt.expected, pidsOf(result))
 		})
 	}
 }

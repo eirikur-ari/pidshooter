@@ -10,11 +10,3 @@ func newInfoFixtureFor(pid int, name string) Info {
 	info.Name = name
 	return info
 }
-
-func newPidsFixtureOf(processes []Info) []int {
-	var pids []int
-	for _, process := range processes {
-		pids = append(pids, process.PID)
-	}
-	return pids
-}
