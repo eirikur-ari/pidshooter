@@ -112,18 +112,30 @@ func TestConfigFile_Load_AcceptsFileWithoutVersion(t *testing.T) {
 	assert.Equal(t, outbound.ModeLucky, config.Mode)
 }
 
-func TestConfigFile_Load_RejectsNewerSchemaVersionWithoutClassifyingIt(t *testing.T) {
+func TestConfigFile_Load_ReturnsVersionErrorNotCorruptedDataError(t *testing.T) {
 	// Given
 	store := newConfigFileFixture(t.TempDir())
 	require.NoError(t, os.WriteFile(store.file.path, []byte("version: 999\n"), 0600))
+	expected := schemaVersion(currentConfigSchemaVersion).validate("config file", 999)
 
 	// When
 	_, err := store.Load()
 
 	// Then
-	require.Error(t, err)
-	assert.NotErrorAs(t, err, &outbound.NotFoundError{})
-	assert.NotErrorAs(t, err, &outbound.CorruptedDataError{})
+	assert.Equal(t, expected, err)
+}
+
+func TestConfigFile_Load_ReturnsVersionErrorNotCorruptedDataErrorWhenNewerFileHasUnknownFields(t *testing.T) {
+	// Given
+	store := newConfigFileFixture(t.TempDir())
+	require.NoError(t, os.WriteFile(store.file.path, []byte("version: 999\nnewField: true\n"), 0600))
+	expected := schemaVersion(currentConfigSchemaVersion).validate("config file", 999)
+
+	// When
+	_, err := store.Load()
+
+	// Then
+	assert.Equal(t, expected, err)
 }
 
 func TestConfigFile_Load_PassesThroughUnrecognizedMode(t *testing.T) {

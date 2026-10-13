@@ -78,6 +78,18 @@ func (s *scoreFile) Load() (outbound.ScoreBoard, error) {
 
 	var c scoreContent
 	if len(data) > 0 {
+		// Check the version before the strict decode, so a file written by a newer
+		// version with extra fields is reported as a version mismatch, not as corrupted.
+		var header struct {
+			Version int `json:"version"`
+		}
+		if err := json.Unmarshal(data, &header); err != nil {
+			return outbound.ScoreBoard{}, outbound.CorruptedDataError{Message: err.Error()}
+		}
+		if err := schemaVersion(currentScoreSchemaVersion).validate("score file", header.Version); err != nil {
+			return outbound.ScoreBoard{}, err
+		}
+
 		dec := json.NewDecoder(bytes.NewReader(data))
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(&c); err != nil {
@@ -86,10 +98,6 @@ func (s *scoreFile) Load() (outbound.ScoreBoard, error) {
 		if _, err := dec.Token(); !errors.Is(err, io.EOF) {
 			return outbound.ScoreBoard{}, outbound.CorruptedDataError{Message: "unexpected data after the score board"}
 		}
-	}
-
-	if err := schemaVersion(currentScoreSchemaVersion).validate("score file", c.Version); err != nil {
-		return outbound.ScoreBoard{}, err
 	}
 
 	return toScoreBoard(c), nil

@@ -114,18 +114,23 @@ func TestScoreFile_Load_AcceptsFileWithoutVersion(t *testing.T) {
 	assert.Equal(t, 5, board.Scores[0].Kills)
 }
 
-func TestScoreFile_Load_RejectsNewerSchemaVersionWithoutClassifyingIt(t *testing.T) {
-	// Given
-	store := newScoreFileFixture(t.TempDir())
-	require.NoError(t, os.WriteFile(store.file.path, []byte(`{"version":999,"scores":[]}`), 0600))
+func TestScoreFile_Load_ReturnsVersionErrorNotCorruptedDataError(t *testing.T) {
+	tests := newScoreVersionTestCase()
 
-	// When
-	_, err := store.Load()
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			store := newScoreFileFixture(t.TempDir())
+			require.NoError(t, os.WriteFile(store.file.path, []byte(test.content), 0600))
+			expected := schemaVersion(currentScoreSchemaVersion).validate("score file", 999)
 
-	// Then
-	require.Error(t, err)
-	assert.NotErrorAs(t, err, &outbound.NotFoundError{})
-	assert.NotErrorAs(t, err, &outbound.CorruptedDataError{})
+			// When
+			_, err := store.Load()
+
+			// Then
+			assert.Equal(t, expected, err)
+		})
+	}
 }
 
 func TestScoreFile_Save_ReturnsErrorWhenScoreBoardCannotBeEncoded(t *testing.T) {
@@ -219,5 +224,18 @@ func newCorruptedScoreTestCase() []struct {
 		{"unknown top-level key", `{"scores":[],"bogus":1}`},
 		{"unknown entry key", `{"scores":[{"kills":5,"bogus":1}]}`},
 		{"data after the board", `{"scores":[]}{}`},
+	}
+}
+
+func newScoreVersionTestCase() []struct {
+	name    string
+	content string
+} {
+	return []struct {
+		name    string
+		content string
+	}{
+		{"known fields only", `{"version":999,"scores":[]}`},
+		{"unknown fields", `{"version":999,"scores":[],"newField":true}`},
 	}
 }

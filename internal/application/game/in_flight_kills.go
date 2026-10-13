@@ -7,6 +7,10 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/core/game"
 )
 
+// killResultQueueSize is how many finished kill results can wait to be applied
+// before further kills block on reporting theirs.
+const killResultQueueSize = 10
+
 // processKiller kills the process behind a target. Kill returns an error with
 // code apperror.CodeProcessNotFound if and only if that process was already gone.
 type processKiller interface {
@@ -18,7 +22,7 @@ type inFlightKills struct {
 	killer      processKiller
 	gracePeriod time.Duration
 	tracker     *killTracker
-	results     chan killResult // channel buffer capacity = 10 kills in flight
+	results     chan killResult // buffered results awaiting application
 	waitGroup   sync.WaitGroup
 	done        chan struct{}
 }
@@ -31,7 +35,7 @@ func newInFlightKills(killer processKiller, gracePeriod time.Duration, tracker *
 		killer:      killer,
 		gracePeriod: gracePeriod,
 		tracker:     tracker,
-		results:     make(chan killResult, 10),
+		results:     make(chan killResult, killResultQueueSize),
 		done:        make(chan struct{}),
 	}
 }

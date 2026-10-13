@@ -84,15 +84,23 @@ func (c *configFile) Load() (outbound.Config, error) {
 
 	var cd configContent
 	if len(data) > 0 {
+		// Check the version before the strict decode, so a file written by a newer
+		// version with extra fields is reported as a version mismatch, not as corrupted.
+		var header struct {
+			Version int `yaml:"version"`
+		}
+		if err := yaml.Unmarshal(data, &header); err != nil {
+			return outbound.Config{}, outbound.CorruptedDataError{Message: err.Error()}
+		}
+		if err := schemaVersion(currentConfigSchemaVersion).validate("config file", header.Version); err != nil {
+			return outbound.Config{}, err
+		}
+
 		dec := yaml.NewDecoder(bytes.NewReader(data))
 		dec.KnownFields(true)
 		if err := dec.Decode(&cd); err != nil {
 			return outbound.Config{}, outbound.CorruptedDataError{Message: err.Error()}
 		}
-	}
-
-	if err := schemaVersion(currentConfigSchemaVersion).validate("config file", cd.Version); err != nil {
-		return outbound.Config{}, err
 	}
 
 	return toConfig(cd), nil
