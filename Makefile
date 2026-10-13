@@ -80,10 +80,10 @@ test-unit:
 test-integration:
 	go test -v -tags integration -run TestIntegration -count=1 ./...
 
-## test-acceptance: Run only acceptance tests
+## test-acceptance: Build the binary, then run only acceptance tests against it
 .PHONY: test-acceptance
-test-acceptance:
-	go test -v -tags acceptance -run TestAcceptance -count=1 ./...
+test-acceptance: build
+	PIDSHOOTER_BINARY=$(WORKSPACE_FOLDER)/$(BIN_DIR)/$(BINARY_NAME) go test -v -tags acceptance -run TestAcceptance -count=1 ./...
 
 ## test-race: Run unit and integration tests with the race detector
 .PHONY: test-race
