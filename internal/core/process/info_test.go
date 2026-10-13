@@ -158,30 +158,29 @@ func TestFind_ExcludesProtectedProcesses(t *testing.T) {
 	assert.Equal(t, []int{100}, newPidsFixtureOf(result))
 }
 
-func TestFind_IncludesRootOwnedProcessesWhenIncludeRootIsSet(t *testing.T) {
-	// Given
-	rootOwned := newInfoFixtureFor(200, "sshd")
-	rootOwned.UID = 0
-	processes := []Info{newInfoFixtureFor(100, "myapp"), rootOwned}
+func TestFind_ListsRootOwnedProcessesOnlyWhenIncludeRootIsSet(t *testing.T) {
+	tests := []struct {
+		name        string
+		includeRoot bool
+		expected    []int
+	}{
+		{name: "included when includeRoot is set", includeRoot: true, expected: []int{100, 200}},
+		{name: "excluded when includeRoot is not set", includeRoot: false, expected: []int{100}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Given
+			rootOwned := newInfoFixtureFor(200, "sshd")
+			rootOwned.UID = 0
+			processes := []Info{newInfoFixtureFor(100, "myapp"), rootOwned}
 
-	// When
-	result := Find(processes, []string{"app", "sshd"}, 999, 1000, true)
+			// When
+			result := Find(processes, []string{"app", "sshd"}, 999, 1000, tt.includeRoot)
 
-	// Then
-	assert.Equal(t, []int{100, 200}, newPidsFixtureOf(result))
-}
-
-func TestFind_ExcludesRootOwnedProcessesWhenIncludeRootIsNotSet(t *testing.T) {
-	// Given
-	rootOwned := newInfoFixtureFor(200, "sshd")
-	rootOwned.UID = 0
-	processes := []Info{newInfoFixtureFor(100, "myapp"), rootOwned}
-
-	// When
-	result := Find(processes, []string{"app", "sshd"}, 999, 1000, false)
-
-	// Then
-	assert.Equal(t, []int{100}, newPidsFixtureOf(result))
+			// Then
+			assert.Equal(t, tt.expected, newPidsFixtureOf(result))
+		})
+	}
 }
 
 func TestValidateProcesses_RejectsEmptyList(t *testing.T) {
