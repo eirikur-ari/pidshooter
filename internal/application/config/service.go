@@ -47,7 +47,8 @@ func NewService(store outbound.ConfigStore, options Options) *Service {
 // Load returns the run configuration: it validates the options, then merges the
 // stored config and the options onto the built-in defaults, the options taking
 // precedence. Invalid options are rejected with a fatal error before the stored
-// config is read. Any other problem loading or applying the stored config is
+// config is read. If no config is stored yet, the defaults are persisted for
+// next time. Any other problem loading, saving or applying the stored config is
 // non-fatal — Load still returns a usable Result.
 func (s *Service) Load() (Result, error) {
 	if err := s.validate(); err != nil {
@@ -59,10 +60,21 @@ func (s *Service) Load() (Result, error) {
 	case err == nil:
 		return s.applyConfig(storedConfig)
 	case errors.As(err, &outbound.NotFoundError{}):
-		return newResult().fromOptions(s.options), nil
+		return s.createConfigFile()
 	default:
 		return newResult().fromOptions(s.options), apperror.NewError(apperror.CodeStoreFailed, apperror.SeverityWarning, "config store not loaded", err)
 	}
+}
+
+// createConfigFile persists the built-in defaults and returns the run
+// configuration, reporting a failure to persist as a warning.
+func (s *Service) createConfigFile() (Result, error) {
+	defaults := newResult()
+	result := defaults.fromOptions(s.options)
+	if err := s.store.Save(defaults.toConfig()); err != nil {
+		return result, apperror.NewError(apperror.CodeStoreFailed, apperror.SeverityWarning, "default config not saved", err)
+	}
+	return result, nil
 }
 
 // applyConfig merges the stored config and the options onto the built-in

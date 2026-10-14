@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
@@ -32,6 +33,7 @@ func TestService_Load_AppliesOptionsOverStoredConfig(t *testing.T) {
 func TestService_Load_ReturnsDefaultsWhenStoreHasNoConfig(t *testing.T) {
 	// Given
 	store := configStoreMockSetup(outbound.Config{}, outbound.NotFoundError{})
+	store.On("Save", mock.Anything).Return(nil)
 	service := NewService(store, Options{})
 	expected := newResult()
 
@@ -43,9 +45,10 @@ func TestService_Load_ReturnsDefaultsWhenStoreHasNoConfig(t *testing.T) {
 	assert.Equal(t, expected, actual)
 }
 
-func TestService_Load_AppliesOptionsWhenStoreHasNoConfig(t *testing.T) {
+func TestService_Load_AppliesConfigOptionsWhenStoreHasNoConfig(t *testing.T) {
 	// Given
 	store := configStoreMockSetup(outbound.Config{}, outbound.NotFoundError{})
+	store.On("Save", mock.Anything).Return(nil)
 	options := Options{Game: GameOptions{Speed: new(4.5)}}
 	service := NewService(store, options)
 
@@ -58,6 +61,46 @@ func TestService_Load_AppliesOptionsWhenStoreHasNoConfig(t *testing.T) {
 	// Then
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual)
+}
+
+func TestService_Load_CreatesConfigFileFromDefaultsWhenStoreHasNoConfig(t *testing.T) {
+	// Given
+	store := configStoreMockSetup(outbound.Config{}, outbound.NotFoundError{})
+	defaults := newResult().toConfig()
+	store.On("Save", defaults).Return(nil)
+	service := NewService(store, Options{Game: GameOptions{Speed: new(4.5)}})
+
+	// When
+	_, err := service.Load()
+
+	// Then
+	require.NoError(t, err)
+	store.AssertCalled(t, "Save", defaults)
+}
+
+func TestService_Load_ReturnsConfigAndErrorWhenCreatingConfigFileFails(t *testing.T) {
+	tests := newCreatingConfigFileFailsTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			var appErr *apperror.Error
+			cause := errors.New("read-only file system")
+			store := configStoreMockSetup(outbound.Config{}, outbound.NotFoundError{})
+			store.On("Save", mock.Anything).Return(cause)
+			service := NewService(store, test.options)
+
+			// When
+			actual, err := service.Load()
+
+			// Then
+			require.ErrorAs(t, err, &appErr)
+			assert.Equal(t, apperror.CodeStoreFailed, appErr.Code)
+			assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
+			assert.ErrorIs(t, err, cause)
+			assert.Equal(t, test.expected, actual)
+		})
+	}
 }
 
 func TestService_Load_ReturnsWarningAndAppliesOptionsWhenStoreLoadFails(t *testing.T) {
@@ -126,4 +169,22 @@ func TestService_Load_ReturnsWarningAndKeepsDefaultWhenStoredValueIsInvalid(t *t
 	assert.Equal(t, apperror.CodeInvalidConfig, appErr.Code)
 	assert.Equal(t, apperror.SeverityWarning, appErr.Severity)
 	assert.ErrorContains(t, err, speedFieldName)
+}
+
+func newCreatingConfigFileFailsTestCase() []struct {
+	name     string
+	options  Options
+	expected Result
+} {
+	withSpeed := newResult()
+	withSpeed.Game.Speed = 4.5
+
+	return []struct {
+		name     string
+		options  Options
+		expected Result
+	}{
+		{"no options", Options{}, newResult()},
+		{"options provided", Options{Game: GameOptions{Speed: new(4.5)}}, withSpeed},
+	}
 }
