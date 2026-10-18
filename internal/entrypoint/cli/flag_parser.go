@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/config"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 )
 
 // argumentSplitter partitions command-line arguments into search patterns and
@@ -16,8 +16,7 @@ type argumentSplitter interface {
 	split(args []string) (patterns, flagArgs []string, err error)
 }
 
-// flagParser parses command-line arguments into search patterns and config
-// options.
+// flagParser parses command-line arguments.
 type flagParser struct {
 	flagSet  *flag.FlagSet
 	mapper   *flagMapper
@@ -36,24 +35,24 @@ func newFlagParser() *flagParser {
 	}
 }
 
-// parse returns the search patterns and config options found in args. It
+// parsePlay returns the play request described by the given arguments. It
 // returns an ArgumentError if the arguments are malformed.
-func (p *flagParser) parse(args []string) (patterns []string, options config.Options, err error) {
+func (p *flagParser) parsePlay(args []string) (inbound.PlayRequest, error) {
 	patterns, flagArgs, err := p.splitter.split(args)
 	if err != nil {
-		return nil, config.Options{}, ArgumentError{Cause: err}
+		return inbound.PlayRequest{}, ArgumentError{Cause: err}
 	}
 
 	if err := p.flagSet.Parse(flagArgs); err != nil {
-		return nil, config.Options{}, ArgumentError{Cause: err}
+		return inbound.PlayRequest{}, ArgumentError{Cause: err}
 	}
 	// split has already classified every argument as a pattern or as part of
 	// flagArgs, so flagSet.Parse can never stop early on a leftover
 	// positional. This holds unconditionally today; guarded defensively
 	// in case a future change to split ever breaks it.
 	if p.flagSet.NArg() > 0 {
-		return nil, config.Options{}, ArgumentError{Cause: fmt.Errorf("unexpected argument: %s", p.flagSet.Arg(0))}
+		return inbound.PlayRequest{}, ArgumentError{Cause: fmt.Errorf("unexpected argument: %s", p.flagSet.Arg(0))}
 	}
 
-	return patterns, p.mapper.toConfigOptions(), nil
+	return p.mapper.toPlayRequest(patterns), nil
 }

@@ -31,7 +31,8 @@ func TestAcceptance_Help_SucceedsWithoutTerm(t *testing.T) {
 func TestAcceptance_UnknownFlag_ExitsWithCodeTwoAndPrintsUsageToStderr(t *testing.T) {
 	// Given
 	binary := pidshooterBinary(t)
-	cmd := exec.Command(binary, "--unknown")
+	cmd := exec.Command(binary, "play", "--unknown")
+	var exitErr *exec.ExitError
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -40,11 +41,30 @@ func TestAcceptance_UnknownFlag_ExitsWithCodeTwoAndPrintsUsageToStderr(t *testin
 	err := cmd.Run()
 
 	// Then
-	var exitErr *exec.ExitError
 	require.ErrorAs(t, err, &exitErr)
 	assert.Equal(t, 2, exitErr.ExitCode())
 	assert.Empty(t, stdout.String())
 	assert.Contains(t, stderr.String(), "flag provided but not defined: -unknown")
+	assert.Contains(t, stderr.String(), "Process ID Shooter")
+}
+
+func TestAcceptance_UnknownCommand_ExitsWithCodeTwoAndPrintsUsageToStderr(t *testing.T) {
+	// Given
+	binary := pidshooterBinary(t)
+	cmd := exec.Command(binary, "chrome")
+	var exitErr *exec.ExitError
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	// When
+	err := cmd.Run()
+
+	// Then
+	require.ErrorAs(t, err, &exitErr)
+	assert.Equal(t, 2, exitErr.ExitCode())
+	assert.Empty(t, stdout.String())
+	assert.Contains(t, stderr.String(), "unknown command: chrome")
 	assert.Contains(t, stderr.String(), "Process ID Shooter")
 }
 

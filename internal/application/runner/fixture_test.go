@@ -1,6 +1,9 @@
 package runner
 
-import "github.com/eirikur-ari/pidshooter/internal/application/apperror"
+import (
+	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
+)
 
 func newFatalError(message string) *apperror.Error {
 	return apperror.NewError(apperror.CodeUnknown, apperror.SeverityFatal, message, nil)
@@ -8,4 +11,8 @@ func newFatalError(message string) *apperror.Error {
 
 func newWarning(message string) *apperror.Error {
 	return apperror.NewError(apperror.CodeUnknown, apperror.SeverityWarning, message, nil)
+}
+
+func newPlayRequestFixture() inbound.PlayRequest {
+	return inbound.PlayRequest{Patterns: []string{"target"}}
 }

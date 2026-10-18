@@ -14,7 +14,6 @@ func TestResult_toConfig_ReturnsEveryStoredField(t *testing.T) {
 	result.Process.AllowRoot = true
 
 	expected := outbound.Config{
-		Mode:    outbound.ModeGame,
 		Process: outbound.ProcessConfig{IncludeRoot: new(false)},
 		Game: outbound.GameConfig{
 			ConfirmMode: new(false),

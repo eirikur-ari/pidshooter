@@ -6,10 +6,30 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
 )
+
+func TestToConfigOptions_MapsGameAndProcessOptions(t *testing.T) {
+	// Given
+	request := inbound.PlayRequest{
+		Patterns: []string{"target"},
+		Game:     inbound.GameOptions{ConfirmMode: new(true), Speed: new(3.5), TimeLimit: new(45)},
+		Process:  inbound.ProcessOptions{IncludeRoot: new(true), AllowRoot: new(true)},
+	}
+	expected := config.Options{
+		Game:    config.GameOptions{ConfirmMode: new(true), Speed: new(3.5), TimeLimit: new(45)},
+		Process: config.ProcessOptions{IncludeRoot: new(true), AllowRoot: new(true)},
+	}
+
+	// When
+	actual := toConfigOptions(request)
+
+	// Then
+	assert.Equal(t, expected, actual)
+}
 
 func TestToPlayRequest_MapsGameConfigFoundProcessesAndHighScore(t *testing.T) {
 	tests := newPlayRequestTestCase()
@@ -25,13 +45,13 @@ func TestToPlayRequest_MapsGameConfigFoundProcessesAndHighScore(t *testing.T) {
 	}
 }
 
-func TestToFindRequest_MapsProcessConfig(t *testing.T) {
+func TestToFindRequest_MapsPatternsAndProcessConfig(t *testing.T) {
 	tests := newFindRequestTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// When
-			actual := toFindRequest(test.cfg)
+			actual := toFindRequest(test.patterns, test.cfg)
 
 			// Then
 			assert.Equal(t, test.expected, actual)
@@ -114,15 +134,19 @@ func newPlayRequestTestCase() []struct {
 
 func newFindRequestTestCase() []struct {
 	name     string
+	patterns []string
 	cfg      config.ProcessResult
 	expected process.FindRequest
 } {
+	patterns := []string{"a", "b"}
+
 	return []struct {
 		name     string
+		patterns []string
 		cfg      config.ProcessResult
 		expected process.FindRequest
 	}{
-		{"include root only", config.ProcessResult{IncludeRoot: true}, process.FindRequest{IncludeRoot: true}},
-		{"allow root only", config.ProcessResult{AllowRoot: true}, process.FindRequest{AllowRoot: true}},
+		{"include root only", patterns, config.ProcessResult{IncludeRoot: true}, process.FindRequest{Patterns: patterns, IncludeRoot: true}},
+		{"allow root only", patterns, config.ProcessResult{AllowRoot: true}, process.FindRequest{Patterns: patterns, AllowRoot: true}},
 	}
 }

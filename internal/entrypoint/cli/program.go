@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
-	"github.com/eirikur-ari/pidshooter/internal/application/config"
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 )
 
@@ -15,14 +14,17 @@ const usageText = `Process ID Shooter
 Find running processes by name and kill them.
 
 Usage:
-  pidshooter <pattern> [pattern2] [pattern3...] [flags]
+  pidshooter <command> <pattern> [pattern2] [pattern3...] [flags]
+
+Commands:
+  play             Play the game: shoot the processes matching the patterns
 
 Examples:
-  pidshooter firefox
-  pidshooter chrome firefox node
-  pidshooter firefox --confirm
-  pidshooter node --speed=2.5 --time=60
-  pidshooter node --time=0
+  pidshooter play firefox
+  pidshooter play chrome firefox node
+  pidshooter play firefox --confirm
+  pidshooter play node --speed=2.5 --time=60
+  pidshooter play node --time=0
 
 Flags:
   --confirm        Ask for confirmation before killing
@@ -39,60 +41,68 @@ Config file:
   e.g. --include-root=false overrides a persisted "include_root: true".
 `
 
-// RunnerCreator builds a Runner for the given patterns and options, and
-// provides the Handler used to log errors.
-type RunnerCreator interface {
-	// Create returns a Runner that targets processes matching patterns,
-	// configured by options. It returns an error if the Runner cannot be built.
-	Create(patterns []string, options config.Options) (inbound.Runner, error)
-	// ErrHandler returns the Handler used to log errors.
-	ErrHandler() *apperror.Handler
+// Runner runs the commands of pidshooter.
+type Runner interface {
+	// Play plays a game session as described by request, returning an error if
+	// it could not complete.
+	Play(request inbound.PlayRequest) error
+	// HandleError logs err at the level its severity calls for. It returns nil if
+	// the error is absorbed, and err unchanged otherwise.
+	HandleError(err error) error
 }
 
 // Program runs pidshooter from command-line arguments.
 type Program struct {
-	creator    RunnerCreator
-	errHandler *apperror.Handler
-	parser     *flagParser
-	out        io.Writer
-	errOut     io.Writer
+	runner Runner
+	parser *flagParser
+	out    io.Writer
+	errOut io.Writer
 }
 
-// NewProgram returns a Program that creates its Runner with creator.
-func NewProgram(creator RunnerCreator) *Program {
+// NewProgram returns a Program that executes commands with runner and logs
+// errors with the error handler of runner.
+func NewProgram(runner Runner) *Program {
 	return &Program{
-		creator:    creator,
-		errHandler: creator.ErrHandler(),
-		parser:     newFlagParser(),
-		out:        os.Stdout,
-		errOut:     os.Stderr,
+		runner: runner,
+		parser: newFlagParser(),
+		out:    os.Stdout,
+		errOut: os.Stderr,
 	}
 }
 
-// Run runs pidshooter with the given command-line arguments and returns the
-// error it ended with, if any. A warning is not treated as an error. With no
-// arguments or a help flag it prints usage text to standard output. When the
-// arguments are malformed it returns an ArgumentError and prints usage text to
-// standard error.
+// Run executes the command the arguments ask for and returns the error it
+// ended with, if any. A warning is not treated as an error. With no arguments
+// or a help flag it prints usage text to standard output. When the first
+// argument is not a command, or the arguments are malformed, it returns an
+// ArgumentError and prints usage text to standard error.
 func (p *Program) Run(args []string) error {
-	showUsage, err := p.run(args)
-	err = p.errHandler.Handle(err)
+	showUsage, err := p.run(newCommand(args))
+	err = p.runner.HandleError(err)
 	p.printUsageText(showUsage, err)
 	return err
 }
 
-func (p *Program) run(args []string) (showUsage bool, err error) {
-	patterns, options, showUsage, err := p.prepare(args)
-	if showUsage || err != nil {
-		return showUsage, err
+func (p *Program) run(cmd command) (showUsage bool, err error) {
+	switch {
+	case cmd.Help():
+		return true, nil
+	case cmd.Play():
+		return p.play(cmd.Arguments())
+	default:
+		return true, ArgumentError{Cause: fmt.Errorf("unknown command: %s", cmd.Name())}
 	}
+}
 
-	runner, err := p.creator.Create(patterns, options)
+// play parses the arguments of the play command and plays the game session
+// they describe. It also reports whether usage text should be shown, whether
+// it returns an error.
+func (p *Program) play(args []string) (showUsage bool, err error) {
+	request, err := p.parser.parsePlay(args)
 	if err != nil {
-		return false, err
+		return true, err
 	}
 
-	if err := runner.Run(); err != nil {
+	if err := p.runner.Play(request); err != nil {
 		if apperror.CodeInvalidConfig.In(err) {
 			return true, ArgumentError{Cause: err}
 		}
@@ -100,25 +110,6 @@ func (p *Program) run(args []string) (showUsage bool, err error) {
 	}
 
 	return false, nil
-}
-
-// prepare parses the arguments into patterns and config options. It also
-// reports whether usage text should be shown, whether or not it returns an
-// error.
-func (p *Program) prepare(args []string) (patterns []string, options config.Options, showUsage bool, err error) {
-	if len(args) == 0 {
-		return nil, config.Options{}, true, nil
-	}
-	if help(args) {
-		return nil, config.Options{}, true, nil
-	}
-
-	patterns, options, err = p.parser.parse(args)
-	if err != nil {
-		return nil, config.Options{}, true, err
-	}
-
-	return patterns, options, false, nil
 }
 
 func (p *Program) printUsageText(printUsage bool, err error) {
@@ -131,14 +122,4 @@ func (p *Program) printUsageText(printUsage bool, err error) {
 		_, _ = fmt.Fprintln(out)
 	}
 	_, _ = fmt.Fprint(out, usageText)
-}
-
-// help reports whether the arguments contain -h or --help anywhere.
-func help(args []string) bool {
-	for _, arg := range args {
-		if arg == "-h" || arg == "--help" {
-			return true
-		}
-	}
-	return false
 }

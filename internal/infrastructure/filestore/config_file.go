@@ -50,7 +50,6 @@ type configContent struct {
 	// Version identifies configContent's shape. Bump currentConfigSchemaVersion
 	// whenever the shape changes.
 	Version int          `yaml:"version"`
-	Mode    string       `yaml:"mode"`
 	Process processEntry `yaml:"process"`
 	Game    gameEntry    `yaml:"game"`
 }

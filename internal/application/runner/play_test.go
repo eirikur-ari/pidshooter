@@ -8,23 +8,25 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
 )
 
-func TestService_Run_ReturnsFatalErrorAndStopsAtFailingStage(t *testing.T) {
+func TestPlay_Run_ReturnsFatalErrorAndStopsAtFailingStage(t *testing.T) {
 	tests := newFailingStageTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
-			setup := newRunnerMockSetup()
+			setup := newPlayMockSetup()
+			request := newPlayRequestFixture()
 			fatal := newFatalError(test.name)
 			setup.expectRunFailingAt(test.failingStage, fatal)
 
 			// When
-			err := setup.service.Run()
+			err := setup.play.Run(request)
 
 			// Then
 			assert.ErrorIs(t, err, fatal)
@@ -33,17 +35,18 @@ func TestService_Run_ReturnsFatalErrorAndStopsAtFailingStage(t *testing.T) {
 	}
 }
 
-func TestService_Run_ContinuesAfterNonFatalErrorAtStage(t *testing.T) {
+func TestPlay_Run_ContinuesAfterNonFatalErrorAtStage(t *testing.T) {
 	tests := newWarningStageTestCase()
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
-			setup := newRunnerMockSetup()
+			setup := newPlayMockSetup()
+			request := newPlayRequestFixture()
 			setup.expectRunWarningAt(test.warningStage, newWarning(test.name))
 
 			// When
-			err := setup.service.Run()
+			err := setup.play.Run(request)
 
 			// Then
 			require.NoError(t, err)
@@ -53,9 +56,18 @@ func TestService_Run_ContinuesAfterNonFatalErrorAtStage(t *testing.T) {
 	}
 }
 
-func TestService_Run_PassesEachStepsResultToTheNext(t *testing.T) {
+func TestPlay_Run_PassesEachStepsResultToTheNext(t *testing.T) {
 	// Given
-	setup := newRunnerMockSetup()
+	setup := newPlayMockSetup()
+	request := inbound.PlayRequest{
+		Patterns: []string{"target"},
+		Game:     inbound.GameOptions{Speed: new(3.5)},
+		Process:  inbound.ProcessOptions{IncludeRoot: new(true)},
+	}
+	options := config.Options{
+		Game:    config.GameOptions{Speed: new(3.5)},
+		Process: config.ProcessOptions{IncludeRoot: new(true)},
+	}
 	setup.configResult = config.Result{
 		Process: config.ProcessResult{IncludeRoot: true},
 		Game:    config.GameResult{ConfirmMode: true, Speed: 3.5, TimeLimit: 45},
@@ -63,8 +75,8 @@ func TestService_Run_PassesEachStepsResultToTheNext(t *testing.T) {
 	loaded := score.LoadResult{Entries: []score.BoardEntry{{Kills: 4}}, HighScore: 4}
 	result := game.PlayResult{Duration: 12.5, LowestSpeed: 2.5, Kills: 3, Duds: 1, FreedMem: 8192}
 	recorded := score.RecordResult{Entries: []score.BoardEntry{{Kills: 4}, {Kills: 3}}, NewHighScore: true}
-	setup.config.On("Load").Return(setup.configResult, nil)
-	setup.processes.On("FindProcesses", process.FindRequest{IncludeRoot: true}).Return(setup.found, nil)
+	setup.config.On("Load", options).Return(setup.configResult, nil)
+	setup.processes.On("FindProcesses", process.FindRequest{Patterns: []string{"target"}, IncludeRoot: true}).Return(setup.found, nil)
 	setup.scores.On("LoadScoreBoard").Return(loaded, nil)
 	setup.game.On("Play", game.PlayRequest{
 		ConfirmMode: true, Speed: 3.5, TimeLimit: 45,
@@ -79,7 +91,7 @@ func TestService_Run_PassesEachStepsResultToTheNext(t *testing.T) {
 	}).Return()
 
 	// When
-	err := setup.service.Run()
+	err := setup.play.Run(request)
 
 	// Then
 	require.NoError(t, err)
@@ -89,16 +101,17 @@ func TestService_Run_PassesEachStepsResultToTheNext(t *testing.T) {
 	setup.game.AssertExpectations(t)
 }
 
-func TestService_Run_HandlesEachPlayErrorWithoutFailing(t *testing.T) {
+func TestPlay_Run_HandlesEachPlayErrorWithoutFailing(t *testing.T) {
 	// Given
-	setup := newRunnerMockSetup()
-	setup.config.On("Load").Return(setup.configResult, nil)
+	setup := newPlayMockSetup()
+	request := newPlayRequestFixture()
+	setup.config.On("Load", mock.Anything).Return(setup.configResult, nil)
 	setup.expectSessionAfterConfig(game.PlayResult{
 		Errors: []error{newWarning("could not kill stubborn (PID 200)"), newWarning("gone (PID 300) ran away")},
 	})
 
 	// When
-	err := setup.service.Run()
+	err := setup.play.Run(request)
 
 	// Then
 	require.NoError(t, err)

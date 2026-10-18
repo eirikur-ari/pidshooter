@@ -6,7 +6,6 @@ import "github.com/eirikur-ari/pidshooter/internal/application/contract/outbound
 // never stored.
 func (result Result) toConfig() outbound.Config {
 	return outbound.Config{
-		Mode:    result.Mode,
 		Process: outbound.ProcessConfig{IncludeRoot: &result.Process.IncludeRoot},
 		Game: outbound.GameConfig{
 			ConfirmMode: &result.Game.ConfirmMode,

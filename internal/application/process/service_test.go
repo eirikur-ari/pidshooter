@@ -20,11 +20,11 @@ func TestService_FindProcesses_ReturnsFatalErrorAndReportsNothing(t *testing.T) 
 			// Given
 			manager := discoveryMockSetup(nil, 0, test.ownUID, test.discoverErr)
 			reporter := &MockProcessReporter{}
-			service := NewService(manager, reporter, test.patterns)
+			service := NewService(manager, reporter)
 			var appError *apperror.Error
 
 			// When
-			processes, err := service.FindProcesses(FindRequest{})
+			processes, err := service.FindProcesses(FindRequest{Patterns: test.patterns})
 
 			// Then
 			require.ErrorAs(t, err, &appError)
@@ -45,7 +45,7 @@ func TestService_FindProcesses_ReturnsProcessesMatchingRequest(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			manager := discoveryMockSetup(test.infos, test.ownPID, test.ownUID, nil)
-			service := NewService(manager, reporterMockSetup(), []string{"target"})
+			service := NewService(manager, reporterMockSetup())
 
 			// When
 			processes, err := service.FindProcesses(test.request)
@@ -65,10 +65,10 @@ func TestService_FindProcesses_ReportsMatchesAndPatterns(t *testing.T) {
 		{PID: 101, Name: "another-target", Rss: 2048, UID: ownUID},
 	}, 0, ownUID, nil)
 	reporter := reporterMockSetup()
-	service := NewService(manager, reporter, []string{"target"})
+	service := NewService(manager, reporter)
 
 	// When
-	_, err := service.FindProcesses(FindRequest{})
+	_, err := service.FindProcesses(FindRequest{Patterns: []string{"target"}})
 
 	// Then
 	require.NoError(t, err)
@@ -85,7 +85,7 @@ func TestService_Kill_ReturnsWarning(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			manager, _ := pinnedProcessMockSetup(100, test.pinErr, test.lookupName, test.lookupErr, test.killErr)
-			service := NewService(manager, reporterMockSetup(), nil)
+			service := NewService(manager, reporterMockSetup())
 			var appError *apperror.Error
 
 			// When
@@ -103,7 +103,7 @@ func TestService_Kill_ReturnsWarning(t *testing.T) {
 func TestService_Kill_RefusesProtectedProcessWithoutPinningIt(t *testing.T) {
 	// Given
 	manager := &MockProcessManager{}
-	service := NewService(manager, reporterMockSetup(), nil)
+	service := NewService(manager, reporterMockSetup())
 	var appError *apperror.Error
 
 	// When
@@ -124,7 +124,7 @@ func TestService_Kill_KeepsNotFoundErrorAsCauseWhenProcessIsGone(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			manager, _ := pinnedProcessMockSetup(100, test.pinErr, test.lookupName, test.lookupErr, test.killErr)
-			service := NewService(manager, reporterMockSetup(), nil)
+			service := NewService(manager, reporterMockSetup())
 
 			// When
 			err := service.Kill(100, "target", false)
@@ -142,7 +142,7 @@ func TestService_Kill_KillsOnlyVerifiedProcessAndReleasesWhatItPinned(t *testing
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			manager, handle := pinnedProcessMockSetup(100, test.pinErr, test.lookupName, test.lookupErr, test.killErr)
-			service := NewService(manager, reporterMockSetup(), nil)
+			service := NewService(manager, reporterMockSetup())
 
 			// When
 			_ = service.Kill(100, "target", false)
@@ -157,7 +157,7 @@ func TestService_Kill_KillsOnlyVerifiedProcessAndReleasesWhatItPinned(t *testing
 func TestService_Kill_ReturnsNoErrorWhenProcessIsKilled(t *testing.T) {
 	// Given
 	manager, _ := pinnedProcessMockSetup(100, nil, "target", nil, nil)
-	service := NewService(manager, reporterMockSetup(), nil)
+	service := NewService(manager, reporterMockSetup())
 
 	// When
 	err := service.Kill(100, "target", false)
@@ -245,8 +245,9 @@ func newFindProcessesMatchTestCase() []struct {
 				{PID: 201, Name: "another-target", Rss: 2048, UID: ownUID},
 				{PID: 202, Name: "unrelated", Rss: 1024, UID: ownUID},
 			},
-			ownPID: ownPID,
-			ownUID: ownUID,
+			ownPID:  ownPID,
+			ownUID:  ownUID,
+			request: FindRequest{Patterns: []string{"target"}},
 			expectedProcesses: []FindResult{
 				{PID: 200, Name: "target", Rss: 4096, UID: ownUID},
 				{PID: 201, Name: "another-target", Rss: 2048, UID: ownUID},
@@ -260,6 +261,7 @@ func newFindProcessesMatchTestCase() []struct {
 			},
 			ownPID:            ownPID,
 			ownUID:            ownUID,
+			request:           FindRequest{Patterns: []string{"target"}},
 			expectedProcesses: []FindResult{{PID: 101, Name: "another-target", Rss: 2048, UID: ownUID}},
 		},
 		{
@@ -270,6 +272,7 @@ func newFindProcessesMatchTestCase() []struct {
 			},
 			ownPID:            ownPID,
 			ownUID:            ownUID,
+			request:           FindRequest{Patterns: []string{"target"}},
 			expectedProcesses: []FindResult{{PID: 101, Name: "target", Rss: 4096, UID: ownUID}},
 		},
 		{
@@ -280,7 +283,7 @@ func newFindProcessesMatchTestCase() []struct {
 			},
 			ownPID:  ownPID,
 			ownUID:  ownUID,
-			request: FindRequest{IncludeRoot: true},
+			request: FindRequest{Patterns: []string{"target"}, IncludeRoot: true},
 			expectedProcesses: []FindResult{
 				{PID: 101, Name: "target", Rss: 4096, UID: ownUID},
 				{PID: 102, Name: "target-root", Rss: 2048},
@@ -291,7 +294,7 @@ func newFindProcessesMatchTestCase() []struct {
 			infos:             []outbound.ProcessInfo{{PID: 101, Name: "target", Rss: 4096, UID: 0}},
 			ownPID:            ownPID,
 			ownUID:            0,
-			request:           FindRequest{AllowRoot: true},
+			request:           FindRequest{Patterns: []string{"target"}, AllowRoot: true},
 			expectedProcesses: []FindResult{{PID: 101, Name: "target", Rss: 4096}},
 		},
 	}

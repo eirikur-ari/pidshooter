@@ -13,7 +13,6 @@ func dateFixture() time.Time {
 
 func newConfigFixture() outbound.Config {
 	return outbound.Config{
-		Mode:    outbound.ModeGame,
 		Process: outbound.ProcessConfig{IncludeRoot: new(true)},
 		Game: outbound.GameConfig{
 			ConfirmMode: new(true),
@@ -26,7 +25,6 @@ func newConfigFixture() outbound.Config {
 func newConfigContentFixture() configContent {
 	return configContent{
 		Version: currentConfigSchemaVersion,
-		Mode:    "game",
 		Process: processEntry{IncludeRoot: new(true)},
 		Game: gameEntry{
 			ConfirmMode: new(true),

@@ -2,10 +2,8 @@ package cli
 
 import "github.com/stretchr/testify/mock"
 
-func runnerCreatorMockSetup(runResult error) (creator *MockRunnerCreator, runner *MockRunner) {
-	runner = &MockRunner{}
-	runner.On("Run").Return(runResult)
-	creator = &MockRunnerCreator{}
-	creator.On("Create", mock.Anything, mock.Anything).Return(runner, nil)
-	return creator, runner
+func runnerMockSetup(playResult error) *MockRunner {
+	runner := newRunnerMock()
+	runner.On("Play", mock.Anything).Return(playResult)
+	return runner
 }

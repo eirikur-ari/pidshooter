@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"flag"
 	"io"
+
+	"github.com/stretchr/testify/mock"
 )
 
 func newFlagMapperFixture() (*flagMapper, *flag.FlagSet) {
@@ -20,9 +22,15 @@ func newFlagSetFixture() *flag.FlagSet {
 	return flagSet
 }
 
-func newProgramFixture(creator RunnerCreator) (program *Program, out, errOut *bytes.Buffer) {
+func newProgramFixture(runner Runner) (program *Program, out, errOut *bytes.Buffer) {
 	out, errOut = &bytes.Buffer{}, &bytes.Buffer{}
-	program = NewProgram(creator)
+	program = NewProgram(runner)
 	program.out, program.errOut = out, errOut
 	return program, out, errOut
+}
+
+func newRunnerMock() *MockRunner {
+	runner := &MockRunner{}
+	runner.On("HandleError", mock.Anything).Return(func(err error) error { return err })
+	return runner
 }

@@ -1,16 +1,6 @@
 package outbound
 
-// Mode identifies which run mode pidshooter defaults to.
-type Mode string
-
-// The possible Mode values.
-const (
-	ModeGame  Mode = "game"
-	ModeLucky Mode = "lucky"
-	ModeList  Mode = "list"
-)
-
-// GameConfig is a user's saved game mode config. A nil field means that
+// GameConfig is a user's saved game config. A nil field means that
 // value was not present in the persisted data.
 type GameConfig struct {
 	ConfirmMode *bool
@@ -26,7 +16,6 @@ type ProcessConfig struct {
 
 // Config is a user's saved run config.
 type Config struct {
-	Mode    Mode
 	Process ProcessConfig
 	Game    GameConfig
 }

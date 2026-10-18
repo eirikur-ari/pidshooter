@@ -13,18 +13,20 @@ import (
 type Service struct {
 	manager  outbound.ProcessManager
 	reporter outbound.ProcessReporter
-	patterns []string
 }
 
-// FindRequest holds the root-handling options for finding processes.
+// FindRequest holds the patterns and root-handling options for finding processes.
 type FindRequest struct {
+	// Patterns select the processes to find: a process matches when its name
+	// contains one of them.
+	Patterns []string
 	// IncludeRoot is true to also match processes owned by root.
 	IncludeRoot bool
 	// AllowRoot is true to permit running as root.
 	AllowRoot bool
 }
 
-// FindResult describes a process that matched the Service's patterns.
+// FindResult describes a process that matched the request's patterns.
 type FindResult struct {
 	PID  int
 	Name string
@@ -34,19 +36,20 @@ type FindResult struct {
 	UID int
 }
 
-// NewService returns a Service that finds processes matching patterns.
-func NewService(manager outbound.ProcessManager, reporter outbound.ProcessReporter, patterns []string) *Service {
-	return &Service{manager: manager, reporter: reporter, patterns: patterns}
+// NewService returns a Service that finds and kills processes using manager
+// and reports the processes it finds through reporter.
+func NewService(manager outbound.ProcessManager, reporter outbound.ProcessReporter) *Service {
+	return &Service{manager: manager, reporter: reporter}
 }
 
-// FindProcesses returns the processes matching the Service's patterns and reports them.
+// FindProcesses returns the processes matching request.Patterns and reports them.
 // It returns an error if running as root without request.AllowRoot, if the patterns are invalid,
 // if process discovery fails, or if no process matches.
 func (s *Service) FindProcesses(request FindRequest) ([]FindResult, error) {
 	if err := process.ValidateRoot(s.manager.OwnUID(), request.AllowRoot); err != nil {
 		return nil, apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "", err)
 	}
-	if err := process.ValidatePatterns(s.patterns); err != nil {
+	if err := process.ValidatePatterns(request.Patterns); err != nil {
 		return nil, apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", err)
 	}
 
@@ -55,12 +58,12 @@ func (s *Service) FindProcesses(request FindRequest) ([]FindResult, error) {
 		return nil, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "process discovery failed", err)
 	}
 
-	matches := process.Find(toInfos(processes), s.patterns, s.manager.OwnPID(), s.manager.OwnUID(), request.IncludeRoot)
+	matches := process.Find(toInfos(processes), request.Patterns, s.manager.OwnPID(), s.manager.OwnUID(), request.IncludeRoot)
 	if err := process.ValidateProcesses(matches); err != nil {
 		return nil, apperror.NewError(apperror.CodeProcessNotFound, apperror.SeverityFatal, "", err)
 	}
 
-	s.reporter.Report(toProcessInfos(matches), s.patterns)
+	s.reporter.Report(toProcessInfos(matches), request.Patterns)
 
 	return toFindResults(matches), nil
 }

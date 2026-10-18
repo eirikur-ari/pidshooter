@@ -8,25 +8,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/config"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 )
 
-func TestFlagParser_parse_ReturnsPatternsAndOptions(t *testing.T) {
+func TestFlagParser_parsePlay_ReturnsPlayRequest(t *testing.T) {
 	// Given
 	parser := newFlagParser()
 
 	// When
-	patterns, options, err := parser.parse([]string{"chrome", "--confirm", "firefox", "--speed=3.5"})
+	request, err := parser.parsePlay([]string{"chrome", "--confirm", "firefox", "--speed=3.5"})
 
 	// Then
 	require.NoError(t, err)
-	assert.Equal(t, []string{"chrome", "firefox"}, patterns)
-	assert.Equal(t, config.Options{
-		Game: config.GameOptions{ConfirmMode: new(true), Speed: new(3.5)},
-	}, options)
+	assert.Equal(t, inbound.PlayRequest{
+		Patterns: []string{"chrome", "firefox"},
+		Game:     inbound.GameOptions{ConfirmMode: new(true), Speed: new(3.5)},
+	}, request)
 }
 
-func TestFlagParser_parse_ReturnsArgumentErrorWhenArgumentsAreMalformed(t *testing.T) {
+func TestFlagParser_parsePlay_ReturnsArgumentErrorWhenArgumentsAreMalformed(t *testing.T) {
 	tests := [][]string{
 		{"proc", "--unknown"},
 		{"proc", "--speed"},     // missing its value
@@ -40,29 +40,27 @@ func TestFlagParser_parse_ReturnsArgumentErrorWhenArgumentsAreMalformed(t *testi
 			parser := newFlagParser()
 
 			// When
-			patterns, options, err := parser.parse(args)
+			request, err := parser.parsePlay(args)
 
 			// Then
 			require.Error(t, err)
 			assert.True(t, errors.As(err, &ArgumentError{}))
-			assert.Nil(t, patterns)
-			assert.Equal(t, config.Options{}, options)
+			assert.Equal(t, inbound.PlayRequest{}, request)
 		})
 	}
 }
 
-func TestFlagParser_parse_ReturnsArgumentErrorWhenParsingLeavesUnexpectedArgument(t *testing.T) {
+func TestFlagParser_parsePlay_ReturnsArgumentErrorWhenParsingLeavesUnexpectedArgument(t *testing.T) {
 	// Given
 	parser := newFlagParser()
 	parser.splitter = &FakeSplitter{FlagArgs: []string{"leftover"}}
 
 	// When
-	patterns, options, err := parser.parse([]string{"firefox"})
+	request, err := parser.parsePlay([]string{"firefox"})
 
 	// Then
 	require.Error(t, err)
 	assert.True(t, errors.As(err, &ArgumentError{}))
 	assert.EqualError(t, err, "unexpected argument: leftover")
-	assert.Nil(t, patterns)
-	assert.Equal(t, config.Options{}, options)
+	assert.Equal(t, inbound.PlayRequest{}, request)
 }

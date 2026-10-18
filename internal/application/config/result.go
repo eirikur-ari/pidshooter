@@ -20,12 +20,11 @@ const (
 
 // Names of the stored fields that are validated.
 const (
-	modeFieldName      = "mode"
 	speedFieldName     = "speed"
 	timeLimitFieldName = "time_limit"
 )
 
-// GameResult holds game mode run parameters.
+// GameResult holds game run parameters.
 type GameResult struct {
 	ConfirmMode bool
 	Speed       float64
@@ -44,7 +43,6 @@ type ProcessResult struct {
 
 // Result holds the run parameters for a single invocation of pidshooter.
 type Result struct {
-	Mode    outbound.Mode
 	Process ProcessResult
 	Game    GameResult
 }
@@ -53,7 +51,6 @@ type Result struct {
 // process-discovery parameters.
 func newResult() Result {
 	return Result{
-		Mode: outbound.ModeGame,
 		Process: ProcessResult{
 			IncludeRoot: false,
 			AllowRoot:   false,
@@ -82,9 +79,6 @@ func (result Result) fromStore(stored outbound.Config) (Result, error) {
 	storedGame := stored.Game
 	rejected, err := validateStore(stored)
 
-	if stored.Mode != "" && !slices.Contains(rejected, modeFieldName) {
-		result.Mode = stored.Mode
-	}
 	if storedGame.ConfirmMode != nil {
 		result.Game.ConfirmMode = *storedGame.ConfirmMode
 	}
@@ -125,15 +119,6 @@ func (result Result) fromOptions(options Options) Result {
 // along with an error naming each of them and why, or nil if all are valid.
 func validateStore(stored outbound.Config) (rejected []string, err error) {
 	var causes []error
-
-	if stored.Mode != "" {
-		switch stored.Mode {
-		case outbound.ModeGame, outbound.ModeLucky, outbound.ModeList:
-		default:
-			rejected = append(rejected, modeFieldName)
-			causes = append(causes, fmt.Errorf("mode must be one of %q, %q, %q, got: %q", outbound.ModeGame, outbound.ModeLucky, outbound.ModeList, stored.Mode))
-		}
-	}
 
 	storedGame := stored.Game
 	if storedGame.Speed != nil {
