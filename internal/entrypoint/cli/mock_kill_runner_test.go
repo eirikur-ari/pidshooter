@@ -1,4 +1,4 @@
-package runner
+package cli
 
 import (
 	"github.com/stretchr/testify/mock"

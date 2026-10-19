@@ -12,6 +12,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
 	"github.com/eirikur-ari/pidshooter/internal/application/runner"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
+	"github.com/eirikur-ari/pidshooter/internal/entrypoint/cli"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/console"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/filestore"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/logger"
@@ -19,7 +20,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
-// Creator creates the runner of the commands.
+// Creator creates the program that runs the commands.
 type Creator struct {
 	errHandler *apperror.Handler
 }
@@ -29,13 +30,13 @@ func NewCreator() *Creator {
 	return &Creator{errHandler: apperror.NewHandler(logger.NewLogger())}
 }
 
-// Create returns the runner of the commands. Nothing a command needs is set up
-// until that command runs.
-func (c *Creator) Create() *runner.Dispatcher {
-	return runner.NewDispatcher(
-		&lazyRunner[inbound.PlayRequest, inbound.PlayRunner]{build: c.buildPlay},
-		runner.NewList(),
-		runner.NewKill(),
+// Create returns the program that runs the commands. Nothing a command needs is
+// set up until that command runs.
+func (c *Creator) Create() *cli.Program {
+	return cli.NewProgram(
+		&lazyRunner[inbound.PlayRequest, inbound.PlayRunner]{build: c.buildPlay, errHandler: c.errHandler},
+		runner.NewList(c.errHandler),
+		runner.NewKill(c.errHandler),
 		c.errHandler,
 	)
 }

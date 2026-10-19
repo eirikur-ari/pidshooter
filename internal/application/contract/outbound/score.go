@@ -4,6 +4,23 @@ import (
 	"time"
 )
 
+// ScoreStore persists and retrieves the score board.
+type ScoreStore interface {
+	// Load returns the persisted score board. If no board has been
+	// persisted yet, it returns an empty ScoreBoard and a NotFoundError.
+	// If the persisted data exists but cannot be parsed, it returns an
+	// empty ScoreBoard and a CorruptedDataError.
+	Load() (ScoreBoard, error)
+	// Save persists board, overwriting any previously persisted board.
+	Save(board ScoreBoard) error
+}
+
+// ScoreReporter reports session results and the score entries to the user.
+type ScoreReporter interface {
+	// Report displays summary to the user.
+	Report(summary ScoreSummary)
+}
+
 // ScoreEntry is the outcome of a single session.
 type ScoreEntry struct {
 	Kills int
@@ -27,17 +44,6 @@ type ScoreBoard struct {
 	Scores []ScoreEntry
 }
 
-// ScoreStore persists and retrieves the score board.
-type ScoreStore interface {
-	// Load returns the persisted score board. If no board has been
-	// persisted yet, it returns an empty ScoreBoard and a NotFoundError.
-	// If the persisted data exists but cannot be parsed, it returns an
-	// empty ScoreBoard and a CorruptedDataError.
-	Load() (ScoreBoard, error)
-	// Save persists board, overwriting any previously persisted board.
-	Save(board ScoreBoard) error
-}
-
 // ScoreSummary is a session's outcome together with the board's entries.
 type ScoreSummary struct {
 	Kills    int
@@ -48,10 +54,4 @@ type ScoreSummary struct {
 	// entries.
 	IsTopScore bool
 	Entries    []ScoreEntry
-}
-
-// ScoreReporter reports session results and the score entries to the user.
-type ScoreReporter interface {
-	// Report displays summary to the user.
-	Report(summary ScoreSummary)
 }

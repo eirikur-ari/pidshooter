@@ -1,4 +1,4 @@
-package runner
+package cli
 
 import (
 	"github.com/stretchr/testify/mock"
@@ -6,8 +6,8 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 )
 
-type MockListRunner struct{ mock.Mock }
+type MockPlayRunner struct{ mock.Mock }
 
-func (m *MockListRunner) Run(request inbound.ListRequest) error {
+func (m *MockPlayRunner) Run(request inbound.PlayRequest) error {
 	return m.Called(request).Error(0)
 }

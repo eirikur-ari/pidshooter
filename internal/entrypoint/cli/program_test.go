@@ -6,234 +6,165 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 )
 
-func TestProgram_Run_PrintsUsageToStdoutWithoutCreatingRunner(t *testing.T) {
-	tests := [][]string{
-		{},
-		{"--help"},
-		{"-h"},
-		{"--help", "--unknown"},
-		{"--unknown", "--help"},
-		{"play", "proc", "--speed", "--help"},
-		{"--help", "--speed"},
-	}
+func TestProgram_Run_PrintsHelpToStdoutWithoutRunningAnything(t *testing.T) {
+	tests := newHelpTestCase()
 
-	for _, args := range tests {
-		t.Run(strings.Join(args, " "), func(t *testing.T) {
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
 			// Given
-			runner := newRunnerMock()
-			program, out, errOut := newProgramFixture(runner)
+			fixture := newProgramFixture()
 
 			// When
-			err := program.Run(args)
+			err := fixture.program.Run(test.args)
 
 			// Then
 			require.NoError(t, err)
-			assert.Equal(t, usageText, out.String())
-			assert.Empty(t, errOut.String())
-			runner.AssertNotCalled(t, "Run", mock.Anything)
+			assert.Contains(t, fixture.out.String(), test.expectedOutput)
+			assert.Empty(t, fixture.errOut.String())
+			assert.Empty(t, fixture.logger.Errored)
+			assertNoRunnerRan(t, fixture)
 		})
 	}
 }
 
-func TestProgram_Run_ReturnsArgumentErrorAndPrintsUsageToStderrWhenArgumentsAreMalformed(t *testing.T) {
+func TestProgram_Run_ReturnsArgumentErrorLogsItOnceAndPrintsUsageToStderrWhenArgumentsAreMalformed(t *testing.T) {
 	tests := [][]string{
-		{"play", "proc", "--help=true"}, // not an exact -h/--help match; falls through as an unrecognized flag
-		{"play", "proc", "--help=false"},
 		{"play", "proc", "--unknown"},
 		{"list", "proc", "--unknown"},
 		{"kill", "proc", "--unknown"},
+		{"list", "proc", "--speed=3"}, // a flag of play, not of list
+		{"kill", "proc", "--confirm"}, // a flag of play, not of kill
+		{"play", "proc", "--speed"},   // missing its value
+		{"play", "proc", "--speed=abc"},
+		{"play", "proc", "--time=abc"},
 		{"chrome"},
 		{"chrome", "play"},
-		{"--time=15", "play", "chrome"},
 		{"Play", "chrome"},
 	}
 
 	for _, args := range tests {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			// Given
-			runner := newRunnerMock()
-			program, out, errOut := newProgramFixture(runner)
+			fixture := newProgramFixture()
 
 			// When
-			err := program.Run(args)
+			err := fixture.program.Run(args)
 
 			// Then
 			require.Error(t, err)
 			assert.True(t, errors.As(err, &ArgumentError{}))
-			assert.Empty(t, out.String())
-			assert.Contains(t, errOut.String(), usageText)
-			runner.AssertNotCalled(t, "Run", mock.Anything)
+			assert.Empty(t, fixture.out.String())
+			assert.Contains(t, fixture.errOut.String(), "Usage:")
+			assert.Equal(t, []string{err.Error()}, fixture.logger.Errored)
+			assertNoRunnerRan(t, fixture)
 		})
 	}
 }
 
-func TestProgram_Run_PassesPlayRequestToPlayRunner(t *testing.T) {
+func TestProgram_Run_RunsOnlyPlayRunnerForTheCommand(t *testing.T) {
 	// Given
-	expectedRequest := inbound.PlayRequest{
-		Patterns: []string{"chrome", "firefox"},
-		Game: inbound.GameOptions{
-			ConfirmMode: new(true),
-			Speed:       new(3.5),
-		},
-	}
-	runner := newRunnerMock()
-	runner.On("Run", inbound.RunRequest{Play: &expectedRequest}).Return(nil)
-	args := []string{"play", "chrome", "--confirm", "firefox", "--speed=3.5"}
-	program, _, _ := newProgramFixture(runner)
+	fixture := newProgramFixture()
+	returnFromEveryRunner(fixture, nil)
 
 	// When
-	err := program.Run(args)
+	err := fixture.program.Run([]string{"play", "proc"})
 
 	// Then
 	require.NoError(t, err)
-	runner.AssertExpectations(t)
-	runner.AssertNumberOfCalls(t, "Run", 1)
+	fixture.play.AssertNumberOfCalls(t, "Run", 1)
+	assert.Empty(t, fixture.out.String())
+	assert.Empty(t, fixture.errOut.String())
+	assert.Empty(t, fixture.logger.Errored)
 }
 
-func TestProgram_Run_PassesListRequestToRunner(t *testing.T) {
+func TestProgram_Run_RunsOnlyListRunnerForTheCommand(t *testing.T) {
 	// Given
-	expectedRequest := inbound.ListRequest{Patterns: []string{"chrome", "firefox"}}
-	runner := newRunnerMock()
-	runner.On("Run", inbound.RunRequest{List: &expectedRequest}).Return(nil)
-	args := []string{"list", "chrome", "firefox"}
-	program, _, _ := newProgramFixture(runner)
+	fixture := newProgramFixture()
+	returnFromEveryRunner(fixture, nil)
 
 	// When
-	err := program.Run(args)
+	err := fixture.program.Run([]string{"list", "proc"})
 
 	// Then
 	require.NoError(t, err)
-	runner.AssertExpectations(t)
-	runner.AssertNumberOfCalls(t, "Run", 1)
+	fixture.list.AssertNumberOfCalls(t, "Run", 1)
+	assert.Empty(t, fixture.out.String())
+	assert.Empty(t, fixture.errOut.String())
+	assert.Empty(t, fixture.logger.Errored)
 }
 
-func TestProgram_Run_PassesKillRequestToRunner(t *testing.T) {
+func TestProgram_Run_RunsOnlyKillRunnerForTheCommand(t *testing.T) {
 	// Given
-	expectedRequest := inbound.KillRequest{Patterns: []string{"chrome", "firefox"}}
-	runner := newRunnerMock()
-	runner.On("Run", inbound.RunRequest{Kill: &expectedRequest}).Return(nil)
-	args := []string{"kill", "chrome", "firefox"}
-	program, _, _ := newProgramFixture(runner)
+	fixture := newProgramFixture()
+	returnFromEveryRunner(fixture, nil)
 
 	// When
-	err := program.Run(args)
+	err := fixture.program.Run([]string{"kill", "proc"})
 
 	// Then
 	require.NoError(t, err)
-	runner.AssertExpectations(t)
-	runner.AssertNumberOfCalls(t, "Run", 1)
+	fixture.kill.AssertNumberOfCalls(t, "Run", 1)
+	assert.Empty(t, fixture.out.String())
+	assert.Empty(t, fixture.errOut.String())
+	assert.Empty(t, fixture.logger.Errored)
 }
 
-func TestProgram_Run_ReturnsListAndKillErrorsUnchanged(t *testing.T) {
-	tests := [][]string{
-		{"list", "proc"},
-		{"kill", "proc"},
-	}
+func TestProgram_Run_ReturnsErrorOfRunnerUnchangedWithoutLoggingIt(t *testing.T) {
+	// Given
+	failure := apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "session failed", errors.New("boom"))
+	fixture := newProgramFixture()
+	returnFromEveryRunner(fixture, failure)
 
-	for _, args := range tests {
-		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			// Given
-			unimplemented := errors.New("unimplemented")
-			runner := newRunnerMock()
-			runner.On("Run", mock.Anything).Return(unimplemented)
-			program, out, errOut := newProgramFixture(runner)
+	// When
+	err := fixture.program.Run([]string{"play", "proc"})
 
-			// When
-			err := program.Run(args)
-
-			// Then
-			require.ErrorIs(t, err, unimplemented)
-			assert.False(t, errors.As(err, &ArgumentError{}))
-			assert.Empty(t, out.String())
-			assert.Empty(t, errOut.String())
-		})
-	}
+	// Then
+	assert.Same(t, failure, err)
+	assert.False(t, errors.As(err, &ArgumentError{}))
+	assert.Empty(t, fixture.out.String())
+	assert.Empty(t, fixture.errOut.String())
+	assert.Empty(t, fixture.logger.Errored)
+	assert.Empty(t, fixture.logger.Warned)
 }
 
-func TestProgram_Run_ReclassifiesInvalidConfigAsArgumentError(t *testing.T) {
+func TestProgram_Run_ReclassifiesInvalidConfigAsArgumentErrorWithoutLoggingIt(t *testing.T) {
 	// Given
 	invalid := apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", errors.New("boom"))
-	runner := runnerMockSetup(invalid)
-	args := []string{"play", "proc"}
-	program, out, errOut := newProgramFixture(runner)
+	fixture := newProgramFixture()
+	returnFromEveryRunner(fixture, invalid)
 
 	// When
-	err := program.Run(args)
+	err := fixture.program.Run([]string{"play", "proc"})
 
 	// Then
-	require.Error(t, err)
+	require.ErrorIs(t, err, invalid)
 	assert.True(t, errors.As(err, &ArgumentError{}))
-	assert.Empty(t, out.String())
-	assert.Contains(t, errOut.String(), usageText)
-	runner.AssertNumberOfCalls(t, "Run", 1)
+	assert.Empty(t, fixture.out.String())
+	assert.Contains(t, fixture.errOut.String(), "Usage:")
+	assert.Empty(t, fixture.logger.Errored)
 }
 
-func TestProgram_Run_ReclassifiesInvalidConfigOfEveryCommandAsArgumentError(t *testing.T) {
-	tests := [][]string{
-		{"play", "proc"},
-		{"list", "proc"},
-		{"kill", "proc"},
+func newHelpTestCase() []struct {
+	name           string
+	args           []string
+	expectedOutput string
+} {
+	return []struct {
+		name           string
+		args           []string
+		expectedOutput string
+	}{
+		{"no arguments", nil, "Process ID Shooter"},
+		{"help flag", []string{"--help"}, "Process ID Shooter"},
+		{"short help flag", []string{"-h"}, "Process ID Shooter"},
+		{"play help", []string{"play", "--help"}, "pidshooter play"},
+		{"list help", []string{"list", "-h"}, "pidshooter list"},
+		{"kill help", []string{"kill", "--help"}, "pidshooter kill"},
+		{"help after pattern", []string{"play", "proc", "--help"}, "pidshooter play"},
 	}
-
-	for _, args := range tests {
-		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			// Given
-			invalid := apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", errors.New("boom"))
-			runner := runnerMockSetup(invalid)
-			program, out, errOut := newProgramFixture(runner)
-
-			// When
-			err := program.Run(args)
-
-			// Then
-			require.Error(t, err)
-			assert.True(t, errors.As(err, &ArgumentError{}))
-			assert.Empty(t, out.String())
-			assert.Contains(t, errOut.String(), usageText)
-		})
-	}
-}
-
-func TestProgram_Run_ReturnsOtherFatalErrorsUnchanged(t *testing.T) {
-	// Given
-	fatal := apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "game session failed", errors.New("boom"))
-	runner := runnerMockSetup(fatal)
-	args := []string{"play", "proc"}
-	program, out, errOut := newProgramFixture(runner)
-
-	// When
-	err := program.Run(args)
-
-	// Then
-	require.ErrorIs(t, err, fatal)
-	assert.False(t, errors.As(err, &ArgumentError{}))
-	assert.Empty(t, out.String())
-	assert.Empty(t, errOut.String())
-	runner.AssertNumberOfCalls(t, "Run", 1)
-}
-
-func TestProgram_Run_AbsorbsWarningFromRunner(t *testing.T) {
-	// Given
-	warning := apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, "could not kill target", errors.New("boom"))
-	runner := &MockRunner{}
-	runner.On("Run", mock.Anything).Return(warning)
-	runner.On("HandleError", warning).Return(nil)
-	args := []string{"play", "proc"}
-	program, out, errOut := newProgramFixture(runner)
-
-	// When
-	err := program.Run(args)
-
-	// Then
-	assert.NoError(t, err)
-	assert.Empty(t, out.String())
-	assert.Empty(t, errOut.String())
-	runner.AssertNumberOfCalls(t, "Run", 1)
 }

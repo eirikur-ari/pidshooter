@@ -18,8 +18,7 @@ func newPlayRequestFixture() inbound.PlayRequest {
 	return inbound.PlayRequest{Patterns: []string{"target"}}
 }
 
-func newDispatcherFixture() (dispatcher *Dispatcher, play *MockPlayRunner, list *MockListRunner, kill *MockKillRunner) {
-	play, list, kill = &MockPlayRunner{}, &MockListRunner{}, &MockKillRunner{}
-	dispatcher = NewDispatcher(play, list, kill, apperror.NewHandler(&testutil.FakeLogger{}))
-	return dispatcher, play, list, kill
+func newHandlerFixture() (*apperror.Handler, *testutil.FakeLogger) {
+	logger := &testutil.FakeLogger{}
+	return apperror.NewHandler(logger), logger
 }

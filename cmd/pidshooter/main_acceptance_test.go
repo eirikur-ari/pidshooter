@@ -44,8 +44,8 @@ func TestAcceptance_UnknownFlag_ExitsWithCodeTwoAndPrintsUsageToStderr(t *testin
 	require.ErrorAs(t, err, &exitErr)
 	assert.Equal(t, 2, exitErr.ExitCode())
 	assert.Empty(t, stdout.String())
-	assert.Contains(t, stderr.String(), "flag provided but not defined: -unknown")
-	assert.Contains(t, stderr.String(), "Process ID Shooter")
+	assert.Contains(t, stderr.String(), "unknown flag: --unknown")
+	assert.Contains(t, stderr.String(), "Usage:")
 }
 
 func TestAcceptance_UnknownCommand_ExitsWithCodeTwoAndPrintsUsageToStderr(t *testing.T) {
@@ -66,6 +66,7 @@ func TestAcceptance_UnknownCommand_ExitsWithCodeTwoAndPrintsUsageToStderr(t *tes
 	assert.Empty(t, stdout.String())
 	assert.Contains(t, stderr.String(), "unknown command: chrome")
 	assert.Contains(t, stderr.String(), "Process ID Shooter")
+	assert.Contains(t, stderr.String(), "Usage:")
 }
 
 func pidshooterBinary(t *testing.T) string {

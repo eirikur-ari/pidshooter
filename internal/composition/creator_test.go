@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
@@ -26,15 +25,28 @@ func TestCreator_Create_BuildsNothingUntilACommandRuns(t *testing.T) {
 	testutil.UnsetEnv(t, "XDG_CONFIG_HOME")
 
 	// When
-	dispatcher := newCreatorFixture().Create()
-	listErr := dispatcher.Run(inbound.RunRequest{List: &inbound.ListRequest{}})
-	playErr := dispatcher.Run(inbound.RunRequest{Play: &inbound.PlayRequest{}})
+	program := newCreatorFixture().Create()
+	listErr := program.Run([]string{"list", "proc"})
+	playErr := program.Run([]string{"play", "proc"})
 
 	// Then
-	require.NotNil(t, dispatcher)
+	require.NotNil(t, program)
 	assert.EqualError(t, listErr, "unimplemented")
 	require.Error(t, playErr)
 	assert.NotEqual(t, "unimplemented", playErr.Error())
+}
+
+func TestCreator_Create_LogsAnErrorOfACommandOnce(t *testing.T) {
+	// Given
+	handler, logger := newHandlerFixture()
+	creator := &Creator{errHandler: handler}
+
+	// When
+	err := creator.Create().Run([]string{"kill", "proc"})
+
+	// Then
+	assert.EqualError(t, err, "unimplemented")
+	assert.Equal(t, []string{"unimplemented"}, logger.Errored)
 }
 
 func TestCreator_buildPlay_ReturnsRunnerWhenAllDependenciesAvailable(t *testing.T) {

@@ -17,7 +17,7 @@ func main() {
 // run runs the program with the command-line arguments and returns the error it
 // ended with, if any.
 func run() error {
-	return cli.NewProgram(composition.NewCreator().Create()).Run(os.Args[1:])
+	return composition.NewCreator().Create().Run(os.Args[1:])
 }
 
 // exitCode returns the process exit status for err: 2 when the command-line

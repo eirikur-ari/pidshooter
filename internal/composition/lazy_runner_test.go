@@ -15,12 +15,14 @@ func TestLazyRunner_Run_BuildsRunnerOnlyWhenRun(t *testing.T) {
 	request := inbound.PlayRequest{Patterns: []string{"proc"}}
 	runner := &MockPlayRunner{}
 	runner.On("Run", request).Return(nil)
+	handler, _ := newHandlerFixture()
 	builds := 0
 	lazy := &lazyRunner[inbound.PlayRequest, inbound.PlayRunner]{
 		build: func() (inbound.PlayRunner, error) {
 			builds++
 			return runner, nil
 		},
+		errHandler: handler,
 	}
 	buildsBeforeRun := builds
 
@@ -34,11 +36,13 @@ func TestLazyRunner_Run_BuildsRunnerOnlyWhenRun(t *testing.T) {
 	runner.AssertNumberOfCalls(t, "Run", 1)
 }
 
-func TestLazyRunner_Run_ReturnsBuildErrorWithoutRunningRequest(t *testing.T) {
+func TestLazyRunner_Run_HandlesBuildErrorAndReturnsItWithoutRunningRequest(t *testing.T) {
 	// Given
 	failure := errors.New("cannot set up")
+	handler, logger := newHandlerFixture()
 	lazy := &lazyRunner[inbound.PlayRequest, inbound.PlayRunner]{
-		build: func() (inbound.PlayRunner, error) { return nil, failure },
+		build:      func() (inbound.PlayRunner, error) { return nil, failure },
+		errHandler: handler,
 	}
 
 	// When
@@ -46,15 +50,35 @@ func TestLazyRunner_Run_ReturnsBuildErrorWithoutRunningRequest(t *testing.T) {
 
 	// Then
 	assert.Same(t, failure, err)
+	assert.Equal(t, []string{"cannot set up"}, logger.Errored)
 }
 
-func TestLazyRunner_Run_ReturnsErrorOfBuiltRunner(t *testing.T) {
+func TestLazyRunner_Run_ReturnsBuildErrorEvenWhenItsSeverityIsAbsorbed(t *testing.T) {
+	// Given
+	warning := newWarning("cannot set up")
+	handler, logger := newHandlerFixture()
+	lazy := &lazyRunner[inbound.PlayRequest, inbound.PlayRunner]{
+		build:      func() (inbound.PlayRunner, error) { return nil, warning },
+		errHandler: handler,
+	}
+
+	// When
+	err := lazy.Run(inbound.PlayRequest{})
+
+	// Then
+	assert.Same(t, warning, err)
+	assert.Equal(t, []string{"cannot set up"}, logger.Warned)
+}
+
+func TestLazyRunner_Run_ReturnsErrorOfBuiltRunnerWithoutHandlingIt(t *testing.T) {
 	// Given
 	failure := errors.New("session failed")
 	runner := &MockPlayRunner{}
 	runner.On("Run", inbound.PlayRequest{}).Return(failure)
+	handler, logger := newHandlerFixture()
 	lazy := &lazyRunner[inbound.PlayRequest, inbound.PlayRunner]{
-		build: func() (inbound.PlayRunner, error) { return runner, nil },
+		build:      func() (inbound.PlayRunner, error) { return runner, nil },
+		errHandler: handler,
 	}
 
 	// When
@@ -62,4 +86,6 @@ func TestLazyRunner_Run_ReturnsErrorOfBuiltRunner(t *testing.T) {
 
 	// Then
 	assert.Same(t, failure, err)
+	assert.Empty(t, logger.Errored)
+	assert.Empty(t, logger.Warned)
 }
