@@ -21,8 +21,8 @@ type GameOptions struct {
 // field means the value was not provided.
 type ProcessOptions struct {
 	IncludeRoot *bool
-	// AllowRoot permits running pidshooter itself as root; never read from
-	// the stored config, only ever set per invocation.
+	// AllowRoot permits running as root, is never read from the stored config, only
+	// ever set per invocation.
 	AllowRoot *bool
 }
 

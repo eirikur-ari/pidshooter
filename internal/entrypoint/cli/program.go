@@ -41,17 +41,17 @@ Config file:
   e.g. --include-root=false overrides a persisted "include_root: true".
 `
 
-// Runner runs the commands of pidshooter.
+// Runner runs the command a request describes.
 type Runner interface {
-	// Play plays a game session as described by request, returning an error if
-	// it could not complete.
-	Play(request inbound.PlayRequest) error
+	// Run runs the command described by request, returning an error if it
+	// could not complete.
+	Run(request inbound.RunRequest) error
 	// HandleError logs err at the level its severity calls for. It returns nil if
 	// the error is absorbed, and err unchanged otherwise.
 	HandleError(err error) error
 }
 
-// Program runs pidshooter from command-line arguments.
+// Program runs a command from command-line arguments.
 type Program struct {
 	runner Runner
 	parser *flagParser
@@ -83,26 +83,16 @@ func (p *Program) Run(args []string) error {
 }
 
 func (p *Program) run(cmd command) (showUsage bool, err error) {
-	switch {
-	case cmd.Help():
+	if cmd.Help() {
 		return true, nil
-	case cmd.Play():
-		return p.play(cmd.Arguments())
-	default:
-		return true, ArgumentError{Cause: fmt.Errorf("unknown command: %s", cmd.Name())}
 	}
-}
 
-// play parses the arguments of the play command and plays the game session
-// they describe. It also reports whether usage text should be shown, whether
-// it returns an error.
-func (p *Program) play(args []string) (showUsage bool, err error) {
-	request, err := p.parser.parsePlay(args)
+	request, err := p.parser.parseRequest(cmd)
 	if err != nil {
 		return true, err
 	}
 
-	if err := p.runner.Play(request); err != nil {
+	if err := p.runner.Run(request); err != nil {
 		if apperror.CodeInvalidConfig.In(err) {
 			return true, ArgumentError{Cause: err}
 		}

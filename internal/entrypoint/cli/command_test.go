@@ -41,6 +41,24 @@ func TestCommand_Play_ReportsWhetherPlayIsAsked(t *testing.T) {
 	}
 }
 
+func TestCommand_List_ReportsWhetherListIsAsked(t *testing.T) {
+	assert.True(t, newCommand([]string{"list", "chrome"}).List())
+	assert.True(t, newCommand([]string{"list"}).List())
+	assert.False(t, newCommand([]string{"list", "--help"}).List())
+	assert.False(t, newCommand([]string{}).List())
+	assert.False(t, newCommand([]string{"play", "list"}).List())
+	assert.False(t, newCommand([]string{"List", "chrome"}).List())
+}
+
+func TestCommand_Kill_ReportsWhetherKillIsAsked(t *testing.T) {
+	assert.True(t, newCommand([]string{"kill", "chrome"}).Kill())
+	assert.True(t, newCommand([]string{"kill"}).Kill())
+	assert.False(t, newCommand([]string{"kill", "--help"}).Kill())
+	assert.False(t, newCommand([]string{}).Kill())
+	assert.False(t, newCommand([]string{"play", "kill"}).Kill())
+	assert.False(t, newCommand([]string{"Kill", "chrome"}).Kill())
+}
+
 func TestCommand_Name_ReturnsFirstArgument(t *testing.T) {
 	assert.Equal(t, "chrome", newCommand([]string{"chrome", "play"}).Name())
 	assert.Empty(t, newCommand(nil).Name())

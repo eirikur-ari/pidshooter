@@ -19,35 +19,30 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
-// Runner runs the commands of pidshooter.
-type Runner struct {
+// Creator creates the runner of the commands.
+type Creator struct {
 	errHandler *apperror.Handler
 }
 
-// NewRunner returns a Runner that logs errors to standard error.
-func NewRunner() *Runner {
-	return &Runner{errHandler: apperror.NewHandler(logger.NewLogger())}
+// NewCreator returns a Creator that logs errors to standard error.
+func NewCreator() *Creator {
+	return &Creator{errHandler: apperror.NewHandler(logger.NewLogger())}
 }
 
-// Play plays a game session as described by request. It returns an error if
-// the session cannot be set up or if it fails.
-func (r *Runner) Play(request inbound.PlayRequest) error {
-	playRunner, err := r.buildPlay()
-	if err != nil {
-		return err
-	}
-	return playRunner.Run(request)
-}
-
-// HandleError logs err at the level its severity calls for. It returns nil if
-// the error is absorbed, and err unchanged otherwise.
-func (r *Runner) HandleError(err error) error {
-	return r.errHandler.Handle(err)
+// Create returns the runner of the commands. Nothing a command needs is set up
+// until that command runs.
+func (c *Creator) Create() *runner.Dispatcher {
+	return runner.NewDispatcher(
+		&lazyRunner[inbound.PlayRequest, inbound.PlayRunner]{build: c.buildPlay},
+		runner.NewList(),
+		runner.NewKill(),
+		c.errHandler,
+	)
 }
 
 // buildPlay returns the runner of a game session wired with everything it
 // depends on. It returns an error if any of those dependencies cannot be set up.
-func (r *Runner) buildPlay() (inbound.PlayRunner, error) {
+func (c *Creator) buildPlay() (inbound.PlayRunner, error) {
 	manager, err := pscommand.NewManager()
 	if err != nil {
 		return nil, err
@@ -75,5 +70,5 @@ func (r *Runner) buildPlay() (inbound.PlayRunner, error) {
 	scoreSvc := score.NewService(scoreStore, console.NewScoreReporter())
 	gameSvc := game.NewService(processSvc, ui, ui.InputEvents())
 
-	return runner.NewPlay(configSvc, processSvc, scoreSvc, gameSvc, r.errHandler), nil
+	return runner.NewPlay(configSvc, processSvc, scoreSvc, gameSvc, c.errHandler), nil
 }

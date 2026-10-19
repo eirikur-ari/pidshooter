@@ -5,6 +5,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
-func newRunnerFixture() *Runner {
-	return &Runner{errHandler: apperror.NewHandler(&testutil.FakeLogger{})}
+func newCreatorFixture() *Creator {
+	return &Creator{errHandler: apperror.NewHandler(&testutil.FakeLogger{})}
 }

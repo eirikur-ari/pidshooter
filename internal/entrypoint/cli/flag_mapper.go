@@ -7,8 +7,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/util"
 )
 
-// flagMapper holds the flags pidshooter recognizes and reads which of them were
-// passed.
+// flagMapper holds the flags it recognizes and reads which of them were passed.
 type flagMapper struct {
 	flagSet     *flag.FlagSet
 	confirm     *bool

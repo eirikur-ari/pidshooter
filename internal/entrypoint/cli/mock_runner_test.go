@@ -8,7 +8,7 @@ import (
 
 type MockRunner struct{ mock.Mock }
 
-func (m *MockRunner) Play(request inbound.PlayRequest) error {
+func (m *MockRunner) Run(request inbound.RunRequest) error {
 	return m.Called(request).Error(0)
 }
 

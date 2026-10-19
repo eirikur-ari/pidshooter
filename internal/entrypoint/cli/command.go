@@ -1,6 +1,6 @@
 package cli
 
-// command is what the command-line arguments ask pidshooter to do.
+// command is what the command-line arguments ask to be done.
 type command struct {
 	args []string
 }
@@ -28,6 +28,16 @@ func (c command) Help() bool {
 // Play reports whether the command is to play the game.
 func (c command) Play() bool {
 	return !c.Help() && c.args[0] == "play"
+}
+
+// List reports whether the command is to list the matching processes.
+func (c command) List() bool {
+	return !c.Help() && c.args[0] == "list"
+}
+
+// Kill reports whether the command is to kill the matching processes.
+func (c command) Kill() bool {
+	return !c.Help() && c.args[0] == "kill"
 }
 
 // Name returns the first argument, or "" if there are no arguments.

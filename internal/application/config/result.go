@@ -34,14 +34,14 @@ type GameResult struct {
 // ProcessResult holds process-discovery run parameters.
 type ProcessResult struct {
 	// IncludeRoot additionally permits root-owned processes as targets,
-	// regardless of which user is running pidshooter.
+	// regardless of which user is running.
 	IncludeRoot bool
-	// AllowRoot permits running pidshooter itself as root; never populated
-	// from the stored config.
+	// AllowRoot permits running as root; never populated from the stored
+	// config.
 	AllowRoot bool
 }
 
-// Result holds the run parameters for a single invocation of pidshooter.
+// Result holds the run parameters for a single invocation.
 type Result struct {
 	Process ProcessResult
 	Game    GameResult
