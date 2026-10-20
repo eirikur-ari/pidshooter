@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -14,6 +16,8 @@ const (
 	iAmRootFlag     = "i-am-root"
 
 	defaultMinimumPatterns = 1
+
+	suggestionMinimumDistance = 2
 )
 
 // rootFlags holds the values of the flags that every command accepts.
@@ -46,6 +50,7 @@ func newRootCommand(play inbound.PlayRunner, list inbound.ListRunner, kill inbou
 		RunE:          c.showHelp,
 	}
 	c.cmd.CompletionOptions.DisableDefaultCmd = true
+	c.cmd.SuggestionsMinimumDistance = suggestionMinimumDistance
 	c.cmd.SetHelpCommand(&cobra.Command{Use: "no-help", Hidden: true})
 	c.cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return ArgumentError{Cause: err}
@@ -57,13 +62,19 @@ func newRootCommand(play inbound.PlayRunner, list inbound.ListRunner, kill inbou
 }
 
 // showHelp shows the help when there are no arguments, and otherwise returns an
-// ArgumentError for the first argument as an unknown command.
+// ArgumentError for the first argument, suggesting the commands it resembles or
+// else naming it an unknown command.
 func (c *rootCommand) showHelp(_ *cobra.Command, args []string) error {
 	if len(args) == 0 {
 		return c.cmd.Help()
 	}
 
-	return ArgumentError{Cause: fmt.Errorf("unknown command: %s", args[0])}
+	message := fmt.Sprintf("unknown command: %s", args[0])
+	if suggestions := c.cmd.SuggestionsFor(args[0]); len(suggestions) > 0 {
+		message = fmt.Sprintf("did you mean %s?", strings.Join(suggestions, ", "))
+	}
+
+	return ArgumentError{Cause: errors.New(message)}
 }
 
 // addSubcommands adds the commands that run under the top-level command. Each

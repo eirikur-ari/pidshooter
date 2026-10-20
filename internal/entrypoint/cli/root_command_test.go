@@ -53,6 +53,32 @@ func TestRootCommand_cmd_ReturnsArgumentErrorWithoutRunningAnythingWhenArguments
 	}
 }
 
+func TestRootCommand_cmd_SuggestsCommandsTheUnknownCommandResembles(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		expected string
+	}{
+		{"typo of a command", []string{"plya", "x"}, "did you mean play?"},
+		{"no resemblance", []string{"zzzzzz"}, "unknown command: zzzzzz"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			cmd := newRootCommand(&MockPlayRunner{}, &MockListRunner{}, &MockKillRunner{}).cmd
+
+			// When
+			err := executeCommand(cmd, test.args)
+
+			// Then
+			require.Error(t, err)
+			assert.ErrorAs(t, err, &ArgumentError{})
+			assert.EqualError(t, err, test.expected)
+		})
+	}
+}
+
 func TestRootCommand_cmd_PrintsHelpWithoutRunningAnything(t *testing.T) {
 	tests := newHelpTestCase()
 
