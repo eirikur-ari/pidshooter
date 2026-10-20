@@ -34,7 +34,7 @@ type GameResult struct {
 // ProcessResult holds process-discovery run parameters.
 type ProcessResult struct {
 	// IncludeRoot additionally permits root-owned processes as targets,
-	// regardless of which user is running.
+	// regardless of the current user.
 	IncludeRoot bool
 	// AllowRoot permits running as root; never populated from the stored
 	// config.

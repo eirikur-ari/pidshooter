@@ -108,10 +108,10 @@ clean:
 	rm -rf $(BIN_DIR) $(BUILD_DIR)
 
 ## run: Build and run (override ARGS= to customize)
-ARGS ?= sleep
+ARGS ?= play sleep
 .PHONY: run
 run: build
-	./$(BIN_DIR)/$(BINARY_NAME) "$(ARGS)"
+	./$(BIN_DIR)/$(BINARY_NAME) $(ARGS)
 
 ## dev-start: Start the devcontainer
 .PHONY: dev-start

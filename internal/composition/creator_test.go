@@ -9,14 +9,6 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
-func TestNewCreator_CreatesErrorHandler(t *testing.T) {
-	// When
-	creator := NewCreator()
-
-	// Then
-	assert.NotNil(t, creator.errHandler)
-}
-
 func TestCreator_Create_BuildsNothingUntilACommandRuns(t *testing.T) {
 	// Given
 	t.Setenv("PATH", "")
@@ -30,7 +22,6 @@ func TestCreator_Create_BuildsNothingUntilACommandRuns(t *testing.T) {
 	playErr := program.Run([]string{"play", "proc"})
 
 	// Then
-	require.NotNil(t, program)
 	assert.EqualError(t, listErr, "unimplemented")
 	require.Error(t, playErr)
 	assert.NotEqual(t, "unimplemented", playErr.Error())

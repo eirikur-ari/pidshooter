@@ -40,7 +40,7 @@ type gamePlayer interface {
 	Play(request game.PlayRequest) (game.PlayResult, error)
 }
 
-// Play wires together the services required to run a game session.
+// Play plays a game session over the processes that match search patterns.
 type Play struct {
 	configSvc  configLoader
 	processSvc processFinder

@@ -20,9 +20,9 @@ type GameOptions struct {
 // ProcessOptions holds explicitly provided process-discovery values. A nil
 // field means the value was not provided.
 type ProcessOptions struct {
+	// IncludeRoot additionally permits root-owned processes as targets.
 	IncludeRoot *bool
-	// AllowRoot permits running as root, is never read from the stored config, only
-	// ever set per invocation.
+	// AllowRoot permits running as root.
 	AllowRoot *bool
 }
 
