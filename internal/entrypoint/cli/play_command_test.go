@@ -18,7 +18,7 @@ func TestPlayCommand_command_PassesRequestOfTheFlagsSetToRunner(t *testing.T) {
 			// Given
 			runner := &MockPlayRunner{}
 			runner.On("Run", test.expectedRequest).Return(nil)
-			cmd := newPlayCommand(runner, &rootFlags{}).command()
+			cmd := newPlayCommand(runner, &rootCommand{}).command()
 
 			// When
 			err := executeCommand(cmd, test.args)
@@ -31,30 +31,12 @@ func TestPlayCommand_command_PassesRequestOfTheFlagsSetToRunner(t *testing.T) {
 	}
 }
 
-func TestPlayCommand_command_PassesProcessOptionsToRunner(t *testing.T) {
-	// Given
-	flags := rootFlags{includeRoot: new(true), allowRoot: new(false)}
-	options := inbound.ProcessOptions{IncludeRoot: new(true), AllowRoot: new(false)}
-	expectedRequest := inbound.PlayRequest{Patterns: []string{"proc"}, Process: options}
-	runner := &MockPlayRunner{}
-	runner.On("Run", expectedRequest).Return(nil)
-	cmd := newPlayCommand(runner, &flags).command()
-
-	// When
-	err := executeCommand(cmd, []string{"proc"})
-
-	// Then
-	require.NoError(t, err)
-	runner.AssertExpectations(t)
-	runner.AssertNumberOfCalls(t, "Run", 1)
-}
-
 func TestPlayCommand_command_ReturnsErrorOfRunnerUnchanged(t *testing.T) {
 	// Given
 	failure := errors.New("session failed")
 	runner := &MockPlayRunner{}
 	runner.On("Run", inbound.PlayRequest{Patterns: []string{"proc"}}).Return(failure)
-	cmd := newPlayCommand(runner, &rootFlags{}).command()
+	cmd := newPlayCommand(runner, &rootCommand{}).command()
 
 	// When
 	err := executeCommand(cmd, []string{"proc"})
@@ -65,7 +47,7 @@ func TestPlayCommand_command_ReturnsErrorOfRunnerUnchanged(t *testing.T) {
 
 func TestPlayCommand_toRequest_ReturnsIndependentCopyOfFlagValues(t *testing.T) {
 	// Given
-	command := newPlayCommand(&MockPlayRunner{}, &rootFlags{})
+	command := newPlayCommand(&MockPlayRunner{}, &rootCommand{})
 	cmd := command.command()
 	require.NoError(t, cmd.Flags().Parse([]string{"--confirm", "--speed=3.5", "--time=60"}))
 

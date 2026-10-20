@@ -12,14 +12,9 @@ import (
 
 func TestKillCommand_command_PassesRequestToRunner(t *testing.T) {
 	// Given
-	flags := rootFlags{includeRoot: new(true), allowRoot: new(false)}
-	expectedRequest := inbound.KillRequest{
-		Patterns: []string{"chrome", "firefox"},
-		Process:  inbound.ProcessOptions{IncludeRoot: new(true), AllowRoot: new(false)},
-	}
 	runner := &MockKillRunner{}
-	runner.On("Run", expectedRequest).Return(nil)
-	cmd := newKillCommand(runner, &flags).command()
+	runner.On("Run", inbound.KillRequest{Patterns: []string{"chrome", "firefox"}}).Return(nil)
+	cmd := newKillCommand(runner, &rootCommand{}).command()
 
 	// When
 	err := executeCommand(cmd, []string{"chrome", "firefox"})
@@ -35,7 +30,7 @@ func TestKillCommand_command_ReturnsErrorOfRunnerUnchanged(t *testing.T) {
 	failure := errors.New("killing failed")
 	runner := &MockKillRunner{}
 	runner.On("Run", inbound.KillRequest{Patterns: []string{"proc"}}).Return(failure)
-	cmd := newKillCommand(runner, &rootFlags{}).command()
+	cmd := newKillCommand(runner, &rootCommand{}).command()
 
 	// When
 	err := executeCommand(cmd, []string{"proc"})

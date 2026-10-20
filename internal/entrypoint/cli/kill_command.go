@@ -12,11 +12,11 @@ const killExamples = `  pidshooter kill firefox
 // killCommand kills the processes its arguments describe.
 type killCommand struct {
 	runner inbound.KillRunner
-	root   *rootFlags
+	root   *rootCommand
 }
 
 // newKillCommand returns a killCommand that kills processes.
-func newKillCommand(runner inbound.KillRunner, root *rootFlags) *killCommand {
+func newKillCommand(runner inbound.KillRunner, root *rootCommand) *killCommand {
 	return &killCommand{runner: runner, root: root}
 }
 
@@ -27,10 +27,10 @@ func (c *killCommand) command() *cobra.Command {
 		Use:     "kill <pattern> [pattern2] [pattern3...]",
 		Short:   "Kill the processes matching the patterns",
 		Example: killExamples,
-		RunE: func(_ *cobra.Command, patterns []string) error {
+		RunE: func(cmd *cobra.Command, patterns []string) error {
 			return c.runner.Run(inbound.KillRequest{
 				Patterns: patterns,
-				Process:  inbound.ProcessOptions{IncludeRoot: c.root.includeRoot, AllowRoot: c.root.allowRoot},
+				Process:  c.root.toProcessOptions(cmd.Flags()),
 			})
 		},
 	}

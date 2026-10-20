@@ -12,13 +12,14 @@ import (
 const (
 	includeRootFlag = "include-root"
 	iAmRootFlag     = "i-am-root"
+
+	defaultMinimumPatterns = 1
 )
 
-// rootFlags holds the values of the flags that every command accepts. A nil
-// field means the flag was not set.
+// rootFlags holds the values of the flags that every command accepts.
 type rootFlags struct {
-	includeRoot *bool
-	allowRoot   *bool
+	includeRoot bool
+	allowRoot   bool
 }
 
 // rootCommand is the top-level command that the other commands run under.
@@ -27,74 +28,83 @@ type rootCommand struct {
 	list inbound.ListRunner
 	kill inbound.KillRunner
 
-	flags rootFlags
+	cmd             *cobra.Command
+	flags           rootFlags
+	minimumPatterns int
 }
 
 // newRootCommand returns a rootCommand that runs its commands on the given
 // runners.
 func newRootCommand(play inbound.PlayRunner, list inbound.ListRunner, kill inbound.KillRunner) *rootCommand {
-	return &rootCommand{play: play, list: list, kill: kill}
-}
-
-// command returns the top-level command. Without a command it shows its
-// help.
-func (c *rootCommand) command() *cobra.Command {
-	root := &cobra.Command{
-		Use:               "pidshooter",
-		Short:             "Process ID Shooter",
-		Args:              cobra.ArbitraryArgs,
-		SilenceUsage:      true,
-		SilenceErrors:     true,
-		PersistentPreRunE: c.mapFlags,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) == 0 {
-				return cmd.Help()
-			}
-			return ArgumentError{Cause: fmt.Errorf("unknown command: %s", args[0])}
-		},
+	c := &rootCommand{play: play, list: list, kill: kill, minimumPatterns: defaultMinimumPatterns}
+	c.cmd = &cobra.Command{
+		Use:           "pidshooter",
+		Short:         "Process ID Shooter",
+		Args:          cobra.ArbitraryArgs,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE:          c.showHelp,
 	}
-	root.CompletionOptions.DisableDefaultCmd = true
-	root.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+	c.cmd.CompletionOptions.DisableDefaultCmd = true
+	c.cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return ArgumentError{Cause: err}
 	})
-	c.defineFlags(root.PersistentFlags())
-	root.AddCommand(
-		newPlayCommand(c.play, &c.flags).command(),
-		newListCommand(c.list, &c.flags).command(),
-		newKillCommand(c.kill, &c.flags).command(),
-	)
+	c.defineFlags(c.cmd.PersistentFlags())
+	c.addSubcommands()
 
-	return root
+	return c
+}
+
+// showHelp shows the help when there are no arguments, and otherwise returns an
+// ArgumentError for the first argument as an unknown command.
+func (c *rootCommand) showHelp(_ *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return c.cmd.Help()
+	}
+
+	return ArgumentError{Cause: fmt.Errorf("unknown command: %s", args[0])}
+}
+
+// addSubcommands adds the commands that run under the top-level command. Each
+// of them requires at least one search pattern.
+func (c *rootCommand) addSubcommands() {
+	for _, sub := range []*cobra.Command{
+		newPlayCommand(c.play, c).command(),
+		newListCommand(c.list, c).command(),
+		newKillCommand(c.kill, c).command(),
+	} {
+		sub.Args = c.requirePatterns
+		c.cmd.AddCommand(sub)
+	}
+}
+
+// requirePatterns returns an ArgumentError if args holds fewer search patterns
+// than the minimum.
+func (c *rootCommand) requirePatterns(cmd *cobra.Command, args []string) error {
+	if err := cobra.MinimumNArgs(c.minimumPatterns)(cmd, args); err != nil {
+		return ArgumentError{Cause: err}
+	}
+
+	return nil
 }
 
 // defineFlags registers the flags that every command accepts.
 func (c *rootCommand) defineFlags(flagSet *pflag.FlagSet) {
-	flagSet.Bool(includeRootFlag, false, "Also target root-owned processes")
-	flagSet.Bool(iAmRootFlag, false, "Allow running as root")
+	flagSet.BoolVar(&c.flags.includeRoot, includeRootFlag, false, "Also target root-owned processes")
+	flagSet.BoolVar(&c.flags.allowRoot, iAmRootFlag, false, "Allow running as root")
 }
 
-// mapFlags maps the flags that were set on cmd into c.flags. A flag that was
-// not set stays nil. It returns an error if a flag cannot be read.
-func (c *rootCommand) mapFlags(cmd *cobra.Command, _ []string) error {
-	var flags rootFlags
-	set := cmd.Flags()
+// toProcessOptions returns the process options for the flags that were set in
+// flagSet. A flag that was not set stays nil in the options.
+func (c *rootCommand) toProcessOptions(flagSet *pflag.FlagSet) inbound.ProcessOptions {
+	var options inbound.ProcessOptions
 
-	if set.Changed(includeRootFlag) {
-		includeRoot, err := set.GetBool(includeRootFlag)
-		if err != nil {
-			return err
-		}
-		flags.includeRoot = new(includeRoot)
+	if flagSet.Changed(includeRootFlag) {
+		options.IncludeRoot = new(c.flags.includeRoot)
 	}
-	if set.Changed(iAmRootFlag) {
-		allowRoot, err := set.GetBool(iAmRootFlag)
-		if err != nil {
-			return err
-		}
-		flags.allowRoot = new(allowRoot)
+	if flagSet.Changed(iAmRootFlag) {
+		options.AllowRoot = new(c.flags.allowRoot)
 	}
 
-	c.flags = flags
-
-	return nil
+	return options
 }

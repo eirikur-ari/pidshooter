@@ -12,11 +12,11 @@ const listExamples = `  pidshooter list firefox
 // listCommand lists the processes its arguments describe.
 type listCommand struct {
 	runner inbound.ListRunner
-	root   *rootFlags
+	root   *rootCommand
 }
 
 // newListCommand returns a listCommand that lists processes.
-func newListCommand(runner inbound.ListRunner, root *rootFlags) *listCommand {
+func newListCommand(runner inbound.ListRunner, root *rootCommand) *listCommand {
 	return &listCommand{runner: runner, root: root}
 }
 
@@ -27,10 +27,10 @@ func (c *listCommand) command() *cobra.Command {
 		Use:     "list <pattern> [pattern2] [pattern3...]",
 		Short:   "List the processes matching the patterns",
 		Example: listExamples,
-		RunE: func(_ *cobra.Command, patterns []string) error {
+		RunE: func(cmd *cobra.Command, patterns []string) error {
 			return c.runner.Run(inbound.ListRequest{
 				Patterns: patterns,
-				Process:  inbound.ProcessOptions{IncludeRoot: c.root.includeRoot, AllowRoot: c.root.allowRoot},
+				Process:  c.root.toProcessOptions(cmd.Flags()),
 			})
 		},
 	}

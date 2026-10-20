@@ -28,11 +28,11 @@ type playFlags struct {
 type playCommand struct {
 	runner inbound.PlayRunner
 	flags  playFlags
-	root   *rootFlags
+	root   *rootCommand
 }
 
 // newPlayCommand returns a playCommand that plays game sessions.
-func newPlayCommand(runner inbound.PlayRunner, root *rootFlags) *playCommand {
+func newPlayCommand(runner inbound.PlayRunner, root *rootCommand) *playCommand {
 	return &playCommand{runner: runner, root: root}
 }
 
@@ -65,7 +65,7 @@ func (c *playCommand) defineFlags(flagSet *pflag.FlagSet) {
 func (c *playCommand) toRequest(flagSet *pflag.FlagSet, patterns []string) inbound.PlayRequest {
 	request := inbound.PlayRequest{
 		Patterns: patterns,
-		Process:  inbound.ProcessOptions{IncludeRoot: c.root.includeRoot, AllowRoot: c.root.allowRoot},
+		Process:  c.root.toProcessOptions(flagSet),
 	}
 
 	if flagSet.Changed("confirm") {

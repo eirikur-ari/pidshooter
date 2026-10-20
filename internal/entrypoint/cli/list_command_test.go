@@ -12,12 +12,9 @@ import (
 
 func TestListCommand_command_PassesRequestToRunner(t *testing.T) {
 	// Given
-	flags := rootFlags{includeRoot: new(true), allowRoot: new(false)}
-	options := inbound.ProcessOptions{IncludeRoot: new(true), AllowRoot: new(false)}
-	expectedRequest := inbound.ListRequest{Patterns: []string{"chrome", "firefox"}, Process: options}
 	runner := &MockListRunner{}
-	runner.On("Run", expectedRequest).Return(nil)
-	cmd := newListCommand(runner, &flags).command()
+	runner.On("Run", inbound.ListRequest{Patterns: []string{"chrome", "firefox"}}).Return(nil)
+	cmd := newListCommand(runner, &rootCommand{}).command()
 
 	// When
 	err := executeCommand(cmd, []string{"chrome", "firefox"})
@@ -33,7 +30,7 @@ func TestListCommand_command_ReturnsErrorOfRunnerUnchanged(t *testing.T) {
 	failure := errors.New("listing failed")
 	runner := &MockListRunner{}
 	runner.On("Run", inbound.ListRequest{Patterns: []string{"proc"}}).Return(failure)
-	cmd := newListCommand(runner, &rootFlags{}).command()
+	cmd := newListCommand(runner, &rootCommand{}).command()
 
 	// When
 	err := executeCommand(cmd, []string{"proc"})

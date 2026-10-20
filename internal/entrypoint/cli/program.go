@@ -43,10 +43,12 @@ func NewProgram(
 // Run executes the command the arguments ask for and returns the error it
 // ended with, if any. With no arguments or a help flag it prints usage text to
 // standard output. When the arguments are malformed it logs the problem, prints
-// usage text to standard error and returns an ArgumentError. The error of a
-// command is returned as the command reported it, and is not logged again.
+// usage text to standard error and returns an ArgumentError. A command error
+// classified as invalid configuration is returned as an ArgumentError with
+// usage text printed to standard error. Any other error of a command is
+// returned as the command reported it, and is not logged again.
 func (p *Program) Run(args []string) error {
-	root := newRootCommand(p.play, p.list, p.kill).command()
+	root := newRootCommand(p.play, p.list, p.kill).cmd
 	root.SetArgs(append([]string{}, args...))
 	root.SetOut(p.out)
 	root.SetErr(p.errOut)
@@ -66,6 +68,8 @@ func (p *Program) Run(args []string) error {
 	return err
 }
 
+// printUsageText prints a blank line and the usage text of cmd to standard
+// error.
 func (p *Program) printUsageText(cmd *cobra.Command) {
 	_, _ = fmt.Fprintln(p.errOut)
 	cmd.SetOut(p.errOut)
