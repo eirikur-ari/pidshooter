@@ -46,6 +46,7 @@ func newRootCommand(play inbound.PlayRunner, list inbound.ListRunner, kill inbou
 		RunE:          c.showHelp,
 	}
 	c.cmd.CompletionOptions.DisableDefaultCmd = true
+	c.cmd.SetHelpCommand(&cobra.Command{Use: "no-help", Hidden: true})
 	c.cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
 		return ArgumentError{Cause: err}
 	})

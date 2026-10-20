@@ -13,10 +13,10 @@ func returnFromEveryRunner(fixture programFixture, err error) {
 	fixture.kill.On("Run", mock.Anything).Return(err)
 }
 
-func assertNoRunnerRan(t mock.TestingT, fixture programFixture) {
-	fixture.play.AssertNotCalled(t, "Run", mock.Anything)
-	fixture.list.AssertNotCalled(t, "Run", mock.Anything)
-	fixture.kill.AssertNotCalled(t, "Run", mock.Anything)
+func assertNoRunnerRan(t mock.TestingT, play *MockPlayRunner, list *MockListRunner, kill *MockKillRunner) {
+	play.AssertNotCalled(t, "Run", mock.Anything)
+	list.AssertNotCalled(t, "Run", mock.Anything)
+	kill.AssertNotCalled(t, "Run", mock.Anything)
 }
 
 func executeCommand(cmd *cobra.Command, args []string) error {
