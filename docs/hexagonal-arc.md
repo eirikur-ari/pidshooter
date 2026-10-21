@@ -1,6 +1,6 @@
 # Hexagonal Architecture — Design Record for pidshooter
 
-*Originally a migration proposal (2026-06-26). Migration completed 2026-07-01. Further refactoring completed 2026-07-06: `domain` → `core`, `adapter` → `infrastructure`/`entrypoint`, `app` → `application`, port interfaces moved to `application/contract`. A second round of refactoring completed 2026-08-20: `Game` → `Session`, the inbound port renamed `GamePlay`/`Play()` → `Runner`/`Run()`, the single `GameService` split into three focused services (`application/game`, `application/process`, `application/score`) composed by a top-level `application.Runner`, and `outbound.Process` renamed `ProcessManager`. A third round completed 2026-09-22, covering a full pass over every open review finding (see `docs/leftovers.md`, since renamed `docs/improvement-finding.md`): the composition root moved out of `main.go` into its own `internal/composition` package, `outbound.ProcessManager`'s `Lister`/`Killer` split was superseded by a single PID-pinning `Process`/`ProcessHandle` pair, `outbound.ProcessReporter`/`ScoreReporter` ports replaced direct `fmt.Printf` calls, `cobra` was removed in favor of hand-rolled flag parsing, a structured `apperror` package now classifies every error by code and severity, and several domain-safety and naming fixes landed in `core/game`/`core/score`. A fourth round completed 2026-09-29: `application/config` split into `Request`/`Result` types merged across three tiers (hardcoded defaults < a new persisted `~/.config/pidshooter/config.yaml` < the caller's request), `infrastructure/filescore` was renamed again to `infrastructure/filestore` and gained the config-file store alongside the score-file store, a root-safety refusal guard (`core/process.ValidateRoot` + `--i-am-root`) was added, `application/runner.go` became its own `internal/application/runner` package, and `apperror.Handle` became an instance method on a constructed `*apperror.Handler` backed by a real `outbound.Logger` port. A fifth, small change on 2026-09-30: `outbound.Process` renamed back to `outbound.ProcessManager` (§7) — same single-interface shape from the third round, reusing August's name because "Process" alone had again become ambiguous against `core/process`/`application/process`. A sixth round, started in that same 2026-09-30 commit and continued through a file-by-file test-hardening pass completed 2026-10-13: the inbound port lost its request (`Runner.Run()`; patterns and config options are bound at construction via `RunnerCreator.Create(patterns, options)`), `config.Request` became constructor-injected `config.Options`, `outbound.ConfigStoreResult` became `outbound.Config` and `ModeYolo` became `ModeLucky`, every application service now speaks its own request/result types with `application/runner` reaching them only through consumer-side interfaces, `application/game` was split into a play session, in-flight kills, and kill-result types, `input.EventDispatcher` became `input.Event`, `infrastructure/osprocess` was renamed `infrastructure/pscommand`, the `apperror` codes were consolidated, and test doubles moved into their consuming packages, mostly as testify mocks. Sections 3–9 describe this current, live codebase. Sections 2, 10, and 11 document the original pre-refactor state and the reasoning behind the 2026-07 migration — kept as a design record. Section 13 documents the 2026-08 changes, section 14 the 2026-09 (September) changes, section 15 the 2026-09 (late September) changes, and section 16 the 2026-10 changes, each the same way — some of sections 14's and 15's detail has since been superseded again; where that's so, the later section says.*
+*Originally a migration proposal (2026-06-26). Migration completed 2026-07-01. Further refactoring completed 2026-07-06: `domain` → `core`, `adapter` → `infrastructure`/`entrypoint`, `app` → `application`, port interfaces moved to `application/contract`. A second round of refactoring completed 2026-08-20: `Game` → `Session`, the inbound port renamed `GamePlay`/`Play()` → `Runner`/`Run()`, the single `GameService` split into three focused services (`application/game`, `application/process`, `application/score`) composed by a top-level `application.Runner`, and `outbound.Process` renamed `ProcessManager`. A third round completed 2026-09-22, covering a full pass over every open review finding (see `docs/leftovers.md`, since renamed `docs/improvement-finding.md`): the composition root moved out of `main.go` into its own `internal/composition` package, `outbound.ProcessManager`'s `Lister`/`Killer` split was superseded by a single PID-pinning `Process`/`ProcessHandle` pair, `outbound.ProcessReporter`/`ScoreReporter` ports replaced direct `fmt.Printf` calls, `cobra` was removed in favor of hand-rolled flag parsing, a structured `apperror` package now classifies every error by code and severity, and several domain-safety and naming fixes landed in `core/game`/`core/score`. A fourth round completed 2026-09-29: `application/config` split into `Request`/`Result` types merged across three tiers (hardcoded defaults < a new persisted `~/.config/pidshooter/config.yaml` < the caller's request), `infrastructure/filescore` was renamed again to `infrastructure/filestore` and gained the config-file store alongside the score-file store, a root-safety refusal guard (`core/process.ValidateRoot` + `--i-am-root`) was added, `application/runner.go` became its own `internal/application/runner` package, and `apperror.Handle` became an instance method on a constructed `*apperror.Handler` backed by a real `outbound.Logger` port. A fifth, small change on 2026-09-30: `outbound.Process` renamed back to `outbound.ProcessManager` (§7) — same single-interface shape from the third round, reusing August's name because "Process" alone had again become ambiguous against `core/process`/`application/process`. A sixth round, started in that same 2026-09-30 commit and continued through a file-by-file test-hardening pass completed 2026-10-13: the inbound port lost its request (`Runner.Run()`; patterns and config options are bound at construction via `RunnerCreator.Create(patterns, options)`), `config.Request` became constructor-injected `config.Options`, `outbound.ConfigStoreResult` became `outbound.Config` and `ModeYolo` became `ModeLucky`, every application service now speaks its own request/result types with `application/runner` reaching them only through consumer-side interfaces, `application/game` was split into a play session, in-flight kills, and kill-result types, `input.EventDispatcher` became `input.Event`, `infrastructure/osprocess` was renamed `infrastructure/pscommand`, the `apperror` codes were consolidated, and test doubles moved into their consuming packages, mostly as testify mocks. A seventh round, on the `introduce-play-command` branch (2026-10-21): `cobra` came back as the CLI framework (replacing the hand-rolled flag parsing), the CLI became three commands (`play`, plus hidden, unimplemented `list` and `kill`), the single `inbound.Runner` split into typed `PlayRunner`/`ListRunner`/`KillRunner` that each take a request again, `config.Options` and the search patterns moved from construction to per-call, `Mode` was removed from the config, a `CodePermissionDenied` code was added for the root refusal, and `composition.RunnerCreator` became `composition.Creator`, which builds the `cli.Program` and wires the play dependencies lazily. Sections 3–9 describe this current, live codebase. Sections 2, 10, and 11 document the original pre-refactor state and the reasoning behind the 2026-07 migration — kept as a design record. Section 13 documents the 2026-08 changes, section 14 the 2026-09 (September) changes, section 15 the 2026-09 (late September) changes, section 16 the 2026-10 changes, and section 17 the `introduce-play-command` changes, each the same way — some of sections 14's, 15's and 16's detail has since been superseded again; where that's so, the later section says.*
 
 ---
 
@@ -22,6 +22,7 @@
 14. [Further refactoring: ports hardening & composition split (2026-09)](#14-further-refactoring-ports-hardening--composition-split-2026-09)
 15. [Further refactoring: config resolution & root-safety hardening (2026-09)](#15-further-refactoring-config-resolution--root-safety-hardening-2026-09)
 16. [Further refactoring: port cleanup & test hardening (2026-10)](#16-further-refactoring-port-cleanup--test-hardening-2026-10)
+17. [Further refactoring: the play command & per-call requests (2026-10)](#17-further-refactoring-the-play-command--per-call-requests-2026-10)
 
 ---
 
@@ -82,17 +83,17 @@ The core domain contains **no port interfaces**. It exposes data types that the 
 
 ### Layer 2 — Application service
 
-One layer above the core. Defines the port interfaces (contracts) and implements the use-case: resolve the run configuration, find processes, run a game, persist the score. Responsibility is split across four focused services (`config`, `process`, `game`, `score`), composed by one top-level `runner.Service`, plus two small supporting packages: `apperror`, shared by everything above `core`, and `input`, the user-input event types. Each service speaks its own request/result types (`config.Options`/`Result`, `process.FindRequest`/`FindResult`, `game.PlayRequest`/`PlayResult`, `score.LoadResult`/`RecordRequest`/`RecordResult`/`ReportRequest`/`BoardEntry`) rather than core or port types, so a caller never has to import the core packages or ports a service is built on (see §16). The one exception is `config.Result.Mode`, which is `outbound.Mode` directly (§7).
+One layer above the core. Defines the port interfaces (contracts) and implements the use-case: resolve the run configuration, find processes, run a game, persist the score. Responsibility is split across four focused services (`config`, `process`, `game`, `score`), composed by the `runner` package's `Play` (with stub `List` and `Kill` alongside it), plus two small supporting packages: `apperror`, shared by everything above `core`, and `input`, the user-input event types. Each service speaks its own request/result types (`config.Options`/`Result`, `process.FindRequest`/`FindResult`, `game.PlayRequest`/`PlayResult`, `score.LoadResult`/`RecordRequest`/`RecordResult`/`ReportRequest`/`BoardEntry`) rather than core or port types, so a caller never has to import the core packages or ports a service is built on (see §16).
 
-- **`application/config`** — `Options`/`Result`. `Options` (`GameOptions{ConfirmMode, Speed, TimeLimit *pointers}`, `ProcessOptions{IncludeRoot, AllowRoot *pointers}`) holds only what the caller explicitly provided — a nil field means the caller didn't set it — and is bound at construction (`NewService(store outbound.ConfigStore, options Options)`), not passed per call. `Service.Load() (Result, error)` resolves `Result` (`GameResult`, `ProcessResult` — the same fields, concrete values) by merging three tiers in order: hardcoded defaults < the persisted config file (read via the injected `outbound.ConfigStore`) < the options, with the options always winning. An invalid option fails `Load` outright (`CodeInvalidConfig`, `Fatal`) before the store is read; a missing config file silently means defaults; any other store failure (`CodeStoreFailed`) or an invalid stored field (`CodeInvalidConfig`, dropped and named) is a `Warning`, with a usable `Result` still returned. `Result` also carries a `Mode` (`outbound.Mode`: `ModeGame`/`ModeLucky`/`ModeList`) that resolves through the stored tier but isn't read anywhere yet — it anticipates planned, not-yet-built list/lucky CLI modes. `ProcessOptions.AllowRoot`/`ProcessResult.AllowRoot` are deliberately excluded from the config-file tier — see §15.
-- **`application/apperror`** — `Code`/`Severity` enums, an `Error` type carrying both (with an unexported `logged` flag, making it safe to pass the same `*Error` through `Handle` more than once — logged only the first time), and `Handler` — constructed with an injected `outbound.Logger` (`NewHandler(logger outbound.Logger) *Handler`), not called as a bare package function. The codes are `CodeUnknown`, `CodeInvalidConfig`, `CodeProcessNotFound`, `CodeGameFailed`, `CodeKillFailed`, and `CodeStoreFailed`; `Code.In(err)` reports whether an error carries that code, looking through plain wrapping but never into the cause of another `*Error`, which is a separately classified problem. `Severity`'s zero value is `SeverityUnknown`. `Handler.Handle(err)` is the single place that decides whether an error is logged-and-swallowed (`Warning`/`Error` severity) or returned up to the caller (`Fatal`/`Unknown` severity); `Handler.HandleAll(errs)` does the same for a batch, handling every error and returning the first that must still fail. One `*Handler` instance is built at the composition root and threaded down through `runner.Service` and `cli.Program`, so `entrypoint/cli` never has to know *why* an error is fatal, only that `Handle` already decided.
-- **`application/contract/inbound/runner.go`** — the `Runner` interface (`Run() error`) and nothing else; `inbound` imports no other package. Everything one run needs (search patterns, config options) is bound when the `Runner` is built (§9), not passed to `Run`.
+- **`application/config`** — `Options`/`Result`. `Options` (`GameOptions{ConfirmMode, Speed, TimeLimit *pointers}`, `ProcessOptions{IncludeRoot, AllowRoot *pointers}`) holds only what the caller explicitly provided — a nil field means the caller didn't set it — and is passed per call (`NewService(store outbound.ConfigStore)`, `Service.Load(options Options)`). `Service.Load(options) (Result, error)` resolves `Result` (`GameResult`, `ProcessResult` — the same fields, concrete values) by merging three tiers in order: built-in defaults < the persisted config file (read via the injected `outbound.ConfigStore`) < the per-run options, with the options always winning. An invalid option fails `Load` outright (`CodeInvalidConfig`, `Fatal`) before the store is read; a missing config file means defaults, which `Load` then persists (a failure to do so is a `CodeStoreFailed` `Warning`); any other store failure (`CodeStoreFailed`) or an invalid stored field (`CodeInvalidConfig`, dropped and named) is a `Warning`, with a usable `Result` still returned. `Result` has no `Mode` any more (§17). `ProcessOptions.AllowRoot`/`ProcessResult.AllowRoot` are deliberately excluded from the config-file tier — `Result.fromStore` never reads one — see §15.
+- **`application/apperror`** — `Code`/`Severity` enums (`Code` and its constants in `code.go`), an `Error` type carrying both (with an unexported `logged` flag, making it safe to pass the same `*Error` through `Handle` more than once — logged only the first time), and `Handler` — constructed with an injected `outbound.Logger` (`NewHandler(logger outbound.Logger) *Handler`), not called as a bare package function. The codes are `CodeUnknown`, `CodeInvalidConfig`, `CodeProcessNotFound`, `CodeGameFailed`, `CodeKillFailed`, `CodeStoreFailed`, and `CodePermissionDenied` (a refused root run); `Code.In(err)` reports whether an error carries that code, looking through plain wrapping but never into the cause of another `*Error`, which is a separately classified problem. `Severity`'s zero value is `SeverityUnknown`. `Handler.Handle(err)` is the single place that decides whether an error is logged-and-swallowed (`Warning`/`Error` severity) or returned up to the caller (`Fatal`/`Unknown` severity); `Handler.HandleAll(errs)` does the same for a batch, handling every error and returning the first that must still fail. One `*Handler` instance is built at the composition root and threaded down through the `runner` package's `Play`/`List`/`Kill`, the composition root's `lazyRunner`, and `cli.Program`, so `entrypoint/cli` never has to know *why* an error is fatal, only that `Handle` already decided.
+- **`application/contract/inbound/runner.go`** — three runner interfaces, `PlayRunner`, `ListRunner`, and `KillRunner`, each with `Run(request) error` over its own request type (`PlayRequest`, `ListRequest`, `KillRequest`; each carries `Patterns` and the options it understands, `GameOptions{ConfirmMode, Speed, TimeLimit *pointers}` and/or `ProcessOptions{IncludeRoot, AllowRoot *pointers}`, a nil field meaning the caller didn't set it). `inbound` imports no other package.
 - **`application/contract/outbound/*.go`** — `Renderer`, `InputEventProvider`, `ProcessManager`/`ProcessHandle`, `ProcessReporter`, `ScoreStore`, `ScoreReporter`, `ConfigStore`, `Logger` interfaces and their mirror data types (`FrameViewState`, `ProcessInfo`, `ScoreBoard`, `ScoreSummary`, `Config`, `GameConfig`/`ProcessConfig`, …). Full source in §7.
 - **`application/input`** — the `Event` interface (`ClickEvent`, `QuitEvent`, `ConfirmEvent`, `SpeedEvent`) and `Dispatcher`. `Event`'s only method is the unexported `dispatch(*game.Input) *game.Target`, so the set of events is closed to this package and each event applies itself to `core/game.Input`; `Dispatcher.Dispatch(Event) *game.Target` invokes it and returns the target hit, if any. (Renamed from `application/event` — the package now holds the event *types* themselves, not just the dispatcher, so `event` stopped fitting. The interface itself was `EventDispatcher` until 2026-10 — see §16.)
 - **`application/game`** — `Service`, owning the game loop: `Play(request PlayRequest) (PlayResult, error)`. `PlayRequest{ConfirmMode, Speed, TimeLimit, Processes []ProcessRequest, HighScore}` carries everything one session needs, including the targets as `application/game`'s own `ProcessRequest{PID, Name, Rss, UID}` (converted to `core/process.Info` inside) — not imported from `config` or `process` (see §15, §16). `Play` validates the speed/time limit (`CodeInvalidConfig`) and the process list (`CodeProcessNotFound`), then runs a `playSession` (`play_session.go`: renderer `Init`/`Cleanup`, an OS-signal watcher, the 20 FPS `frameLoop`, and `drainEventQueue`), classifying any failure as `CodeGameFailed`. Kills go through `inFlightKills` (`in_flight_kills.go`): each hit target's kill runs in its own goroutine via the unexported `processKiller` interface, finished kills queue on a buffered channel as `killResult` values (`kill_result.go`) that are applied to the `killTracker` once per frame, and once the session stops `awaitRemaining` waits up to a bounded grace period for any kill still in flight. `killTracker` is the live, per-session score/failure/dud bookkeeping; `killFailure`/`killDud` (each in its own file) convert themselves into `Warning`-severity `*apperror.Error`s (`CodeKillFailed`/`CodeProcessNotFound`), returned in `PlayResult.Errors []error` alongside `Duration`, `LowestSpeed`, `Kills`, `FreedMem`, and `Duds`. The pure `converter.go` mapping functions build `outbound.FrameViewState` each tick. Knows nothing about score persistence or config resolution.
-- **`application/process`** — `Service`, owning process discovery and verified termination. It is built with the search patterns (`NewService(manager outbound.ProcessManager, reporter outbound.ProcessReporter, patterns []string)`), so `FindProcesses(request FindRequest) ([]FindResult, error)` takes only `FindRequest{IncludeRoot, AllowRoot bool}`. `FindProcesses` calls `core/process.ValidateRoot` first, before pattern validation or discovery, refusing outright if the caller is root and `request.AllowRoot` is false; it then reports the matched processes via the injected `outbound.ProcessReporter` and returns them as its own `FindResult{PID, Name, Rss, UID}`. `Kill(pid, name, protected) error` pins the target PID before re-verifying its name, closing the discovery-to-kill TOCTOU window. Every `Kill` failure is a `Warning`, classified `CodeProcessNotFound` if and only if the process is already gone or its PID now belongs to another process (a `NotFoundError` from `Pin`, `LookupName`, or `ProcessHandle.Kill`, or a name mismatch), and `CodeKillFailed` otherwise, including a protected target. `FindRequest` is structurally identical to `config.ProcessResult` but not imported from it (see §15, §16).
+- **`application/process`** — `Service`, owning process discovery and verified termination. The search patterns arrive per call: `NewService(manager outbound.ProcessManager, reporter outbound.ProcessReporter)`, `FindProcesses(request FindRequest) ([]FindResult, error)` with `FindRequest{Patterns []string, IncludeRoot, AllowRoot bool}`. `FindProcesses` calls `core/process.ValidateRoot` first, before pattern validation or discovery, refusing outright (`CodePermissionDenied`, `Fatal`) if the caller is root and `request.AllowRoot` is false; it then reports the matched processes via the injected `outbound.ProcessReporter` and returns them as its own `FindResult{PID, Name, Rss, UID}`. `Kill(pid, name, protected) error` pins the target PID before re-verifying its name, closing the discovery-to-kill TOCTOU window. Every `Kill` failure is a `Warning`, classified `CodeProcessNotFound` if and only if the process is already gone or its PID now belongs to another process (a `NotFoundError` from `Pin`, `LookupName`, or `ProcessHandle.Kill`, or a name mismatch), and `CodeKillFailed` otherwise, including a protected target. `FindRequest` is structurally close to `config.ProcessResult` (plus `Patterns`) but not imported from it (see §15, §16).
 - **`application/score`** — `Service`, owning score board load/record/report through its own types (`BoardEntry`, `LoadResult`, `RecordRequest`, `RecordResult`, `ReportRequest`), reporting results via an injected `outbound.ScoreReporter` instead of printing directly. `LoadScoreBoard() (LoadResult, error)` returns the ranked entries and the high score to beat; any load failure is a `CodeStoreFailed` warning alongside an empty result. `RecordScore(RecordRequest) (RecordResult, error)` ranks the session against the entries the request carries (for the result it returns), then reloads the latest persisted board itself, adds the session to that, and saves it — so a score another run saved in the meantime isn't overwritten. A missing or corrupted latest board counts as empty; any other read failure skips the save. `ReportResults(ReportRequest)` hands the summary to the reporter.
-- **`application/runner`** — `Service`, implementing `inbound.Runner`. It reaches its four collaborators only through consumer-side interfaces it declares itself (`configLoader`, `processFinder`, `scoreKeeper`, `gamePlayer`), plus an error handler (`NewService(configSvc configLoader, processSvc processFinder, scoreSvc scoreKeeper, gameSvc gamePlayer, errHandler *apperror.Handler)`), and imports no core package and no outbound port — only the services' own request/result types. `Run()` resolves the config through `configSvc.Load` first, then maps each step's result into the next step's request through small explicit functions in its own `converter.go` (`toFindRequest`, `toPlayRequest`, `toRecordRequest`, `toReportRequest`). Orchestrates one full play: resolve config → find processes → load score → play → handle the per-target kill errors (`HandleAll`) → record score → report results, with every failure routed through the injected `*apperror.Handler`.
+- **`application/runner`** — `Play`, `List`, and `Kill`, implementing `inbound.PlayRunner`, `inbound.ListRunner`, and `inbound.KillRunner`. `List` and `Kill` are stubs: their `Run` hands an `unimplemented` error to the injected `*apperror.Handler` and returns the result, and their constructors take only that handler (`NewList(errHandler)`, `NewKill(errHandler)`). `Play` reaches its four collaborators only through consumer-side interfaces it declares itself (`configLoader`, `processFinder`, `scoreKeeper`, `gamePlayer`), plus an error handler (`NewPlay(configSvc configLoader, processSvc processFinder, scoreSvc scoreKeeper, gameSvc gamePlayer, errHandler *apperror.Handler)`), and imports no core package and no outbound port — only the services' own request/result types and `contract/inbound`. `Play.Run(request inbound.PlayRequest)` resolves the config through `configSvc.Load(toConfigOptions(request))` first, then maps each step's result into the next step's request through small explicit functions in its own `converter.go` (`toConfigOptions`, `toFindRequest`, `toPlayRequest`, `toRecordRequest`, `toReportRequest`). Orchestrates one full play: resolve config → find processes → load score → play → handle the per-target kill errors (`HandleAll`) → record score → report results, with every failure routed through the injected `*apperror.Handler`.
 
 ### Layer 3 — Adapters
 
@@ -116,11 +117,11 @@ One directory per integration point. Adapters import libraries; the core domain 
 
 `infrastructure/logger` implements `outbound.Logger` (`Warn`/`Error` to `os.Stderr`) and is the sole dependency `apperror.NewHandler` takes; the composition root injects `logger.NewLogger()` into it. This supersedes the September (early) design's stated exception — at that point `apperror.Handle` was a bare package function calling `internal/util.Logger` directly, deliberately not ported, on the reasoning that diagnostic output is cross-cutting and nobody swaps or asserts on it. Once `Handle` became a method on a constructed `*Handler` (see §15), giving it an injected `outbound.Logger` dependency was the natural shape rather than an architecturally awkward addition, so it was ported after all; `internal/util` no longer has a `Logger` type at all.
 
-**Entrypoint adapters** (driving — they call the application's inbound port):
+**Entrypoint adapters** (driving — they call the application's inbound ports):
 
 | Adapter | Contract it calls | Technology |
 |---|---|---|
-| `entrypoint/cli` | `Runner` (built through the exported `RunnerCreator` interface it declares itself) | `os.Args`, hand-rolled flag parsing (`flagParser`: a `flag.FlagSet`, a `flagMapper`, and a `flagSplitter` behind a small `argumentSplitter` interface) — no third-party CLI framework |
+| `entrypoint/cli` | `PlayRunner`, `ListRunner`, `KillRunner` (handed to `NewProgram`) | `os.Args`, `github.com/spf13/cobra` — a `rootCommand` with `play`, `list`, and `kill` subcommands |
 
 ---
 
@@ -129,12 +130,12 @@ One directory per integration point. Adapters import libraries; the core domain 
 ```mermaid
 flowchart LR
     subgraph Driving["Driving (Primary) Side"]
-        CLI["CLI Adapter\nentrypoint/cli\n\nos.Args → patterns + config.Options → Create() → Run()"]
+        CLI["CLI Adapter\nentrypoint/cli\n\nos.Args → play / list / kill request → Run(request)"]
     end
 
     subgraph Hexagon["The Hexagon"]
         direction TB
-        App["application/runner\nService"]
+        App["application/runner\nPlay · List · Kill"]
         subgraph AppServices["application services"]
             direction LR
             ConfigSvc["application/config\nService"]
@@ -142,7 +143,7 @@ flowchart LR
             ProcSvc["application/process\nService"]
             ScoreSvc["application/score\nService"]
         end
-        Contracts["application/contract\nRunner\nRenderer · InputEventProvider\nProcessManager · ProcessHandle · ProcessReporter\nScoreStore · ScoreReporter · ConfigStore · Logger"]
+        Contracts["application/contract\nPlayRunner · ListRunner · KillRunner\nRenderer · InputEventProvider\nProcessManager · ProcessHandle · ProcessReporter\nScoreStore · ScoreReporter · ConfigStore · Logger"]
         subgraph Core["Core Domain"]
             direction LR
             DGame["core/game\nSession · Target · Input"]
@@ -163,7 +164,7 @@ flowchart LR
         LoggerAdapter["Logger Adapter\ninfrastructure/logger\n\nos.Stderr"]
     end
 
-    CLI -- "Runner" --> App
+    CLI -- "PlayRunner · ListRunner · KillRunner" --> App
     App -- "Logger (via apperror.Handler)" --> LoggerAdapter
     ConfigSvc -- "ConfigStore" --> FileStore
     ProcSvc -- "ProcessManager · ProcessHandle" --> PsCommand
@@ -182,7 +183,7 @@ pidshooter/
 │
 ├── cmd/
 │   └── pidshooter/
-│       └── main.go                           # Thin entrypoint: builds composition.RunnerCreator + cli.Program, maps errors to exit codes — no wiring logic
+│       └── main.go                           # Thin entrypoint: composition.NewCreator().Create().Run(args), maps errors to exit codes (ArgumentError → 2, other → 1) — no wiring logic
 │
 └── internal/
     │
@@ -208,13 +209,14 @@ pidshooter/
     │
     ├── application/
     │   ├── apperror/
-    │   │   ├── error.go                      # Code (+ In()) · Severity · Error{..., logged bool} · NewError()
-    │   │   └── error_handler.go              # Handler{logger outbound.Logger} · NewHandler() · Handle() · HandleAll() — classifies and routes every application-layer failure, logs each Error at most once
+    │   │   ├── code.go                       # Code · CodeUnknown/InvalidConfig/ProcessNotFound/GameFailed/KillFailed/StoreFailed/PermissionDenied · In()
+    │   │   ├── error.go                      # Severity · Error{..., logged bool} · NewError()
+    │   │   └── handler.go                    # Handler{logger outbound.Logger} · NewHandler() · Handle() · HandleAll() — classifies and routes every application-layer failure, logs each Error at most once
     │   ├── config/
-    │   │   ├── result.go                     # GameResult/ProcessResult (concrete fields) · Result{Mode, Process, Game} · newResult() · apply()/fromStore()/fromOptions()/validateStore()
-    │   │   └── service.go                    # GameOptions/ProcessOptions (nilable fields) · Options{Game, Process} · Service{store, options} · NewService(store, options) · Load() (Result, error) — defaults < stored < options
+    │   │   ├── result.go                     # GameResult/ProcessResult (concrete fields) · Result{Process, Game} · newResult() · apply()/fromStore()/fromOptions()/validateStore()
+    │   │   └── service.go                    # GameOptions/ProcessOptions (nilable fields) · Options{Game, Process} · Service{store} · NewService(store) · Load(options) (Result, error) — defaults < stored < options
     │   ├── contract/
-    │   │   ├── inbound/runner.go             # Runner (interface: Run() error)
+    │   │   ├── inbound/runner.go             # PlayRunner/ListRunner/KillRunner (Run(request) error) · PlayRequest/ListRequest/KillRequest · GameOptions · ProcessOptions
     │   │   └── outbound/*.go                 # Renderer · InputEventProvider · ProcessManager/ProcessHandle/ProcessReporter · ScoreStore/ScoreReporter · ConfigStore · Logger · NotFoundError/CorruptedDataError
     │   ├── input/
     │   │   ├── dispatcher.go                 # Dispatcher · NewDispatcher() · Dispatch()
@@ -229,24 +231,28 @@ pidshooter/
     │   │   ├── kill_tracker.go               # killTracker — live per-session bookkeeping · recordKill()/recordFailure()/recordDud() · errors()
     │   │   └── converter.go                  # toGameConfig() · toInfos() · toBounds() · toFrameViewState() · toTargetViewState() · toHUDViewState() · toStatusViewState() · toConfirmViewState()
     │   ├── process/
-    │   │   ├── service.go                    # Service{manager, reporter, patterns} · FindRequest{IncludeRoot, AllowRoot} · FindResult · NewService() · FindProcesses() · Kill()
+    │   │   ├── service.go                    # Service{manager, reporter} · FindRequest{Patterns, IncludeRoot, AllowRoot} · FindResult · NewService() · FindProcesses() · Kill()
     │   │   └── converter.go                  # toInfos() · toFindResults() · toProcessInfos()
     │   ├── score/
     │   │   ├── service.go                    # Service{store, reporter} · BoardEntry · LoadResult · RecordRequest/RecordResult · ReportRequest · NewService() · LoadScoreBoard() · RecordScore() · ReportResults()
     │   │   └── converter.go                  # toEntry() · toEntries() · toBoardEntries() · toBoard() · toLoadResult() · toRecordResult() · toScoreBoard() · toScoreSummary() · toScoreEntries()
     │   └── runner/
-    │       ├── service.go                    # configLoader/processFinder/scoreKeeper/gamePlayer (consumer-defined interfaces) · Service · NewService(configSvc, processSvc, scoreSvc, gameSvc, errHandler) · Run()
-    │       └── converter.go                  # toFindRequest() · toPlayRequest() · toRecordRequest() · toReportRequest()
+    │       ├── play.go                       # configLoader/processFinder/scoreKeeper/gamePlayer (consumer-defined interfaces) · Play · NewPlay(configSvc, processSvc, scoreSvc, gameSvc, errHandler) · Run(inbound.PlayRequest)
+    │       ├── list.go                       # List · NewList(errHandler) · Run(inbound.ListRequest) — stub, handles and returns an "unimplemented" error
+    │       ├── kill.go                       # Kill · NewKill(errHandler) · Run(inbound.KillRequest) — stub, handles and returns an "unimplemented" error
+    │       └── converter.go                  # toConfigOptions() · toFindRequest() · toPlayRequest() · toRecordRequest() · toReportRequest()
     │
     ├── composition/                          # The actual composition root — pure wiring, no behavior
-    │   └── runner_creator.go                 # RunnerCreator{errHandler} · NewRunnerCreator() · ErrHandler() · Create(patterns, options) — builds every adapter and service, returns an inbound.Runner
+    │   ├── creator.go                        # Creator{errHandler} · NewCreator() · Create() *cli.Program — wires the play/list/kill runners · buildPlay() builds every play dependency (adapters and services), only when a play runs
+    │   └── lazy_runner.go                    # lazyRunner[Request, Runner] · Run(request) — builds its runner on first use, handles and returns a build error
     │
-    ├── entrypoint/                           # Driving adapters — call the application's inbound.Runner port
+    ├── entrypoint/                           # Driving adapters — call the application's inbound runners
     │   └── cli/
-    │       ├── program.go                    # RunnerCreator (interface: Create(patterns, options) + ErrHandler()) · Program · NewProgram() · Run() — no cobra
-    │       ├── flag_parser.go                # argumentSplitter (interface) · flagParser · newFlagParser() · parse() — patterns + config.Options from args
-    │       ├── flag_mapper.go                # flagMapper · newFlagMapper() · toConfigOptions() — maps the confirm/speed/time/include-root/i-am-root flags actually passed onto config.Options
-    │       ├── flag_splitter.go              # flagSplitter · newFlagSplitter() · split() — separates patterns from flags before flag.Parse
+    │       ├── program.go                    # Program{play, list, kill, errHandler} · NewProgram() · Run(args) — cobra root command; maps flag/argument errors and CodeInvalidConfig errors to ArgumentError with usage text
+    │       ├── root_command.go               # rootCommand · rootFlags (--include-root, --i-am-root) · newRootCommand() · showHelp() · requirePatterns() · toProcessOptions()
+    │       ├── play_command.go               # playCommand · playFlags (--confirm, --speed, --time) · command() · toRequest() → inbound.PlayRequest
+    │       ├── list_command.go               # listCommand (hidden — runner is a stub) · command()
+    │       ├── kill_command.go               # killCommand (hidden — runner is a stub) · command()
     │       └── error.go                      # ArgumentError
     │
     ├── infrastructure/                       # Driven adapters — implement outbound ports
@@ -326,14 +332,49 @@ All port interfaces live in `application/contract`, split by direction into `inb
 ```go
 package inbound
 
-// Runner performs one unit of work on request.
-type Runner interface {
-    // Run performs the work, returning an error if it could not complete.
-    Run() error
+// PlayRunner plays a game session.
+type PlayRunner interface {
+    // Run plays a game session as described by request, returning an error if
+    // it could not complete.
+    Run(request PlayRequest) error
+}
+
+// ListRunner lists the processes that match search patterns.
+type ListRunner interface {
+    Run(request ListRequest) error
+}
+
+// KillRunner kills the processes that match search patterns.
+type KillRunner interface {
+    Run(request KillRequest) error
+}
+
+// PlayRequest describes a game session to play.
+type PlayRequest struct {
+    Patterns []string // select the processes to target
+    Game     GameOptions
+    Process  ProcessOptions
+}
+
+// ListRequest and KillRequest each carry Patterns and Process ProcessOptions.
+
+// GameOptions holds explicitly provided game values. A nil field means the
+// value was not provided.
+type GameOptions struct {
+    ConfirmMode *bool
+    Speed       *float64
+    TimeLimit   *int
+}
+
+// ProcessOptions holds explicitly provided process-discovery values. A nil
+// field means the value was not provided.
+type ProcessOptions struct {
+    IncludeRoot *bool // additionally permits root-owned processes as targets
+    AllowRoot   *bool // permits running as root
 }
 ```
 
-`Run` takes no arguments. The August design's `Run(cfg config.Config)` and the September (late) design's `Run(req RunRequest)` both carried the caller's input through the port; since 2026-09-30, everything one run needs — the search patterns and the caller's explicitly provided `config.Options` — is bound when the `Runner` is built (`composition.RunnerCreator.Create(patterns, options)`, §9). Resolving those options against the persisted config file and domain defaults is still `config.Service.Load`'s job (§3, §15), called by `application/runner.Service.Run` itself, not by the inbound adapter. As a result `inbound` imports nothing at all (see §16).
+The inbound port went through three shapes. The August design's `Run(cfg config.Config)` and the September (late) design's `Run(req RunRequest)` carried the caller's input through a single `Runner`; from 2026-09-30 to the `introduce-play-command` branch the port carried no request at all (`Run()`), with the patterns and options bound when the `Runner` was built. Now there is one runner interface per command, and each takes its own request again (§17): the same CLI process can run any of the three commands, so what to run and with which patterns and options is only known at call time. The request types hold the caller's explicitly provided input only — resolving it against the persisted config file and the built-in defaults is still `config.Service.Load`'s job (§3, §15), called by `application/runner.Play.Run` itself, not by the inbound adapter. `GameOptions`/`ProcessOptions` mirror `config.GameOptions`/`config.ProcessOptions` field for field but are not imported from there; `application/runner`'s `toConfigOptions` bridges them. `inbound` imports nothing at all (see §16).
 
 ### `application/contract/outbound/process.go`
 
@@ -445,17 +486,7 @@ type ScoreReporter interface {
 ```go
 package outbound
 
-// Mode identifies which run mode pidshooter defaults to.
-type Mode string
-
-// The possible Mode values.
-const (
-    ModeGame  Mode = "game"
-    ModeLucky Mode = "lucky"
-    ModeList  Mode = "list"
-)
-
-// GameConfig is a user's saved game mode config. A nil field means that
+// GameConfig is a user's saved game config. A nil field means that
 // value was not present in the persisted data.
 type GameConfig struct {
     ConfirmMode *bool
@@ -471,7 +502,6 @@ type ProcessConfig struct {
 
 // Config is a user's saved run config.
 type Config struct {
-    Mode    Mode
     Process ProcessConfig
     Game    GameConfig
 }
@@ -488,7 +518,7 @@ type ConfigStore interface {
 }
 ```
 
-New in the September (late) round (§15); `ConfigStoreResult` was renamed `Config` and `ModeYolo` became `ModeLucky` on 2026-09-30. `Config` is the same three-way shape (`Mode`, `Process`, `Game`) as `application/config.Result`. `GameConfig`/`ProcessConfig` stay separate types from `GameResult`/`ProcessResult` — `application/config` converts between them at its `fromStore` boundary, the same "own your input/output shapes" pattern `PlayRequest`/`FindRequest` follow one layer up — because the port DTOs use pointer fields (tri-state present-with-value/absent, needed for the YAML round-trip) while `Result`'s fields are plain, already-resolved values. `Mode` has no such mismatch (a plain string on both sides), so as of 2026-09-30 `application/config.Result.Mode` is `outbound.Mode` directly rather than a second, mirrored `config.Mode` type — the two had been kept deliberately separate as an interim step pending a decision on relocating `contract`'s DTOs into the application layer (docs/improvement-finding.md #2), a plan since investigated and abandoned as not viable (unavoidable Go import cycle); with that settled, the duplicate `Mode` had no remaining purpose. Notably absent from `ProcessConfig`: there is no `AllowRoot` field — the root-refusal override is never persisted (§15). Nothing calls `ConfigStore.Save` yet.
+New in the September (late) round (§15); `ConfigStoreResult` was renamed `Config` and `ModeYolo` became `ModeLucky` on 2026-09-30. `Config` is the same shape (`Process`, `Game`) as `application/config.Result`. `GameConfig`/`ProcessConfig` stay separate types from `GameResult`/`ProcessResult` — `application/config` converts between them at its `fromStore` boundary, the same "own your input/output shapes" pattern `PlayRequest`/`FindRequest` follow one layer up — because the port DTOs use pointer fields (tri-state present-with-value/absent, needed for the YAML round-trip) while `Result`'s fields are plain, already-resolved values. The `Mode` type and its `ModeGame`/`ModeLucky`/`ModeList` constants that used to sit here (and on `config.Result`) were removed in the `introduce-play-command` round (§17): the mode is now the CLI command, not a persisted default. Notably absent from `ProcessConfig`: there is no `AllowRoot` field — the root-refusal override is never persisted (§15). The only `ConfigStore.Save` caller is `config.Service.Load`, which persists the built-in defaults when no config file exists yet.
 
 ### `application/contract/outbound/ui.go`
 
@@ -589,14 +619,14 @@ type Logger interface {
 
 `InputEventProvider` is the August design's `InputSource` renamed to match `application/input` (renamed from `application/event`). Its channel carries the sealed `input.Event` interface (`input.EventDispatcher` until 2026-10, §16), and is closed once no further events will be produced — `application/game` treats a closed channel mid-session as a session failure. `NotFoundError`/`CorruptedDataError` are sentinel value-type errors any `ScoreStore`/`ConfigStore`/`ProcessManager`/`ProcessHandle` implementation can return, matched via `errors.As` — they didn't exist as ported error types in August; store/process failures were plain wrapped errors. `Logger` is new in the September (late) round (§15) — `apperror.Handler` is built around it instead of calling `internal/util.Logger` directly.
 
-### `application/runner` — wires the four services
+### `application/runner` — wires the four services (`Play`)
 
 ```go
 package runner
 
 // Consumer-side interfaces, one per collaborator, each listing only what Run calls.
 type configLoader interface {
-    Load() (config.Result, error)
+    Load(options config.Options) (config.Result, error)
 }
 
 type processFinder interface {
@@ -613,7 +643,7 @@ type gamePlayer interface {
     Play(request game.PlayRequest) (game.PlayResult, error)
 }
 
-type Service struct {
+type Play struct {
     configSvc  configLoader
     processSvc processFinder
     gameSvc    gamePlayer
@@ -621,40 +651,42 @@ type Service struct {
     errHandler *apperror.Handler
 }
 
-func NewService(configSvc configLoader, processSvc processFinder, scoreSvc scoreKeeper, gameSvc gamePlayer, errHandler *apperror.Handler) *Service {
-    return &Service{configSvc: configSvc, processSvc: processSvc, gameSvc: gameSvc, scoreSvc: scoreSvc, errHandler: errHandler}
+func NewPlay(configSvc configLoader, processSvc processFinder, scoreSvc scoreKeeper, gameSvc gamePlayer, errHandler *apperror.Handler) *Play {
+    return &Play{configSvc: configSvc, processSvc: processSvc, gameSvc: gameSvc, scoreSvc: scoreSvc, errHandler: errHandler}
 }
 
-func (s *Service) Run() error {
-    cfg, cfgErr := s.configSvc.Load()
-    if err := s.errHandler.Handle(cfgErr); err != nil {
+func (p *Play) Run(request inbound.PlayRequest) error {
+    cfg, cfgErr := p.configSvc.Load(toConfigOptions(request))
+    if err := p.errHandler.Handle(cfgErr); err != nil {
         return err
     }
-    found, findErr := s.processSvc.FindProcesses(toFindRequest(cfg.Process))
+    found, findErr := p.processSvc.FindProcesses(toFindRequest(request.Patterns, cfg.Process))
     if findErr != nil {
-        return s.errHandler.Handle(findErr)
+        return p.errHandler.Handle(findErr)
     }
-    loaded, loadErr := s.scoreSvc.LoadScoreBoard()
-    if err := s.errHandler.Handle(loadErr); err != nil {
+    loaded, loadErr := p.scoreSvc.LoadScoreBoard()
+    if err := p.errHandler.Handle(loadErr); err != nil {
         return err
     }
-    result, playErr := s.gameSvc.Play(toPlayRequest(cfg.Game, found, loaded.HighScore))
+    result, playErr := p.gameSvc.Play(toPlayRequest(cfg.Game, found, loaded.HighScore))
     if playErr != nil {
-        return s.errHandler.Handle(playErr)
+        return p.errHandler.Handle(playErr)
     }
-    if err := s.errHandler.HandleAll(result.Errors); err != nil {
+    if err := p.errHandler.HandleAll(result.Errors); err != nil {
         return err
     }
-    recorded, recordErr := s.scoreSvc.RecordScore(toRecordRequest(loaded, result, cfg.Game.TimeLimit))
-    if err := s.errHandler.Handle(recordErr); err != nil {
+    recorded, recordErr := p.scoreSvc.RecordScore(toRecordRequest(loaded, result, cfg.Game.TimeLimit))
+    if err := p.errHandler.Handle(recordErr); err != nil {
         return err
     }
-    s.scoreSvc.ReportResults(toReportRequest(result, recorded))
+    p.scoreSvc.ReportResults(toReportRequest(result, recorded))
     return nil
 }
 ```
 
-The August version of `NewRunner` took four raw outbound ports (`processMgr`, `store`, `renderer`, `events`) and built `process.Service`/`game.Service`/`score.Service` internally, and `Run` took an already-resolved `config.Config` with no `config.Service` in the picture at all. Both changed in the September (late) round (§15): `Service` (renamed from the top-level-file `Runner`, now its own `application/runner` package) takes all four already-built services plus a `*apperror.Handler`, and `Run` resolves its own `config.Result` via `configSvc.Load` as its first step. Since 2026-10 (§16), `NewService` takes the four collaborators as the consumer-side interfaces above rather than as concrete `*config.Service`/`*process.Service`/… pointers, `Run` takes no request (the options already live in `config.Service`), each step's result is mapped into the next step's request by `converter.go` (`toFindRequest`, `toPlayRequest`, `toRecordRequest`, `toReportRequest`), and per-target kill failures and duds arrive as `PlayResult.Errors`, handled in one `HandleAll` call instead of the former `logKillFailures`/`logDuds` helpers.
+`List` and `Kill` (`list.go`, `kill.go`) are stubs with the same shape at a smaller scale: each holds only an `errHandler`, and `Run` returns `errHandler.Handle(errors.New("unimplemented"))`.
+
+The August version of `NewRunner` took four raw outbound ports (`processMgr`, `store`, `renderer`, `events`) and built `process.Service`/`game.Service`/`score.Service` internally, and `Run` took an already-resolved `config.Config` with no `config.Service` in the picture at all. Both changed in the September (late) round (§15): the orchestrator (then `runner.Service`, now its own `application/runner` package) takes all four already-built services plus a `*apperror.Handler`, and `Run` resolves its own `config.Result` via `configSvc.Load` as its first step. Since 2026-10 (§16), the constructor takes the four collaborators as the consumer-side interfaces above rather than as concrete `*config.Service`/`*process.Service`/… pointers, each step's result is mapped into the next step's request by `converter.go`, and per-target kill failures and duds arrive as `PlayResult.Errors`, handled in one `HandleAll` call instead of the former `logKillFailures`/`logDuds` helpers. On the `introduce-play-command` branch (§17), `service.go`'s `Service` was renamed `play.go`'s `Play`, `Run` takes the `inbound.PlayRequest` (patterns and options per call) and passes the options to `Load` and the patterns to `FindProcesses`.
 
 ### `application/game` — the game loop
 
@@ -734,7 +766,7 @@ flowchart TD
     main["cmd/pidshooter/main.go"]
 
     subgraph Composition
-        composition["internal/composition\nRunnerCreator"]
+        composition["internal/composition\nCreator"]
     end
 
     subgraph Entrypoint
@@ -751,14 +783,14 @@ flowchart TD
     end
 
     subgraph Application
-        apprunner["application/runner\nService"]
+        apprunner["application/runner\nPlay · List · Kill"]
         appinput["application/input\nEvent · Dispatcher"]
         appgame["application/game\nService"]
         appprocess["application/process\nService"]
         appscore["application/score\nService"]
         appconfig["application/config\nOptions · Result · Service"]
         apperror["application/apperror\nError · Handler"]
-        inbound["application/contract/inbound\nRunner"]
+        inbound["application/contract/inbound\nPlayRunner · ListRunner · KillRunner"]
         outbound["application/contract/outbound"]
     end
 
@@ -774,6 +806,7 @@ flowchart TD
     main --> composition
     main --> cli
 
+    composition --> cli
     composition --> apprunner
     composition --> inbound
     composition --> appconfig
@@ -788,11 +821,10 @@ flowchart TD
     composition --> ilogger
 
     cli --> apperror
-    cli --> appconfig
     cli --> inbound
-    cli --> util
 
     apprunner --> apperror
+    apprunner --> inbound
     apprunner --> appconfig
     apprunner --> appgame
     apprunner --> appprocess
@@ -839,7 +871,7 @@ flowchart TD
     cgame --> cprocess
 ```
 
-**Key property:** the core packages (`core/game`, `core/movement`, `core/process`, `core/score`) have no arrows pointing *outward* at all — not even to `internal/util`. Dependency only flows inward toward the core. `application/game` and `application/process` still have no arrows *between each other* — the dotted edge is not an import, it is `application/game` declaring a `processKiller` interface that `application/process.Service` happens to satisfy structurally. `application/runner` has no arrow to any core package or to `contract/outbound` (or even `contract/inbound`, which it satisfies structurally): it reaches its four collaborators only through consumer-side interfaces (`configLoader`, `processFinder`, `scoreKeeper`, `gamePlayer`) over the services' own request/result types. For the same reason `application/score` no longer imports `application/game` — `score.RecordRequest` carries the session's numbers itself instead of taking a `game.PlayResult`. `application/game`/`application/process` also have no arrow to `application/config`, despite `PlayRequest`/`FindRequest` overlapping one of `config.Result`'s fields (`GameResult`/`ProcessResult`) — `application/runner` bridges them with plain conversion functions instead. §15 justified that by an import cycle through `contract/inbound` (which then imported `application/config`) and the old `testutil/fake` package; neither edge exists any more, so the separation now rests on each service owning its own request/result types (see §16), not on a cycle. `contract/inbound` imports nothing, and `entrypoint/cli` imports `application/config` directly, for the `config.Options` it hands to `RunnerCreator.Create`. `apperror` depends on `outbound.Logger`, satisfied structurally by `infrastructure/logger`, which imports nothing from `application` at all. `internal/composition` is the actual composition root (§9) — `main.go` imports only `composition` and `cli`, nothing else.
+**Key property:** the core packages (`core/game`, `core/movement`, `core/process`, `core/score`) have no arrows pointing *outward* at all — not even to `internal/util`. Dependency only flows inward toward the core. `application/game` and `application/process` still have no arrows *between each other* — the dotted edge is not an import, it is `application/game` declaring a `processKiller` interface that `application/process.Service` happens to satisfy structurally. `application/runner` has no arrow to any core package or to `contract/outbound`; it imports `contract/inbound` only for the request types its runners accept, and reaches its four collaborators only through consumer-side interfaces (`configLoader`, `processFinder`, `scoreKeeper`, `gamePlayer`) over the services' own request/result types. For the same reason `application/score` no longer imports `application/game` — `score.RecordRequest` carries the session's numbers itself instead of taking a `game.PlayResult`. `application/game`/`application/process` also have no arrow to `application/config`, despite `PlayRequest`/`FindRequest` overlapping one of `config.Result`'s fields (`GameResult`/`ProcessResult`) — `application/runner` bridges them with plain conversion functions instead. §15 justified that by an import cycle through `contract/inbound` (which then imported `application/config`) and the old `testutil/fake` package; neither edge exists any more, so the separation now rests on each service owning its own request/result types (see §16), not on a cycle. `contract/inbound` imports nothing, and `entrypoint/cli` imports it for the runner interfaces and request types, plus `apperror` for the error handler and `CodeInvalidConfig` check — it no longer imports `application/config` or `internal/util`. `internal/composition` imports `entrypoint/cli` (it builds the `cli.Program`). `apperror` depends on `outbound.Logger`, satisfied structurally by `infrastructure/logger`, which imports nothing from `application` at all. `internal/composition` is the actual composition root (§9) — `main.go` imports only `composition` and `cli` (for `cli.ArgumentError`), nothing else.
 
 **Why contracts live in application, not core:** Placing interface definitions in `application/contract` (rather than in the domain packages they reference) avoids a dependency inversion problem: if `core/game` defined `Renderer`, it would need to know about `FrameViewState` (fine, it already does conceptually), but any package importing `core/game` for the interface would also pull in the rendering contract. Keeping contracts in `application/contract` makes the application the single point of assembly.
 
@@ -847,7 +879,7 @@ flowchart TD
 
 ## 9. Composition root
 
-In hexagonal architecture the composition root is not logic — it is wiring. As of the 2026-09 refactor, that wiring lives in its own package, `internal/composition`, rather than in `main.go` directly — `main.go` is now just two calls deep.
+In hexagonal architecture the composition root is not logic — it is wiring. As of the 2026-09 refactor, that wiring lives in its own package, `internal/composition`, rather than in `main.go` directly — `main.go` is now just one call chain deep.
 
 ```go
 // cmd/pidshooter/main.go
@@ -860,36 +892,40 @@ func main() {
 }
 
 func run() error {
-    creator := composition.NewRunnerCreator()
-    program := cli.NewProgram(creator)
-    return program.Run(os.Args[1:])
+    return composition.NewCreator().Create().Run(os.Args[1:])
 }
 
 // exitCode: 2 for a cli.ArgumentError, 1 for any other error, 0 for none.
 ```
 
 ```go
-// internal/composition/runner_creator.go
+// internal/composition/creator.go
 package composition
 
-// RunnerCreator constructs a Runner, along with everything it depends on.
-type RunnerCreator struct {
+// Creator creates the program that runs the commands.
+type Creator struct {
     errHandler *apperror.Handler
 }
 
-// NewRunnerCreator returns a RunnerCreator.
-func NewRunnerCreator() RunnerCreator {
-    return RunnerCreator{errHandler: apperror.NewHandler(logger.NewLogger())}
+// NewCreator returns a Creator that logs errors to standard error.
+func NewCreator() *Creator {
+    return &Creator{errHandler: apperror.NewHandler(logger.NewLogger())}
 }
 
-// ErrHandler returns the Handler used to log errors.
-func (c RunnerCreator) ErrHandler() *apperror.Handler {
-    return c.errHandler
+// Create returns the program that runs the commands. Nothing a command needs is
+// set up until that command runs.
+func (c *Creator) Create() *cli.Program {
+    return cli.NewProgram(
+        &lazyRunner[inbound.PlayRequest, inbound.PlayRunner]{build: c.buildPlay, errHandler: c.errHandler},
+        runner.NewList(c.errHandler),
+        runner.NewKill(c.errHandler),
+        c.errHandler,
+    )
 }
 
-// Create builds a Runner that targets processes matching patterns, configured
-// by options, along with everything it depends on.
-func (c RunnerCreator) Create(patterns []string, options config.Options) (inbound.Runner, error) {
+// buildPlay returns the runner of a game session wired with everything it
+// depends on. It returns an error if any of those dependencies cannot be set up.
+func (c *Creator) buildPlay() (inbound.PlayRunner, error) {
     manager, err := pscommand.NewManager()
     if err != nil {
         return nil, err
@@ -908,20 +944,35 @@ func (c RunnerCreator) Create(patterns []string, options config.Options) (inboun
     }
     ui := tcellui.NewTUI(screen)
 
-    configSvc := config.NewService(configStore, options)
-    processSvc := process.NewService(manager, console.NewProcessReporter(), patterns)
+    configSvc := config.NewService(configStore)
+    processSvc := process.NewService(manager, console.NewProcessReporter())
     scoreSvc := score.NewService(scoreStore, console.NewScoreReporter())
     gameSvc := game.NewService(processSvc, ui, ui.InputEvents())
 
-    return runner.NewService(configSvc, processSvc, scoreSvc, gameSvc, c.errHandler), nil
+    return runner.NewPlay(configSvc, processSvc, scoreSvc, gameSvc, c.errHandler), nil
 }
 ```
 
-`RunnerCreator` gained an `errHandler` field and `ErrHandler()` method in the September (late) round (§15) — one `*apperror.Handler` is built once, here, and shared by both the `runner.Service` `Create` returns and `cli.Program` itself (via the `RunnerCreator` interface `Program` declares, which requires `ErrHandler()` alongside `Create()`), rather than each constructing its own. Since 2026-09-30, `Create` also takes the parsed search patterns and `config.Options` and binds them here — the patterns into `process.NewService`, the options into `config.NewService` — because the inbound port no longer carries a request (§7).
+```go
+// internal/composition/lazy_runner.go
+package composition
 
-`entrypoint/cli.Program` never imports `internal/composition` directly — it depends on the exported `RunnerCreator` interface it declares itself (`Create(patterns []string, options config.Options) (inbound.Runner, error)` and `ErrHandler() *apperror.Handler`), and `Create` is only called once argument parsing has succeeded, so a fallible or expensive construction (opening the terminal screen, resolving the score/config file paths, locating `ps`) never runs for `--help` or a parse error. Option validation itself now happens inside `Run` (`config.Service.Load`); `Program` turns any `CodeInvalidConfig` failure `Run` returns (an invalid option, an invalid pattern, a refused root run) into an `ArgumentError` with usage text on standard error, which `main.go` maps to exit code 2.
+// lazyRunner runs each request on a runner it builds when Run is called.
+type lazyRunner[Request any, Runner interface{ Run(Request) error }] struct {
+    build      func() (Runner, error)
+    errHandler *apperror.Handler
+}
 
-This split — `composition.RunnerCreator` doing all adapter/service construction, `main.go` doing nothing but wiring `composition` to `cli` and mapping the result to an exit code — was itself the subject of a design discussion during the 2026-09 pass: `RunnerCreator.Create()` must stay pure wiring with no behavioral decisions (see §14's note on `Renderer.Init`/`Cleanup` ownership, which was deliberately kept *out* of this file for exactly that reason).
+// Run builds the runner and runs request on it. If the build fails, it handles
+// that error and returns it without running request.
+func (l *lazyRunner[Request, Runner]) Run(request Request) error { /* ... */ }
+```
+
+`Creator` (renamed from `RunnerCreator`, `runner_creator.go` → `creator.go`) builds the whole `cli.Program` instead of a single `inbound.Runner`: `Program` takes the three runners and the `*apperror.Handler` directly, so the former `RunnerCreator` interface `cli` declared (`Create(patterns, options)` + `ErrHandler()`) is gone. The one `*apperror.Handler` is still built once, here, and shared by `Program`, the `lazyRunner`, and the `runner` package's `Play`/`List`/`Kill` (introduced in the September (late) round, §15). Construction of the play dependencies is deferred behind `lazyRunner` for the same reason it was deferred behind `Create` before: a fallible or expensive construction (opening the terminal screen, resolving the score/config file paths, locating `ps`) must never run for `--help`, an argument error, or the `list`/`kill` stubs — `buildPlay` runs only when the `play` command's `RunE` calls `Run`. If it fails, `lazyRunner` hands the error to the handler (whatever its severity, since without a runner the request cannot run) and returns it.
+
+`entrypoint/cli.Program` never imports `internal/composition`; it receives its runners as the `inbound` interfaces. `Program.Run` executes the cobra root command and then classifies the error it ended with: a flag, argument, or unknown-command problem (an `ArgumentError`) is passed through the error handler, followed by usage text on standard error; a `CodeInvalidConfig` failure from a command (an invalid option or pattern) is returned as an `ArgumentError` with usage text on standard error, which `main.go` maps to exit code 2; any other error — including a refused root run (`CodePermissionDenied`) — is returned as the command reported it, with no usage block, and `main.go` maps it to exit code 1. With no arguments, `rootCommand.showHelp` prints the help to standard output.
+
+This split — `composition.Creator` doing all adapter/service construction, `main.go` doing nothing but running the program it returns and mapping the result to an exit code — was itself the subject of a design discussion during the 2026-09 pass: the creator must stay pure wiring with no behavioral decisions (see §14's note on `Renderer.Init`/`Cleanup` ownership, which was deliberately kept *out* of this file for exactly that reason).
 
 ---
 
@@ -1017,7 +1068,7 @@ Step 8  Simplify process.Info
 - **Swappable adapters** — a new terminal library, a `/proc` reader, or SQLite score storage each require only one new adapter.
 - **Clear dependency rule** — `grep -r "tcell" internal/core` must return nothing. The build enforces the architecture.
 - **Functional core** — `Session.Update()` and the `Target`/`roster` methods it calls are pure state transitions. No side effects in the domain.
-- **Thinner composition root** — as of 2026-09, `main.go` doesn't even do the wiring itself any more; `internal/composition` does, and `main.go` is two function calls and an exit-code map.
+- **Thinner composition root** — as of 2026-09, `main.go` doesn't even do the wiring itself any more; `internal/composition` does, and `main.go` is one call chain and an exit-code map.
 - **Focused services** (since the 2026-08 split) — `application/game`, `application/process`, and `application/score` each have one reason to change. `application/game` can be read and tested without knowing scoring or OS process termination exist.
 
 ### Costs
@@ -1106,7 +1157,7 @@ August's `ProcessManager` embedded two smaller interfaces, `Lister` (`List`, `Ow
 
 `Board.Add` used to accept any `Entry`, including a zero-kill session (quitting instantly used to still create and persist a 0-kill scoreboard entry). `Entry.isScore()` (`Kills > 0 && FreedMem >= 0`) now gates both `Add` and `NewBoard` — `NewBoard` builds its board by routing every persisted entry through `Add`, so a hand-edited or corrupted-but-parseable score file gets filtered, ranked, and capped at load time instead of staying wrong until the next session's `Add`. `sortByRank` also switched from `sort.Slice` to `sort.SliceStable`, closing an unspecified-tie-order gap (never observed to actually misorder anything in this Go version, but no longer relying on that being true).
 
-### `cobra` removed
+### `cobra` removed (since reintroduced, §17)
 
 `entrypoint/cli` no longer depends on `github.com/spf13/cobra`. Flag parsing is hand-rolled: a `flagSplitter` separates positional patterns from flags before handing the rest to the stdlib `flag.FlagSet`, since patterns and flags can otherwise intermix in a way `flag.Parse` alone can't disambiguate.
 
@@ -1186,7 +1237,7 @@ The single top-level `application/runner.go` file (and its `Runner` type) is now
 
 This section is a design record for the sixth refactoring pass: the 2026-09-30 port-contract cleanup, then the `test-hardening` branch (2026-10-01 through 2026-10-13), a file-by-file audit of every test under `internal/` and `cmd/`. The audit's working rule was that a test needing complicated setup points at crooked production design, so most of the production changes below came out of making a test simple rather than out of a feature request. `docs/improvement-finding.md` tracks anything still open.
 
-### The inbound port carries no request
+### The inbound port carries no request (superseded by §17)
 
 `inbound.Runner.Run(req RunRequest)` (§15) became `Run()`, and `RunRequest` is gone. The search patterns and the caller's explicitly provided options are bound at construction instead: `cli.Program` parses them, then calls `RunnerCreator.Create(patterns, options)` (§9), which hands the patterns to `process.NewService` and the options to `config.NewService`. `config.Request`/`GameRequest`/`ProcessRequest` were renamed `config.Options`/`GameOptions`/`ProcessOptions` in the same move, and `config.Service.Load()` lost its parameter. `contract/inbound` now imports nothing.
 
@@ -1228,7 +1279,7 @@ This also supersedes §15's import-cycle rationale for `PlayRequest`/`FindReques
 
 `Vector` moved to its own `vector.go` and gained `Rounded()`, shared by every caller that needs a target's cell. `Motion`'s `width` parameter is an `int` at every call site.
 
-### `cli`: `flagParser`, exported `RunnerCreator`
+### `cli`: `flagParser`, exported `RunnerCreator` (superseded by §17)
 
 Parsing moved out of `program.go` into `flag_parser.go` (`flagParser`, combining the `flag.FlagSet`, `flagMapper`, and the `flagSplitter` behind an `argumentSplitter` interface). The `runnerCreator` interface became the exported `cli.RunnerCreator`.
 
@@ -1261,3 +1312,43 @@ Parsing moved out of `program.go` into `flag_parser.go` (`flagParser`, combining
 | `core/movement/motion.go: Vector` | `core/movement/vector.go: Vector` (+ `Rounded()`) | Own file |
 | `entrypoint/cli/program.go: runnerCreator` (+ inline parsing) | `entrypoint/cli/program.go: RunnerCreator` + `flag_parser.go: flagParser` | Interface exported; parsing extracted |
 | `internal/testutil/{fake,fixture,helper}/` | `internal/testutil/` (flat) + package-local `fixture_test.go`/`helper_test.go`/`mock_*_test.go`/`fake_*_test.go` | Shared-only test code; most doubles now testify mocks |
+
+---
+
+## 17. Further refactoring: the play command & per-call requests (2026-10)
+
+This section is a design record for the seventh refactoring pass, done on the `introduce-play-command` branch (2026-10-21). Its trigger was turning the CLI from a single implicit game mode into subcommands (`play`, with `list` and `kill` planned), which in turn made the "everything bound at construction" shape from §16 wrong: one process can now run any of three commands, so the patterns and options are only known when a command runs.
+
+### `cobra` is back; the hand-rolled flag parsing is gone
+
+`entrypoint/cli` depends on `github.com/spf13/cobra` again (§14 removed it). `flag_parser.go`, `flag_mapper.go`, and `flag_splitter.go` are deleted: cobra separates flags from positional patterns itself. `root_command.go` holds `rootCommand` (the top-level command, its persistent `rootFlags` — `--include-root`, `--i-am-root` — and `toProcessOptions`), `showHelp` (help with no arguments; otherwise an `ArgumentError` suggesting similar commands or naming an unknown one), and `requirePatterns` (each subcommand needs at least one pattern). `play_command.go` holds `playCommand` and its `--confirm`/`--speed`/`--time` flags; `list_command.go`/`kill_command.go` hold `Hidden` stub commands. Each command builds its inbound request from only the flags that were actually set (`pflag.FlagSet.Changed`), so an unset flag stays a nil pointer and does not shadow the config file. The cobra help command is replaced by cobra's command suggestions.
+
+### One typed runner per command; requests are per call
+
+`inbound.Runner.Run()` became `PlayRunner`/`ListRunner`/`KillRunner`, each `Run(request)` over its own request type (§7). `application/runner.Service` (`service.go`) became `Play` (`play.go`); `List` and `Kill` are stubs that return an `unimplemented` error through the error handler. `config.NewService(store)` no longer takes the options — `Load(options)` does — and `process.NewService(manager, reporter)` no longer takes the patterns — `FindRequest.Patterns` does. `runner/converter.go` gained `toConfigOptions` (inbound request → `config.Options`), and `toFindRequest` now also takes the patterns.
+
+### `Creator` builds the program; the play dependencies are lazy
+
+`composition.RunnerCreator` became `composition.Creator` and its `Create()` returns the `*cli.Program`. A generic `lazyRunner[Request, Runner]` defers `buildPlay` until a play runs (§9), so the terminal screen, file paths, and `ps` lookup are never touched for help, argument errors, or the stubs. `cli.RunnerCreator` (the interface `cli` declared) is gone.
+
+### `Mode` removed
+
+`outbound.Mode` and `ModeGame`/`ModeLucky`/`ModeList` were deleted, along with `Mode` on `outbound.Config` and `config.Result`. The planned list/lucky modes are now the `list`/`kill` commands rather than a persisted default, so the placeholder had no remaining job. Precedence is built-in defaults < stored config < per-run options. `AllowRoot` is still never read from the stored config.
+
+### Error classification: root refusal vs. bad arguments
+
+`apperror.CodePermissionDenied` is new: `process.Service.FindProcesses` returns it (`Fatal`) when running as root without `--i-am-root`, instead of `CodeInvalidConfig`. `Program.Run` turns only `CodeInvalidConfig` into an `ArgumentError` (exit code 2, usage on standard error); a permission refusal is a plain failure (exit code 1, no usage block). `apperror/error.go` was split: `code.go` holds `Code`, its constants, and `Code.In`; `error_handler.go` was renamed `handler.go`.
+
+### Component mapping: October structure → `introduce-play-command` structure
+
+| October 2026 location | `introduce-play-command` location | Change |
+|---|---|---|
+| `application/contract/inbound/runner.go: Runner.Run()` | `inbound/runner.go: PlayRunner/ListRunner/KillRunner`, `PlayRequest/ListRequest/KillRequest`, `GameOptions`, `ProcessOptions` | One typed runner per command; request per call |
+| `application/runner/service.go: Service` | `application/runner/play.go: Play` (+ stub `list.go: List`, `kill.go: Kill`) | Renamed; `Run(request)` |
+| `application/runner/converter.go: toFindRequest(cfg)` | `converter.go: toConfigOptions(request)`, `toFindRequest(patterns, cfg)` | Options and patterns taken from the request |
+| `application/config: NewService(store, options)`, `Load()` | `NewService(store)`, `Load(options)` | Options per call |
+| `application/process: NewService(manager, reporter, patterns)` | `NewService(manager, reporter)`; `FindRequest.Patterns` | Patterns per call |
+| `outbound.Mode`, `Config.Mode`, `config.Result.Mode` | removed | No persisted mode |
+| `apperror/error.go: Code`, `error_handler.go` | `apperror/code.go: Code`, `CodePermissionDenied`; `handler.go` | New code; files split/renamed |
+| `composition/runner_creator.go: RunnerCreator.Create(patterns, options) inbound.Runner` | `composition/creator.go: Creator.Create() *cli.Program` + `lazy_runner.go: lazyRunner` | Builds the program; play dependencies built lazily |
+| `entrypoint/cli/{flag_parser,flag_mapper,flag_splitter}.go`, `cli.RunnerCreator` | `entrypoint/cli/{root_command,play_command,list_command,kill_command}.go`, cobra | Hand-rolled parsing replaced by cobra subcommands |

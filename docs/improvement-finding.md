@@ -4,11 +4,11 @@ Everything still genuinely open, deferred to already-planned future work. Nothin
 
 ---
 
-### 1. No `--list`/`--dry-run` preview mode
+### 1. No working `list` preview command
 
-`config.Result.Mode` (`ModeGame`/`ModeYolo`/`ModeList`) already resolves through the config pipeline, but nothing reads `cfg.Mode` anywhere yet — no list-only or dry-run behavior is wired up. Pattern matching is also undocumented case-insensitive substring matching, with no way to preview what a pattern will match before entering the game screen where a click is fatal.
+The `list` command exists but is a hidden stub: `runner.List.Run` always returns `unimplemented`, so there is no list-only or dry-run behavior. Pattern matching is also undocumented case-insensitive substring matching, with no way to preview what a pattern will match before entering the game screen where a click is fatal.
 
-**Deferred to:** the planned list/yolo CLI-modes work (`Mode` already anticipates this).
+**Deferred to:** the implementation of the `list` command (and `kill`), which also removes `Hidden: true` from their cobra commands.
 
 ---
 
@@ -18,35 +18,27 @@ Everything still genuinely open, deferred to already-planned future work. Nothin
 
 Planned change: drop the `highScore` field and let `Board.IsNewHighScore(kills)` compare against the current best (`kills > 0 && kills > killScore()`), asked *before* the entry is added. `RecordScore` (the score service owns the rule, not the runner) evaluates it before `board.Add(entry)` and returns it with the error — `RecordScore(board, entry, err) (newHighScore bool, saveErr error)`. The runner only forwards the flag into `ReportResults`, and `toScoreSummary` takes it as a parameter instead of querying the board afterwards. A service field remembering the flag between the two calls was rejected, since it recreates the same hidden coupling.
 
-Touches `core/score/board.go` (field, `Add`, `NewBoard` seeding, tests built around the snapshot), `application/score` (`RecordScore`, `ReportResults`, `toScoreSummary` and their tests) and `application/runner/service.go`.
+Touches `core/score/board.go` (field, `Add`, `NewBoard` seeding, tests built around the snapshot), `application/score` (`RecordScore`, `ReportResults`, `toScoreSummary` and their tests) and `application/runner/play.go`.
 
 **Deferred to:** a follow-up after the testing audit; the current behavior is correct for the runner's call order.
 
 ---
 
-### 3. A negative flag value given as a separate argument reports a misleading error
-
-`flagSplitter.split` treats any argument starting with `-` (other than a lone `-`) as a flag. `--speed -3` therefore fails with "flag needs an argument: -speed" even though a value was supplied, while `--speed=-3` is accepted by the splitter and rejected later by range validation. The `flag` package itself would take `-3` as the value. Both inputs are out of range today, so the only effect is the wrong message, but a future flag with a legitimately negative value would be unusable in the separate-argument form.
-
-**Deferred to:** whenever a flag that accepts negative values is added, or the splitter is next reworked.
-
----
-
-### 4. A failed play session discards the kills already made
+### 3. A failed play session discards the kills already made
 
 When `game.Service.Play` fails mid-session (for example the input event channel closes), `playSession.frameLoop` stops the session and returns the error without waiting for in-flight kills, and `Play` returns an empty `PlayResult{}` with a `CodeGameFailed` error. Processes that were already killed (or whose kill is still in flight) are therefore reported nowhere: no kills, freed memory, duds or failures reach the runner, the score board or the log, even though the processes are really gone.
 
 Waiting for in-flight kills before returning the error would not help on its own, since the result is dropped either way. The fix is to return the partial `PlayResult` alongside the error and let the runner decide what to log and whether to record a score for an aborted session, which also needs a decision on whether an aborted session counts as a score at all.
 
-Touches `application/game/service.go` (`Play`), `application/game/play_session.go` (`run`, `frameLoop`, `result`) and `application/runner/service.go`.
+Touches `application/game/service.go` (`Play`), `application/game/play_session.go` (`run`, `frameLoop`, `result`) and `application/runner/play.go`.
 
 **Deferred to:** whenever aborted-session handling is designed; today the only abort path is an input source that died unexpectedly.
 
 ---
 
-### 5. The process killing chain may be wired the wrong way around
+### 4. The process killing chain may be wired the wrong way around
 
-`composition.RunnerCreator.Create` builds `osprocess.NewProcess()` (returned as `outbound.ProcessManager`), wraps it in `process.Service`, and passes that same `processSvc` into `game.NewService` as its `processKiller`. The game's kill path therefore goes through a service that also owns process discovery, and `runner.Service` holds the same `*process.Service` for `FindProcesses`. The current shape has an argument in its favor: `ProcessManager` has no `Kill`, so `process.Service.Kill` is real orchestration (pin, verify, kill, translate errors) rather than a pass-through, and `processKiller` is a narrow interface defined by the game. Even so, the chain looks wrong, but what exactly is wrong has not been pinned down yet.
+`composition.Creator.buildPlay` builds `pscommand.NewManager()` (returned as `outbound.ProcessManager`), wraps it in `process.Service`, and passes that same `processSvc` into `game.NewService` as its `processKiller`. The game's kill path therefore goes through a service that also owns process discovery, and `runner.Play` holds the same `*process.Service` for `FindProcesses`. The current shape has an argument in its favor: `ProcessManager` has no `Kill`, so `process.Service.Kill` is real orchestration (pin, verify, kill, translate errors) rather than a pass-through, and `processKiller` is a narrow interface defined by the game. Even so, the chain looks wrong, but what exactly is wrong has not been pinned down yet.
 
 To analyze before any redesign: who should own pin/verify/kill, whether discovery and killing belong in one service, whether the game should depend on an application service at all, and whether any alternative is actually better than the current wiring. This should be settled before adding consumer-side interfaces around `process.Service` in `runner`, since those would move with it.
 

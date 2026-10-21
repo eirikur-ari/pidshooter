@@ -8,16 +8,19 @@ pidshooter is a terminal-based game that turns process management into a first-p
 
 ## Command-line interface
 
+### Commands
+The game runs through the `play` command: `pidshooter play <pattern> [pattern2] [pattern3...] [flags]`. `list` and `kill` also exist, but they are hidden placeholders that accept patterns and always fail with `error: unimplemented` until they are implemented. Running `pidshooter` with no arguments prints usage. There is no `help` command; use `--help` instead. An unknown command is rejected with `error: unknown command: <name>` (or `did you mean <command>?` when it resembles one) and the usage text, so the old top-level form `pidshooter firefox` no longer works.
+
 ### Process pattern matching
-One or more substring patterns are passed as positional arguments. Any running process whose name contains any of the patterns (case-insensitive) is spawned as a target. Multiple patterns are ORed together.
+One or more substring patterns are passed to `play` as positional arguments. Any running process whose name contains any of the patterns (case-insensitive) is spawned as a target. Multiple patterns are ORed together.
 
 ```
-pidshooter firefox
-pidshooter chrome firefox node
+pidshooter play firefox
+pidshooter play chrome firefox node
 ```
 
 Patterns are validated at startup:
-- At least one pattern is required
+- At least one pattern is required; a missing pattern is reported before anything is set up, so nothing is written to disk
 - Each pattern must be between 3 and 256 characters (this also rejects empty patterns; patterns shorter than 3 characters match too broadly and risk surfacing critical system processes)
 - Unknown flags (any `-` prefixed argument that is not a recognised flag) are rejected with a usage hint
 - The game itself and any process with PID ≤ 1 are always excluded from results
@@ -25,47 +28,52 @@ Patterns are validated at startup:
 A pattern that itself starts with `-` can't be written directly (it would be parsed as a flag); precede it with `--` to end flag processing, after which every remaining argument is treated as a pattern:
 
 ```
-pidshooter -- -process-name
+pidshooter play -- -process-name
 ```
 
 ### Target ownership and `--include-root`
-By default, only processes owned by the current user are valid targets — a matching process owned by another user (including root-owned processes) is silently excluded from results, not just refused at kill time. Pass `--include-root` to also include root-owned processes as targets. This only matters for a non-root player: running pidshooter itself as root already sees and can target every process regardless of this flag (see "Running as root" below for whether it's even allowed to start).
+By default, only processes owned by the current user are valid targets — a matching process owned by another user (including root-owned processes) is silently excluded from results, not just refused at kill time. Pass `--include-root` to also include root-owned processes as targets. The flag is accepted by every command, before or after the command name. This only matters for a non-root player: running pidshooter itself as root already sees and can target every process regardless of this flag (see "Running as root" below for whether it's even allowed to start).
 
 ```
-pidshooter sshd --include-root
+pidshooter play sshd --include-root
 ```
 
 ### Running as root and `--i-am-root`
-Running pidshooter itself as root is refused by default — as root, every process on the machine (not just root-owned ones) becomes a one-click `SIGKILL` target, which is a worse default for a click-to-kill game than requiring an explicit acknowledgment. Pass `--i-am-root` to allow it anyway. This is a per-invocation flag only — it is never read from or written to the config file described below, so it can't be silently left on.
+Running pidshooter itself as root is refused by default — as root, every process on the machine (not just root-owned ones) becomes a one-click `SIGKILL` target, which is a worse default for a click-to-kill game than requiring an explicit acknowledgment. Pass `--i-am-root` to allow it anyway. Without it the run fails with a permission-denied error and exit status 1, without the usage text. This is a per-invocation flag only — it is never read from or written to the config file described below, so it can't be silently left on.
 
 ```
-sudo pidshooter sshd --i-am-root
+sudo pidshooter play sshd --i-am-root
 ```
 
 ### Confirm mode (`--confirm`)
 Before a kill is executed, the status bar prompts for confirmation with the target's PID and name. The player responds with `y`/`n` or cancels with `q`. Without this flag kills are immediate on click. Configurable via the config file (see below).
 
 ```
-pidshooter sleep --confirm
+pidshooter play sleep --confirm
 ```
 
 ### Speed (`--speed=N`)
 Sets the initial movement speed multiplier. Range: `0.5`–`5.0`, default `2.0`. Can also be adjusted live during the game with `+`/`-`. Expects a plain decimal number. Configurable via the config file (see below).
 
 ```
-pidshooter node --speed=1.5
+pidshooter play node --speed=1.5
 ```
 
 ### Time limit (`--time=N`)
 Ends the game automatically after N seconds. `--time=0` disables the limit. Range: `1`–`300` (5 minutes), default `30`. The remaining time is shown in the status bar during play. Expects a plain decimal number. Configurable via the config file (see below).
 
 ```
-pidshooter sleep --time=60
-pidshooter node --time=0
+pidshooter play sleep --time=60
+pidshooter play node --time=0
 ```
 
 ### Help
-`--help` or `-h` prints usage and exits. Running with no arguments also prints usage.
+`--help` or `-h` prints usage and exits, for `pidshooter` itself and for each command (`pidshooter play --help`). Running with no arguments also prints usage. The help of `play` also documents the config file and the default values of `--speed` and `--time`.
+
+### Exit status
+- `0`: success.
+- `2`: the command line was wrong: an unknown flag or command, a missing pattern, or a value that fails validation (for example a pattern shorter than 3 characters, or `--speed=99`). The error is logged and the usage text is printed to standard error.
+- `1`: any other failure, such as being refused to run as root, no matching processes, or the terminal not being available. The error is logged once, without the usage text.
 
 ### Config file
 Defaults for `--confirm`, `--speed`, `--time`, and `--include-root` can be persisted at `~/.config/pidshooter/config.yaml` (or `$XDG_CONFIG_HOME/pidshooter/config.yaml`, if set), so they don't need to be typed on every run. Values are resolved in priority order: a hardcoded application default, then the config file if present, then a flag passed on the command line — a flag always wins for that run. A persisted value that fails validation (e.g. a corrupted or hand-edited `speed: 99`) is dropped with a warning rather than failing the whole run; the rest of the file's values still apply.

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCode_In_ReportsWhetherErrIsAnErrorWithCode(t *testing.T) {
+func TestCode_In_ReportsWhetherErrorIsAnAppErrorWithCode(t *testing.T) {
 	nested := NewError(CodeKillFailed, SeverityWarning, "could not kill target",
 		NewError(CodeInvalidConfig, SeverityFatal, "invalid configuration", nil))
 
