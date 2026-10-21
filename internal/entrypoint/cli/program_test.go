@@ -2,158 +2,109 @@ package cli
 
 import (
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
-	"github.com/eirikur-ari/pidshooter/internal/application/config"
 )
 
-func TestProgram_Run_PrintsUsageToStdoutWithoutCreatingRunner(t *testing.T) {
-	tests := [][]string{
-		{},
-		{"--help"},
-		{"-h"},
-		{"--help", "--unknown"},
-		{"--unknown", "--help"},
-		{"proc", "--speed", "--help"},
-		{"--help", "--speed"},
-	}
-
-	for _, args := range tests {
-		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			// Given
-			creator := &MockRunnerCreator{}
-			program, out, errOut := newProgramFixture(creator)
-
-			// When
-			err := program.Run(args)
-
-			// Then
-			require.NoError(t, err)
-			assert.Equal(t, usageText, out.String())
-			assert.Empty(t, errOut.String())
-			creator.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
-		})
-	}
-}
-
-func TestProgram_Run_ReturnsArgumentErrorAndPrintsUsageToStderrWhenArgumentsAreMalformed(t *testing.T) {
-	tests := [][]string{
-		{"proc", "--help=true"}, // not an exact -h/--help match; falls through as an unrecognized flag
-		{"proc", "--help=false"},
-		{"proc", "--unknown"},
-	}
-
-	for _, args := range tests {
-		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			// Given
-			creator := &MockRunnerCreator{}
-			program, out, errOut := newProgramFixture(creator)
-
-			// When
-			err := program.Run(args)
-
-			// Then
-			require.Error(t, err)
-			assert.True(t, errors.As(err, &ArgumentError{}))
-			assert.Empty(t, out.String())
-			assert.Contains(t, errOut.String(), usageText)
-			creator.AssertNotCalled(t, "Create", mock.Anything, mock.Anything)
-		})
-	}
-}
-
-func TestProgram_Run_PassesPatternsAndOptionsToRunnerCreator(t *testing.T) {
+func TestProgram_Run_PrintsHelpToStdout(t *testing.T) {
 	// Given
-	expectedOptions := config.Options{
-		Game: config.GameOptions{
-			ConfirmMode: new(true),
-			Speed:       new(3.5),
-		},
-	}
-	runner := &MockRunner{}
-	runner.On("Run").Return(nil)
-	creator := &MockRunnerCreator{}
-	creator.On("Create", []string{"chrome", "firefox"}, expectedOptions).Return(runner, nil)
-	program, _, _ := newProgramFixture(creator)
+	fixture := newProgramFixture()
 
 	// When
-	err := program.Run([]string{"chrome", "--confirm", "firefox", "--speed=3.5"})
+	err := fixture.program.Run(nil)
 
 	// Then
 	require.NoError(t, err)
-	creator.AssertExpectations(t)
-	runner.AssertNumberOfCalls(t, "Run", 1)
+	assert.Contains(t, fixture.out.String(), "Process ID Shooter")
+	assert.Empty(t, fixture.errOut.String())
+	assert.Empty(t, fixture.logger.Errored)
 }
 
-func TestProgram_Run_ReturnsErrorWhenRunnerCreatorFails(t *testing.T) {
+func TestProgram_Run_LogsArgumentErrorOnceAndPrintsUsageToStderr(t *testing.T) {
 	// Given
-	creationError := errors.New("boom")
-	creator := &MockRunnerCreator{}
-	creator.On("Create", mock.Anything, mock.Anything).Return(nil, creationError)
-	program, out, errOut := newProgramFixture(creator)
+	fixture := newProgramFixture()
 
 	// When
-	err := program.Run([]string{"proc"})
-
-	// Then
-	require.ErrorIs(t, err, creationError)
-	creator.AssertNumberOfCalls(t, "Create", 1)
-	assert.Empty(t, out.String())
-	assert.Empty(t, errOut.String())
-}
-
-func TestProgram_Run_ReclassifiesInvalidConfigAsArgumentError(t *testing.T) {
-	// Given
-	invalid := apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", errors.New("boom"))
-	creator, runner := runnerCreatorMockSetup(invalid)
-	program, out, errOut := newProgramFixture(creator)
-
-	// When
-	err := program.Run([]string{"proc"})
+	err := fixture.program.Run([]string{"play", "proc", "--unknown"})
 
 	// Then
 	require.Error(t, err)
-	assert.True(t, errors.As(err, &ArgumentError{}))
-	assert.Empty(t, out.String())
-	assert.Contains(t, errOut.String(), usageText)
-	runner.AssertNumberOfCalls(t, "Run", 1)
+	assert.ErrorAs(t, err, &ArgumentError{})
+	assert.Empty(t, fixture.out.String())
+	assert.Contains(t, fixture.errOut.String(), "Usage:")
+	assert.Equal(t, []string{err.Error()}, fixture.logger.Errored)
 }
 
-func TestProgram_Run_ReturnsOtherFatalErrorsUnchanged(t *testing.T) {
+func TestProgram_Run_PrintsUsageOfTheCommandWhenItsArgumentsAreMalformed(t *testing.T) {
+	tests := newCommandUsageTestCase()
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			fixture := newProgramFixture()
+
+			// When
+			err := fixture.program.Run(test.args)
+
+			// Then
+			require.Error(t, err)
+			assert.Contains(t, fixture.errOut.String(), test.expectedUsage)
+		})
+	}
+}
+
+func TestProgram_Run_ReturnsErrorOfRunnerUnchangedWithoutLoggingIt(t *testing.T) {
 	// Given
-	fatal := apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "game session failed", errors.New("boom"))
-	creator, runner := runnerCreatorMockSetup(fatal)
-	program, out, errOut := newProgramFixture(creator)
+	failure := apperror.NewError(apperror.CodeGameFailed, apperror.SeverityFatal, "session failed", errors.New("boom"))
+	fixture := newProgramFixture()
+	returnFromEveryRunner(fixture, failure)
 
 	// When
-	err := program.Run([]string{"proc"})
+	err := fixture.program.Run([]string{"play", "proc"})
 
 	// Then
-	require.ErrorIs(t, err, fatal)
+	assert.Same(t, failure, err)
 	assert.False(t, errors.As(err, &ArgumentError{}))
-	assert.Empty(t, out.String())
-	assert.Empty(t, errOut.String())
-	runner.AssertNumberOfCalls(t, "Run", 1)
+	assert.Empty(t, fixture.out.String())
+	assert.Empty(t, fixture.errOut.String())
+	assert.Empty(t, fixture.logger.Errored)
+	assert.Empty(t, fixture.logger.Warned)
 }
 
-func TestProgram_Run_AbsorbsWarningFromRunner(t *testing.T) {
+func TestProgram_Run_ReclassifiesInvalidConfigAsArgumentErrorWithoutLoggingIt(t *testing.T) {
 	// Given
-	warning := apperror.NewError(apperror.CodeKillFailed, apperror.SeverityWarning, "could not kill target", errors.New("boom"))
-	creator, runner := runnerCreatorMockSetup(warning)
-	program, out, errOut := newProgramFixture(creator)
+	invalid := apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", errors.New("boom"))
+	fixture := newProgramFixture()
+	returnFromEveryRunner(fixture, invalid)
 
 	// When
-	err := program.Run([]string{"proc"})
+	err := fixture.program.Run([]string{"play", "proc"})
 
 	// Then
-	assert.NoError(t, err)
-	assert.Empty(t, out.String())
-	assert.Empty(t, errOut.String())
-	runner.AssertNumberOfCalls(t, "Run", 1)
+	require.ErrorIs(t, err, invalid)
+	assert.True(t, errors.As(err, &ArgumentError{}))
+	assert.Empty(t, fixture.out.String())
+	assert.Contains(t, fixture.errOut.String(), "pidshooter play <pattern>")
+	assert.Empty(t, fixture.logger.Errored)
+	assert.Empty(t, fixture.logger.Warned)
+}
+
+func newCommandUsageTestCase() []struct {
+	name          string
+	args          []string
+	expectedUsage string
+} {
+	return []struct {
+		name          string
+		args          []string
+		expectedUsage string
+	}{
+		{"play without patterns", []string{"play"}, "pidshooter play <pattern>"},
+		{"list without patterns", []string{"list"}, "pidshooter list <pattern>"},
+		{"kill without patterns", []string{"kill"}, "pidshooter kill <pattern>"},
+	}
 }

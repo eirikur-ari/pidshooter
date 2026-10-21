@@ -12,6 +12,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
 	"github.com/eirikur-ari/pidshooter/internal/application/runner"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
+	"github.com/eirikur-ari/pidshooter/internal/entrypoint/cli"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/console"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/filestore"
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/logger"
@@ -19,25 +20,30 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/infrastructure/tcellui"
 )
 
-// RunnerCreator constructs a Runner, along with everything it depends on.
-type RunnerCreator struct {
+// Creator creates the program that runs the commands.
+type Creator struct {
 	errHandler *apperror.Handler
 }
 
-// NewRunnerCreator returns a RunnerCreator.
-func NewRunnerCreator() RunnerCreator {
-	return RunnerCreator{errHandler: apperror.NewHandler(logger.NewLogger())}
+// NewCreator returns a Creator that logs errors to standard error.
+func NewCreator() *Creator {
+	return &Creator{errHandler: apperror.NewHandler(logger.NewLogger())}
 }
 
-// ErrHandler returns the Handler used to log errors.
-func (c RunnerCreator) ErrHandler() *apperror.Handler {
-	return c.errHandler
+// Create returns the program that runs the commands. Nothing a command needs is
+// set up until that command runs.
+func (c *Creator) Create() *cli.Program {
+	return cli.NewProgram(
+		&lazyRunner[inbound.PlayRequest, inbound.PlayRunner]{build: c.buildPlay, errHandler: c.errHandler},
+		runner.NewList(c.errHandler),
+		runner.NewKill(c.errHandler),
+		c.errHandler,
+	)
 }
 
-// Create builds a Runner that targets processes matching patterns, configured
-// by options, along with everything it depends on. It returns an error if any
-// of those dependencies cannot be set up.
-func (c RunnerCreator) Create(patterns []string, options config.Options) (inbound.Runner, error) {
+// buildPlay returns the runner of a game session wired with everything it
+// depends on. It returns an error if any of those dependencies cannot be set up.
+func (c *Creator) buildPlay() (inbound.PlayRunner, error) {
 	manager, err := pscommand.NewManager()
 	if err != nil {
 		return nil, err
@@ -60,10 +66,10 @@ func (c RunnerCreator) Create(patterns []string, options config.Options) (inboun
 
 	ui := tcellui.NewTUI(screen)
 
-	configSvc := config.NewService(configStore, options)
-	processSvc := process.NewService(manager, console.NewProcessReporter(), patterns)
+	configSvc := config.NewService(configStore)
+	processSvc := process.NewService(manager, console.NewProcessReporter())
 	scoreSvc := score.NewService(scoreStore, console.NewScoreReporter())
 	gameSvc := game.NewService(processSvc, ui, ui.InputEvents())
 
-	return runner.NewService(configSvc, processSvc, scoreSvc, gameSvc, c.errHandler), nil
+	return runner.NewPlay(configSvc, processSvc, scoreSvc, gameSvc, c.errHandler), nil
 }

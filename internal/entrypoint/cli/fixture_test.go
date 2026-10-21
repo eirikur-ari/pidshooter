@@ -2,27 +2,31 @@ package cli
 
 import (
 	"bytes"
-	"flag"
-	"io"
+
+	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
+	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
-func newFlagMapperFixture() (*flagMapper, *flag.FlagSet) {
-	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
-	flagSet.SetOutput(io.Discard)
-	return newFlagMapper(flagSet), flagSet
+type programFixture struct {
+	program *Program
+	play    *MockPlayRunner
+	list    *MockListRunner
+	kill    *MockKillRunner
+	out     *bytes.Buffer
+	errOut  *bytes.Buffer
+	logger  *testutil.FakeLogger
 }
 
-func newFlagSetFixture() *flag.FlagSet {
-	flagSet := flag.NewFlagSet("test", flag.ContinueOnError)
-	flagSet.SetOutput(io.Discard)
-	flagSet.Bool("confirm", false, "")
-	flagSet.Float64("speed", 2.0, "")
-	return flagSet
-}
-
-func newProgramFixture(creator RunnerCreator) (program *Program, out, errOut *bytes.Buffer) {
-	out, errOut = &bytes.Buffer{}, &bytes.Buffer{}
-	program = NewProgram(creator)
-	program.out, program.errOut = out, errOut
-	return program, out, errOut
+func newProgramFixture() programFixture {
+	fixture := programFixture{
+		play:   &MockPlayRunner{},
+		list:   &MockListRunner{},
+		kill:   &MockKillRunner{},
+		out:    &bytes.Buffer{},
+		errOut: &bytes.Buffer{},
+		logger: &testutil.FakeLogger{},
+	}
+	fixture.program = NewProgram(fixture.play, fixture.list, fixture.kill, apperror.NewHandler(fixture.logger))
+	fixture.program.out, fixture.program.errOut = fixture.out, fixture.errOut
+	return fixture
 }

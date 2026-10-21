@@ -15,7 +15,6 @@ func TestNewResult_ReturnsBaselineDefaults(t *testing.T) {
 
 	// Then
 	assert.Equal(t, Result{
-		Mode:    outbound.ModeGame,
 		Process: ProcessResult{IncludeRoot: false, AllowRoot: false},
 		Game:    GameResult{ConfirmMode: false, Speed: 2.0, TimeLimit: 30},
 	}, result)
@@ -24,10 +23,8 @@ func TestNewResult_ReturnsBaselineDefaults(t *testing.T) {
 func TestResult_apply_OverlaysAllPresentStoredFields(t *testing.T) {
 	// Given
 	stored := newStoredConfigFixture()
-	stored.Mode = outbound.ModeLucky
 
 	expected := newResult()
-	expected.Mode = outbound.ModeLucky
 	expected.Process.IncludeRoot = true
 	expected.Game = GameResult{ConfirmMode: true, Speed: 3.0, TimeLimit: 45}
 
@@ -148,16 +145,8 @@ func newApplySkippedTestCase() []struct {
 			unchanged,
 		},
 		{
-			"unrecognized mode",
-			outbound.Config{Mode: outbound.Mode("wobble")},
-			unchanged,
-		},
-		{
 			"every validated field invalid",
-			outbound.Config{
-				Mode: outbound.Mode("wobble"),
-				Game: outbound.GameConfig{Speed: new(99.0), TimeLimit: new(-1)},
-			},
+			outbound.Config{Game: outbound.GameConfig{Speed: new(99.0), TimeLimit: new(-1)}},
 			unchanged,
 		},
 	}
@@ -185,17 +174,9 @@ func newApplyReportedTestCase() []struct {
 			[]string{timeLimitFieldName},
 		},
 		{
-			"unrecognized mode",
-			outbound.Config{Mode: outbound.Mode("wobble")},
-			[]string{modeFieldName},
-		},
-		{
 			"every validated field invalid",
-			outbound.Config{
-				Mode: outbound.Mode("wobble"),
-				Game: outbound.GameConfig{Speed: new(99.0), TimeLimit: new(-1)},
-			},
-			[]string{modeFieldName, speedFieldName, timeLimitFieldName},
+			outbound.Config{Game: outbound.GameConfig{Speed: new(99.0), TimeLimit: new(-1)}},
+			[]string{speedFieldName, timeLimitFieldName},
 		},
 	}
 	return tests

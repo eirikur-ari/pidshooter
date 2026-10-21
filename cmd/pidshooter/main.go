@@ -14,12 +14,10 @@ func main() {
 	os.Exit(code)
 }
 
-// run runs pidshooter with the command-line arguments and returns the error it
+// run runs the program with the command-line arguments and returns the error it
 // ended with, if any.
 func run() error {
-	creator := composition.NewRunnerCreator()
-	program := cli.NewProgram(creator)
-	return program.Run(os.Args[1:])
+	return composition.NewCreator().Create().Run(os.Args[1:])
 }
 
 // exitCode returns the process exit status for err: 2 when the command-line

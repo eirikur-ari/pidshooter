@@ -1,11 +1,27 @@
 package cli
 
-import "github.com/stretchr/testify/mock"
+import (
+	"io"
 
-func runnerCreatorMockSetup(runResult error) (creator *MockRunnerCreator, runner *MockRunner) {
-	runner = &MockRunner{}
-	runner.On("Run").Return(runResult)
-	creator = &MockRunnerCreator{}
-	creator.On("Create", mock.Anything, mock.Anything).Return(runner, nil)
-	return creator, runner
+	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/mock"
+)
+
+func returnFromEveryRunner(fixture programFixture, err error) {
+	fixture.play.On("Run", mock.Anything).Return(err)
+	fixture.list.On("Run", mock.Anything).Return(err)
+	fixture.kill.On("Run", mock.Anything).Return(err)
+}
+
+func assertNoRunnerRan(t mock.TestingT, play *MockPlayRunner, list *MockListRunner, kill *MockKillRunner) {
+	play.AssertNotCalled(t, "Run", mock.Anything)
+	list.AssertNotCalled(t, "Run", mock.Anything)
+	kill.AssertNotCalled(t, "Run", mock.Anything)
+}
+
+func executeCommand(cmd *cobra.Command, args []string) error {
+	cmd.SetArgs(args)
+	cmd.SetOut(io.Discard)
+	cmd.SetErr(io.Discard)
+	return cmd.Execute()
 }

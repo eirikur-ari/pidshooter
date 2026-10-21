@@ -23,8 +23,8 @@ const (
 	stageScoreRecording
 )
 
-type runnerMockSetup struct {
-	service      *Service
+type playMockSetup struct {
+	play         *Play
 	config       *MockConfigLoader
 	processes    *MockProcessFinder
 	scores       *MockScoreKeeper
@@ -35,8 +35,8 @@ type runnerMockSetup struct {
 	loaded       score.LoadResult
 }
 
-func newRunnerMockSetup() *runnerMockSetup {
-	setup := &runnerMockSetup{
+func newPlayMockSetup() *playMockSetup {
+	setup := &playMockSetup{
 		config:    &MockConfigLoader{},
 		processes: &MockProcessFinder{},
 		scores:    &MockScoreKeeper{},
@@ -45,18 +45,18 @@ func newRunnerMockSetup() *runnerMockSetup {
 		found:     []process.FindResult{{PID: 200, Name: "target", Rss: 1024, UID: 1000}},
 		loaded:    score.LoadResult{},
 	}
-	setup.service = NewService(setup.config, setup.processes, setup.scores, setup.game, apperror.NewHandler(setup.logger))
+	setup.play = NewPlay(setup.config, setup.processes, setup.scores, setup.game, apperror.NewHandler(setup.logger))
 	return setup
 }
 
 // expectSessionAfterConfig expects every step after the configuration load to succeed.
-func (m *runnerMockSetup) expectSessionAfterConfig(result game.PlayResult) {
+func (m *playMockSetup) expectSessionAfterConfig(result game.PlayResult) {
 	m.expectSession(result, nil, nil)
 }
 
 // expectRunWarningAt expects every step to run, with the given step returning
 // err. Only a step whose error is not necessarily fatal can return a warning.
-func (m *runnerMockSetup) expectRunWarningAt(warning stage, err error) {
+func (m *playMockSetup) expectRunWarningAt(warning stage, err error) {
 	var configErr, loadErr, recordErr error
 	switch warning {
 	case stageConfigLoad:
@@ -68,18 +68,18 @@ func (m *runnerMockSetup) expectRunWarningAt(warning stage, err error) {
 	default:
 		panic("stage cannot return a warning")
 	}
-	m.config.On("Load").Return(m.configResult, configErr)
+	m.config.On("Load", mock.Anything).Return(m.configResult, configErr)
 	m.expectSession(game.PlayResult{}, loadErr, recordErr)
 }
 
 // expectRunFailingAt expects every step before failing to succeed, failing to
 // return err, and no step after it to be called.
-func (m *runnerMockSetup) expectRunFailingAt(failing stage, err error) {
+func (m *playMockSetup) expectRunFailingAt(failing stage, err error) {
 	if failing == stageConfigLoad {
-		m.config.On("Load").Return(config.Result{}, err)
+		m.config.On("Load", mock.Anything).Return(config.Result{}, err)
 		return
 	}
-	m.config.On("Load").Return(m.configResult, nil)
+	m.config.On("Load", mock.Anything).Return(m.configResult, nil)
 
 	if failing == stageProcessSearch {
 		m.processes.On("FindProcesses", mock.Anything).Return(nil, err)
@@ -106,7 +106,7 @@ func (m *runnerMockSetup) expectRunFailingAt(failing stage, err error) {
 	m.scores.On("RecordScore", mock.Anything).Return(score.RecordResult{}, err)
 }
 
-func (m *runnerMockSetup) expectSession(result game.PlayResult, loadErr, recordErr error) {
+func (m *playMockSetup) expectSession(result game.PlayResult, loadErr, recordErr error) {
 	m.processes.On("FindProcesses", mock.Anything).Return(m.found, nil)
 	m.scores.On("LoadScoreBoard").Return(m.loaded, loadErr)
 	m.game.On("Play", mock.Anything).Return(result, nil)

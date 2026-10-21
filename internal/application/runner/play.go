@@ -3,6 +3,7 @@ package runner
 import (
 	"github.com/eirikur-ari/pidshooter/internal/application/apperror"
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
@@ -10,8 +11,9 @@ import (
 
 // configLoader resolves the run configuration.
 type configLoader interface {
-	// Load returns the configuration for this run.
-	Load() (config.Result, error)
+	// Load returns the configuration for this run, with options taking
+	// precedence over any stored configuration.
+	Load(options config.Options) (config.Result, error)
 }
 
 // processFinder finds the processes that can be targeted.
@@ -38,8 +40,8 @@ type gamePlayer interface {
 	Play(request game.PlayRequest) (game.PlayResult, error)
 }
 
-// Service wires together the services required to run a game session. It implements inbound.Runner.
-type Service struct {
+// Play plays a game session over the processes that match search patterns.
+type Play struct {
 	configSvc  configLoader
 	processSvc processFinder
 	gameSvc    gamePlayer
@@ -47,15 +49,15 @@ type Service struct {
 	errHandler *apperror.Handler
 }
 
-// NewService constructs a Service from its already-assembled collaborators.
-func NewService(
+// NewPlay constructs a Play from its already-assembled collaborators.
+func NewPlay(
 	configSvc configLoader,
 	processSvc processFinder,
 	scoreSvc scoreKeeper,
 	gameSvc gamePlayer,
 	errHandler *apperror.Handler,
-) *Service {
-	return &Service{
+) *Play {
+	return &Play{
 		configSvc:  configSvc,
 		processSvc: processSvc,
 		gameSvc:    gameSvc,
@@ -64,42 +66,42 @@ func NewService(
 	}
 }
 
-// Run resolves the final run configuration, discovers matching processes,
-// plays a game session against them, then records and prints the
-// resulting score. Every failure is logged here, regardless of severity.
-// Run returns nil unless the failure was Fatal, in which case it's
-// returned too so the caller can terminate the program.
-func (s *Service) Run() error {
-	cfg, cfgErr := s.configSvc.Load()
-	if err := s.errHandler.Handle(cfgErr); err != nil {
+// Run resolves the final run configuration from the request, discovers the
+// processes matching its patterns, plays a game session against them, then
+// records and prints the resulting score. Every failure is logged, regardless
+// of severity. Run returns nil unless the failure was Fatal, in which case the
+// error is returned.
+func (p *Play) Run(request inbound.PlayRequest) error {
+	cfg, cfgErr := p.configSvc.Load(toConfigOptions(request))
+	if err := p.errHandler.Handle(cfgErr); err != nil {
 		return err
 	}
 
-	found, findErr := s.processSvc.FindProcesses(toFindRequest(cfg.Process))
+	found, findErr := p.processSvc.FindProcesses(toFindRequest(request.Patterns, cfg.Process))
 	if findErr != nil {
-		return s.errHandler.Handle(findErr)
+		return p.errHandler.Handle(findErr)
 	}
 
-	loaded, loadErr := s.scoreSvc.LoadScoreBoard()
-	if err := s.errHandler.Handle(loadErr); err != nil {
+	loaded, loadErr := p.scoreSvc.LoadScoreBoard()
+	if err := p.errHandler.Handle(loadErr); err != nil {
 		return err
 	}
 
-	result, playErr := s.gameSvc.Play(toPlayRequest(cfg.Game, found, loaded.HighScore))
+	result, playErr := p.gameSvc.Play(toPlayRequest(cfg.Game, found, loaded.HighScore))
 	if playErr != nil {
-		return s.errHandler.Handle(playErr)
+		return p.errHandler.Handle(playErr)
 	}
 
-	if err := s.errHandler.HandleAll(result.Errors); err != nil {
+	if err := p.errHandler.HandleAll(result.Errors); err != nil {
 		return err
 	}
 
-	recorded, recordErr := s.scoreSvc.RecordScore(toRecordRequest(loaded, result, cfg.Game.TimeLimit))
-	if err := s.errHandler.Handle(recordErr); err != nil {
+	recorded, recordErr := p.scoreSvc.RecordScore(toRecordRequest(loaded, result, cfg.Game.TimeLimit))
+	if err := p.errHandler.Handle(recordErr); err != nil {
 		return err
 	}
 
-	s.scoreSvc.ReportResults(toReportRequest(result, recorded))
+	p.scoreSvc.ReportResults(toReportRequest(result, recorded))
 
 	return nil
 }

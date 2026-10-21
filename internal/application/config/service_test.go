@@ -16,14 +16,14 @@ func TestService_Load_AppliesOptionsOverStoredConfig(t *testing.T) {
 	// Given
 	store := configStoreMockSetup(newStoredConfigFixture(), nil)
 	options := Options{Game: GameOptions{Speed: new(1.5)}}
-	service := NewService(store, options)
+	service := NewService(store)
 
 	expected := newResult()
 	expected.Process.IncludeRoot = true
 	expected.Game = GameResult{ConfirmMode: true, Speed: 1.5, TimeLimit: 45}
 
 	// When
-	actual, err := service.Load()
+	actual, err := service.Load(options)
 
 	// Then
 	require.NoError(t, err)
@@ -34,11 +34,11 @@ func TestService_Load_ReturnsDefaultsWhenStoreHasNoConfig(t *testing.T) {
 	// Given
 	store := configStoreMockSetup(outbound.Config{}, outbound.NotFoundError{})
 	store.On("Save", mock.Anything).Return(nil)
-	service := NewService(store, Options{})
+	service := NewService(store)
 	expected := newResult()
 
 	// When
-	actual, err := service.Load()
+	actual, err := service.Load(Options{})
 
 	// Then
 	require.NoError(t, err)
@@ -50,13 +50,13 @@ func TestService_Load_AppliesConfigOptionsWhenStoreHasNoConfig(t *testing.T) {
 	store := configStoreMockSetup(outbound.Config{}, outbound.NotFoundError{})
 	store.On("Save", mock.Anything).Return(nil)
 	options := Options{Game: GameOptions{Speed: new(4.5)}}
-	service := NewService(store, options)
+	service := NewService(store)
 
 	expected := newResult()
 	expected.Game.Speed = 4.5
 
 	// When
-	actual, err := service.Load()
+	actual, err := service.Load(options)
 
 	// Then
 	require.NoError(t, err)
@@ -68,10 +68,10 @@ func TestService_Load_CreatesConfigFileFromDefaultsWhenStoreHasNoConfig(t *testi
 	store := configStoreMockSetup(outbound.Config{}, outbound.NotFoundError{})
 	defaults := newResult().toConfig()
 	store.On("Save", defaults).Return(nil)
-	service := NewService(store, Options{Game: GameOptions{Speed: new(4.5)}})
+	service := NewService(store)
 
 	// When
-	_, err := service.Load()
+	_, err := service.Load(Options{Game: GameOptions{Speed: new(4.5)}})
 
 	// Then
 	require.NoError(t, err)
@@ -88,10 +88,10 @@ func TestService_Load_ReturnsConfigAndErrorWhenCreatingConfigFileFails(t *testin
 			cause := errors.New("read-only file system")
 			store := configStoreMockSetup(outbound.Config{}, outbound.NotFoundError{})
 			store.On("Save", mock.Anything).Return(cause)
-			service := NewService(store, test.options)
+			service := NewService(store)
 
 			// When
-			actual, err := service.Load()
+			actual, err := service.Load(test.options)
 
 			// Then
 			require.ErrorAs(t, err, &appErr)
@@ -109,13 +109,13 @@ func TestService_Load_ReturnsWarningAndAppliesOptionsWhenStoreLoadFails(t *testi
 	cause := errors.New("disk error")
 	store := configStoreMockSetup(outbound.Config{}, cause)
 	options := Options{Game: GameOptions{Speed: new(4.5)}}
-	service := NewService(store, options)
+	service := NewService(store)
 
 	expected := newResult()
 	expected.Game.Speed = 4.5
 
 	// When
-	actual, err := service.Load()
+	actual, err := service.Load(options)
 
 	// Then
 	assert.Equal(t, expected, actual)
@@ -139,10 +139,10 @@ func TestService_Load_ReturnsFatalErrorWithoutReadingStoreWhenOptionsAreInvalid(
 			// Given
 			var appErr *apperror.Error
 			store := configStoreMockSetup(newStoredConfigFixture(), nil)
-			service := NewService(store, test.options)
+			service := NewService(store)
 
 			// When
-			actual, err := service.Load()
+			actual, err := service.Load(test.options)
 
 			// Then
 			assert.Equal(t, Result{}, actual)
@@ -158,10 +158,10 @@ func TestService_Load_ReturnsWarningAndKeepsDefaultWhenStoredValueIsInvalid(t *t
 	// Given
 	var appErr *apperror.Error
 	store := configStoreMockSetup(outbound.Config{Game: outbound.GameConfig{Speed: new(99.0)}}, nil)
-	service := NewService(store, Options{})
+	service := NewService(store)
 
 	// When
-	actual, err := service.Load()
+	actual, err := service.Load(Options{})
 
 	// Then
 	assert.Equal(t, newResult(), actual)

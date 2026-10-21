@@ -1,17 +1,5 @@
 package outbound
 
-// ProcessInfo describes a single process.
-type ProcessInfo struct {
-	// UID is the ID of the user that owns the process.
-	UID int
-	PID int
-	// Rss is the process's resident memory, in bytes.
-	Rss int64
-	// State is the process's current state.
-	State string
-	Name  string
-}
-
 // ProcessHandle references one specific process. Kill acts on that process
 // even if its PID has since been reused by another.
 type ProcessHandle interface {
@@ -43,4 +31,16 @@ type ProcessManager interface {
 type ProcessReporter interface {
 	// Report displays matches, the processes that matched patterns.
 	Report(matches []ProcessInfo, patterns []string)
+}
+
+// ProcessInfo describes a single process.
+type ProcessInfo struct {
+	// UID is the ID of the user that owns the process.
+	UID int
+	PID int
+	// Rss is the process's resident memory, in bytes.
+	Rss int64
+	// State is the process's current state.
+	State string
+	Name  string
 }

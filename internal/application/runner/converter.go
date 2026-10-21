@@ -2,10 +2,25 @@ package runner
 
 import (
 	"github.com/eirikur-ari/pidshooter/internal/application/config"
+	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 	"github.com/eirikur-ari/pidshooter/internal/application/game"
 	"github.com/eirikur-ari/pidshooter/internal/application/process"
 	"github.com/eirikur-ari/pidshooter/internal/application/score"
 )
+
+func toConfigOptions(request inbound.PlayRequest) config.Options {
+	return config.Options{
+		Game: config.GameOptions{
+			ConfirmMode: request.Game.ConfirmMode,
+			Speed:       request.Game.Speed,
+			TimeLimit:   request.Game.TimeLimit,
+		},
+		Process: config.ProcessOptions{
+			IncludeRoot: request.Process.IncludeRoot,
+			AllowRoot:   request.Process.AllowRoot,
+		},
+	}
+}
 
 func toPlayRequest(cfg config.GameResult, found []process.FindResult, highScore int) game.PlayRequest {
 	processes := make([]game.ProcessRequest, len(found))
@@ -22,8 +37,9 @@ func toPlayRequest(cfg config.GameResult, found []process.FindResult, highScore 
 	}
 }
 
-func toFindRequest(cfg config.ProcessResult) process.FindRequest {
+func toFindRequest(patterns []string, cfg config.ProcessResult) process.FindRequest {
 	return process.FindRequest{
+		Patterns:    patterns,
 		IncludeRoot: cfg.IncludeRoot,
 		AllowRoot:   cfg.AllowRoot,
 	}

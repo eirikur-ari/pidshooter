@@ -1,5 +1,24 @@
 package outbound
 
+// Renderer draws frames to the display. WindowSize and Render are valid
+// only after a successful Init.
+type Renderer interface {
+	// Init prepares the display for rendering.
+	Init() error
+	// Cleanup releases what Init acquired, restoring the display to its
+	// prior state.
+	Cleanup()
+	// WindowSize returns the current display dimensions. It may change
+	// between calls, e.g. if the display is resized.
+	WindowSize() WindowSize
+	// ChromeSize returns the space this renderer reserves for its own fixed
+	// UI. Constant for the renderer's lifetime.
+	ChromeSize() ChromeSize
+	// Render draws state to the display, replacing whatever was
+	// previously rendered.
+	Render(state FrameViewState)
+}
+
 // FrameViewState is everything to draw in a single frame.
 type FrameViewState struct {
 	Targets   []TargetViewState
@@ -65,23 +84,4 @@ type WindowSize struct {
 // WindowSize.
 type ChromeSize struct {
 	Top, Bottom int
-}
-
-// Renderer draws frames to the display. WindowSize and Render are valid
-// only after a successful Init.
-type Renderer interface {
-	// Init prepares the display for rendering.
-	Init() error
-	// Cleanup releases what Init acquired, restoring the display to its
-	// prior state.
-	Cleanup()
-	// WindowSize returns the current display dimensions. It may change
-	// between calls, e.g. if the display is resized.
-	WindowSize() WindowSize
-	// ChromeSize returns the space this renderer reserves for its own fixed
-	// UI. Constant for the renderer's lifetime.
-	ChromeSize() ChromeSize
-	// Render draws state to the display, replacing whatever was
-	// previously rendered.
-	Render(state FrameViewState)
 }

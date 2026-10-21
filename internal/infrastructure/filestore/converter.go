@@ -39,7 +39,6 @@ func toScoreContent(board outbound.ScoreBoard) scoreContent {
 
 func toConfig(content configContent) outbound.Config {
 	return outbound.Config{
-		Mode: outbound.Mode(content.Mode),
 		Process: outbound.ProcessConfig{
 			IncludeRoot: util.ClonePointer(content.Process.IncludeRoot),
 		},
@@ -54,7 +53,6 @@ func toConfig(content configContent) outbound.Config {
 func toConfigContent(config outbound.Config) configContent {
 	return configContent{
 		Version: currentConfigSchemaVersion,
-		Mode:    string(config.Mode),
 		Process: processEntry{
 			IncludeRoot: util.ClonePointer(config.Process.IncludeRoot),
 		},

@@ -102,14 +102,14 @@ func TestConfigFile_Load_ReturnsEmptyConfigForEmptyFile(t *testing.T) {
 func TestConfigFile_Load_AcceptsFileWithoutVersion(t *testing.T) {
 	// Given
 	store := newConfigFileFixture(t.TempDir())
-	require.NoError(t, os.WriteFile(store.file.path, []byte("mode: lucky\n"), 0600))
+	require.NoError(t, os.WriteFile(store.file.path, []byte("game:\n  speed: 3.0\n"), 0600))
 
 	// When
 	config, err := store.Load()
 
 	// Then
 	require.NoError(t, err)
-	assert.Equal(t, outbound.ModeLucky, config.Mode)
+	assert.Equal(t, new(3.0), config.Game.Speed)
 }
 
 func TestConfigFile_Load_ReturnsVersionErrorNotCorruptedDataError(t *testing.T) {
@@ -136,20 +136,6 @@ func TestConfigFile_Load_ReturnsVersionErrorNotCorruptedDataErrorWhenNewerFileHa
 
 	// Then
 	assert.Equal(t, expected, err)
-}
-
-func TestConfigFile_Load_PassesThroughUnrecognizedMode(t *testing.T) {
-	// Given
-	store := newConfigFileFixture(t.TempDir())
-	require.NoError(t, os.WriteFile(store.file.path, []byte("mode: wobble\n"), 0600))
-	expectedMode := outbound.Mode("wobble")
-
-	// When
-	config, err := store.Load()
-
-	// Then
-	require.NoError(t, err)
-	assert.Equal(t, expectedMode, config.Mode)
 }
 
 func TestConfigFile_Load_LeavesAbsentKeysNil(t *testing.T) {
@@ -254,7 +240,6 @@ func newSavedYAMLTestCase() []struct {
 			newConfigFixture(),
 			map[string]any{
 				"version": currentConfigSchemaVersion,
-				"mode":    "game",
 				"process": map[string]any{"include_root": true},
 				"game":    map[string]any{"confirm_mode": true, "speed": 2.5, "time_limit": 60},
 			},
@@ -264,7 +249,6 @@ func newSavedYAMLTestCase() []struct {
 			outbound.Config{Game: outbound.GameConfig{Speed: new(1.5)}},
 			map[string]any{
 				"version": currentConfigSchemaVersion,
-				"mode":    "",
 				"process": map[string]any{},
 				"game":    map[string]any{"speed": 1.5},
 			},

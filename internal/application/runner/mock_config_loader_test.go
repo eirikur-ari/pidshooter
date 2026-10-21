@@ -8,7 +8,7 @@ import (
 
 type MockConfigLoader struct{ mock.Mock }
 
-func (m *MockConfigLoader) Load() (config.Result, error) {
-	args := m.Called()
+func (m *MockConfigLoader) Load(options config.Options) (config.Result, error) {
+	args := m.Called(options)
 	return args.Get(0).(config.Result), args.Error(1)
 }
