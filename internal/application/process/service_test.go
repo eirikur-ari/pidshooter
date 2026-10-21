@@ -188,7 +188,7 @@ func newFindProcessesErrorTestCase() []struct {
 			name:                  "running as root without allow root is refused before the patterns are validated",
 			ownUID:                0,
 			patterns:              nil,
-			expectedCode:          apperror.CodeInvalidConfig,
+			expectedCode:          apperror.CodePermissionDenied,
 			expectedText:          "refusing to run as root",
 			expectedDiscoverCalls: 0,
 		},

@@ -47,7 +47,7 @@ func NewService(manager outbound.ProcessManager, reporter outbound.ProcessReport
 // if process discovery fails, or if no process matches.
 func (s *Service) FindProcesses(request FindRequest) ([]FindResult, error) {
 	if err := process.ValidateRoot(s.manager.OwnUID(), request.AllowRoot); err != nil {
-		return nil, apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "", err)
+		return nil, apperror.NewError(apperror.CodePermissionDenied, apperror.SeverityFatal, "", err)
 	}
 	if err := process.ValidatePatterns(request.Patterns); err != nil {
 		return nil, apperror.NewError(apperror.CodeInvalidConfig, apperror.SeverityFatal, "invalid configuration", err)
