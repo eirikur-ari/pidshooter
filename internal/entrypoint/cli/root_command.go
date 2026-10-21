@@ -102,8 +102,8 @@ func (c *rootCommand) requirePatterns(cmd *cobra.Command, args []string) error {
 
 // defineFlags registers the flags that every command accepts.
 func (c *rootCommand) defineFlags(flagSet *pflag.FlagSet) {
-	flagSet.BoolVar(&c.flags.includeRoot, includeRootFlag, false, "Also target root-owned processes")
-	flagSet.BoolVar(&c.flags.allowRoot, iAmRootFlag, false, "Allow running as root")
+	flagSet.BoolVar(&c.flags.includeRoot, includeRootFlag, false, "Also target root-owned processes (always allowed when running as root)")
+	flagSet.BoolVar(&c.flags.allowRoot, iAmRootFlag, false, "Allow running as root (refused by default: as root, every process on the machine becomes a target)")
 }
 
 // toProcessOptions returns the process options for the flags that were set in

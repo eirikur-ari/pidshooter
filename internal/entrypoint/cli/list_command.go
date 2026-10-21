@@ -27,6 +27,7 @@ func (c *listCommand) command() *cobra.Command {
 		Use:     "list <pattern> [pattern2] [pattern3...]",
 		Short:   "List the processes matching the patterns",
 		Example: listExamples,
+		Hidden:  true,
 		RunE: func(cmd *cobra.Command, patterns []string) error {
 			return c.runner.Run(inbound.ListRequest{
 				Patterns: patterns,

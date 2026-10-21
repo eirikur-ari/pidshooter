@@ -7,9 +7,21 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/application/contract/inbound"
 )
 
+const (
+	confirmFlag = "confirm"
+	speedFlag   = "speed"
+	timeFlag    = "time"
+)
+
 const playLongDescription = `Process ID Shooter
 
-Find running processes by name and kill them.`
+Find running processes by name and kill them.
+
+Config file:
+  Defaults for the flags are read from ~/.config/pidshooter/config.yaml
+  (or $XDG_CONFIG_HOME/pidshooter/config.yaml, if set), when present. A flag
+  passed on the command line always overrides the config file for that run —
+  e.g. --include-root=false overrides a persisted "include_root: true".`
 
 const playExamples = `  pidshooter play firefox
   pidshooter play chrome firefox node
@@ -55,9 +67,9 @@ func (c *playCommand) command() *cobra.Command {
 
 // defineFlags registers the flags of the command.
 func (c *playCommand) defineFlags(flagSet *pflag.FlagSet) {
-	flagSet.BoolVar(&c.flags.confirm, "confirm", false, "Ask for confirmation before killing")
-	flagSet.Float64Var(&c.flags.speed, "speed", 0, "Speed multiplier (range: 0.5-5.0)")
-	flagSet.IntVar(&c.flags.timeLimit, "time", 0, "Time limit in seconds (0 = no limit, max 300)")
+	flagSet.BoolVar(&c.flags.confirm, confirmFlag, false, "Ask for confirmation before killing")
+	flagSet.Float64Var(&c.flags.speed, speedFlag, 0, "Speed multiplier (range: 0.5-5.0); defaults to the config file value, or 2.0 if unset")
+	flagSet.IntVar(&c.flags.timeLimit, timeFlag, 0, "Time limit in seconds (0 = no limit, max 300); defaults to the config file value, or 30 if unset")
 }
 
 // toRequest returns the play request for the patterns and the flags that were
@@ -68,13 +80,13 @@ func (c *playCommand) toRequest(flagSet *pflag.FlagSet, patterns []string) inbou
 		Process:  c.root.toProcessOptions(flagSet),
 	}
 
-	if flagSet.Changed("confirm") {
+	if flagSet.Changed(confirmFlag) {
 		request.Game.ConfirmMode = new(c.flags.confirm)
 	}
-	if flagSet.Changed("speed") {
+	if flagSet.Changed(speedFlag) {
 		request.Game.Speed = new(c.flags.speed)
 	}
-	if flagSet.Changed("time") {
+	if flagSet.Changed(timeFlag) {
 		request.Game.TimeLimit = new(c.flags.timeLimit)
 	}
 

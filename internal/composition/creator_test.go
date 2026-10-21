@@ -9,7 +9,7 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
-func TestCreator_Create_BuildsNothingUntilACommandRuns(t *testing.T) {
+func TestCreator_Create_PlayReportsItsBuildErrorWhileListIsUnaffected(t *testing.T) {
 	// Given
 	t.Setenv("PATH", "")
 	testutil.UnsetEnv(t, "TERM")

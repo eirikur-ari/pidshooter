@@ -27,6 +27,7 @@ func (c *killCommand) command() *cobra.Command {
 		Use:     "kill <pattern> [pattern2] [pattern3...]",
 		Short:   "Kill the processes matching the patterns",
 		Example: killExamples,
+		Hidden:  true,
 		RunE: func(cmd *cobra.Command, patterns []string) error {
 			return c.runner.Run(inbound.KillRequest{
 				Patterns: patterns,
