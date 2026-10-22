@@ -28,6 +28,20 @@ func TestAcceptance_Help_SucceedsWithoutTerm(t *testing.T) {
 	assert.Contains(t, string(out), "Process ID Shooter")
 }
 
+func TestAcceptance_Version_PrintsVersionWithoutTerm(t *testing.T) {
+	// Given
+	binary := pidshooterBinary(t)
+	testutil.UnsetEnv(t, "TERM")
+
+	// When
+	cmd := exec.Command(binary, "--version")
+	out, err := cmd.CombinedOutput()
+
+	// Then
+	require.NoError(t, err, "expected --version to succeed without $TERM set, got: %s", out)
+	assert.Regexp(t, `^pidshooter version \S+\n$`, string(out))
+}
+
 func TestAcceptance_UnknownFlag_ExitsWithCodeTwoAndPrintsUsageToStderr(t *testing.T) {
 	// Given
 	var exitErr *exec.ExitError

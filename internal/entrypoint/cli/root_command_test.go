@@ -19,7 +19,7 @@ func TestRootCommand_toProcessOptions_ReturnsOnlyTheFlagsSet(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
-			root := newRootCommand(&MockPlayRunner{}, &MockListRunner{}, &MockKillRunner{})
+			root := newRootCommand(testBuildVersion, &MockPlayRunner{}, &MockListRunner{}, &MockKillRunner{})
 			flagSet := pflag.NewFlagSet("test", pflag.ContinueOnError)
 			root.defineFlags(flagSet)
 			require.NoError(t, flagSet.Parse(test.args))
@@ -40,7 +40,7 @@ func TestRootCommand_cmd_ReturnsArgumentErrorWithoutRunningAnythingWhenArguments
 		t.Run(strings.Join(test, " "), func(t *testing.T) {
 			// Given
 			play, list, kill := &MockPlayRunner{}, &MockListRunner{}, &MockKillRunner{}
-			cmd := newRootCommand(play, list, kill).cmd
+			cmd := newRootCommand(testBuildVersion, play, list, kill).cmd
 
 			// When
 			err := executeCommand(cmd, test)
@@ -66,7 +66,7 @@ func TestRootCommand_cmd_SuggestsCommandsTheUnknownCommandResembles(t *testing.T
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
-			cmd := newRootCommand(&MockPlayRunner{}, &MockListRunner{}, &MockKillRunner{}).cmd
+			cmd := newRootCommand(testBuildVersion, &MockPlayRunner{}, &MockListRunner{}, &MockKillRunner{}).cmd
 
 			// When
 			err := executeCommand(cmd, test.args)
@@ -86,7 +86,7 @@ func TestRootCommand_cmd_PrintsHelpWithoutRunningAnything(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			// Given
 			play, list, kill := &MockPlayRunner{}, &MockListRunner{}, &MockKillRunner{}
-			cmd := newRootCommand(play, list, kill).cmd
+			cmd := newRootCommand(testBuildVersion, play, list, kill).cmd
 			var out bytes.Buffer
 			cmd.SetArgs(test.args)
 			cmd.SetOut(&out)
@@ -111,7 +111,7 @@ func TestRootCommand_command_PassesProcessOptionsToPlayRunner(t *testing.T) {
 	}
 	runner := &MockPlayRunner{}
 	runner.On("Run", playRequest).Return(nil)
-	cmd := newRootCommand(runner, &MockListRunner{}, &MockKillRunner{}).cmd
+	cmd := newRootCommand(testBuildVersion, runner, &MockListRunner{}, &MockKillRunner{}).cmd
 
 	// When
 	err := executeCommand(cmd, []string{"play", "proc", "--include-root", "--i-am-root=false"})
@@ -130,7 +130,7 @@ func TestRootCommand_command_PassesProcessOptionsToListRunner(t *testing.T) {
 	}
 	runner := &MockListRunner{}
 	runner.On("Run", listRequest).Return(nil)
-	cmd := newRootCommand(&MockPlayRunner{}, runner, &MockKillRunner{}).cmd
+	cmd := newRootCommand(testBuildVersion, &MockPlayRunner{}, runner, &MockKillRunner{}).cmd
 
 	// When
 	err := executeCommand(cmd, []string{"list", "proc", "--include-root", "--i-am-root=false"})
@@ -149,7 +149,7 @@ func TestRootCommand_command_PassesProcessOptionsToKillRunner(t *testing.T) {
 	}
 	runner := &MockKillRunner{}
 	runner.On("Run", killRequest).Return(nil)
-	cmd := newRootCommand(&MockPlayRunner{}, &MockListRunner{}, runner).cmd
+	cmd := newRootCommand(testBuildVersion, &MockPlayRunner{}, &MockListRunner{}, runner).cmd
 
 	// When
 	err := executeCommand(cmd, []string{"kill", "proc", "--include-root", "--i-am-root=false"})
@@ -168,7 +168,7 @@ func TestRootCommand_command_PassesRootFlagsPlacedBeforeTheCommandToRunner(t *te
 	}
 	runner := &MockPlayRunner{}
 	runner.On("Run", playRequest).Return(nil)
-	cmd := newRootCommand(runner, &MockListRunner{}, &MockKillRunner{}).cmd
+	cmd := newRootCommand(testBuildVersion, runner, &MockListRunner{}, &MockKillRunner{}).cmd
 
 	// When
 	err := executeCommand(cmd, []string{"--include-root", "--i-am-root", "play", "proc"})
