@@ -7,8 +7,10 @@ on:
       - '**.md'
       - '.gitignore'
       - 'LICENSE'
+  workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,12 +20,8 @@ jobs:
   verify:
     name: Snapshot verify
     uses: ./.github/workflows/_verify.yaml
-    permissions:
-      contents: read
 
   build:
     name: Snapshot build
     needs: verify
     uses: ./.github/workflows/_build.yaml
-    permissions:
-      contents: read

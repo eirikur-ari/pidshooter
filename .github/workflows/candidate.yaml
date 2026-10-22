@@ -11,7 +11,8 @@ on:
     branches: [master]
   workflow_dispatch:
 
-permissions: {}
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,8 +22,6 @@ jobs:
   verify:
     name: Candidate verify
     uses: ./.github/workflows/_verify.yaml
-    permissions:
-      contents: read
 
   build:
     name: Candidate build
@@ -31,16 +30,12 @@ jobs:
     with:
       coverage: true
       acceptance: true
-    permissions:
-      contents: read
 
   sonar:
     name: Candidate sonar
     needs: build
     if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
