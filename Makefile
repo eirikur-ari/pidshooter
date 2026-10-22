@@ -97,6 +97,11 @@ coverage:
 	go test -v -tags integration -race -count=1 -coverprofile=$(BUILD_DIR)/coverage.out -covermode=atomic ./...
 	go tool cover -func=$(BUILD_DIR)/coverage.out
 
+## coverage-summary: Print the total coverage percentage of an existing coverage profile
+.PHONY: coverage-summary
+coverage-summary:
+	@go tool cover -func=$(BUILD_DIR)/coverage.out | awk '/^total:/ {print $$3}'
+
 ## coverage-html: Generate an HTML report from an existing coverage profile
 .PHONY: coverage-html
 coverage-html:
