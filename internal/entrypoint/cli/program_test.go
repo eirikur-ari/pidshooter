@@ -24,6 +24,21 @@ func TestProgram_Run_PrintsHelpToStdout(t *testing.T) {
 	assert.Empty(t, fixture.logger.Errored)
 }
 
+func TestProgram_Run_PrintsVersionToStdout(t *testing.T) {
+	// Given
+	fixture := newProgramFixture()
+	expected := "pidshooter version " + testBuildVersion + "\n"
+
+	// When
+	err := fixture.program.Run([]string{"--version"})
+
+	// Then
+	require.NoError(t, err)
+	assert.Equal(t, expected, fixture.out.String())
+	assert.Empty(t, fixture.errOut.String())
+	assert.Empty(t, fixture.logger.Errored)
+}
+
 func TestProgram_Run_LogsArgumentErrorOnceAndPrintsUsageToStderr(t *testing.T) {
 	// Given
 	fixture := newProgramFixture()

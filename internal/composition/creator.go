@@ -22,18 +22,21 @@ import (
 
 // Creator creates the program that runs the commands.
 type Creator struct {
-	errHandler *apperror.Handler
+	buildVersion string
+	errHandler   *apperror.Handler
 }
 
-// NewCreator returns a Creator that logs errors to standard error.
+// NewCreator returns a Creator that logs errors to standard error and reports
+// the version the program was built from.
 func NewCreator() *Creator {
-	return &Creator{errHandler: apperror.NewHandler(logger.NewLogger())}
+	return &Creator{buildVersion: newBuildInfo().Version(), errHandler: apperror.NewHandler(logger.NewLogger())}
 }
 
 // Create returns the program that runs the commands. Nothing a command needs is
 // set up until that command runs.
 func (c *Creator) Create() *cli.Program {
 	return cli.NewProgram(
+		c.buildVersion,
 		&lazyRunner[inbound.PlayRequest, inbound.PlayRunner]{build: c.buildPlay, errHandler: c.errHandler},
 		runner.NewList(c.errHandler),
 		runner.NewKill(c.errHandler),

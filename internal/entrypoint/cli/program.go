@@ -14,29 +14,33 @@ import (
 
 // Program runs a command from command-line arguments.
 type Program struct {
-	play       inbound.PlayRunner
-	list       inbound.ListRunner
-	kill       inbound.KillRunner
-	errHandler *apperror.Handler
-	out        io.Writer
-	errOut     io.Writer
+	buildVersion string
+	play         inbound.PlayRunner
+	list         inbound.ListRunner
+	kill         inbound.KillRunner
+	errHandler   *apperror.Handler
+	out          io.Writer
+	errOut       io.Writer
 }
 
-// NewProgram returns a Program that runs its commands on the given runners, and
-// logs errors in the command-line arguments with the given error handler.
+// NewProgram returns a Program that reports the given build version, runs its commands
+// on the given runners, and logs errors in the command-line arguments with the
+// given error handler.
 func NewProgram(
+	buildVersion string,
 	play inbound.PlayRunner,
 	list inbound.ListRunner,
 	kill inbound.KillRunner,
 	errHandler *apperror.Handler,
 ) *Program {
 	return &Program{
-		play:       play,
-		list:       list,
-		kill:       kill,
-		errHandler: errHandler,
-		out:        os.Stdout,
-		errOut:     os.Stderr,
+		buildVersion: buildVersion,
+		play:         play,
+		list:         list,
+		kill:         kill,
+		errHandler:   errHandler,
+		out:          os.Stdout,
+		errOut:       os.Stderr,
 	}
 }
 
@@ -48,7 +52,7 @@ func NewProgram(
 // usage text printed to standard error. Any other error of a command is
 // returned as the command reported it, and is not logged again.
 func (p *Program) Run(args []string) error {
-	root := newRootCommand(p.play, p.list, p.kill).cmd
+	root := newRootCommand(p.buildVersion, p.play, p.list, p.kill).cmd
 	root.SetArgs(append([]string{}, args...))
 	root.SetOut(p.out)
 	root.SetErr(p.errOut)

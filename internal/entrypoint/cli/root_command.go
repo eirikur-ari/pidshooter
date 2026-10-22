@@ -37,13 +37,14 @@ type rootCommand struct {
 	minimumPatterns int
 }
 
-// newRootCommand returns a rootCommand that runs its commands on the given
-// runners.
-func newRootCommand(play inbound.PlayRunner, list inbound.ListRunner, kill inbound.KillRunner) *rootCommand {
+// newRootCommand returns a rootCommand that reports the given build version and runs
+// its commands on the given runners.
+func newRootCommand(buildVersion string, play inbound.PlayRunner, list inbound.ListRunner, kill inbound.KillRunner) *rootCommand {
 	c := &rootCommand{play: play, list: list, kill: kill, minimumPatterns: defaultMinimumPatterns}
 	c.cmd = &cobra.Command{
 		Use:           "pidshooter",
 		Short:         "Process ID Shooter",
+		Version:       buildVersion,
 		Args:          cobra.ArbitraryArgs,
 		SilenceUsage:  true,
 		SilenceErrors: true,
