@@ -9,6 +9,18 @@ import (
 	"github.com/eirikur-ari/pidshooter/internal/testutil"
 )
 
+func TestNewCreator_HoldsTheBuildVersionOfTheRunningProgramAndAnErrorHandler(t *testing.T) {
+	// Given
+	expected := newBuildInfo().Version()
+
+	// When
+	creator := NewCreator()
+
+	// Then
+	assert.Equal(t, expected, creator.buildVersion)
+	assert.NotNil(t, creator.errHandler)
+}
+
 func TestCreator_Create_PlayReportsItsBuildErrorWhileListIsUnaffected(t *testing.T) {
 	// Given
 	t.Setenv("PATH", "")

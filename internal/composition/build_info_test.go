@@ -7,6 +7,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestNewBuildInfo_HoldsTheBuildInformationOfTheRunningProgram(t *testing.T) {
+	// When
+	info := newBuildInfo()
+
+	// Then
+	assert.NotNil(t, info.info)
+}
+
 func TestBuildInfo_Version_ReturnsRecordedVersionOrDev(t *testing.T) {
 	tests := newBuildInfoVersionTestCase()
 
