@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   validate:
-    name: Release validate
+    name: Release checks
     runs-on: ubuntu-latest
     env:
       RELEASE_VERSION: ${{ inputs.version }}

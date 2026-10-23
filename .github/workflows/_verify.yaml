@@ -5,7 +5,7 @@ on:
 
 jobs:
   verify:
-    name: Verify
+    name: Static analysis
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -18,7 +18,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Static Analysis
+      - name: Vet
         run: make vet
 
       - name: Lint
