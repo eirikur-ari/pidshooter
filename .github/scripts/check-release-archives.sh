@@ -6,7 +6,7 @@ set -euo pipefail
 count=$(find build/dist -maxdepth 1 -name "pidshooter_${RELEASE_VERSION}_*.tar.gz" | wc -l | tr -d ' ')
 total=$(find build/dist -maxdepth 1 -name '*.tar.gz' | wc -l | tr -d ' ')
 
-if [ "$count" != "4" ] || [ "$total" != "4" ]; then
+if [[ "$count" != "4" || "$total" != "4" ]]; then
   echo "expected 4 archives named for version $RELEASE_VERSION, found $count of $total"
   exit 1
 fi

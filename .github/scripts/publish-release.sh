@@ -13,9 +13,9 @@ fi
 
 release=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
   --jq ".[] | select(.tag_name == \"v$RELEASE_VERSION\") | \"\(.id) \(.draft)\"")
-if [ -n "$release" ]; then
+if [[ -n "$release" ]]; then
   read -r id draft <<< "$release"
-  if [ "$draft" != "true" ]; then
+  if [[ "$draft" != "true" ]]; then
     echo "release v$RELEASE_VERSION is already published"
     exit 1
   fi
