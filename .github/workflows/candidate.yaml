@@ -47,9 +47,52 @@ jobs:
         if: ${{ failure() }}
         run: bash .github/scripts/report-vulnerabilities.sh "$RUNNER_TEMP/vulnerabilities.txt"
 
+  coverage:
+    name: Candidate coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Test with Coverage
+        run: make coverage
+
+      - name: Coverage Summary
+        run: |
+          echo "### Coverage: $(make --silent coverage-summary)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cache SonarQube packages
+        if: ${{ !github.event.repository.fork && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: SonarQube Scan
+        if: ${{ !github.event.repository.fork && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=${{ vars.SONAR_ORG_NAME }}
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.go.coverage.reportPaths=build/coverage.out
+            -Dsonar.coverage.exclusions=**/*_test.go,internal/testutil/**
+            -Dsonar.qualitygate.wait=true
+
   build:
     name: Candidate build
-    needs: verify
+    needs: [verify, coverage, secscan]
     strategy:
       fail-fast: false
       matrix:
@@ -66,21 +109,8 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Test with Coverage
-        run: make coverage
-
-      - name: Coverage Summary
-        run: |
-          echo "### Coverage (${{ matrix.os }}): $(make --silent coverage-summary)" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload Coverage Profile
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: coverage-out
-          path: build/coverage.out
-          if-no-files-found: error
-          retention-days: 1
+      - name: Test
+        run: make test
 
       - name: Build
         run: make build
@@ -90,40 +120,3 @@ jobs:
 
       - name: Package
         run: make package
-
-  sonar:
-    name: Candidate sonar
-    needs: build
-    if: ${{ !github.event.repository.fork && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Download Coverage Report
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: coverage-out
-          path: build
-
-      - name: Cache SonarQube packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-          restore-keys: ${{ runner.os }}-sonar
-
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.organization=${{ vars.SONAR_ORG_NAME }}
-            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
-            -Dsonar.go.coverage.reportPaths=build/coverage.out
-            -Dsonar.coverage.exclusions=**/*_test.go,internal/testutil/**
-            -Dsonar.qualitygate.wait=true
