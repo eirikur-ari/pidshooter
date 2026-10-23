@@ -13,6 +13,8 @@ BLUE="$(tput setaf 4 2>/dev/null || printf '')"
 MAGENTA="$(tput setaf 5 2>/dev/null || printf '')"
 NO_COLOR="$(tput sgr0 2>/dev/null || printf '')"
 
+WINDOWS_PLATFORM="pc-windows-msvc"
+
 SUPPORTED_TARGETS="x86_64-unknown-linux-gnu x86_64-unknown-linux-musl \
                   i686-unknown-linux-musl aarch64-unknown-linux-musl \
                   arm-unknown-linux-musleabihf x86_64-apple-darwin \
@@ -38,7 +40,8 @@ completed() {
 }
 
 has() {
-	command -v "$1" 1>/dev/null 2>&1
+	command_name="$1"
+	command -v "${command_name}" 1>/dev/null 2>&1
 }
 
 curl_is_snap() {
@@ -124,7 +127,7 @@ download() {
 	info "If you would like to see a build for your configuration,"
 	info "please create an issue requesting a build for ${MAGENTA}${TARGET}${NO_COLOR}:"
 	info "${BOLD}${UNDERLINE}https://github.com/starship/starship/issues/new/${NO_COLOR}"
-	return $rc
+	return "$rc"
 }
 
 unpack() {
@@ -143,13 +146,14 @@ unpack() {
 		UNZIP="${flags}" ${sudo} unzip "${archive}" -d "${bin_dir}"
 		return 0
 		;;
+	*)
+		error "Unknown package extension."
+		printf "\n"
+		info "This almost certainly results from a bug in this script--please file a"
+		info "bug report at https://github.com/starship/starship/issues"
+		return 1
+		;;
 	esac
-
-	error "Unknown package extension."
-	printf "\n"
-	info "This almost certainly results from a bug in this script--please file a"
-	info "bug report at https://github.com/starship/starship/issues"
-	return 1
 }
 
 usage() {
@@ -218,14 +222,16 @@ detect_platform() {
 	platform="$(uname -s | tr '[:upper:]' '[:lower:]')"
 
 	case "${platform}" in
-	msys_nt*) platform="pc-windows-msvc" ;;
-	cygwin_nt*) platform="pc-windows-msvc" ;;
+	msys_nt*) platform="${WINDOWS_PLATFORM}" ;;
+	cygwin_nt*) platform="${WINDOWS_PLATFORM}" ;;
 	# mingw is Git-Bash
-	mingw*) platform="pc-windows-msvc" ;;
+	mingw*) platform="${WINDOWS_PLATFORM}" ;;
 	# use the statically compiled musl bins on linux to avoid linking issues.
 	linux) platform="unknown-linux-musl" ;;
 	darwin) platform="apple-darwin" ;;
 	freebsd) platform="unknown-freebsd" ;;
+	# unrecognized platforms are rejected later by is_build_available
+	*) ;;
 	esac
 
 	printf '%s' "${platform}"
@@ -244,6 +250,8 @@ detect_arch() {
 	armv*) arch="arm" ;;
 	arm64) arch="aarch64" ;;
 	riscv64) arch="riscv64gc" ;;
+	# unrecognized architectures are rejected later by is_build_available
+	*) ;;
 	esac
 
 	# `uname -m` in some cases mis-reports 32-bit OS as 64-bit, so double check
@@ -338,6 +346,8 @@ print_install() {
 		xonsh)
 			config_cmd="execx(\$(starship init xonsh))"
 			;;
+		# every other shell uses the default config file and command
+		*) ;;
 		esac
 
 		printf "  %s\n  Add the following to the end of %s:\n\n\t%s\n\n" \
@@ -364,6 +374,8 @@ print_install() {
 			warning="${warning} This will change in the future.
   Only Nushell v0.96 or higher is supported."
 			;;
+		# the loop only lists elvish and nushell
+		*) ;;
 		esac
 		printf "  %s\n  %s\n  And add the following to the end of %s:\n\n\t%s\n\n" \
 			"${BOLD}${UNDERLINE}${s}${NO_COLOR}" \
@@ -531,7 +543,7 @@ fi
 printf '\n'
 
 EXT=tar.gz
-if [ "${PLATFORM}" = "pc-windows-msvc" ]; then
+if [ "${PLATFORM}" = "${WINDOWS_PLATFORM}" ]; then
 	EXT=zip
 fi
 
