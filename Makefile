@@ -3,6 +3,12 @@
 BINARY_NAME := pidshooter
 BUILD_DIR := build
 BIN_DIR := bin
+DIST_DIR := $(BUILD_DIR)/dist
+
+GOOS = $(shell go env GOOS)
+GOARCH = $(shell go env GOARCH)
+BINARY_VERSION = $(shell $(BIN_DIR)/$(BINARY_NAME) --version | awk '{print $$3}')
+ARCHIVE_NAME = $(BINARY_NAME)_$(BINARY_VERSION)_$(GOOS)_$(GOARCH).tar.gz
 
 LDFLAGS := -s -w
 
@@ -17,15 +23,16 @@ help:
 	@echo ""
 	@sed -n 's/^## //p' $(MAKEFILE_LIST) | column -t -s ':' | sed 's/^/  /'
 
-## all: Clean, vet, lint, build, run tests with coverage and generate the HTML coverage report
+## all: Clean, vet, lint, build, run tests with coverage, generate the HTML coverage report, run the acceptance tests, package, and write the checksums
 .PHONY: all
-all: clean vet lint build coverage coverage-html
+all: clean vet lint build coverage coverage-html test-acceptance package checksums
 
-## build: Compile the binary into bin/
+## build: Compile the binary into bin/ (set RELEASE_VERSION= to make it report that version)
 .PHONY: build
 build:
 	@mkdir -p $(BIN_DIR)
-	go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/$(BINARY_NAME) ./cmd/pidshooter
+	VERSION_FLAG="-X github.com/eirikur-ari/pidshooter/internal/composition.releaseVersion=$(RELEASE_VERSION)"; \
+	go build -ldflags "$(LDFLAGS) $$VERSION_FLAG" -o $(BIN_DIR)/$(BINARY_NAME) ./cmd/pidshooter
 
 ## vet: Run go vet on all packages, including the integration and acceptance tests
 .PHONY: vet
@@ -49,7 +56,7 @@ fmt-lint:
 ## vuln-lint: Check dependencies and the Go toolchain for known vulnerabilities
 .PHONY: vuln-lint
 vuln-lint:
-	go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+	go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 -show verbose ./...
 
 ## tidy-lint: Check go.mod and go.sum are tidy, without changing anything
 .PHONY: tidy-lint
@@ -106,6 +113,41 @@ coverage-summary:
 .PHONY: coverage-html
 coverage-html:
 	go tool cover -html=$(BUILD_DIR)/coverage.out -o $(BUILD_DIR)/coverage.html
+
+## package: Build the binary, then archive it with the license, readme and changelog into build/dist/
+.PHONY: package
+package: build
+	@mkdir -p $(DIST_DIR)
+	tar -czf $(DIST_DIR)/$(ARCHIVE_NAME) -C $(BIN_DIR) $(BINARY_NAME) -C $(WORKSPACE_FOLDER) LICENSE README.md CHANGELOG.md
+
+## checksums: Write the SHA-256 checksums of the archives in build/dist/ to build/dist/checksums.txt
+.PHONY: checksums
+checksums:
+	cd $(DIST_DIR) && shasum -a 256 *.tar.gz > checksums.txt
+
+## release-notes: Write the changelog section of RELEASE_VERSION to build/release-notes.md, then print it
+.PHONY: release-notes
+release-notes: release-notes-file
+	cat $(BUILD_DIR)/release-notes.md
+
+## release-notes-content: Print the changelog section of RELEASE_VERSION, failing if it is missing or empty
+.PHONY: release-notes-content
+release-notes-content:
+	@test -n "$(RELEASE_VERSION)" || { echo "RELEASE_VERSION is required"; exit 1; }
+	awk -v version="$(RELEASE_VERSION)" '\
+		/^## \[/ { if (found) exit; found = (index($$0, "## [" version "]") == 1); next } \
+		found && /^\[[^]]+\]: / { exit } \
+		found { body = body $$0 "\n" } \
+		END { \
+			if (body !~ /[^[:space:]]/) { print "CHANGELOG.md has no entries for " version > "/dev/stderr"; exit 1 } \
+			printf "%s", body \
+		}' CHANGELOG.md
+
+## release-notes-file: Write the changelog section of RELEASE_VERSION to build/release-notes.md, failing if it is missing or empty
+.PHONY: release-notes-file
+release-notes-file:
+	@mkdir -p $(BUILD_DIR)
+	$(MAKE) --silent release-notes-content > $(BUILD_DIR)/release-notes.md || { rm -f $(BUILD_DIR)/release-notes.md; exit 1; }
 
 ## clean: Remove build artifacts
 .PHONY: clean

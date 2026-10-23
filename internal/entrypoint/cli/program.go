@@ -23,9 +23,9 @@ type Program struct {
 	errOut       io.Writer
 }
 
-// NewProgram returns a Program that reports the given build version, runs its commands
-// on the given runners, and logs errors in the command-line arguments with the
-// given error handler.
+// NewProgram returns a Program that reports the given build version, runs its
+// commands on the given runners, and logs errors in the command-line arguments
+// with the given error handler.
 func NewProgram(
 	buildVersion string,
 	play inbound.PlayRunner,

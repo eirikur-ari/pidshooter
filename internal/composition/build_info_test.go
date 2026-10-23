@@ -13,6 +13,18 @@ func TestNewBuildInfo_HoldsTheBuildInformationOfTheRunningProgram(t *testing.T) 
 
 	// Then
 	assert.NotNil(t, info.info)
+	assert.Equal(t, releaseVersion, info.release)
+}
+
+func TestBuildInfo_Version_PrefersTheReleaseVersion(t *testing.T) {
+	// Given
+	info := &buildInfo{release: "1.2.3", info: &debug.BuildInfo{Main: debug.Module{Version: "v0.3.0"}}}
+
+	// When
+	result := info.Version()
+
+	// Then
+	assert.Equal(t, "1.2.3", result)
 }
 
 func TestBuildInfo_Version_ReturnsRecordedVersionOrDev(t *testing.T) {
