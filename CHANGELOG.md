@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-23
+
 ### Added
 - `--version` flag that prints the version of pidshooter.
 - `--help` for each command, with the config file and the default values of `--speed` and `--time` documented in the help of `play`.
@@ -46,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `+` and `-` to change the speed during play, and `q` or Escape to quit.
 - High scores stored in `~/.config/pidshooter/highscores.json`.
 
-[Unreleased]: https://github.com/eirikur-ari/pidshooter/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/eirikur-ari/pidshooter/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/eirikur-ari/pidshooter/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/eirikur-ari/pidshooter/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/eirikur-ari/pidshooter/releases/tag/v0.1.0
