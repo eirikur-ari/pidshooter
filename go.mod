@@ -1,6 +1,6 @@
 module github.com/eirikur-ari/pidshooter
 
-go 1.26.5
+go 1.26.10
 
 require (
 	github.com/gdamore/tcell/v2 v2.13.10
@@ -19,5 +19,5 @@ require (
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/term v0.45.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 )

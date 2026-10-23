@@ -37,8 +37,8 @@ type rootCommand struct {
 	minimumPatterns int
 }
 
-// newRootCommand returns a rootCommand that reports the given build version and runs
-// its commands on the given runners.
+// newRootCommand returns a rootCommand that reports the given build version and
+// runs its commands on the given runners.
 func newRootCommand(buildVersion string, play inbound.PlayRunner, list inbound.ListRunner, kill inbound.KillRunner) *rootCommand {
 	c := &rootCommand{play: play, list: list, kill: kill, minimumPatterns: defaultMinimumPatterns}
 	c.cmd = &cobra.Command{

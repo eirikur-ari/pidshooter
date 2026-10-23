@@ -1,7 +1,7 @@
-FROM golang:1.26.5-trixie
+FROM golang:1.26.10-trixie
 
 ARG TZ=UTC
-ARG CLAUDE_CODE_VERSION=2.1.236
+ARG CLAUDE_CODE_VERSION=2.1.304
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

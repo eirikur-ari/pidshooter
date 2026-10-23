@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** the game now runs through the `play` command: `pidshooter play <pattern>...` instead of `pidshooter <pattern>...`.
 - A missing pattern is now reported before anything is set up, so nothing is written to disk.
 
+### Security
+- Built with Go 1.26.10, which fixes 10 vulnerabilities in the Go standard library that affected earlier builds.
+
 ## [0.2.0] - 2026-10-14
 
 ### Added

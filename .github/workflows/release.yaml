@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, for example 1.2.3
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Release validate
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate Release
+        run: bash .github/scripts/validate-release.sh
+
+  verify:
+    name: Release verify
+    needs: validate
+    uses: ./.github/workflows/_verify.yaml
+
+  build:
+    name: Release build
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Test
+        run: make test
+
+      - name: Build
+        run: make build
+
+      - name: Acceptance Test
+        run: make test-acceptance
+
+      - name: Package
+        run: make package
+
+      - name: Upload Archive
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: dist-${{ matrix.os }}
+          path: build/dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Release publish
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      RELEASE_VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download Archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: dist-*
+          path: build/dist
+          merge-multiple: true
+
+      - name: Check Release Archives
+        run: bash .github/scripts/check-release-archives.sh
+
+      - name: Checksums
+        run: make checksums
+
+      - name: Attest Build Provenance
+        uses: actions/attest-build-provenance@e4d4f7c39adfa4c260fb5c147f0622000aa14b99 # v4.0.0
+        with:
+          subject-path: build/dist/*.tar.gz
+
+      - name: Release Notes
+        run: make release-notes-file
+
+      - name: Publish Release
+        run: bash .github/scripts/publish-release.sh
