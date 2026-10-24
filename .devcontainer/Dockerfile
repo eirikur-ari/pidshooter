@@ -54,6 +54,7 @@ RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
        "/home/${USERNAME}/.cache/go-build" \
        "/home/${USERNAME}/.claude" \
        "/home/${USERNAME}/.config" \
+       "/home/${USERNAME}/bin" \
        /usr/local/share/npm-global \
     && chown -R "${USERNAME}:${USERNAME}" \
        /workspace \
@@ -63,14 +64,19 @@ RUN groupadd --gid "${USER_GID}" "${USERNAME}" \
 WORKDIR /workspace
 
 # Install Starship
-COPY starship-install.sh /tmp/starship-install.sh
+COPY files/starship/starship-install.sh /tmp/starship-install.sh
 
 RUN sh /tmp/starship-install.sh -y \
     && rm -f /tmp/starship-install.sh
 
 COPY --chown="${USERNAME}:${USERNAME}" \
-     starship.toml \
+     files/starship/starship.toml \
      /home/${USERNAME}/.config/starship.toml
+
+COPY --chmod=0755 \
+     files/demo/demo-create.sh \
+     files/demo/demo-cleanup.sh \
+     /home/${USERNAME}/bin/
 
 RUN printf '%s\n' \
            '#!/usr/bin/env zsh' \
@@ -80,7 +86,7 @@ RUN printf '%s\n' \
     && chown "${USERNAME}:${USERNAME}" "/home/${USERNAME}/.zshrc"
 
 # Firewall script
-COPY init-firewall.sh /usr/local/bin/init-firewall.sh
+COPY files/firewall/init-firewall.sh /usr/local/bin/init-firewall.sh
 
 RUN chmod 0755 /usr/local/bin/init-firewall.sh \
     && printf '%s\n' \
@@ -103,9 +109,13 @@ ENV NPM_CONFIG_PREFIX="/usr/local/share/npm-global" \
     GOMODCACHE="/home/${USERNAME}/go/pkg/mod"
 
 # Needs to be set seperately from the other ENV variables to ensure that it is expanded correctly
-ENV PATH="${PATH}:/usr/local/share/npm-global/bin:${GOPATH}/bin:${GOROOT}/bin"
+ENV PATH="${PATH}:/home/${USERNAME}/bin:/home/${USERNAME}/.local/bin:/usr/local/share/npm-global/bin:${GOPATH}/bin:${GOROOT}/bin"
 
 # Install Claude Code CLI
-RUN npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+COPY files/claude/claude-install.sh /home/${USERNAME}/claude-install.sh
+
+RUN bash "/home/${USERNAME}/claude-install.sh" "${CLAUDE_CODE_VERSION}" \
+    && rm -f "/home/${USERNAME}/claude-install.sh" \
+    && claude --version | grep -qF "${CLAUDE_CODE_VERSION}" \
     && printf '%s\n' '{"hasCompletedOnboarding": true}' \
        > "/home/${USERNAME}/.claude/.claude.json"
