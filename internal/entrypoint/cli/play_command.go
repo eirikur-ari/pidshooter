@@ -18,10 +18,11 @@ const playLongDescription = `Process ID Shooter
 Find running processes by name and kill them.
 
 Config file:
-  Defaults for the flags are read from ~/.config/pidshooter/config.yaml
-  (or $XDG_CONFIG_HOME/pidshooter/config.yaml, if set), when present. A flag
-  passed on the command line always overrides the config file for that run —
-  e.g. --include-root=false overrides a persisted "include_root: true".`
+  Defaults for the flags are read from $HOME/.config/pidshooter/config.yaml
+  (or $XDG_CONFIG_HOME/pidshooter/config.yaml, if set to an absolute path),
+  when present. A flag passed on the command line always overrides the config
+  file for that run — e.g. --include-root=false overrides a persisted
+  "include_root: true".`
 
 const playExamples = `  pidshooter play firefox
   pidshooter play chrome firefox node

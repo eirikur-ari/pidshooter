@@ -79,11 +79,15 @@ func NewService(store outbound.ScoreStore, reporter outbound.ScoreReporter) *Ser
 	return &Service{store: store, reporter: reporter}
 }
 
-// LoadScoreBoard loads the persisted score board, falling back to an
-// empty board if none is persisted or the load fails. Load failures are
-// classified as CodeStoreFailed and SeverityWarning.
+// LoadScoreBoard loads the persisted score board. A board that was never
+// persisted returns an empty board and no error. Any other load failure
+// returns an empty board and an error classified as CodeStoreFailed and
+// SeverityWarning.
 func (s *Service) LoadScoreBoard() (LoadResult, error) {
 	sb, err := s.store.Load()
+	if errors.As(err, &outbound.NotFoundError{}) {
+		return LoadResult{}, nil
+	}
 	if err != nil {
 		return LoadResult{}, apperror.NewError(apperror.CodeStoreFailed, apperror.SeverityWarning, "score board not loaded", err)
 	}

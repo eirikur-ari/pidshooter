@@ -1,8 +1,10 @@
-# pidshooter — Feature Reference
+# pidshooter — Manual
+
+> This manual is a work in progress and may change.
 
 ## Overview
 
-pidshooter is a terminal-based game that turns process management into a first-person shooter. Running processes matching a given name pattern appear as bouncing labels on the terminal screen. The player clicks on them to send `SIGKILL`.
+pidshooter is a terminal-based game that turns process management into a point-and-click shooter. Running processes matching a given name pattern appear as bouncing labels on the terminal screen. The player clicks on them to send `SIGKILL`.
 
 ---
 
@@ -76,7 +78,7 @@ pidshooter play node --time=0
 - `1`: any other failure, such as being refused to run as root, no matching processes, or the terminal not being available. The error is logged once, without the usage text.
 
 ### Config file
-Defaults for `--confirm`, `--speed`, `--time`, and `--include-root` can be persisted at `~/.config/pidshooter/config.yaml` (or `$XDG_CONFIG_HOME/pidshooter/config.yaml`, if set), so they don't need to be typed on every run. Values are resolved in priority order: a hardcoded application default, then the config file if present, then a flag passed on the command line — a flag always wins for that run. A persisted value that fails validation (e.g. a corrupted or hand-edited `speed: 99`) is dropped with a warning rather than failing the whole run; the rest of the file's values still apply.
+Defaults for `--confirm`, `--speed`, `--time`, and `--include-root` can be persisted at `$HOME/.config/pidshooter/config.yaml` (or `$XDG_CONFIG_HOME/pidshooter/config.yaml`, if set to an absolute path), so they don't need to be typed on every run. Values are resolved in priority order: a hardcoded application default, then the config file if present, then a flag passed on the command line — a flag always wins for that run. A persisted value that fails validation (e.g. a corrupted or hand-edited `speed: 99`) is dropped with a warning rather than failing the whole run; the rest of the file's values still apply.
 
 ```yaml
 game:
@@ -164,7 +166,7 @@ During a confirm prompt the status bar switches to: `Kill [PID name]? (Y)es / (N
 ## High score system
 
 ### Persistence
-Scores are stored as JSON at `~/.config/pidshooter/highscores.json`. The directory is created automatically on first save. Up to 10 entries are kept.
+Scores are stored as JSON at `$HOME/.config/pidshooter/highscores.json`. The directory is created automatically on first save. Up to 10 entries are kept.
 
 ### Ranking
 Entries are ranked by kills descending. Ties are broken, in order, by duds descending (more duds means more session activity on an equal kill count), then speed descending, then duration ascending (faster clears win), then freed memory descending. The top 10 are retained; lower scores are dropped on save. A session with zero kills is never recorded, even if it's the only thing played that day — an instant quit doesn't pollute the leaderboard.
