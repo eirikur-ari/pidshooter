@@ -41,11 +41,12 @@ vet:
 
 ## lint: Run all non-mutating source and dependency checks
 .PHONY: lint
-lint: fmt-lint tidy-lint
+lint: fmt-lint tidy-lint readme-lint
 
 ## fmt-lint: Check source code is formatted, without changing anything
 .PHONY: fmt-lint
 fmt-lint:
+	@echo "Checking source formatting"
 	@unformatted=$$(gofmt -l .); \
 	if [ -n "$$unformatted" ]; then \
 		echo "The following files are not gofmt-formatted:"; \
@@ -61,7 +62,44 @@ vuln-lint:
 ## tidy-lint: Check go.mod and go.sum are tidy, without changing anything
 .PHONY: tidy-lint
 tidy-lint:
-	go mod tidy -diff
+	@echo "Checking module tidiness"
+	@go mod tidy -diff
+
+## readme-lint: Run all README checks
+.PHONY: readme-lint
+readme-lint: readme-badge-go-lint readme-badge-release-lint
+
+## readme-badge-go-lint: Check the Go version badge in README.md matches the go version in go.mod
+.PHONY: readme-badge-go-lint
+readme-badge-go-lint:
+	@echo "Checking README Go version badge"
+	@go_version=$$(awk '/^go /{print $$2}' go.mod); \
+	if ! grep -q "badge/Go-$$go_version-" README.md; then \
+		echo "README.md Go version badge does not match go $$go_version in go.mod"; \
+		exit 1; \
+	fi
+
+## readme-badge-release-lint: Check the release badge in README.md shows RELEASE_VERSION, or, when it is unset, the latest v* tag on the current branch or the newest version in CHANGELOG.md
+.PHONY: readme-badge-release-lint
+readme-badge-release-lint:
+	@echo "Checking README release badge"
+	@if [ -n "$(RELEASE_VERSION)" ]; then \
+		expected="$(RELEASE_VERSION)"; \
+	else \
+		expected="$$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null | sed 's/^v//') \
+			$$(sed -n 's/^## \[\([0-9][^]]*\)\].*/\1/p' CHANGELOG.md | head -n 1)"; \
+	fi; \
+	if [ -z "$$(echo $$expected)" ]; then \
+		echo "RELEASE_VERSION is not set, and neither a v* tag nor a version in CHANGELOG.md was found"; \
+		exit 1; \
+	fi; \
+	for version in $$expected; do \
+		if grep -qF "badge/release-v$$version-" README.md; then \
+			exit 0; \
+		fi; \
+	done; \
+	echo "README.md release badge does not show any of: $$expected"; \
+	exit 1
 
 ## fmt: Format source code
 .PHONY: fmt

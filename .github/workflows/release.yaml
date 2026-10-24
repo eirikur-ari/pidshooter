@@ -31,6 +31,9 @@ jobs:
       - name: Validate Release
         run: bash .github/scripts/validate-release.sh
 
+      - name: README release badge
+        run: make readme-badge-release-lint
+
   verify:
     name: Release verify
     needs: validate
