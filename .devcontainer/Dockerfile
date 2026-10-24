@@ -74,6 +74,7 @@ COPY --chown="${USERNAME}:${USERNAME}" \
 
 RUN printf '%s\n' \
            '#!/usr/bin/env zsh' \
+           'unsetopt notify' \
            'eval "$(starship init zsh)"' \
     > "/home/${USERNAME}/.zshrc" \
     && chown "${USERNAME}:${USERNAME}" "/home/${USERNAME}/.zshrc"
