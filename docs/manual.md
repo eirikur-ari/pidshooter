@@ -4,7 +4,7 @@
 
 ## Overview
 
-pidshooter is a terminal-based game that turns process management into a first-person shooter. Running processes matching a given name pattern appear as bouncing labels on the terminal screen. The player clicks on them to send `SIGKILL`.
+pidshooter is a terminal-based game that turns process management into a point-and-click shooter. Running processes matching a given name pattern appear as bouncing labels on the terminal screen. The player clicks on them to send `SIGKILL`.
 
 ---
 
