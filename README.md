@@ -1,7 +1,7 @@
 # pidshooter
 
 [![CI build](https://img.shields.io/github/actions/workflow/status/eirikur-ari/pidshooter/candidate.yaml?branch=master&label=CI%20build)](https://github.com/eirikur-ari/pidshooter/actions/workflows/candidate.yaml?query=branch%3Amaster)
-[![Release](https://img.shields.io/badge/release-v0.3.0-blue)](https://github.com/eirikur-ari/pidshooter/releases)
+[![Release](https://img.shields.io/badge/release-v0.3.1-blue)](https://github.com/eirikur-ari/pidshooter/releases)
 [![Go version](https://img.shields.io/badge/Go-1.26.10-00ADD8?logo=go&logoColor=white)](go.mod)
 [![License](https://img.shields.io/github/license/eirikur-ari/pidshooter)](LICENSE)
 
