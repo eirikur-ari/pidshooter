@@ -20,6 +20,24 @@ tar -xzf pidshooter_<version>_<os>_<arch>.tar.gz
 ./pidshooter --version
 ```
 
+### Verify a download
+
+Verify an archive before you extract it. Download `checksums.txt` from the same release into the same directory.
+
+**Checksum.** This detects a corrupted or incomplete download. It prints `OK` when the archive matches:
+
+```
+sha256sum --ignore-missing -c checksums.txt
+```
+
+**Build provenance.** Each archive has a signed build provenance attestation, created by the release workflow with [GitHub's attest-build-provenance action](https://github.com/actions/attest-build-provenance). It proves the archive was built by this repository's release workflow on GitHub Actions, which a checksum alone can't prove, because `checksums.txt` is published next to the archives. Verify it with the [GitHub CLI](https://cli.github.com):
+
+```
+gh attestation verify pidshooter_<version>_<os>_<arch>.tar.gz --repo eirikur-ari/pidshooter
+```
+
+To also require that it came from the release workflow, add `--signer-workflow eirikur-ari/pidshooter/.github/workflows/release.yaml`.
+
 ### From source
 
 ```
