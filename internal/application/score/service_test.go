@@ -29,6 +29,20 @@ func TestService_LoadScoreBoard_ReturnsEntriesAndHighScore(t *testing.T) {
 	assert.Equal(t, 8, result.HighScore)
 }
 
+func TestService_LoadScoreBoard_ReturnsEmptyBoardWithoutErrorWhenNoBoardIsPersisted(t *testing.T) {
+	// Given
+	store := scoreStoreMockSetup(outbound.ScoreBoard{}, outbound.NotFoundError{}, nil)
+	service := NewService(store, reporterMockSetup())
+
+	// When
+	result, err := service.LoadScoreBoard()
+
+	// Then
+	require.NoError(t, err)
+	assert.Empty(t, result.Entries)
+	assert.Equal(t, 0, result.HighScore)
+}
+
 func TestService_LoadScoreBoard_ReturnsWarningAndEmptyBoardWhenBoardCannotBeLoaded(t *testing.T) {
 	tests := newLoadFailureTestCase()
 
@@ -156,7 +170,6 @@ func newLoadFailureTestCase() []struct {
 		name    string
 		loadErr error
 	}{
-		{"board is not persisted yet", outbound.NotFoundError{}},
 		{"persisted data is corrupted", outbound.CorruptedDataError{}},
 		{"store fails", errors.New("disk error")},
 	}
