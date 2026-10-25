@@ -10,7 +10,7 @@ A terminal game and CLI for hunting down and killing processes. Play it as a poi
 In the game, running processes that match a name pattern show up as bouncing `[PID name]` labels on your terminal, and clicking one sends it `SIGKILL`.
 
 <p align="center">
-  <img src="docs/gameplay.gif" width="640" alt="A terminal running pidshooter: labelled demo processes bounce around the screen and are killed one by one with mouse clicks">
+  <img src="docs/images/gameplay.gif" width="640" alt="A terminal running pidshooter: labelled demo processes bounce around the screen and are killed one by one with mouse clicks">
 </p>
 
 ## Install
