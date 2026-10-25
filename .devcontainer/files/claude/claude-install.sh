@@ -17,7 +17,7 @@ fi
 # home, depending on the distro's sudo configuration), and the 'claude'
 # command is then not found in the user's own shell. Plain root with no sudo
 # (containers, CI, root-only systems) is unaffected by this check.
-if [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ] && [ -z "${CLAUDE_INSTALL_ALLOW_SUDO:-}" ]; then
+if [[ "$(id -u)" -eq 0 ]] && [[ -n "${SUDO_USER:-}" ]] && [[ "$SUDO_USER" != "root" ]] && [[ -z "${CLAUDE_INSTALL_ALLOW_SUDO:-}" ]]; then
     echo "Error: do not run this installer with sudo." >&2
     echo "" >&2
     echo "Claude Code installs into your home directory and does not need root access." >&2
@@ -65,14 +65,14 @@ download_file() {
     local url="$1"
     local output="$2"
     
-    if [ "$DOWNLOADER" = "curl" ]; then
-        if [ -n "$output" ]; then
+    if [[ "$DOWNLOADER" = "curl" ]]; then
+        if [[ -n "$output" ]]; then
             curl -fsSL -o "$output" "$url"
         else
             curl -fsSL "$url"
         fi
-    elif [ "$DOWNLOADER" = "wget" ]; then
-        if [ -n "$output" ]; then
+    elif [[ "$DOWNLOADER" = "wget" ]]; then
+        if [[ -n "$output" ]]; then
             wget -q -O "$output" "$url"
         else
             wget -q -O - "$url"
@@ -127,15 +127,13 @@ esac
 
 # Detect Rosetta 2 on macOS: if the shell is running as x64 under Rosetta on an ARM Mac,
 # download the native arm64 binary instead of the x64 one
-if [ "$os" = "darwin" ] && [ "$arch" = "x64" ]; then
-    if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = "1" ]; then
-        arch="arm64"
-    fi
+if [[ "$os" = "darwin" ]] && [[ "$arch" = "x64" ]] && [[ "$(sysctl -n sysctl.proc_translated 2>/dev/null)" = "1" ]]; then
+    arch="arm64"
 fi
 
 # Check for musl on Linux and adjust platform accordingly
-if [ "$os" = "linux" ]; then
-    if [ -f /lib/libc.musl-x86_64.so.1 ] || [ -f /lib/libc.musl-aarch64.so.1 ] || ldd /bin/ls 2>&1 | grep -q musl; then
+if [[ "$os" = "linux" ]]; then
+    if [[ -f /lib/libc.musl-x86_64.so.1 ]] || [[ -f /lib/libc.musl-aarch64.so.1 ]] || ldd /bin/ls 2>&1 | grep -q musl; then
         platform="linux-${arch}-musl"
     else
         platform="linux-${arch}"
@@ -159,7 +157,7 @@ fi
 manifest_json=$(download_file "$DOWNLOAD_BASE_URL/$version/manifest.json")
 
 # Use jq if available, otherwise fall back to pure bash parsing
-if [ "$HAS_JQ" = true ]; then
+if [[ "$HAS_JQ" = true ]]; then
     checksum=$(echo "$manifest_json" | jq -r ".platforms[\"$platform\"].checksum // empty")
     size=$(echo "$manifest_json" | jq -r ".platforms[\"$platform\"].size // empty")
 else
@@ -168,25 +166,27 @@ else
 fi
 
 # Validate checksum format (SHA256 = 64 hex characters)
-if [ -z "$checksum" ] || [[ ! "$checksum" =~ ^[a-f0-9]{64}$ ]]; then
+if [[ -z "$checksum" ]] || [[ ! "$checksum" =~ ^[a-f0-9]{64}$ ]]; then
     echo "Platform $platform not found in manifest" >&2
     exit 1
 fi
 
 checksum_matches() {
+    local file="$1"
+    local expected="$2"
     local actual
-    if [ "$os" = "darwin" ]; then
-        actual=$(shasum -a 256 "$1" | cut -d' ' -f1)
+    if [[ "$os" = "darwin" ]]; then
+        actual=$(shasum -a 256 "$file" | cut -d' ' -f1)
     else
-        actual=$(sha256sum "$1" | cut -d' ' -f1)
+        actual=$(sha256sum "$file" | cut -d' ' -f1)
     fi
-    [ "$actual" = "$2" ]
+    [[ "$actual" = "$expected" ]]
 }
 
 zst_checksum=""
-if [ "$HAS_ZSTD" = true ] && [[ "$size" =~ ^[1-9][0-9]*$ ]]; then
+if [[ "$HAS_ZSTD" = true ]] && [[ "$size" =~ ^[1-9][0-9]*$ ]]; then
     zst_manifest_json=$(download_file "$DOWNLOAD_BASE_URL/$version/manifest.zst.json" 2>/dev/null || true)
-    if [ "$HAS_JQ" = true ]; then
+    if [[ "$HAS_JQ" = true ]]; then
         zst_checksum=$(echo "$zst_manifest_json" | jq -r ".platforms[\"$platform\"].checksum // empty" 2>/dev/null || true)
     else
         zst_checksum=$(get_checksum_from_manifest "$zst_manifest_json" "$platform" || true)
@@ -205,7 +205,7 @@ if [[ "$zst_checksum" =~ ^[a-f0-9]{64}$ ]]; then
     fi
     rm -f "$binary_path.zst"
 fi
-if [ "$verified" = false ]; then
+if [[ "$verified" = false ]]; then
     if ! download_file "$DOWNLOAD_BASE_URL/$version/$platform/claude" "$binary_path"; then
         echo "Download failed" >&2
         rm -f "$binary_path"
@@ -228,17 +228,17 @@ install_code=0
 # Clean up downloaded file
 rm -f "$binary_path"
 
-if [ "$install_code" -ne 0 ]; then
+if [[ "$install_code" -ne 0 ]]; then
     # A signal death mid-install kills the binary's TUI with no chance to
     # restore the terminal, leaving the user's shell in raw mode (typed
     # characters stop echoing). Restore it before printing anything.
-    if [ "$install_code" -ge 128 ] && [ -t 0 ]; then
+    if [[ "$install_code" -ge 128 ]] && [[ -t 0 ]]; then
         stty sane 2>/dev/null || true
     fi
     # Red when stderr is a terminal, so the explanation stands out from the
     # surrounding install output; plain when piped or captured
     red="" reset=""
-    if [ -t 2 ]; then
+    if [[ -t 2 ]]; then
         red=$'\033[31m'
         reset=$'\033[0m'
     fi
@@ -246,10 +246,10 @@ if [ "$install_code" -ne 0 ]; then
     # only e.g. "Killed". 137 = SIGKILL, which on Linux is almost always the
     # kernel OOM killer on small hosts; macOS has no equivalent OOM kill, so
     # the out-of-memory explanation is Linux-only.
-    if [ "$install_code" -eq 137 ] && [ "$os" = "linux" ]; then
+    if [[ "$install_code" -eq 137 ]] && [[ "$os" = "linux" ]]; then
         echo "${red}Installation was killed before it could finish (exit code 137). This usually means the system ran out of memory.${reset}" >&2
         echo "${red}Claude Code needs roughly 512MB of free memory to install. Free up memory, then run this script again.${reset}" >&2
-    elif [ "$install_code" -ge 128 ]; then
+    elif [[ "$install_code" -ge 128 ]]; then
         echo "${red}Installation was killed before it could finish (exit code $install_code).${reset}" >&2
     fi
     exit "$install_code"
