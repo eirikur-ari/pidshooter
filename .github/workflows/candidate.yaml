@@ -41,13 +41,14 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Vulnerability Check
+      - name: Vulnerability Lint
+        id: vulnlint
         shell: bash
-        run: make vuln-lint 2>&1 | tee "$RUNNER_TEMP/vulnerabilities.txt"
+        run: make vuln-lint 2>&1 | tee "$RUNNER_TEMP/vuln-lint-result.txt"
 
-      - name: Report Vulnerabilities
-        if: ${{ failure() }}
-        run: bash .github/scripts/report-vulnerabilities.sh "$RUNNER_TEMP/vulnerabilities.txt"
+      - name: Report Vulnerability Lint
+        if: ${{ failure() && steps.vulnlint.outcome == 'failure' }}
+        run: bash .github/scripts/report-vuln-lint.sh "$RUNNER_TEMP/vuln-lint-result.txt"
 
   coverage:
     name: Candidate coverage

@@ -4,17 +4,12 @@ BINARY_NAME := pidshooter
 BUILD_DIR := build
 BIN_DIR := bin
 DIST_DIR := $(BUILD_DIR)/dist
-
-GOOS = $(shell go env GOOS)
-GOARCH = $(shell go env GOARCH)
-BINARY_VERSION = $(shell $(BIN_DIR)/$(BINARY_NAME) --version | awk '{print $$3}')
-ARCHIVE_NAME = $(BINARY_NAME)_$(BINARY_VERSION)_$(GOOS)_$(GOARCH).tar.gz
+PACKAGE_DIR := $(BUILD_DIR)/package
 
 LDFLAGS := -s -w
 
 WORKSPACE_FOLDER := $(CURDIR)
-LABEL_FILTER      := label=devcontainer.local_folder=$(WORKSPACE_FOLDER)
-DC_SHELL          ?= zsh
+DEVCONTAINER      := WORKSPACE_FOLDER=$(WORKSPACE_FOLDER) bash scripts/devcontainer.sh
 
 ## help: Show this help
 .PHONY: help
@@ -23,11 +18,11 @@ help:
 	@echo ""
 	@sed -n 's/^## //p' $(MAKEFILE_LIST) | column -t -s ':' | sed 's/^/  /'
 
-## all: Clean, vet, lint, build, run tests with coverage, generate the HTML coverage report, run the acceptance tests, package, and write the checksums
+## all: Run every check and produce the release archives from a clean state
 .PHONY: all
-all: clean vet lint build coverage coverage-html test-acceptance package checksums
+all: clean vet lint build coverage coverage-html test-acceptance licenses package checksums
 
-## build: Compile the binary into bin/ (set RELEASE_VERSION= to make it report that version)
+## build: Compile the binary, optionally stamped with a release version
 .PHONY: build
 build:
 	@mkdir -p $(BIN_DIR)
@@ -65,6 +60,11 @@ tidy-lint:
 	@echo "Checking module tidiness"
 	@go mod tidy -diff
 
+## shell-lint: Run shellcheck on the shell scripts
+.PHONY: shell-lint
+shell-lint:
+	find scripts .github/scripts .devcontainer -name '*.sh' ! -path .devcontainer/files/claude/claude-install.sh -print0 | xargs -0 shellcheck
+
 ## readme-lint: Run all README checks
 .PHONY: readme-lint
 readme-lint: readme-badge-go-lint readme-badge-release-lint
@@ -72,34 +72,12 @@ readme-lint: readme-badge-go-lint readme-badge-release-lint
 ## readme-badge-go-lint: Check the Go version badge in README.md matches the go version in go.mod
 .PHONY: readme-badge-go-lint
 readme-badge-go-lint:
-	@echo "Checking README Go version badge"
-	@go_version=$$(awk '/^go /{print $$2}' go.mod); \
-	if ! grep -q "badge/Go-$$go_version-" README.md; then \
-		echo "README.md Go version badge does not match go $$go_version in go.mod"; \
-		exit 1; \
-	fi
+	bash scripts/readme-lint.sh go-badge
 
-## readme-badge-release-lint: Check the release badge in README.md shows RELEASE_VERSION, or, when it is unset, the latest v* tag on the current branch or the newest version in CHANGELOG.md
+## readme-badge-release-lint: Check the release badge in README.md shows the current release version
 .PHONY: readme-badge-release-lint
 readme-badge-release-lint:
-	@echo "Checking README release badge"
-	@if [ -n "$(RELEASE_VERSION)" ]; then \
-		expected="$(RELEASE_VERSION)"; \
-	else \
-		expected="$$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null | sed 's/^v//') \
-			$$(sed -n 's/^## \[\([0-9][^]]*\)\].*/\1/p' CHANGELOG.md | head -n 1)"; \
-	fi; \
-	if [ -z "$$(echo $$expected)" ]; then \
-		echo "RELEASE_VERSION is not set, and neither a v* tag nor a version in CHANGELOG.md was found"; \
-		exit 1; \
-	fi; \
-	for version in $$expected; do \
-		if grep -qF "badge/release-v$$version-" README.md; then \
-			exit 0; \
-		fi; \
-	done; \
-	echo "README.md release badge does not show any of: $$expected"; \
-	exit 1
+	RELEASE_VERSION=$(RELEASE_VERSION) bash scripts/readme-lint.sh release-badge
 
 ## fmt: Format source code
 .PHONY: fmt
@@ -152,40 +130,36 @@ coverage-summary:
 coverage-html:
 	go tool cover -html=$(BUILD_DIR)/coverage.out -o $(BUILD_DIR)/coverage.html
 
-## package: Build the binary, then archive it with the license, readme and changelog into build/dist/
-.PHONY: package
-package: build
-	@mkdir -p $(DIST_DIR)
-	tar -czf $(DIST_DIR)/$(ARCHIVE_NAME) -C $(BIN_DIR) $(BINARY_NAME) -C $(WORKSPACE_FOLDER) LICENSE README.md CHANGELOG.md
+## licenses: Collect the licenses of the third-party software compiled into the binary
+.PHONY: licenses
+licenses:
+	WORKSPACE_FOLDER=$(WORKSPACE_FOLDER) PACKAGE_DIR=$(PACKAGE_DIR) bash scripts/third-party-licenses.sh
 
-## checksums: Write the SHA-256 checksums of the archives in build/dist/ to build/dist/checksums.txt
+## package: Build the binary and archive it with its documentation and licenses
+.PHONY: package
+package: licenses build
+	WORKSPACE_FOLDER=$(WORKSPACE_FOLDER) BIN_DIR=$(BIN_DIR) BINARY_NAME=$(BINARY_NAME) PACKAGE_DIR=$(PACKAGE_DIR) DIST_DIR=$(DIST_DIR) bash scripts/package.sh
+
+## checksums: Write the SHA-256 checksums of the release archives
 .PHONY: checksums
 checksums:
 	cd $(DIST_DIR) && shasum -a 256 *.tar.gz > checksums.txt
 
-## release-notes: Write the changelog section of RELEASE_VERSION to build/release-notes.md, then print it
+## release-notes: Write the release notes of a version from the changelog to a file, then print them
 .PHONY: release-notes
 release-notes: release-notes-file
 	cat $(BUILD_DIR)/release-notes.md
 
-## release-notes-content: Print the changelog section of RELEASE_VERSION, failing if it is missing or empty
+## release-notes-content: Print the release notes of a version from the changelog, failing if there are none
 .PHONY: release-notes-content
 release-notes-content:
-	@test -n "$(RELEASE_VERSION)" || { echo "RELEASE_VERSION is required"; exit 1; }
-	awk -v version="$(RELEASE_VERSION)" '\
-		/^## \[/ { if (found) exit; found = (index($$0, "## [" version "]") == 1); next } \
-		found && /^\[[^]]+\]: / { exit } \
-		found { body = body $$0 "\n" } \
-		END { \
-			if (body !~ /[^[:space:]]/) { print "CHANGELOG.md has no entries for " version > "/dev/stderr"; exit 1 } \
-			printf "%s", body \
-		}' CHANGELOG.md
+	RELEASE_VERSION=$(RELEASE_VERSION) bash scripts/release-notes.sh
 
-## release-notes-file: Write the changelog section of RELEASE_VERSION to build/release-notes.md, failing if it is missing or empty
+## release-notes-file: Write the release notes of a version from the changelog to a file, failing if there are none
 .PHONY: release-notes-file
 release-notes-file:
 	@mkdir -p $(BUILD_DIR)
-	$(MAKE) --silent release-notes-content > $(BUILD_DIR)/release-notes.md || { rm -f $(BUILD_DIR)/release-notes.md; exit 1; }
+	RELEASE_VERSION=$(RELEASE_VERSION) bash scripts/release-notes.sh > $(BUILD_DIR)/release-notes.md || { rm -f $(BUILD_DIR)/release-notes.md; exit 1; }
 
 ## clean: Remove build artifacts
 .PHONY: clean
@@ -201,46 +175,29 @@ run: build
 ## dev-start: Start the devcontainer
 .PHONY: dev-start
 dev-start:
-	devcontainer up --workspace-folder $(WORKSPACE_FOLDER)
+	$(DEVCONTAINER) start
 
 ## dev-rebuild: Rebuild the devcontainer from scratch
 .PHONY: dev-rebuild
 dev-rebuild:
-	devcontainer up --workspace-folder $(WORKSPACE_FOLDER) --remove-existing-container --build-no-cache
+	$(DEVCONTAINER) rebuild
 
 ## dev-stop: Stop the devcontainer
 .PHONY: dev-stop
 dev-stop:
-	@id=$$(docker ps -q --filter "$(LABEL_FILTER)"); \
-	if [ -n "$$id" ]; then \
-		docker stop $$id; \
-	else \
-		echo "No running devcontainer found."; \
-	fi
+	@$(DEVCONTAINER) stop
 
 ## dev-shell: Open a shell in the devcontainer
 .PHONY: dev-shell
 dev-shell:
-	devcontainer exec --workspace-folder $(WORKSPACE_FOLDER) $(DC_SHELL)
+	$(DEVCONTAINER) shell
 
 ## dev-destroy: Remove the devcontainer and its image
 .PHONY: dev-destroy
 dev-destroy:
-	@id=$$(docker ps -aq --filter "$(LABEL_FILTER)"); \
-	if [ -n "$$id" ]; then \
-		docker rm -f $$id; \
-		echo "Removed container $$id"; \
-	else \
-		echo "No devcontainer found."; \
-	fi
-	@img=$$(docker images -q --filter "$(LABEL_FILTER)"); \
-	if [ -n "$$img" ]; then \
-		docker rmi -f $$img; \
-		echo "Removed image $$img"; \
-	fi
+	@$(DEVCONTAINER) destroy
 
 ## dev-status: Show the status of the devcontainer
 .PHONY: dev-status
 dev-status:
-	@docker ps -a --filter "$(LABEL_FILTER)" \
-		--format 'table {{.ID}}\t{{.Status}}\t{{.Image}}'
+	@$(DEVCONTAINER) status
