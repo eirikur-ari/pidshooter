@@ -9,6 +9,7 @@ on:
       - 'LICENSE'
       - '.github/**'
       - '.devcontainer/**'
+      - 'docs/**'
   workflow_dispatch:
 
 permissions:

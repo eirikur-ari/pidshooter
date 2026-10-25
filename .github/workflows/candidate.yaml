@@ -9,6 +9,7 @@ on:
       - 'LICENSE'
       - '.github/**'
       - '.devcontainer/**'
+      - 'docs/**'
   pull_request:
     branches: [master]
   workflow_dispatch:
@@ -88,6 +89,7 @@ jobs:
             -Dsonar.organization=${{ vars.SONAR_ORG_NAME }}
             -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
             -Dsonar.go.coverage.reportPaths=build/coverage.out
+            -Dsonar.exclusions=docs/**
             -Dsonar.coverage.exclusions=**/*_test.go,internal/testutil/**
             -Dsonar.qualitygate.wait=true
 
