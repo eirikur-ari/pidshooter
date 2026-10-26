@@ -5,24 +5,31 @@
 # A file is copied into the destination, a directory has its contents copied into it.
 set -euo pipefail
 
-if [[ -z "${WORKSPACE_FOLDER:-}" ]]; then
-  echo "missing or empty environment variable: WORKSPACE_FOLDER" >&2
-  exit 2
-fi
+# Only used after setup has rejected an empty WORKSPACE_FOLDER
+LABEL_FILTER="label=devcontainer.local_folder=${WORKSPACE_FOLDER:-}"
 
-LABEL_FILTER="label=devcontainer.local_folder=$WORKSPACE_FOLDER"
-DC_SHELL="${DC_SHELL:-zsh}"
+# Fails when the required environment variable is missing or empty
+function setup() {
+  if [[ -z "${WORKSPACE_FOLDER:-}" ]]; then
+    echo "missing or empty environment variable: WORKSPACE_FOLDER" >&2
+    exit 2
+  fi
+}
 
-start() {
+# Starts the devcontainer, building it when needed
+function start() {
   devcontainer up --workspace-folder "$WORKSPACE_FOLDER"
 }
 
-rebuild() {
+# Recreates the devcontainer from scratch without using the build cache
+function rebuild() {
   devcontainer up --workspace-folder "$WORKSPACE_FOLDER" --remove-existing-container --build-no-cache
 }
 
-stop() {
+# Stops the running devcontainer
+function stop() {
   local id
+
   id=$(docker ps -q --filter "$LABEL_FILTER")
   if [[ -n "$id" ]]; then
     # shellcheck disable=SC2086
@@ -32,14 +39,16 @@ stop() {
   fi
 }
 
-shell() {
-  devcontainer exec --workspace-folder "$WORKSPACE_FOLDER" "$DC_SHELL"
+# Opens a shell in the devcontainer
+function shell() {
+  local dc_shell="${DC_SHELL:-zsh}"
+
+  devcontainer exec --workspace-folder "$WORKSPACE_FOLDER" "$dc_shell"
 }
 
-copy() {
-  local source="${1:-}"
-  local destination="${2:-/home/sandbox/tmp}"
-  local id
+# Copies a file, or the contents of a directory, into a directory of the running devcontainer
+function copy() {
+  local source="${1:-}" destination="${2:-/home/sandbox/tmp}" id
 
   if [[ -z "$source" ]]; then
     echo "expected the path of the file or directory to copy into the devcontainer" >&2
@@ -56,16 +65,23 @@ copy() {
     exit 1
   fi
 
+  # The tar of macOS adds its extended attributes to the archive as extra ._ files unless COPYFILE_DISABLE is set
+  if [[ "$(uname)" == "Darwin" ]]; then
+    export COPYFILE_DISABLE=1
+  fi
+
   docker exec "$id" mkdir -p "$destination"
   if [[ -d "$source" ]]; then
-    COPYFILE_DISABLE=1 tar -C "$source" -cf - . | docker exec -i "$id" tar -C "$destination" -xf -
+    tar -C "$source" -cf - . | docker exec -i "$id" tar -C "$destination" -xf -
   else
-    COPYFILE_DISABLE=1 tar -C "$(dirname "$source")" -cf - "$(basename "$source")" | docker exec -i "$id" tar -C "$destination" -xf -
+    tar -C "$(dirname "$source")" -cf - "$(basename "$source")" | docker exec -i "$id" tar -C "$destination" -xf -
   fi
 }
 
-destroy() {
+# Removes the devcontainer and the image it was built from
+function destroy() {
   local id img=""
+
   id=$(docker ps -aq --filter "$LABEL_FILTER")
   if [[ -n "$id" ]]; then
     # shellcheck disable=SC2086
@@ -81,21 +97,29 @@ destroy() {
   fi
 }
 
-status() {
+# Shows the id, status and image of the devcontainer
+function status() {
   docker ps -a --filter "$LABEL_FILTER" \
     --format 'table {{.ID}}\t{{.Status}}\t{{.Image}}'
 }
 
-case "${1:-}" in
-  start) start ;;
-  rebuild) rebuild ;;
-  stop) stop ;;
-  shell) shell ;;
-  copy) copy "${2:-}" "${3:-}" ;;
-  destroy) destroy ;;
-  status) status ;;
-  *)
-    echo "expected the devcontainer action to run as the first argument: start, rebuild, stop, shell, copy, destroy or status"
-    exit 2
-    ;;
-esac
+# Runs the devcontainer action named by the first argument
+function main() {
+  setup
+
+  case "${1:-}" in
+    start) start ;;
+    rebuild) rebuild ;;
+    stop) stop ;;
+    shell) shell ;;
+    copy) copy "${2:-}" "${3:-}" ;;
+    destroy) destroy ;;
+    status) status ;;
+    *)
+      echo "expected the devcontainer action to run as the first argument: start, rebuild, stop, shell, copy, destroy or status"
+      exit 2
+      ;;
+  esac
+}
+
+main "$@"
