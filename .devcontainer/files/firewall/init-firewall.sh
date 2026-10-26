@@ -63,6 +63,30 @@ while read -r cidr; do
     ipset add allowed-domains "$cidr" -exist
 done < <(echo "$gh_ranges" | jq -r '(.web + .api + .git)[]' | aggregate -q)
 
+# Fetch Google's published IP ranges and add them. Google serves proxy.golang.org and
+# sum.golang.org from a large rotating address pool, so single DNS lookups are not enough.
+echo "Fetching Google IP ranges..."
+google_ranges=$(curl -s https://www.gstatic.com/ipranges/goog.json)
+if [[ -z "$google_ranges" ]]; then
+    echo "ERROR: Failed to fetch Google IP ranges" >&2
+    exit 1
+fi
+
+if ! echo "$google_ranges" | jq -e '.prefixes' >/dev/null; then
+    echo "ERROR: Google IP ranges response missing required fields" >&2
+    exit 1
+fi
+
+echo "Processing Google IPs..."
+while read -r cidr; do
+    if [[ ! "$cidr" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$ ]]; then
+        echo "ERROR: Invalid CIDR range from Google IP ranges: $cidr" >&2
+        exit 1
+    fi
+    echo "Adding Google range $cidr"
+    ipset add allowed-domains "$cidr" -exist
+done < <(echo "$google_ranges" | jq -r '.prefixes[].ipv4Prefix // empty' | aggregate -q)
+
 # Resolve and add other allowed domains
 for domain in \
     "registry.npmjs.org" \
