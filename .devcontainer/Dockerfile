@@ -24,6 +24,7 @@ RUN apt-get update \
        nodejs \
        npm \
        procps \
+       shellcheck \
        sudo \
        unzip \
        vim \

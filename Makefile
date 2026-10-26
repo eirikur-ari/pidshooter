@@ -36,7 +36,7 @@ vet:
 
 ## lint: Run all non-mutating source and dependency checks
 .PHONY: lint
-lint: fmt-lint tidy-lint readme-lint
+lint: fmt-lint tidy-lint shell-lint readme-lint
 
 ## fmt-lint: Check source code is formatted, without changing anything
 .PHONY: fmt-lint
