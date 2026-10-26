@@ -192,6 +192,11 @@ dev-stop:
 dev-shell:
 	$(DEVCONTAINER) shell
 
+## dev-copy: Copy a file or directory into the devcontainer
+.PHONY: dev-copy
+dev-copy:
+	$(DEVCONTAINER) copy "$(SOURCE)" $(if $(DESTINATION),"$(DESTINATION)")
+
 ## dev-destroy: Remove the devcontainer and its image
 .PHONY: dev-destroy
 dev-destroy:

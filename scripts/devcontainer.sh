@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Manages the devcontainer of this workspace: start, rebuild, stop, shell, destroy or status.
+# Manages the devcontainer of this workspace: start, rebuild, stop, shell, copy, destroy or status.
 # Requires WORKSPACE_FOLDER in the environment. DC_SHELL selects the shell of the shell command and defaults to zsh.
+# The copy command takes the path of a file or directory and an optional destination directory inside the running devcontainer.
+# A file is copied into the destination, a directory has its contents copied into it.
 set -euo pipefail
 
 if [[ -z "${WORKSPACE_FOLDER:-}" ]]; then
@@ -34,6 +36,34 @@ shell() {
   devcontainer exec --workspace-folder "$WORKSPACE_FOLDER" "$DC_SHELL"
 }
 
+copy() {
+  local source="${1:-}"
+  local destination="${2:-/home/sandbox/tmp}"
+  local id
+
+  if [[ -z "$source" ]]; then
+    echo "expected the path of the file or directory to copy into the devcontainer" >&2
+    exit 2
+  fi
+  if [[ ! -e "$source" ]]; then
+    echo "the file or directory to copy into the devcontainer does not exist: $source" >&2
+    exit 2
+  fi
+
+  id=$(docker ps -q --filter "$LABEL_FILTER")
+  if [[ -z "$id" ]]; then
+    echo "No running devcontainer found." >&2
+    exit 1
+  fi
+
+  docker exec "$id" mkdir -p "$destination"
+  if [[ -d "$source" ]]; then
+    COPYFILE_DISABLE=1 tar -C "$source" -cf - . | docker exec -i "$id" tar -C "$destination" -xf -
+  else
+    COPYFILE_DISABLE=1 tar -C "$(dirname "$source")" -cf - "$(basename "$source")" | docker exec -i "$id" tar -C "$destination" -xf -
+  fi
+}
+
 destroy() {
   local id img=""
   id=$(docker ps -aq --filter "$LABEL_FILTER")
@@ -61,10 +91,11 @@ case "${1:-}" in
   rebuild) rebuild ;;
   stop) stop ;;
   shell) shell ;;
+  copy) copy "${2:-}" "${3:-}" ;;
   destroy) destroy ;;
   status) status ;;
   *)
-    echo "expected one argument, the devcontainer action to run: start, rebuild, stop, shell, destroy or status"
+    echo "expected the devcontainer action to run as the first argument: start, rebuild, stop, shell, copy, destroy or status"
     exit 2
     ;;
 esac
