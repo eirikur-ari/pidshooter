@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Exit status `2` when the command line is wrong (an unknown flag or command, a missing pattern, or a value that fails validation), with the usage text printed to standard error.
 
 ### Changed
-- **Breaking:** the game now runs through the `play` command: `pidshooter play <pattern>...` instead of `pidshooter <pattern>...`.
+- the game now runs through the `play` command: `pidshooter play <pattern>...` instead of `pidshooter <pattern>...`.
 - A missing pattern is now reported before anything is set up, so nothing is written to disk.
 
 ### Security
