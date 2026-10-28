@@ -31,13 +31,13 @@ function archivePath() {
   echo "$WORKSPACE_FOLDER/$DIST_DIR/${BINARY_NAME}_${version}_${os}_${arch}.tar.gz"
 }
 
-# Gathers the files to ship in PACKAGE_DIR
+# Gathers the files to ship in the package directory
 function stagePackage() {
   cp "$BIN_DIR/$BINARY_NAME" LICENSE README.md CHANGELOG.md "$PACKAGE_DIR/"
   cp -R docs/images "$PACKAGE_DIR/docs/"
 }
 
-# Archives the content of PACKAGE_DIR into the given archive path
+# Archives the content of the package directory into the given archive path
 function createArchive() {
   local archive="$1"
 

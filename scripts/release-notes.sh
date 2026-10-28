@@ -4,7 +4,7 @@
 set -euo pipefail
 
 # Fails when the release version is missing or empty
-function requireEnvironment() {
+function setup() {
   if [[ -z "${RELEASE_VERSION:-}" ]]; then
     echo "release version is missing or empty" >&2
     exit 2
@@ -51,7 +51,7 @@ function printReleaseNotes() {
 
 # Prints the release notes of the release version from the changelog
 function main() {
-  requireEnvironment
+  setup
   printReleaseNotes
 }
 

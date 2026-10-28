@@ -73,7 +73,7 @@ function releaseBadge() {
   fi
 }
 
-# Runs the readme lint named by the first argument
+# Runs the requested readme lint
 function main() {
   case "${1:-}" in
     go-badge) goBadge ;;

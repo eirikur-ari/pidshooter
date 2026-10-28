@@ -103,7 +103,7 @@ function status() {
     --format 'table {{.ID}}\t{{.Status}}\t{{.Image}}'
 }
 
-# Runs the devcontainer action named by the first argument
+# Runs the requested devcontainer action
 function main() {
   setup
 
