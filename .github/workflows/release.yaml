@@ -105,6 +105,9 @@ jobs:
           merge-multiple: true
 
       - name: Check Release Archives
+        env:
+          # Keep in sync with the number of runners in the build matrix
+          EXPECTED_ARCHIVE_COUNT: 4
         run: bash .github/scripts/check-release-archives.sh
 
       - name: Checksums
