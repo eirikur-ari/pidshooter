@@ -37,9 +37,12 @@ function annotateWarning() {
 
 # Reports the vulnerability lint results in the run summary
 function main() {
-  setup "$@"
+  local report
 
-  writeSummary "$1"
+  setup "$@"
+  report="$1"
+
+  writeSummary "$report"
   annotateWarning
 }
 
